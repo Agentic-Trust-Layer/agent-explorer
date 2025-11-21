@@ -341,6 +341,176 @@ function buildGraphWhereClause(where?: {
   return { where: whereSql, params };
 }
 
+function buildFeedbackOrderByClause(orderBy?: string, orderDirection?: string): string {
+  const validColumns = ['blockNumber', 'timestamp', 'score', 'ratingPct', 'feedbackIndex', 'responseCount'];
+  const column = orderBy && validColumns.includes(orderBy) ? orderBy : 'blockNumber';
+  const direction = (orderDirection?.toUpperCase() === 'ASC') ? 'ASC' : 'DESC';
+  const numericColumns = new Set(['blockNumber', 'timestamp', 'score', 'ratingPct', 'feedbackIndex', 'responseCount']);
+  const orderColumn = numericColumns.has(column) ? `CAST(${column} AS INTEGER)` : column;
+  return `ORDER BY ${orderColumn} ${direction}`;
+}
+
+function buildFeedbackWhereClause(filters: {
+  chainId?: number;
+  agentId?: string;
+  clientAddress?: string;
+  feedbackIndex?: number;
+  isRevoked?: boolean;
+}): { where: string; params: any[] } {
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (filters.chainId !== undefined) {
+    conditions.push(`chainId = ?`);
+    params.push(filters.chainId);
+  }
+  if (filters.agentId) {
+    conditions.push(`agentId = ?`);
+    params.push(filters.agentId);
+  }
+  if (filters.clientAddress) {
+    conditions.push(`clientAddress = ?`);
+    params.push(filters.clientAddress.toLowerCase());
+  }
+  if (filters.feedbackIndex !== undefined) {
+    conditions.push(`feedbackIndex = ?`);
+    params.push(filters.feedbackIndex);
+  }
+  if (filters.isRevoked === true) {
+    conditions.push(`isRevoked = 1`);
+  } else if (filters.isRevoked === false) {
+    conditions.push(`(isRevoked IS NULL OR isRevoked = 0)`);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { where, params };
+}
+
+function buildFeedbackGraphWhereClause(where?: any): { where: string; params: any[] } {
+  if (!where) return { where: '', params: [] };
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  const addArrayCondition = (values: any[] | undefined, column: string) => {
+    if (Array.isArray(values) && values.length > 0) {
+      conditions.push(`${column} IN (${values.map(() => '?').join(',')})`);
+      params.push(...values);
+    }
+  };
+
+  if (where.chainId !== undefined) {
+    conditions.push(`chainId = ?`);
+    params.push(where.chainId);
+  }
+  addArrayCondition(where.chainId_in, 'chainId');
+
+  if (where.agentId) {
+    conditions.push(`agentId = ?`);
+    params.push(where.agentId);
+  }
+  addArrayCondition(where.agentId_in, 'agentId');
+
+  if (where.clientAddress) {
+    conditions.push(`clientAddress = ?`);
+    params.push(where.clientAddress.toLowerCase());
+  }
+  addArrayCondition(Array.isArray(where.clientAddress_in) ? where.clientAddress_in.map((addr: string) => addr.toLowerCase()) : undefined, 'clientAddress');
+
+  if (where.feedbackIndex !== undefined) {
+    conditions.push(`feedbackIndex = ?`);
+    params.push(where.feedbackIndex);
+  }
+  addArrayCondition(where.feedbackIndex_in, 'feedbackIndex');
+
+  const addComparison = (field: string, operator: string, value: any) => {
+    if (value !== undefined && value !== null) {
+      conditions.push(`${field} ${operator} ?`);
+      params.push(value);
+    }
+  };
+
+  addComparison('score', '>', where.score_gt);
+  addComparison('score', '>=', where.score_gte);
+  addComparison('score', '<', where.score_lt);
+  addComparison('score', '<=', where.score_lte);
+
+  addComparison('ratingPct', '>', where.ratingPct_gt);
+  addComparison('ratingPct', '>=', where.ratingPct_gte);
+  addComparison('ratingPct', '<', where.ratingPct_lt);
+  addComparison('ratingPct', '<=', where.ratingPct_lte);
+
+  addComparison('responseCount', '>', where.responseCount_gt);
+  addComparison('responseCount', '>=', where.responseCount_gte);
+  addComparison('responseCount', '<', where.responseCount_lt);
+  addComparison('responseCount', '<=', where.responseCount_lte);
+
+  addComparison('timestamp', '>', where.timestamp_gt);
+  addComparison('timestamp', '>=', where.timestamp_gte);
+  addComparison('timestamp', '<', where.timestamp_lt);
+  addComparison('timestamp', '<=', where.timestamp_lte);
+
+  if (where.isRevoked === true) {
+    conditions.push(`isRevoked = 1`);
+  } else if (where.isRevoked === false) {
+    conditions.push(`(isRevoked IS NULL OR isRevoked = 0)`);
+  }
+
+  const addLikeCondition = (field: string, value?: string, nocase?: boolean) => {
+    if (value) {
+      if (nocase) {
+        conditions.push(`LOWER(${field}) LIKE LOWER(?)`);
+      } else {
+        conditions.push(`${field} LIKE ?`);
+      }
+      params.push(`%${value}%`);
+    }
+  };
+
+  addLikeCondition('domain', where.domain_contains, false);
+  addLikeCondition('domain', where.domain_contains_nocase, true);
+  addLikeCondition('comment', where.comment_contains, false);
+  addLikeCondition('comment', where.comment_contains_nocase, true);
+  addLikeCondition('feedbackUri', where.feedbackUri_contains, false);
+  addLikeCondition('feedbackUri', where.feedbackUri_contains_nocase, true);
+
+  if (Array.isArray(where.feedbackType_in) && where.feedbackType_in.length > 0) {
+    conditions.push(`feedbackType IN (${where.feedbackType_in.map(() => '?').join(',')})`);
+    params.push(...where.feedbackType_in);
+  }
+  addLikeCondition('feedbackType', where.feedbackType_contains, false);
+  addLikeCondition('feedbackType', where.feedbackType_contains_nocase, true);
+
+  if (where.feedbackHash) {
+    conditions.push(`feedbackHash = ?`);
+    params.push(where.feedbackHash.toLowerCase());
+  }
+  if (Array.isArray(where.feedbackHash_in) && where.feedbackHash_in.length > 0) {
+    conditions.push(`feedbackHash IN (${where.feedbackHash_in.map(() => '?').join(',')})`);
+    params.push(...where.feedbackHash_in.map((hash: string) => hash.toLowerCase()));
+  }
+
+  if (where.tag1) {
+    conditions.push(`tag1 = ?`);
+    params.push(where.tag1.toLowerCase());
+  }
+  if (where.tag2) {
+    conditions.push(`tag2 = ?`);
+    params.push(where.tag2.toLowerCase());
+  }
+
+  if (where.txHash) {
+    conditions.push(`txHash = ?`);
+    params.push(where.txHash.toLowerCase());
+  }
+  if (Array.isArray(where.txHash_in) && where.txHash_in.length > 0) {
+    conditions.push(`txHash IN (${where.txHash_in.map(() => '?').join(',')})`);
+    params.push(...where.txHash_in.map((hash: string) => hash.toLowerCase()));
+  }
+
+  const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { where: whereSql, params };
+}
+
 /**
  * Create GraphQL resolvers
  * @param db - Database instance (can be D1 adapter or native D1)
@@ -540,6 +710,247 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         return (result as any)?.count || 0;
       } catch (error) {
         console.error('❌ Error in countAgents resolver:', error);
+        throw error;
+      }
+    },
+
+    feedbacks: async (args: {
+      chainId?: number;
+      agentId?: string;
+      clientAddress?: string;
+      feedbackIndex?: number;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      try {
+        const {
+          chainId,
+          agentId,
+          clientAddress,
+          feedbackIndex,
+          limit = 100,
+          offset = 0,
+          orderBy,
+          orderDirection,
+        } = args || {};
+        const { where, params } = buildFeedbackWhereClause({ chainId, agentId, clientAddress, feedbackIndex });
+        const orderByClause = buildFeedbackOrderByClause(orderBy, orderDirection);
+        const sql = `SELECT * FROM rep_feedbacks ${where} ${orderByClause} LIMIT ? OFFSET ?`;
+        const rows = await executeQuery(db, sql, [...params, limit, offset]);
+        console.log('[feedbacks] rows:', rows.length, 'params:', args);
+        return rows;
+      } catch (error) {
+        console.error('❌ Error in feedbacks resolver:', error);
+        throw error;
+      }
+    },
+
+    feedback: async (args: { id: string }) => {
+      try {
+        const row = await executeQuerySingle(db, 'SELECT * FROM rep_feedbacks WHERE id = ?', [args.id]);
+        return row;
+      } catch (error) {
+        console.error('❌ Error in feedback resolver:', error);
+        throw error;
+      }
+    },
+
+    feedbackByReference: async (args: { chainId: number; agentId: string; clientAddress: string; feedbackIndex: number }) => {
+      try {
+        const { chainId, agentId, clientAddress, feedbackIndex } = args;
+        const row = await executeQuerySingle(
+          db,
+          'SELECT * FROM rep_feedbacks WHERE chainId = ? AND agentId = ? AND clientAddress = ? AND feedbackIndex = ?',
+          [chainId, agentId, clientAddress.toLowerCase(), feedbackIndex]
+        );
+        return row;
+      } catch (error) {
+        console.error('❌ Error in feedbackByReference resolver:', error);
+        throw error;
+      }
+    },
+
+    searchFeedbacks: async (args: {
+      query: string;
+      chainId?: number;
+      agentId?: string;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      try {
+        const { query: searchQuery, chainId, agentId, limit = 100, offset = 0, orderBy, orderDirection } = args;
+        const searchPattern = `%${searchQuery}%`;
+        const conditions = [
+          '(agentId LIKE ? OR clientAddress LIKE ? OR domain LIKE ? OR comment LIKE ? OR feedbackType LIKE ? OR feedbackUri LIKE ? OR feedbackHash LIKE ?)'
+        ];
+        const params: any[] = [searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern];
+
+        if (chainId !== undefined) {
+          conditions.push('chainId = ?');
+          params.push(chainId);
+        }
+        if (agentId) {
+          conditions.push('agentId = ?');
+          params.push(agentId);
+        }
+
+        const whereClause = `WHERE ${conditions.join(' AND ')}`;
+        const orderByClause = buildFeedbackOrderByClause(orderBy, orderDirection);
+        const sql = `SELECT * FROM rep_feedbacks ${whereClause} ${orderByClause} LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
+
+        const rows = await executeQuery(db, sql, params);
+        console.log('[searchFeedbacks] rows:', rows.length, 'query:', searchQuery);
+        return rows;
+      } catch (error) {
+        console.error('❌ Error in searchFeedbacks resolver:', error);
+        throw error;
+      }
+    },
+
+    searchFeedbacksGraph: async (args: {
+      where?: any;
+      first?: number | null;
+      skip?: number | null;
+      orderBy?: string | null;
+      orderDirection?: string | null;
+    }) => {
+      try {
+        const { where, first, skip, orderBy, orderDirection } = args || {};
+        const pageSize = typeof first === 'number' && Number.isFinite(first) && first > 0 ? first : 50;
+        const offset = typeof skip === 'number' && Number.isFinite(skip) && skip >= 0 ? skip : 0;
+        const { where: whereSql, params } = buildFeedbackGraphWhereClause(where);
+        const orderByClause = buildFeedbackOrderByClause(orderBy || undefined, orderDirection || undefined);
+
+        const rows = await executeQuery(
+          db,
+          `SELECT * FROM rep_feedbacks ${whereSql} ${orderByClause} LIMIT ? OFFSET ?`,
+          [...params, pageSize, offset]
+        );
+        const countRow = await executeQuerySingle(db, `SELECT COUNT(*) as count FROM rep_feedbacks ${whereSql}`, params);
+        const total = (countRow as any)?.count || 0;
+        const hasMore = (offset + pageSize) < total;
+        console.log('[searchFeedbacksGraph] rows:', rows.length, 'total:', total);
+        return { feedbacks: rows, total, hasMore };
+      } catch (error) {
+        console.error('❌ Error in searchFeedbacksGraph resolver:', error);
+        throw error;
+      }
+    },
+
+    countFeedbacks: async (args: {
+      chainId?: number;
+      agentId?: string;
+      clientAddress?: string;
+      feedbackIndex?: number;
+      isRevoked?: boolean;
+    }) => {
+      try {
+        const { where, params } = buildFeedbackWhereClause(args);
+        const row = await executeQuerySingle(db, `SELECT COUNT(*) as count FROM rep_feedbacks ${where}`, params);
+        return (row as any)?.count || 0;
+      } catch (error) {
+        console.error('❌ Error in countFeedbacks resolver:', error);
+        throw error;
+      }
+    },
+
+    feedbackResponses: async (args: {
+      chainId?: number;
+      agentId?: string;
+      clientAddress?: string;
+      feedbackIndex?: number;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      try {
+        const { chainId, agentId, clientAddress, feedbackIndex, limit = 100, offset = 0, orderBy, orderDirection } = args || {};
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (chainId !== undefined) {
+          conditions.push('chainId = ?');
+          params.push(chainId);
+        }
+        if (agentId) {
+          conditions.push('agentId = ?');
+          params.push(agentId);
+        }
+        if (clientAddress) {
+          conditions.push('clientAddress = ?');
+          params.push(clientAddress.toLowerCase());
+        }
+        if (feedbackIndex !== undefined) {
+          conditions.push('feedbackIndex = ?');
+          params.push(feedbackIndex);
+        }
+
+        const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const validResponseOrder = ['blockNumber', 'timestamp', 'feedbackIndex'];
+        const orderColumn = orderBy && validResponseOrder.includes(orderBy) ? orderBy : 'blockNumber';
+        const direction = (orderDirection?.toUpperCase() === 'ASC') ? 'ASC' : 'DESC';
+        const orderSql = `ORDER BY CAST(${orderColumn} AS INTEGER) ${direction}`;
+
+        const sql = `SELECT * FROM rep_feedback_responses ${whereClause} ${orderSql} LIMIT ? OFFSET ?`;
+        const rows = await executeQuery(db, sql, [...params, limit, offset]);
+        console.log('[feedbackResponses] rows:', rows.length, 'params:', args);
+        return rows;
+      } catch (error) {
+        console.error('❌ Error in feedbackResponses resolver:', error);
+        throw error;
+      }
+    },
+
+    feedbackRevocations: async (args: {
+      chainId?: number;
+      agentId?: string;
+      clientAddress?: string;
+      feedbackIndex?: number;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      try {
+        const { chainId, agentId, clientAddress, feedbackIndex, limit = 100, offset = 0, orderBy, orderDirection } = args || {};
+        const conditions: string[] = [];
+        const params: any[] = [];
+
+        if (chainId !== undefined) {
+          conditions.push('chainId = ?');
+          params.push(chainId);
+        }
+        if (agentId) {
+          conditions.push('agentId = ?');
+          params.push(agentId);
+        }
+        if (clientAddress) {
+          conditions.push('clientAddress = ?');
+          params.push(clientAddress.toLowerCase());
+        }
+        if (feedbackIndex !== undefined) {
+          conditions.push('feedbackIndex = ?');
+          params.push(feedbackIndex);
+        }
+
+        const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const validRevocationOrder = ['blockNumber', 'timestamp', 'feedbackIndex'];
+        const orderColumn = orderBy && validRevocationOrder.includes(orderBy) ? orderBy : 'blockNumber';
+        const direction = (orderDirection?.toUpperCase() === 'ASC') ? 'ASC' : 'DESC';
+        const orderSql = `ORDER BY CAST(${orderColumn} AS INTEGER) ${direction}`;
+
+        const sql = `SELECT * FROM rep_feedback_revoked ${whereClause} ${orderSql} LIMIT ? OFFSET ?`;
+        const rows = await executeQuery(db, sql, [...params, limit, offset]);
+        console.log('[feedbackRevocations] rows:', rows.length, 'params:', args);
+        return rows;
+      } catch (error) {
+        console.error('❌ Error in feedbackRevocations resolver:', error);
         throw error;
       }
     },

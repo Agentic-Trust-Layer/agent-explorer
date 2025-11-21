@@ -945,8 +945,6 @@ class ensService {
       isWrapped: boolean;
       registrationMethod?: string;
     }> {
-      console.log("Checking ENS name status for:", ensName + ".eth");
-
       validateSepoliaChain(chain);
 
       // Use Ethereum Sepolia RPC provider instead of browser provider

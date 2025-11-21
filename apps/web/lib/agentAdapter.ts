@@ -1,9 +1,14 @@
-import { createPublicClient, createWalletClient, custom, http, defineChain, encodeFunctionData, parseEventLogs, zeroAddress, type Address, type Chain, type PublicClient, parseCompactSignature } from "viem";
-import { createBundlerClient, createPaymasterClient } from 'viem/account-abstraction';
-import { createPimlicoClient } from 'permissionless/clients/pimlico';
-import { AIAgentENSClient, AIAgentIdentityClient } from '@erc8004/agentic-trust-sdk';
-import IdentityRegistryABI from '@erc8004/sdk/abis/IdentityRegistry.json';
-import { fetchInternalImage } from "next/dist/server/image-optimizer";
+import { createPublicClient, createWalletClient, custom, http, defineChain, encodeFunctionData, type Address, type Chain, type PublicClient } from "viem";
+import {
+  deploySmartAccountIfNeeded as coreDeploySmartAccountIfNeeded,
+  sendSponsoredUserOperation as coreSendSponsoredUserOperation,
+  waitForUserOperationReceipt,
+} from '@agentic-trust/core';
+
+export const deploySmartAccountIfNeeded = coreDeploySmartAccountIfNeeded;
+export const sendSponsoredUserOperation = coreSendSponsoredUserOperation;
+import IdentityRegistryABI from '../../erc8004-agentic-trust-sdk/abis/IdentityRegistry.json';
+
 
 const registryAbi = IdentityRegistryABI as any;
 
@@ -210,59 +215,8 @@ export async function getAgentInfoByName(params: {
 }
 
 
-export async function deploySmartAccountIfNeeded(params: {
-  bundlerUrl: string,
-  chain: Chain,
-  account: { isDeployed: () => Promise<boolean> }
-}): Promise<boolean> {
-  const { bundlerUrl, chain, account } = params;
-  const isDeployed = await account.isDeployed();
-  if (isDeployed) return false;
-  const pimlico = createPimlicoClient({ transport: http(bundlerUrl) } as any);
-  const bundlerClient = createBundlerClient({ transport: http(bundlerUrl), paymaster: true as any, chain: chain as any, paymasterContext: { mode: 'SPONSORED' } } as any);
-  const { fast } = await (pimlico as any).getUserOperationGasPrice();
-  const userOperationHash = await (bundlerClient as any).sendUserOperation({ account, calls: [{ to: zeroAddress }], ...fast });
-  await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOperationHash });
-  return true;
-}
-
-export async function sendSponsoredUserOperation(params: {
-  bundlerUrl: string,
-  chain: Chain,
-  accountClient: any,
-  calls: { to: `0x${string}`; data?: `0x${string}`; value?: bigint }[],
-}): Promise<`0x${string}`> {
-  const { bundlerUrl, chain, accountClient, calls } = params;
-  const pimlicoClient = createPimlicoClient({ transport: http(bundlerUrl) } as any);
-  const bundlerClient = createBundlerClient({ 
-    transport: http(bundlerUrl), 
-    paymaster: true as any,
-    chain: chain as any, 
-    paymasterContext: { mode: 'SPONSORED' } 
-  } as any);
-  const { fast: fee } = await (pimlicoClient as any).getUserOperationGasPrice();
-  
-  // Use hardcoded gas values to avoid estimation issues
-  /*
-  const gasConfig = {
-    callGasLimit: 1000000n,
-    verificationGasLimit: 1000000n,
-    preVerificationGas: 1000000n,
-    maxFeePerGas: 1000000000n, // 1 gwei
-    maxPriorityFeePerGas: 1000000000n // 1 gwei
-  };
-  */
-  
-  const userOpHash = await (bundlerClient as any).sendUserOperation({ 
-    account: accountClient, 
-    calls,
-    ...fee
-  });
-  return userOpHash as `0x${string}`;
-}
-
 export async function addAgentNameToOrg(params: {
-  agentENSClient: AIAgentENSClient,
+  agentENSClient: any,
   bundlerUrl: string,
   chain: Chain,
   orgAccountClient: any,
@@ -330,9 +284,6 @@ export async function addAgentNameToOrg(params: {
     agentAddress: agentAccountClient.address,
     agentUrl: agentUrl
   });
-  const bundlerClient = createBundlerClient({ transport: http(bundlerUrl), paymaster: true as any, chain: chain as any, paymasterContext: { mode: 'SPONSORED' } } as any);
-  
-  
   if (agentENSClient.isL1()) {
 
     const userOpHash1 = await sendSponsoredUserOperation({
@@ -341,7 +292,7 @@ export async function addAgentNameToOrg(params: {
       accountClient: orgAccountClient,
       calls: orgCalls
     });
-    const { receipt: orgReceipt } = await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOpHash1 });
+    const orgReceipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash1 });
     console.log('********************* orgReceipt', orgReceipt);
 
 
@@ -362,7 +313,7 @@ export async function addAgentNameToOrg(params: {
       calls: agentCalls,
     });
 
-    const { receipt: agentReceipt } = await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOpHash2 });
+    const agentReceipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash2 });
     console.log('********************* agentReceipt', agentReceipt);
 
     // 3. Set agent image if provided
@@ -378,7 +329,7 @@ export async function addAgentNameToOrg(params: {
           calls: imageCalls,
         });
 
-        await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOpHash3 });
+        await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash3 });
       }
     }
 
@@ -437,7 +388,7 @@ export async function addAgentNameToOrg(params: {
         console.log("UserOp submitted:", userOperationHash);
         
         // Wait for the transaction to be mined
-        const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOperationHash });
+        const receipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOperationHash });
         console.log("Subname minted successfully! Transaction hash:", receipt);
       }
 
@@ -466,7 +417,7 @@ export async function addAgentNameToOrg(params: {
           calls: [call]
         });
 
-        const receipt2 = await bundlerClient.waitForUserOperationReceipt({ hash: userOperationHash2 });
+        const receipt2 = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOperationHash2 });
         console.log("Subname minted successfully! Transaction hash:", receipt2);
       }
 
@@ -486,7 +437,7 @@ export async function addAgentNameToOrg(params: {
 }
 
 export async function createAIAgentIdentity(params: {
-  agentIdentityClient: AIAgentIdentityClient,
+  agentIdentityClient: any,
   bundlerUrl: string,
   chain: Chain,
   agentAccount: any,
@@ -515,8 +466,7 @@ export async function createAIAgentIdentity(params: {
   });
 
   console.log('********************* createAIAgentIdentity: userOpHash', userOpHash);
-  const bundlerClient = createBundlerClient({ transport: http(bundlerUrl), paymaster: true as any, chain: chain as any, paymasterContext: { mode: 'SPONSORED' } } as any);
-  const { receipt: aaReceipt } = await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOpHash });
+  const aaReceipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash });
   console.log('********************* createAIAgentIdentity: aaReceipt', aaReceipt);
   // Use AIAgentIdentityClient to extract agentId from receipt
   const tokenId = params.agentIdentityClient.extractAgentIdFromReceiptPublic(aaReceipt);
@@ -528,7 +478,7 @@ export async function createAIAgentIdentity(params: {
 
 
 export async function setAgentIdentityRegistrationUri(params: {
-  agentIdentityClient: AIAgentIdentityClient,
+  agentIdentityClient: any,
   bundlerUrl: string,
   chain: Chain,
   agentAccountClient: any,
@@ -545,15 +495,14 @@ export async function setAgentIdentityRegistrationUri(params: {
     accountClient: agentAccountClient,
     calls: setUriCalls,
   });
-  const bundlerClient = createBundlerClient({ transport: http(bundlerUrl), paymaster: true as any, chain: chain as any, paymasterContext: { mode: 'SPONSORED' } } as any);
-  const { receipt: aaReceipt } = await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOpHash });
+  const aaReceipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash });
   console.log('********************* setAgentUri 1: aaReceipt', aaReceipt);
 
   return "success";
 }
 
 export async function setAgentNameUri(params: {
-  agentENSClient: AIAgentENSClient,
+  agentENSClient: any,
   bundlerUrl: string,
   chain: Chain,
   agentAccountClient: any,
@@ -575,8 +524,7 @@ export async function setAgentNameUri(params: {
     accountClient: agentAccountClient,
     calls: setUriCalls,
   });
-  const bundlerClient = createBundlerClient({ transport: http(bundlerUrl), paymaster: true as any, chain: chain as any, paymasterContext: { mode: 'SPONSORED' } } as any);
-  const { receipt: aaReceipt } = await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOpHash });
+  const aaReceipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash });
   console.log('********************* setAgentUri 2: aaReceipt', aaReceipt);
 
   return "success";
@@ -584,7 +532,7 @@ export async function setAgentNameUri(params: {
 
 
 export async function setAgentIdentity(params: {
-  agentENSClient: AIAgentENSClient,
+  agentENSClient: any,
   bundlerUrl: string,
   chain: Chain,
   agentAccountClient: any,
@@ -601,8 +549,7 @@ export async function setAgentIdentity(params: {
     accountClient: agentAccountClient,
     calls: setAgentIdentityCalls,
   });
-  const bundlerClient = createBundlerClient({ transport: http(bundlerUrl), paymaster: true as any, chain: chain as any, paymasterContext: { mode: 'SPONSORED' } } as any);
-  const { receipt: aaReceipt } = await (bundlerClient as any).waitForUserOperationReceipt({ hash: userOpHash });
+  const aaReceipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash });
 
   return "success";
 }

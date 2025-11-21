@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { buildDid8004 } from '@agentic-trust/core';
+import { getAgenticTrustClient, DEFAULT_CHAIN_ID } from '@agentic-trust/core/server';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    
     const body = await request.json();
-    const { agentId, chainId } = body;
+    const { agentId, chainId } = body ?? {};
 
     if (!agentId) {
       return NextResponse.json(
@@ -15,81 +16,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedChainId =
+      typeof chainId === 'number' && Number.isFinite(chainId) ? chainId : undefined;
 
+    const client = await getAgenticTrustClient();
+    const did =
+      normalizedChainId !== undefined
+        ? buildDid8004(normalizedChainId, agentId)
+        : buildDid8004(DEFAULT_CHAIN_ID, agentId);
 
-    // Get the GraphQL endpoint from environment variable (same as other API routes)
-    const graphqlUrl = (process.env.GRAPHQL_API_URL || process.env.NEXT_PUBLIC_GRAPHQL_API_URL) + '/graphql';
-    if (!graphqlUrl) {
-      console.error('GraphQL endpoint not configured. Set GRAPHQL_API_URL or NEXT_PUBLIC_GRAPHQL_API_URL');
-      return NextResponse.json(
-        { error: 'GraphQL endpoint not configured' },
-        { status: 500 }
-      );
-    }
+    const result = await (client.agents as any).refreshAgentByDid(did);
 
-    // Use secret access code for server-to-server authentication
-    const secretAccessCode = process.env.GRAPHQL_SECRET_ACCESS_CODE;
-    if (!secretAccessCode) {
-      return NextResponse.json(
-        { error: 'GraphQL secret access code not configured' },
-        { status: 500 }
-      );
-    }
-
-    // Call the indexer GraphQL mutation
-    const mutation = `
-      mutation IndexAgent($agentId: String!, $chainId: Int) {
-        indexAgent(agentId: $agentId, chainId: $chainId) {
-          success
-          message
-          processedChains
-        }
-      }
-    `;
-
-    const variables: { agentId: string; chainId?: number } = { agentId };
-    if (chainId !== undefined) {
-      variables.chainId = chainId;
-    }
-
-    const response = await fetch(graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${secretAccessCode}`,
-      },
-      body: JSON.stringify({
-        query: mutation,
-        variables,
-      }),
-      cache: 'no-store', // Disable Next.js fetch caching
-      next: { revalidate: 0 }, // Ensure no revalidation caching
+    return NextResponse.json({
+      success: true,
+      result,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('GraphQL request failed:', errorText);
-      return NextResponse.json(
-        { error: 'Failed to index agent', details: errorText },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    if (data.errors) {
-      console.error('GraphQL errors:', data.errors);
-      return NextResponse.json(
-        { error: 'GraphQL errors', details: data.errors },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json(data.data);
   } catch (error: any) {
-    console.error('Error indexing agent:', error);
+    console.error('Error refreshing agent:', error);
     return NextResponse.json(
-      { error: 'Internal server error', message: error?.message },
+      {
+        error: 'Failed to refresh agent',
+        message: error?.message || 'Unknown error',
+        details: process.env.NODE_ENV === 'development' ? error?.stack : undefined,
+      },
       { status: 500 }
     );
   }

@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAddress } from 'viem';
-//import { getIPFSStorage } from '@agentic-trust/core';
-import { getAdminClient } from '@/lib/server/adminClient';
+import { buildDid8004 } from '@agentic-trust/core';
+import { buildAgentDetail, getAgenticTrustClient } from '@agentic-trust/core/server';
 
 const DEFAULT_CHAIN_ID = 11155111;
-const METADATA_KEYS = ['agentName', 'agentAccount'] as const;
 
 export const dynamic = 'force-dynamic';
-
-type IdentityMetadata = {
-  tokenURI: string | null;
-  metadata: Record<string, string>;
-};
-
-async function getIdentityClient() {
-  const core = (await import('@agentic-trust/core/server')) as any;
-  return core.getIdentityClient();
-}
 
 export async function GET(
   request: NextRequest,
@@ -45,17 +34,19 @@ export async function GET(
     const chainIdParam = searchParams.get('chainId');
     const chainIdFilter = chainIdParam ? Number.parseInt(chainIdParam, 10) : undefined;
 
-    const client = await getAdminClient();
+    const agenticTrustClient = await getAgenticTrustClient();
 
     let discovery: any | null = null;
     try {
-      const result = await client.agents.searchAgents({
+      const result = await agenticTrustClient.agents.searchAgents({
         params: {
           agentAccount: address as `0x${string}`,
           chains: chainIdFilter ? [chainIdFilter] : undefined,
         },
         page: 1,
         pageSize: 1,
+        orderBy: 'agentId',
+        orderDirection: 'DESC',
       });
       const agent = result?.agents?.[0];
       if (agent) {
@@ -72,105 +63,16 @@ export async function GET(
     const agentId = discovery.agentId ? String(discovery.agentId) : null;
     const chainId = chainIdFilter ?? discovery.chainId ?? DEFAULT_CHAIN_ID;
 
-    let identityMetadata: IdentityMetadata | null = null;
-    let identityRegistration: any = null;
-
-    if (agentId) {
-      try {
-        const identityClient = await getIdentityClient();
-        const agentIdBigInt = BigInt(agentId);
-
-        let tokenURI: string | null = null;
-        try {
-          tokenURI = await identityClient.getTokenURI(agentIdBigInt);
-        } catch (error) {
-          console.warn('Failed to fetch tokenURI from identity client:', error);
-        }
-
-        const metadata: Record<string, string> = {};
-        await Promise.all(
-          METADATA_KEYS.map(async (key) => {
-            try {
-              const value = await identityClient.getMetadata(agentIdBigInt, key);
-              if (value) metadata[key] = value;
-            } catch (error) {
-              console.warn(`Failed to get metadata key ${key}:`, error);
-            }
-          })
-        );
-
-        identityMetadata = {
-          tokenURI,
-          metadata,
-        };
-
-        if (tokenURI) {
-          /*
-          try {
-            const ipfsStorage = getIPFSStorage();
-            const registration = await ipfsStorage.getJson(tokenURI);
-            identityRegistration = {
-              tokenURI,
-              registration,
-            };
-          } catch (error) {
-            console.warn('Failed to get IPFS registration:', error);
-            identityRegistration = {
-              tokenURI,
-              registration: null,
-            };
-          }
-            */
-        }
-      } catch (error) {
-        console.warn('Failed to fetch identity metadata for address:', error);
-      }
+    if (!agentId) {
+      return NextResponse.json({ error: 'Agent ID missing from discovery result' }, { status: 500 });
     }
 
-    const flattened: Record<string, any> = {};
-
-    if (identityRegistration && identityRegistration.registration) {
-      const reg = identityRegistration.registration;
-      if (reg.name) flattened.name = reg.name;
-      if (reg.description) flattened.description = reg.description;
-      if (reg.image) flattened.image = reg.image;
-      if (reg.agentAccount) flattened.agentAccount = reg.agentAccount;
-      if (reg.endpoints) flattened.endpoints = reg.endpoints;
-      if (reg.supportedTrust) flattened.supportedTrust = reg.supportedTrust;
-      if (reg.createdAt) flattened.createdAt = reg.createdAt;
-      if (reg.updatedAt) flattened.updatedAt = reg.updatedAt;
-    }
-
-    if (identityMetadata?.metadata.agentName) {
-      if (!flattened.name) flattened.name = identityMetadata.metadata.agentName;
-      flattened.agentName = identityMetadata.metadata.agentName;
-    }
-    if (identityMetadata?.metadata.agentAccount) {
-      flattened.agentAccount = identityMetadata.metadata.agentAccount;
-    }
-
-    if (discovery && typeof discovery === 'object') {
-      Object.entries(discovery).forEach(([key, value]) => {
-        if (value === undefined || value === null) return;
-        if (!(key in flattened)) {
-          flattened[key] = value;
-        }
-      });
-    }
-
-    if (!flattened.metadataURI) {
-      flattened.metadataURI = identityMetadata?.tokenURI ?? discovery.metadataURI ?? null;
-    }
+    const did8004 = buildDid8004(chainId, agentId, { encode: false });
+    const detail = await buildAgentDetail(agenticTrustClient, did8004);
 
     return NextResponse.json({
-      success: true as const,
       address,
-      agentId,
-      chainId,
-      identityMetadata,
-      identityRegistration,
-      discovery,
-      ...flattened,
+      ...detail,
     });
   } catch (error) {
     console.error('Error in get agent by address route:', error);

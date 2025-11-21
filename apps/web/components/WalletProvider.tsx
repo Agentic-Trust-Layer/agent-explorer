@@ -15,6 +15,7 @@ interface WalletContextType {
   disconnect: () => Promise<void>;
 }
 
+const WALLET_AUTO_RECONNECT_KEY = 'wallet_auto_reconnect';
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function useWallet() {
@@ -47,12 +48,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/admin/address', { method: 'GET' });
+        const res = await fetch('/api/admin/has-private-key', { method: 'GET' });
         if (res.ok) {
-          setServerPrivateKeyMode(true);
+          const data = await res.json().catch(() => ({}));
+          setServerPrivateKeyMode(Boolean(data?.hasPrivateKey));
+        } else {
+          setServerPrivateKeyMode(false);
         }
       } catch {
-        // ignore
+        setServerPrivateKeyMode(false);
       }
     })();
   }, []);
@@ -113,6 +117,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    if (window.sessionStorage.getItem(WALLET_AUTO_RECONNECT_KEY) === null) {
+      window.sessionStorage.setItem(WALLET_AUTO_RECONNECT_KEY, 'true');
+    }
+
+    const shouldAutoReconnect =
+      window.sessionStorage.getItem(WALLET_AUTO_RECONNECT_KEY) !== 'false';
+    if (!shouldAutoReconnect) {
+      setLoading(false);
+      return;
+    }
+
     async function checkConnection() {
       try {
         const isConnected = await isWalletConnected();
@@ -120,6 +135,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const addr = await getWalletAddress();
           setAddress(addr);
           setConnected(true);
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem(WALLET_AUTO_RECONNECT_KEY, 'true');
+          }
 
           // Store address in session for server-side use
           // Note: For direct wallet, we can't get private key
@@ -181,6 +199,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const addr = await connectWallet();
       setAddress(addr);
       setConnected(true);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(WALLET_AUTO_RECONNECT_KEY, 'true');
+      }
 
       // Store address in session
       await fetch('/api/auth/wallet-address', {
@@ -225,6 +246,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       await fetch('/api/auth/wallet-address', {
         method: 'DELETE',
       });
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(WALLET_AUTO_RECONNECT_KEY, 'false');
+      }
 
       setConnected(false);
       setAddress(null);

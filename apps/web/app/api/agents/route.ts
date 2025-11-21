@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Address } from 'viem';
 import type { DiscoverParams, DiscoverResponse } from '@agentic-trust/core/server';
-import { discoverAgents, type DiscoverRequest } from '@agentic-trust/core/server';
-import { getAdminClient } from '@/lib/server/adminClient';
+import { discoverAgents, type DiscoverRequest, getAgenticTrustClient } from '@agentic-trust/core/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -113,7 +112,7 @@ export async function GET(request: NextRequest) {
         orderBy,
         orderDirection,
       } satisfies DiscoverRequest,
-      getAdminClient
+      getAgenticTrustClient
     );
     console.log('>>>>>>>>>>>>>>>>>>>>>>> response length: ', response.agents.length);
 
@@ -182,7 +181,7 @@ export async function POST(request: NextRequest) {
         orderBy,
         orderDirection,
       } satisfies DiscoverRequest,
-      getAdminClient
+      getAgenticTrustClient
     );
 
     return NextResponse.json(mapAgentsResponse(response));

@@ -17,6 +17,7 @@ interface Web3AuthContextType {
   logout: () => Promise<void>; // Alias for disconnect for backward compatibility
 }
 
+const WEB3AUTH_AUTO_RECONNECT_KEY = 'web3auth_auto_reconnect';
 const Web3AuthContext = createContext<Web3AuthContextType | undefined>(undefined);
 
 export function useWeb3Auth() {
@@ -36,8 +37,18 @@ export function Web3AuthProvider({ children }: { children: React.ReactNode }) {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Only run on client-side
     if (typeof window === 'undefined') {
+      setLoading(false);
+      return;
+    }
+
+    if (window.sessionStorage.getItem(WEB3AUTH_AUTO_RECONNECT_KEY) === null) {
+      window.sessionStorage.setItem(WEB3AUTH_AUTO_RECONNECT_KEY, 'true');
+    }
+
+    const shouldAutoReconnect =
+      window.sessionStorage.getItem(WEB3AUTH_AUTO_RECONNECT_KEY) !== 'false';
+    if (!shouldAutoReconnect) {
       setLoading(false);
       return;
     }
@@ -74,6 +85,9 @@ export function Web3AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function handleConnected() {
     try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(WEB3AUTH_AUTO_RECONNECT_KEY, 'true');
+      }
       const info = await getUserInfo();
       setUserInfo(info);
       setConnected(true);
@@ -140,6 +154,9 @@ export function Web3AuthProvider({ children }: { children: React.ReactNode }) {
   async function connect(method: 'social' | 'metamask', provider?: 'google' | 'facebook' | 'twitter' | 'github') {
     try {
       setLoading(true);
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(WEB3AUTH_AUTO_RECONNECT_KEY, 'true');
+      }
 
       // Ensure Web3Auth is initialized before connecting
       if (!initialized) {
@@ -180,12 +197,10 @@ export function Web3AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setLoading(true);
       await logout();
-
-      // Clear session
-      await fetch('/api/auth/session', {
-        method: 'DELETE',
-      });
-
+      await fetch('/api/auth/session', { method: 'DELETE' });
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(WEB3AUTH_AUTO_RECONNECT_KEY, 'false');
+      }
       setConnected(false);
       setUserInfo(null);
       setAddress(null);

@@ -12,6 +12,7 @@ export type ChainConfig = {
   explorerName: string;
   viemChain: Chain;
   networkType: 'L1' | 'L2';
+  ensOrgName?: string;
 };
 
 export const CHAIN_CONFIGS: ChainConfig[] = [
@@ -25,7 +26,8 @@ export const CHAIN_CONFIGS: ChainConfig[] = [
     explorerUrl: 'https://sepolia.etherscan.io',
     explorerName: 'Etherscan',
     viemChain: sepolia,
-    networkType: 'L1' as const
+    networkType: 'L1' as const,
+    ensOrgName: process.env.NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_SEPOLIA ?? '8004-agent'
   },
   {
     chainId: 84532,
@@ -37,7 +39,8 @@ export const CHAIN_CONFIGS: ChainConfig[] = [
     explorerUrl: 'https://sepolia.basescan.org',
     explorerName: 'Basescan',
     viemChain: baseSepolia,
-    networkType: 'L2' as const
+    networkType: 'L2' as const,
+    ensOrgName: process.env.NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_BASE_SEPOLIA ?? '8004-base-agent'
   },
   {
     chainId: 11155420,
@@ -49,7 +52,8 @@ export const CHAIN_CONFIGS: ChainConfig[] = [
     explorerUrl: 'https://sepolia-optimism.etherscan.io',
     explorerName: 'Etherscan',
     viemChain: optimismSepolia,
-    networkType: 'L2' as const
+    networkType: 'L2' as const,
+    ensOrgName: process.env.NEXT_PUBLIC_OP_SEPOLIA_ENS_ORG ?? '8004-opt-agent'
   }
 ].filter((config) => 
   // Only include chains that have all required configuration
@@ -104,5 +108,10 @@ export function getViemChain(chainId: number): Chain | undefined {
 export function getNetworkType(chainId: number): 'L1' | 'L2' | undefined {
   const config = getChainConfig(chainId);
   return config?.networkType;
+}
+
+export function getEnsOrgName(chainId: number): string | undefined {
+  const config = getChainConfig(chainId);
+  return config?.ensOrgName;
 }
 

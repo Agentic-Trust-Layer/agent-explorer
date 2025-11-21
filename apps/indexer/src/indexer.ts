@@ -488,6 +488,427 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, blockNumbe
   }
 }
 
+type BatchWriter = {
+  enqueue(statement: any): Promise<void>;
+  flush(): Promise<void>;
+};
+
+function createBatchWriter(dbInstance: any, label: string, batchSize = 50): BatchWriter {
+  const supportsBatch = typeof dbInstance.batch === 'function';
+  let queue: any[] = [];
+
+  const runStatement = async (statement: any) => {
+    if (!statement) return;
+
+    const attempt = async () => {
+      if (typeof statement.run === 'function') {
+        await statement.run();
+        return;
+      }
+      if (typeof statement === 'function') {
+        await statement();
+        return;
+      }
+    };
+
+    const maxRetries = 3;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        await attempt();
+        return;
+      } catch (error: any) {
+        const isNetworkError = error?.code === 'ECONNRESET' || /fetch failed/i.test(error?.message || '');
+        if (!isNetworkError || i === maxRetries - 1) {
+          throw error;
+        }
+        const delayMs = 200 * (i + 1);
+        console.warn(`............[batch:${label}] transient error, retrying in ${delayMs}ms (${i + 1}/${maxRetries}):`, error?.message || error);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  };
+
+  const flush = async () => {
+    if (!queue.length) return;
+    const statements = queue;
+    queue = [];
+    console.info(`............[batch:${label}] flushing ${statements.length} statements`);
+    if (supportsBatch) {
+      await dbInstance.batch(statements);
+    } else {
+      for (const statement of statements) {
+        await runStatement(statement);
+      }
+    }
+  };
+
+  return {
+    enqueue: async (statement: any) => {
+      if (!supportsBatch) {
+        await runStatement(statement);
+        return;
+      }
+      queue.push(statement);
+      if (queue.length >= batchSize) {
+        await flush();
+      }
+    },
+    flush,
+  };
+}
+
+async function enqueueOrRun(batch: BatchWriter | undefined, stmt: any, params: any[]) {
+  const execute = async () => {
+    await stmt.run(...params);
+  };
+
+  if (!batch) {
+    await execute();
+    return;
+  }
+
+  if (typeof stmt.bind === 'function') {
+    await batch.enqueue(stmt.bind(...params));
+    return;
+  }
+
+  await batch.enqueue({ run: execute });
+}
+
+function normalizeHex(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return String(value).toLowerCase();
+}
+
+async function resolveFeedbackIndex(
+  dbInstance: any,
+  chainId: number,
+  agentId: string,
+  clientAddress: string,
+  graphIndex: string | number | null | undefined,
+  feedbackId: string
+): Promise<number> {
+  if (graphIndex !== undefined && graphIndex !== null) {
+    const parsed = Number(graphIndex);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  const existing = await dbInstance.prepare('SELECT feedbackIndex FROM rep_feedbacks WHERE id = ?').get(feedbackId) as { feedbackIndex?: number } | undefined;
+  if (existing?.feedbackIndex !== undefined && existing.feedbackIndex !== null) {
+    return Number(existing.feedbackIndex);
+  }
+
+  const maxRow = await dbInstance.prepare('SELECT COALESCE(MAX(feedbackIndex), 0) as maxIndex FROM rep_feedbacks WHERE chainId = ? AND agentId = ? AND clientAddress = ?').get(chainId, agentId, clientAddress) as { maxIndex?: number } | undefined;
+  const maxIndex = maxRow?.maxIndex ?? 0;
+  return Number(maxIndex) + 1;
+}
+
+async function upsertFeedbackFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  batch?: BatchWriter
+): Promise<number | null> {
+  if (!item?.id) {
+    console.warn('⚠️  upsertFeedbackFromGraph: missing id', item);
+    return null;
+  }
+
+  const id = String(item.id);
+  const agentId = String(item.agentId ?? '0');
+  const clientAddressRaw = item.clientAddress ? String(item.clientAddress) : '';
+  const clientAddress = clientAddressRaw.toLowerCase();
+
+  if (!clientAddress) {
+    console.warn('⚠️  upsertFeedbackFromGraph: missing clientAddress for', id);
+    return null;
+  }
+
+  const feedbackIndex = await resolveFeedbackIndex(dbInstance, chainId, agentId, clientAddress, item.feedbackIndex, id);
+  const score = item.score !== null && item.score !== undefined ? Number(item.score) : null;
+  const ratingPct = item.ratingPct !== null && item.ratingPct !== undefined ? Number(item.ratingPct) : null;
+  const blockNumber = item.blockNumber !== null && item.blockNumber !== undefined ? Number(item.blockNumber) : 0;
+  const timestamp = item.timestamp !== null && item.timestamp !== undefined ? Number(item.timestamp) : 0;
+  const feedbackUri = item.feedbackUri != null ? String(item.feedbackUri) : null;
+  let feedbackJson: string | null = null;
+  let parsedFeedbackJson: any | null = null;
+  let agentRegistryFromJson: string | null = null;
+  let feedbackCreatedAt: string | null = null;
+  let feedbackAuth: string | null = null;
+  let skillFromJson: string | null = null;
+  let capabilityFromJson: string | null = null;
+  let contextJson: string | null = null;
+  if (item.feedbackJson != null) {
+    if (typeof item.feedbackJson === 'string') {
+      feedbackJson = item.feedbackJson;
+      try {
+        parsedFeedbackJson = JSON.parse(item.feedbackJson);
+      } catch {
+        parsedFeedbackJson = null;
+      }
+    } else {
+      try {
+        feedbackJson = JSON.stringify(item.feedbackJson);
+        parsedFeedbackJson = item.feedbackJson;
+      } catch {
+        feedbackJson = String(item.feedbackJson);
+        parsedFeedbackJson = null;
+      }
+    }
+  }
+  if (parsedFeedbackJson && typeof parsedFeedbackJson === 'object') {
+    agentRegistryFromJson = parsedFeedbackJson.agentRegistry ? String(parsedFeedbackJson.agentRegistry) : null;
+    feedbackCreatedAt = parsedFeedbackJson.createdAt ? String(parsedFeedbackJson.createdAt) : null;
+    feedbackAuth = parsedFeedbackJson.feedbackAuth ? String(parsedFeedbackJson.feedbackAuth) : null;
+    skillFromJson = parsedFeedbackJson.skill ? String(parsedFeedbackJson.skill) : null;
+    capabilityFromJson = parsedFeedbackJson.capability ? String(parsedFeedbackJson.capability) : null;
+    if (parsedFeedbackJson.context !== undefined) {
+      if (typeof parsedFeedbackJson.context === 'string') {
+        contextJson = parsedFeedbackJson.context;
+      } else {
+        try {
+          contextJson = JSON.stringify(parsedFeedbackJson.context);
+        } catch {
+          contextJson = String(parsedFeedbackJson.context);
+        }
+      }
+    }
+  }
+  const feedbackType = item.feedbackType != null ? String(item.feedbackType) : null;
+  const domain = item.domain != null ? String(item.domain) : null;
+  const comment = item.comment != null ? String(item.comment) : null;
+  const feedbackTimestamp = item.feedbackTimestamp != null ? String(item.feedbackTimestamp) : null;
+  const tag1 = normalizeHex(item.tag1);
+  const tag2 = normalizeHex(item.tag2);
+  const feedbackHash = normalizeHex(item.feedbackHash);
+  const txHash = normalizeHex(item.txHash);
+  const now = Math.floor(Date.now() / 1000);
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO rep_feedbacks (
+      id, chainId, agentId, clientAddress, feedbackIndex, score, tag1, tag2,
+      feedbackUri, feedbackJson, agentRegistry, feedbackCreatedAt, feedbackAuth,
+      skill, capability, contextJson, feedbackType, domain, comment, ratingPct,
+      feedbackTimestamp, feedbackHash, txHash, blockNumber, timestamp,
+      createdAt, updatedAt
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      score=excluded.score,
+      tag1=excluded.tag1,
+      tag2=excluded.tag2,
+      feedbackUri=excluded.feedbackUri,
+      feedbackJson=excluded.feedbackJson,
+      agentRegistry=COALESCE(excluded.agentRegistry, agentRegistry),
+      feedbackCreatedAt=COALESCE(excluded.feedbackCreatedAt, feedbackCreatedAt),
+      feedbackAuth=COALESCE(excluded.feedbackAuth, feedbackAuth),
+      skill=COALESCE(excluded.skill, skill),
+      capability=COALESCE(excluded.capability, capability),
+      contextJson=COALESCE(excluded.contextJson, contextJson),
+      feedbackType=excluded.feedbackType,
+      domain=excluded.domain,
+      comment=excluded.comment,
+      ratingPct=excluded.ratingPct,
+      feedbackTimestamp=excluded.feedbackTimestamp,
+      feedbackHash=excluded.feedbackHash,
+      txHash=excluded.txHash,
+      blockNumber=excluded.blockNumber,
+      timestamp=excluded.timestamp,
+      updatedAt=excluded.updatedAt
+  `);
+
+  await enqueueOrRun(batch, stmt, [
+    id,
+    chainId,
+    agentId,
+    clientAddress,
+    feedbackIndex,
+    score,
+    tag1,
+    tag2,
+    feedbackUri,
+    feedbackJson,
+    agentRegistryFromJson,
+    feedbackCreatedAt,
+    feedbackAuth,
+    skillFromJson,
+    capabilityFromJson,
+    contextJson,
+    feedbackType,
+    domain,
+    comment,
+    ratingPct,
+    feedbackTimestamp,
+    feedbackHash,
+    txHash,
+    blockNumber,
+    timestamp,
+    now,
+    now,
+  ]);
+
+  return feedbackIndex;
+}
+
+async function recordFeedbackRevocationFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  batch?: BatchWriter
+): Promise<void> {
+  if (!item?.id) {
+    console.warn('⚠️  recordFeedbackRevocationFromGraph: missing id', item);
+    return;
+  }
+  const id = String(item.id);
+  const agentId = String(item.agentId ?? '0');
+  const clientAddress = item.clientAddress ? String(item.clientAddress).toLowerCase() : '';
+  const feedbackIndex = item.feedbackIndex !== null && item.feedbackIndex !== undefined ? Number(item.feedbackIndex) : 0;
+  if (!clientAddress || !feedbackIndex) {
+    console.warn('⚠️  recordFeedbackRevocationFromGraph: missing clientAddress or feedbackIndex for', id);
+    return;
+  }
+
+  const blockNumber = item.blockNumber !== null && item.blockNumber !== undefined ? Number(item.blockNumber) : 0;
+  const timestamp = item.timestamp !== null && item.timestamp !== undefined ? Number(item.timestamp) : 0;
+  const txHash = normalizeHex(item.txHash);
+  const now = Math.floor(Date.now() / 1000);
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO rep_feedback_revoked (id, chainId, agentId, clientAddress, feedbackIndex, txHash, blockNumber, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      txHash=excluded.txHash,
+      blockNumber=excluded.blockNumber,
+      timestamp=excluded.timestamp
+  `);
+
+  await enqueueOrRun(batch, stmt, [
+    id,
+    chainId,
+    agentId,
+    clientAddress,
+    feedbackIndex,
+    txHash,
+    blockNumber,
+    timestamp,
+  ]);
+
+  await dbInstance.prepare(`
+    UPDATE rep_feedbacks
+    SET isRevoked = 1,
+        revokedTxHash = ?,
+        revokedBlockNumber = ?,
+        revokedTimestamp = ?,
+        updatedAt = ?
+    WHERE chainId = ? AND agentId = ? AND clientAddress = ? AND feedbackIndex = ?
+  `).run(
+    txHash,
+    blockNumber,
+    timestamp,
+    now,
+    chainId,
+    agentId,
+    clientAddress,
+    feedbackIndex
+  );
+}
+
+async function recordFeedbackResponseFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  batch?: BatchWriter
+): Promise<void> {
+  if (!item?.id) {
+    console.warn('⚠️  recordFeedbackResponseFromGraph: missing id', item);
+    return;
+  }
+
+  const id = String(item.id);
+  const agentId = String(item.agentId ?? '0');
+  const clientAddress = item.clientAddress ? String(item.clientAddress).toLowerCase() : '';
+  const feedbackIndex = item.feedbackIndex !== null && item.feedbackIndex !== undefined ? Number(item.feedbackIndex) : 0;
+  if (!clientAddress || !feedbackIndex) {
+    console.warn('⚠️  recordFeedbackResponseFromGraph: missing clientAddress or feedbackIndex for', id);
+    return;
+  }
+
+  const responder = item.responder ? String(item.responder).toLowerCase() : '0x0000000000000000000000000000000000000000';
+  const responseUri = item.responseUri != null ? String(item.responseUri) : null;
+  let responseJson: string | null = null;
+  if (item.responseJson != null) {
+    if (typeof item.responseJson === 'string') {
+      responseJson = item.responseJson;
+    } else {
+      try {
+        responseJson = JSON.stringify(item.responseJson);
+      } catch {
+        responseJson = String(item.responseJson);
+      }
+    }
+  }
+  const responseHash = normalizeHex(item.responseHash);
+  const blockNumber = item.blockNumber !== null && item.blockNumber !== undefined ? Number(item.blockNumber) : 0;
+  const timestamp = item.timestamp !== null && item.timestamp !== undefined ? Number(item.timestamp) : 0;
+  const txHash = normalizeHex(item.txHash);
+  const now = Math.floor(Date.now() / 1000);
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO rep_feedback_responses (
+      id, chainId, agentId, clientAddress, feedbackIndex, responder,
+      responseUri, responseJson, responseHash, txHash, blockNumber, timestamp
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      responder=excluded.responder,
+      responseUri=excluded.responseUri,
+      responseJson=excluded.responseJson,
+      responseHash=excluded.responseHash,
+      txHash=excluded.txHash,
+      blockNumber=excluded.blockNumber,
+      timestamp=excluded.timestamp
+  `);
+
+  await enqueueOrRun(batch, stmt, [
+    id,
+    chainId,
+    agentId,
+    clientAddress,
+    feedbackIndex,
+    responder,
+    responseUri,
+    responseJson,
+    responseHash,
+    txHash,
+    blockNumber,
+    timestamp,
+  ]);
+
+  await dbInstance.prepare(`
+    UPDATE rep_feedbacks
+    SET responseCount = (
+      SELECT COUNT(*)
+      FROM rep_feedback_responses
+      WHERE chainId = ? AND agentId = ? AND clientAddress = ? AND feedbackIndex = ?
+    ),
+    updatedAt = ?
+    WHERE chainId = ? AND agentId = ? AND clientAddress = ? AND feedbackIndex = ?
+  `).run(
+    chainId,
+    agentId,
+    clientAddress,
+    feedbackIndex,
+    now,
+    chainId,
+    agentId,
+    clientAddress,
+    feedbackIndex
+  );
+}
+
 // Parse CAIP-10 like eip155:chainId:0x... to 0x address
 function parseCaip10Address(value: string | null | undefined): string | null {
   try {
@@ -754,9 +1175,12 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   }
 
   // Use dbInstance directly instead of getCheckpoint (which uses global db)
-  const checkpointKey = chainId ? `lastProcessed_${chainId}` : 'lastProcessed';
-  const lastRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(checkpointKey) as { value?: string } | undefined;
-  const last = lastRow?.value ? BigInt(lastRow.value) : 0n;
+  const transferCheckpointKey = chainId ? `lastProcessed_${chainId}` : 'lastProcessed';
+  const feedbackCheckpointKey = chainId ? `lastProcessedFeedback_${chainId}` : 'lastProcessedFeedback';
+  const lastTransferRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(transferCheckpointKey) as { value?: string } | undefined;
+  const lastFeedbackRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(feedbackCheckpointKey) as { value?: string } | undefined;
+  const lastTransfer = lastTransferRow?.value ? BigInt(lastTransferRow.value) : 0n;
+  const lastFeedback = lastFeedbackRow?.value ? BigInt(lastFeedbackRow.value) : 0n;
 
 
   console.info("............backfill: query: ", graphqlUrl, "for chain:", chainId)
@@ -802,7 +1226,67 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
   const pageSize = 1000; // Reduced page size to avoid Workers timeout (30s limit)
 
-  const historicalQuery = `query TokensAndTransfers($first: Int!, $skip: Int!) {
+  const fetchAllFromSubgraph = async (
+    label: string,
+    query: string,
+    field: string,
+    options?: { optional?: boolean; lastCheckpoint?: bigint }
+  ) => {
+    const allItems: any[] = [];
+    let skip = 0;
+    let hasMore = true;
+    let batchNumber = 0;
+    const optional = options?.optional ?? false;
+    const checkpointForLog = options?.lastCheckpoint ?? lastTransfer;
+
+    console.info(`............[${label}] Fetching with pageSize ${pageSize}, last checkpoint ${checkpointForLog.toString()}`);
+    while (hasMore) {
+      batchNumber++;
+      console.info(`............[${label}] Fetching batch ${batchNumber}, skip: ${skip}`);
+
+      const resp = await fetchJson({
+        query,
+        variables: { first: pageSize, skip }
+      }) as any;
+
+      if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
+        const missingField = resp.errors.some((err: any) => {
+          const message = err?.message || '';
+          if (typeof message !== 'string') return false;
+          return message.includes(`field "${field}"`) || message.includes(`field \`${field}\``) || message.includes(field);
+        });
+
+        if (optional && missingField) {
+          console.warn(`............[${label}] Skipping: subgraph does not expose field "${field}". Message: ${resp.errors[0]?.message || 'unknown'}`);
+          return [];
+        }
+
+        console.error(`............[${label}] GraphQL errors:`, JSON.stringify(resp.errors, null, 2));
+        throw new Error(`GraphQL query failed for ${label}: ${JSON.stringify(resp.errors)}`);
+      }
+
+      const batchItems = (resp?.data?.[field] as any[]) || [];
+      console.info(`............[${label}] Batch ${batchNumber}: ${batchItems.length} rows`);
+
+      if (batchItems.length === 0) {
+        hasMore = false;
+        console.info(`............[${label}] No more rows found, stopping pagination`);
+      } else {
+        allItems.push(...batchItems);
+        if (batchItems.length < pageSize) {
+          hasMore = false;
+          console.info(`............[${label}] Reached end (got ${batchItems.length} < ${pageSize})`);
+        } else {
+          skip += pageSize;
+        }
+      }
+    }
+
+    console.info(`............[${label}] Total fetched: ${allItems.length}`);
+    return allItems;
+  };
+
+  const transfersQuery = `query TokensAndTransfers($first: Int!, $skip: Int!) {
     transfers(first: $first, skip: $skip, orderBy: timestamp, orderDirection: asc) {
       id
       token { id }
@@ -812,98 +1296,182 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       timestamp
     }
   }`;
-  
-  // Fetch all transfers in batches
-  const allTransferItems: any[] = [];
-  let skip = 0;
-  let hasMore = true;
-  let batchNumber = 0;
-  
-  console.info("............backfill: Fetching transfers with pageSize:", pageSize, "last checkpoint:", last.toString());
-  
-  while (hasMore) {
-    batchNumber++;
-    console.info(`............Fetching batch ${batchNumber}, skip: ${skip}`);
-    
-    const resp = await fetchJson({ 
-      query: historicalQuery, 
-      variables: { first: pageSize, skip } 
-    }) as any;
 
-    // Check for GraphQL errors
-    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
-      console.error("............GraphQL errors:", JSON.stringify(resp.errors, null, 2));
-      throw new Error(`GraphQL query failed: ${JSON.stringify(resp.errors)}`);
+  const feedbackQuery = `query RepFeedbacks($first: Int!, $skip: Int!) {
+    repFeedbacks(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+      id
+      agentId
+      clientAddress
+      score
+      tag1
+      tag2
+      feedbackUri
+      feedbackJson
+      feedbackType
+      domain
+      comment
+      ratingPct
+      feedbackTimestamp
+      feedbackHash
+      txHash
+      blockNumber
+      timestamp
     }
-    
-    // Handle tokens (metadata) and transfers (ownership)
-    const batchItems = (resp?.data?.transfers as any[]) || [];
-    console.info(`............  Batch ${batchNumber}: ${batchItems.length} transfers`);
-    
-    if (batchItems.length === 0) {
-      hasMore = false;
-      console.info("............No more transfers found, stopping pagination");
-    } else {
-      // Add batch to all items
-      allTransferItems.push(...batchItems);
-      
-      // Show token ID for last item in current batch
-      const lastItem = batchItems[batchItems.length - 1];
-      const lastTokenId = lastItem?.token?.id || 'unknown';
-      console.info(`............  Batch ${batchNumber} last transfer token ID: ${lastTokenId}`);
-      
-      // If we got fewer items than pageSize, we've reached the end
-      if (batchItems.length < pageSize) {
-        hasMore = false;
-        console.info(`............Reached end of transfers (got ${batchItems.length} < ${pageSize})`);
-      } else {
-        // Move to next batch
-        skip += pageSize;
-      }
+  }`;
+
+  const feedbackRevokedQuery = `query RepFeedbackRevokeds($first: Int!, $skip: Int!) {
+    repFeedbackRevokeds(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+      id
+      agentId
+      clientAddress
+      feedbackIndex
+      txHash
+      blockNumber
+      timestamp
     }
-  }
-  
-  const transferItems = allTransferItems;
-  console.info(`............  Total transferItems fetched: ${transferItems.length}`)
-  
-  // If no transfers, log to help debug
-  if (transferItems.length === 0) {
-    console.warn("............No transfers found in GraphQL response");
-  } else {
-    // Show token ID for last item in complete list
-    const lastItem = transferItems[transferItems.length - 1];
-    const lastTokenId = lastItem?.token?.id || 'unknown';
-    console.info("............  Final last transfer token ID: ", lastTokenId);
-  }
+  }`;
+
+  const feedbackResponseQuery = `query RepResponseAppendeds($first: Int!, $skip: Int!) {
+    repResponseAppendeds(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+      id
+      agentId
+      clientAddress
+      feedbackIndex
+      responder
+      responseUri
+      responseJson
+      responseHash
+      txHash
+      blockNumber
+      timestamp
+    }
+  }`;
+
+  const transferItems = await fetchAllFromSubgraph('transfers', transfersQuery, 'transfers', { lastCheckpoint: lastTransfer });
+  const feedbackItems = await fetchAllFromSubgraph('repFeedbacks', feedbackQuery, 'repFeedbacks', { optional: true, lastCheckpoint: lastFeedback });
+  const feedbackRevokedItems = await fetchAllFromSubgraph('repFeedbackRevokeds', feedbackRevokedQuery, 'repFeedbackRevokeds', { optional: true, lastCheckpoint: lastFeedback });
+  const feedbackResponseItems = await fetchAllFromSubgraph('repResponseAppendeds', feedbackResponseQuery, 'repResponseAppendeds', { optional: true, lastCheckpoint: lastFeedback });
+
+  let transferCheckpointBlock = lastTransfer;
+  const updateTransferCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > transferCheckpointBlock) {
+      transferCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(transferCheckpointKey, String(blockNumber));
+    }
+  };
+
+  let feedbackCheckpointBlock = lastFeedback;
+  const updateFeedbackCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > feedbackCheckpointBlock) {
+      feedbackCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(feedbackCheckpointKey, String(blockNumber));
+    }
+  };
 
   // Upsert latest tokens metadata first (oldest-first by mintedAt)
 
   // Apply transfers newer than checkpoint
   const transfersOrdered = transferItems
-    .filter((t) => Number(t?.blockNumber || 0) > Number(last))
+    .filter((t) => Number(t?.blockNumber || 0) > Number(lastTransfer))
     .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
-  console.info("............  process transfers: ")
-  for (const tr of transfersOrdered) {
+  const feedbackInsertBatch = createBatchWriter(dbInstance, 'rep_feedbacks');
+  const feedbackRevokedBatch = createBatchWriter(dbInstance, 'rep_feedback_revoked');
+  const feedbackResponseBatch = createBatchWriter(dbInstance, 'rep_feedback_responses');
+
+  console.info("............  process transfers: ", transfersOrdered.length);
+  for (let i = 0; i < transfersOrdered.length; i++) {
+    const tr = transfersOrdered[i];
     
     const tokenId = BigInt(tr?.token?.id || '0');
     const toAddr = String(tr?.to?.id || '').toLowerCase();
     const blockNum = BigInt(tr?.blockNumber || 0);
     if (tokenId <= 0n || !toAddr) continue;
     const uri = await tryReadTokenURI(client, tokenId);
-    
-    console.info("&&&&&&&&&&&& upsertFromTransfer: toAddr: ", toAddr)
-    console.info("&&&&&&&&&&&& upsertFromTransfer: tokenId: ", tokenId)
-    console.info("&&&&&&&&&&&& upsertFromTransfer: blockNum: ", blockNum)
-    console.info("&&&&&&&&&&&& upsertFromTransfer: uri: ", uri)
     await upsertFromTransfer(toAddr, tokenId, blockNum, uri, chainId, dbInstance); 
-    // Use dbInstance directly for checkpoint instead of setCheckpoint
-    const checkpointKey = chainId ? `lastProcessed_${chainId}` : 'lastProcessed';
-    await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(checkpointKey, String(blockNum));
+    await updateTransferCheckpointIfNeeded(blockNum);
+    if ((i + 1) % 25 === 0 || i === transfersOrdered.length - 1) {
+      console.info(`............  transfer progress: ${i + 1}/${transfersOrdered.length} (block ${blockNum})`);
+    }
   }
 
+  const feedbacksOrdered = feedbackItems
+    .filter((item) => Number(item?.blockNumber || 0) > Number(lastFeedback))
+    .slice()
+    .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
+  console.info("............  process feedbacks: ", feedbacksOrdered.length);
+  if (feedbacksOrdered.length > 0) {
+    console.info('............  sample feedback ids:', feedbacksOrdered.slice(0, 3).map((fb) => `${fb?.id || 'unknown'}@${fb?.blockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < feedbacksOrdered.length; i++) {
+    const fb = feedbacksOrdered[i];
+    const blockNum = BigInt(fb?.blockNumber || 0);
+    try {
+      console.info("............  processing feedback upsert: ", fb?.id);
+      console.info(`............  processing feedback upsert: agentId=${fb?.agentId}, id=${fb?.id}`);
+      await upsertFeedbackFromGraph(fb, chainId, dbInstance, feedbackInsertBatch);
+      await updateFeedbackCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 25 === 0 || i === feedbacksOrdered.length - 1) {
+        console.info(`............  feedback progress: ${i + 1}/${feedbacksOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing feedback from Graph:', { id: fb?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+
+  const feedbackRevokedOrdered = feedbackRevokedItems
+    .filter((item) => Number(item?.blockNumber || 0) > Number(lastFeedback))
+    .slice()
+    .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
+
+  console.info("............  process feedback revocations: ", feedbackRevokedOrdered.length);
+  if (feedbackRevokedOrdered.length > 0) {
+    console.info('............  sample revocation ids:', feedbackRevokedOrdered.slice(0, 3).map((rev) => `${rev?.id || 'unknown'}@${rev?.blockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < feedbackRevokedOrdered.length; i++) {
+    const rev = feedbackRevokedOrdered[i];
+    const blockNum = BigInt(rev?.blockNumber || 0);
+    try {
+      await recordFeedbackRevocationFromGraph(rev, chainId, dbInstance, feedbackRevokedBatch);
+      await updateFeedbackCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 25 === 0 || i === feedbackRevokedOrdered.length - 1) {
+        console.info(`............  feedback revocation progress: ${i + 1}/${feedbackRevokedOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing feedback revocation:', { id: rev?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+
+  const feedbackResponsesOrdered = feedbackResponseItems
+    .filter((item) => Number(item?.blockNumber || 0) > Number(lastFeedback))
+    .slice()
+    .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
+
+  console.info("............  process feedback responses: ", feedbackResponsesOrdered.length);
+  if (feedbackResponsesOrdered.length > 0) {
+    console.info('............  sample response ids:', feedbackResponsesOrdered.slice(0, 3).map((resp) => `${resp?.id || 'unknown'}@${resp?.blockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < feedbackResponsesOrdered.length; i++) {
+    const resp = feedbackResponsesOrdered[i];
+    const blockNum = BigInt(resp?.blockNumber || 0);
+    try {
+      await recordFeedbackResponseFromGraph(resp, chainId, dbInstance, feedbackResponseBatch);
+      await updateFeedbackCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 25 === 0 || i === feedbackResponsesOrdered.length - 1) {
+        console.info(`............  feedback response progress: ${i + 1}/${feedbackResponsesOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing feedback response:', { id: resp?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+  await feedbackInsertBatch.flush();
+  await feedbackRevokedBatch.flush();
+  await feedbackResponseBatch.flush();
 
   // Note: tokens query removed - we're now using transfers only
   // If tokens are needed, add a separate paginated query here

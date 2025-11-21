@@ -109,6 +109,138 @@ export const graphQLSchemaString = `
     createdAt: Int!
   }
 
+  type RepFeedback {
+    id: ID!
+    chainId: Int!
+    agentId: String!
+    clientAddress: String!
+    feedbackIndex: Int!
+    score: Int
+    tag1: String
+    tag2: String
+    feedbackUri: String
+    feedbackJson: String
+    agentRegistry: String
+    feedbackCreatedAt: String
+    feedbackAuth: String
+    skill: String
+    capability: String
+    contextJson: String
+    feedbackType: String
+    domain: String
+    comment: String
+    ratingPct: Int
+    feedbackTimestamp: String
+    feedbackHash: String
+    txHash: String
+    blockNumber: Int
+    timestamp: Int
+    isRevoked: Boolean
+    revokedTxHash: String
+    revokedBlockNumber: Int
+    revokedTimestamp: Int
+    responseCount: Int
+  }
+
+  type RepFeedbackRevocation {
+    id: ID!
+    chainId: Int!
+    agentId: String!
+    clientAddress: String!
+    feedbackIndex: Int!
+    txHash: String
+    blockNumber: Int
+    timestamp: Int
+  }
+
+  type RepFeedbackResponse {
+    id: ID!
+    chainId: Int!
+    agentId: String!
+    clientAddress: String!
+    feedbackIndex: Int!
+    responder: String
+    responseUri: String
+    responseJson: String
+    responseHash: String
+    txHash: String
+    blockNumber: Int
+    timestamp: Int
+  }
+
+  enum FeedbackOrderBy {
+    blockNumber
+    timestamp
+    score
+    ratingPct
+    feedbackIndex
+    responseCount
+  }
+
+  input FeedbackWhereInput {
+    chainId: Int
+    chainId_in: [Int!]
+
+    agentId: String
+    agentId_in: [String!]
+
+    clientAddress: String
+    clientAddress_in: [String!]
+
+    feedbackIndex: Int
+    feedbackIndex_in: [Int!]
+
+    score_gt: Int
+    score_gte: Int
+    score_lt: Int
+    score_lte: Int
+
+    ratingPct_gt: Int
+    ratingPct_gte: Int
+    ratingPct_lt: Int
+    ratingPct_lte: Int
+
+    isRevoked: Boolean
+
+    domain_contains: String
+    domain_contains_nocase: String
+
+    comment_contains: String
+    comment_contains_nocase: String
+
+    feedbackUri_contains: String
+    feedbackUri_contains_nocase: String
+
+    feedbackType_in: [String!]
+    feedbackType_contains: String
+    feedbackType_contains_nocase: String
+
+    feedbackHash: String
+    feedbackHash_in: [String!]
+
+    tag1: String
+    tag2: String
+
+    txHash: String
+    txHash_in: [String!]
+
+    responseCount_gt: Int
+    responseCount_gte: Int
+    responseCount_lt: Int
+    responseCount_lte: Int
+
+    timestamp_gt: Int
+    timestamp_gte: Int
+    timestamp_lt: Int
+    timestamp_lte: Int
+  }
+
+  type FeedbackSearchResult {
+    feedbacks: [RepFeedback!]!
+    total: Int!
+    hasMore: Boolean!
+  }
+
   type Query {
     agents(
       chainId: Int
@@ -147,6 +279,74 @@ export const graphQLSchemaString = `
       agentOwner: String
       agentName: String
     ): Int!
+
+    feedbacks(
+      chainId: Int
+      agentId: String
+      clientAddress: String
+      feedbackIndex: Int
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [RepFeedback!]!
+
+    feedback(id: ID!): RepFeedback
+
+    feedbackByReference(
+      chainId: Int!
+      agentId: String!
+      clientAddress: String!
+      feedbackIndex: Int!
+    ): RepFeedback
+
+    searchFeedbacks(
+      query: String!
+      chainId: Int
+      agentId: String
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [RepFeedback!]!
+
+    searchFeedbacksGraph(
+      where: FeedbackWhereInput
+      first: Int
+      skip: Int
+      orderBy: FeedbackOrderBy
+      orderDirection: OrderDirection
+    ): FeedbackSearchResult!
+
+    countFeedbacks(
+      chainId: Int
+      agentId: String
+      clientAddress: String
+      feedbackIndex: Int
+      isRevoked: Boolean
+    ): Int!
+
+    feedbackResponses(
+      chainId: Int
+      agentId: String
+      clientAddress: String
+      feedbackIndex: Int
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [RepFeedbackResponse!]!
+
+    feedbackRevocations(
+      chainId: Int
+      agentId: String
+      clientAddress: String
+      feedbackIndex: Int
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [RepFeedbackRevocation!]!
   }
 
   type Mutation {

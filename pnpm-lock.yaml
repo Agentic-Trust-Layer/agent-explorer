@@ -132,9 +132,12 @@ importers:
 
   apps/web:
     dependencies:
-      '@agentic-trust/core':
+      '@agentic-trust/8004-sdk':
         specifier: ^1.0.11
-        version: 1.0.11(@metamask/delegation-toolkit@0.12.0(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)))(@veramo/core@6.0.0)(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(node-fetch@2.7.0(encoding@0.1.13))(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
+        version: 1.0.11(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))
+      '@agentic-trust/core':
+        specifier: ^1.0.14
+        version: 1.0.14(@metamask/delegation-toolkit@0.12.0(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)))(@veramo/core@6.0.0)(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(node-fetch@2.7.0(encoding@0.1.13))(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
       '@emotion/react':
         specifier: ^11.11.4
         version: 11.14.0(@types/react@19.1.12)(react@18.3.1)
@@ -144,12 +147,6 @@ importers:
       '@ensdomains/ensjs':
         specifier: 4.0.2
         version: 4.0.2(encoding@0.1.13)(typescript@5.9.3)(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))(zod@3.22.3)
-      '@erc8004/agentic-trust-sdk':
-        specifier: workspace:*
-        version: link:../erc8004-agentic-trust-sdk
-      '@erc8004/sdk':
-        specifier: workspace:*
-        version: link:../erc8004-src
       '@metamask/delegation-toolkit':
         specifier: 0.12.0
         version: 0.12.0(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))
@@ -229,8 +226,8 @@ packages:
   '@adraffy/ens-normalize@1.11.1':
     resolution: {integrity: sha512-nhCBV3quEgesuf7c7KYfperqSS14T8bYuvJ8PcLJp6znkZpFc0AuW4qBtr8eKVyPPe/8RSr7sglCWPU5eaxwKQ==}
 
-  '@agentic-trust/8004-ext-sdk@1.0.11':
-    resolution: {integrity: sha512-66VrYIkDzpIaisNfysTop6cd4saPh+rZKgQOKA6faDc1cSM6Ivz1/PsFGFC09QIh9oDiTOhecn96xSiUilqnmA==}
+  '@agentic-trust/8004-ext-sdk@1.0.14':
+    resolution: {integrity: sha512-njAa5I0iRDtoRFjkehIVDjE/4TtTLAxwCcAYy/Uj3i08nYsfeP5xWryvmZb1YSp2kuXUyGFdMDnkfNyj/OIuKg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: '>=18.0.0'
@@ -242,8 +239,15 @@ packages:
       ethers: '>=6.0.0'
       viem: '>=2.0.0'
 
-  '@agentic-trust/core@1.0.11':
-    resolution: {integrity: sha512-Uq15mOB3kPvaY3T7FESfCc2JmEWW0noHi1+dOd1Jymkw2CTJyagKEYQLhAYc5NNDOnkfLZYhk16eYT8PoX6Wxw==}
+  '@agentic-trust/8004-sdk@1.0.14':
+    resolution: {integrity: sha512-Xv4QnCsDXrp6KyxxhpYsY6HcT+KehtSy+drw1VP0BoirdJBmHsgMQwQ9ZB4VOxOJZ7j/cIRuPGfuletsdDhPSA==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      ethers: '>=6.0.0'
+      viem: '>=2.0.0'
+
+  '@agentic-trust/core@1.0.14':
+    resolution: {integrity: sha512-6bjyULSNjxT+69Avgnf1x1mzfffhxu2SFng0Zg8I7zYDNcga2MhuK6von3d91pvyCgwY/7jrZblaloI30jivjA==}
     peerDependencies:
       '@metamask/delegation-toolkit': '*'
       '@veramo/core': ^6.0.0
@@ -1675,9 +1679,6 @@ packages:
 
   '@types/node@22.7.5':
     resolution: {integrity: sha512-jML7s2NAzMWc//QSJ1a3prpk78cOPchGvXJsC3C6R6PSMoooztvRVQEz89gmBTBY1SPMaqo5teB4uNHPdetShQ==}
-
-  '@types/node@24.10.1':
-    resolution: {integrity: sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ==}
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
@@ -5017,9 +5018,6 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici-types@7.16.0:
-    resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
-
   undici@5.29.0:
     resolution: {integrity: sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==}
     engines: {node: '>=14.0'}
@@ -5384,9 +5382,9 @@ snapshots:
 
   '@adraffy/ens-normalize@1.11.1': {}
 
-  '@agentic-trust/8004-ext-sdk@1.0.11(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)':
+  '@agentic-trust/8004-ext-sdk@1.0.14(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)':
     dependencies:
-      '@agentic-trust/8004-sdk': 1.0.11(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))
+      '@agentic-trust/8004-sdk': 1.0.14(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))
       '@metamask/delegation-toolkit': 0.13.0(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))
       '@thenamespace/indexer': 1.0.2
       '@thenamespace/mint-manager': 1.1.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)(zod@3.22.3)
@@ -5411,10 +5409,15 @@ snapshots:
       ethers: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       viem: 2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
 
-  '@agentic-trust/core@1.0.11(@metamask/delegation-toolkit@0.12.0(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)))(@veramo/core@6.0.0)(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(node-fetch@2.7.0(encoding@0.1.13))(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)':
+  '@agentic-trust/8004-sdk@1.0.14(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))':
     dependencies:
-      '@agentic-trust/8004-ext-sdk': 1.0.11(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
-      '@agentic-trust/8004-sdk': 1.0.11(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))
+      ethers: 6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      viem: 2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
+
+  '@agentic-trust/core@1.0.14(@metamask/delegation-toolkit@0.12.0(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)))(@veramo/core@6.0.0)(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(node-fetch@2.7.0(encoding@0.1.13))(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)':
+    dependencies:
+      '@agentic-trust/8004-ext-sdk': 1.0.14(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
+      '@agentic-trust/8004-sdk': 1.0.14(ethers@6.15.0(bufferutil@4.0.9)(utf-8-validate@5.0.10))(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))
       '@agentic-trust/veramo-agent-extension': 0.1.0(bufferutil@4.0.9)(encoding@0.1.13)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
       '@ensdomains/ensjs': 3.7.0(encoding@0.1.13)(typescript@5.9.3)(viem@2.39.0(bufferutil@4.0.9)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3))(zod@3.22.3)
       '@veramo/core': 6.0.0
@@ -6977,7 +6980,7 @@ snapshots:
 
   '@types/bn.js@5.2.0':
     dependencies:
-      '@types/node': 12.20.55
+      '@types/node': 20.19.25
 
   '@types/body-parser@1.19.6':
     dependencies:
@@ -6988,7 +6991,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.0.4
       '@types/keyv': 3.1.4
-      '@types/node': 12.20.55
+      '@types/node': 20.19.25
       '@types/responselike': 1.0.3
 
   '@types/connect@3.4.38':
@@ -7019,7 +7022,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 12.20.55
+      '@types/node': 20.19.25
 
   '@types/lodash@4.17.20': {}
 
@@ -7047,17 +7050,13 @@ snapshots:
     dependencies:
       undici-types: 6.19.8
 
-  '@types/node@24.10.1':
-    dependencies:
-      undici-types: 7.16.0
-
   '@types/normalize-package-data@2.4.4': {}
 
   '@types/parse-json@4.0.2': {}
 
   '@types/pbkdf2@3.1.2':
     dependencies:
-      '@types/node': 24.10.1
+      '@types/node': 20.19.25
 
   '@types/prop-types@15.7.15': {}
 
@@ -7080,7 +7079,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 12.20.55
+      '@types/node': 20.19.25
 
   '@types/retry@0.12.0': {}
 
@@ -7088,7 +7087,7 @@ snapshots:
 
   '@types/secp256k1@4.0.7':
     dependencies:
-      '@types/node': 24.10.1
+      '@types/node': 20.19.25
 
   '@types/send@0.17.6':
     dependencies:
@@ -10254,7 +10253,7 @@ snapshots:
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
       '@types/long': 4.0.2
-      '@types/node': 24.10.1
+      '@types/node': 20.19.25
       long: 4.0.0
 
   protobufjs@7.5.4:
@@ -11172,8 +11171,6 @@ snapshots:
   undici-types@6.19.8: {}
 
   undici-types@6.21.0: {}
-
-  undici-types@7.16.0: {}
 
   undici@5.29.0:
     dependencies:

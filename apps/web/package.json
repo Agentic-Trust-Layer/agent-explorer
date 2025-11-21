@@ -10,12 +10,11 @@
     "start": "next start"
   },
   "dependencies": {
-    "@agentic-trust/core": "^1.0.11",
+    "@agentic-trust/core": "^1.0.15",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.0",
     "@ensdomains/ensjs": "4.0.2",
-    "@erc8004/agentic-trust-sdk": "workspace:*",
-    "@erc8004/sdk": "workspace:*",
+    "@agentic-trust/8004-sdk": "^1.0.11",
     "@metamask/delegation-toolkit": "0.12.0",
     "@mui/icons-material": "^6.1.2",
     "@mui/material": "^6.1.2",

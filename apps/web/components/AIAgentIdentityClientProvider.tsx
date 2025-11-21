@@ -1,80 +1,80 @@
 'use client';
+
 import * as React from 'react';
-import { AIAgentIdentityClient } from '@erc8004/agentic-trust-sdk';
-import { useWeb3Auth } from './Web3AuthProvider';
-import { sepolia } from 'viem/chains';
+import { CHAIN_CONFIGS, getChainConfigByHex } from '../config/chains';
 
+export type IdentityClientApi = {
+  getAgentAccount: (agentId: bigint | string | number) => Promise<string | null>;
+  prepareRegisterCalls: (agentName: string, agentAccount: string, tokenUri?: string | null) => Promise<any>;
+  prepareSetRegistrationUriCalls: (agentId: bigint | string | number, uri: string) => Promise<any>;
+  extractAgentIdFromReceiptPublic: (receipt: any) => Promise<string | null>;
+};
 
-type Ctx = AIAgentIdentityClient | null;
-const AgentIdentityClientContext = React.createContext<Ctx>(null);
+const DEFAULT_CHAIN_HEX = CHAIN_CONFIGS[0]?.chainIdHex ?? '0xaa36a7';
 
-export function useAgentIdentityClient(): AIAgentIdentityClient {
+function toSerializable(value: any): any {
+  if (typeof value === 'bigint') {
+    return value.toString();
+  }
+  if (Array.isArray(value)) {
+    return value.map(toSerializable);
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toSerializable(v)]));
+  }
+  return value;
+}
+
+async function callIdentityApi(method: string, args: any[] = [], chainIdHex?: string) {
+  const chainConfig = getChainConfigByHex(chainIdHex || DEFAULT_CHAIN_HEX);
+  const response = await fetch('/api/identity-client', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      method,
+      args: args.map(toSerializable),
+      chainId: chainConfig?.chainId,
+    }),
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload?.message || payload?.error || 'Identity client request failed');
+  }
+  return payload?.result ?? null;
+}
+
+export function buildIdentityClient(chainIdHex?: string): IdentityClientApi {
+  return {
+    getAgentAccount: (agentId: bigint | string | number) =>
+      callIdentityApi('getAgentAccount', [agentId], chainIdHex),
+    prepareRegisterCalls: (agentName: string, agentAccount: string, tokenUri?: string | null) =>
+      callIdentityApi('prepareRegisterCalls', [agentName, agentAccount, tokenUri], chainIdHex),
+    prepareSetRegistrationUriCalls: (agentId: bigint | string | number, uri: string) =>
+      callIdentityApi('prepareSetRegistrationUriCalls', [agentId, uri], chainIdHex),
+    extractAgentIdFromReceiptPublic: (receipt: any) =>
+      callIdentityApi('extractAgentIdFromReceiptPublic', [receipt], chainIdHex),
+  };
+}
+
+const AgentIdentityClientContext = React.createContext<IdentityClientApi | null>(null);
+
+export function useAgentIdentityClient(): IdentityClientApi {
   const client = React.useContext(AgentIdentityClientContext);
-  if (client) return client;
-  // Provide a safe stub during pre-login so the UI can render
-  const stub = React.useMemo(() => {
-    const noop = async (..._args: any[]) => null as any;
-    return {
-      // Minimal subset used by UI; all return null-like values
-      getAgentName: noop,
-      getAgentAccount: noop,
-      getAgentIdentityByName: async (_name: string) => ({agentId: null, account: null}),
-      getAgentAccountByName: noop,
-      getAgentUrlByName: noop,
-      getAgentEoaByAgentAccount: noop,
-    } as unknown as AIAgentIdentityClient;
-  }, []);
-  return stub;
+  if (!client) {
+    throw new Error('useAgentIdentityClient must be used within AIAgentIdentityClientProvider');
+  }
+  return client;
 }
 
 type Props = { children: React.ReactNode };
 
 export function AIAgentIdentityClientProvider({ children }: Props) {
-  const { provider: web3AuthProvider, address } = useWeb3Auth();
-  const [client, setClient] = React.useState<AIAgentIdentityClient | null>(null);
+  const client = React.useMemo(() => buildIdentityClient(DEFAULT_CHAIN_HEX), []);
 
- 
-  React.useEffect(() => {
-    (async () => {
-      
-      // set instance of providers to be L1 just to get it going
-
-      if (!web3AuthProvider || !address || client) return;
-      const identityRegistryAddress = process.env.NEXT_PUBLIC_ETH_SEPOLIA_IDENTITY_REGISTRY as `0x${string}`;
-      const ensRegistryAddress = process.env.NEXT_PUBLIC_ETH_SEPOLIA_ENS_REGISTRY as `0x${string}`;
-      const rpcUrl = process.env.NEXT_PUBLIC_ETH_SEPOLIA_RPC_URL as string;
-      //const { ethers } = require('ethers') as typeof import('ethers');
-
-      // Org signer from env (server-managed)
-      //const orgProvider = new ethers.JsonRpcProvider(rpcUrl);
-      //const orgSigner = new ethers.Wallet(process.env.NEXT_PUBLIC_ETH_SEPOLIA_ENS_PRIVATE_KEY as `0x${string}`, orgProvider);
-      //const orgAdapter = new EthersAdapter(orgProvider, orgSigner);
-
-      // Agent signer from Web3Auth (browser EIP-1193)
-      
-      //const browserProvider = new ethers.BrowserProvider(web3AuthProvider as any);
-      //const agentSigner = await browserProvider.getSigner();
-      //const agentAdapter = new EthersAdapter(browserProvider, agentSigner);
-
-      // Construct client (constructor matches current AIAgentIdentityClient signature in your repo)
-      const instance = new AIAgentIdentityClient(
-        sepolia.id as number,
-        rpcUrl,
-        identityRegistryAddress
-      );
-
-      setClient(instance);
-    })();
-  }, [web3AuthProvider, address, client]);
-
-
-  return client ? (
+  return (
     <AgentIdentityClientContext.Provider value={client}>
       {children}
     </AgentIdentityClientContext.Provider>
-  ) : (
-    // Render the app so users can log in; context will be provided after connection
-    <>{children}</>
   );
 }
-

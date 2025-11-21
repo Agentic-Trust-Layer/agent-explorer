@@ -27,14 +27,13 @@ import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ensService from '@/service/ensService';
 import IpfsService from '@/service/ipfsService';
-import IdentityRegistryABI from '@erc8004/sdk/abis/IdentityRegistry.json';
-import { AIAgentENSClient, AIAgentIdentityClient, OrgIdentityClient } from '@erc8004/agentic-trust-sdk';
-import { EthersAdapter } from '@erc8004/sdk';
+import IdentityRegistryABI from '../../erc8004-agentic-trust-sdk/abis/IdentityRegistry.json';
+import { EthersAdapter } from '@agentic-trust/8004-sdk';
 import {
 	setAgentNameUri as adapterSetAgentNameUri,
 	setAgentIdentityRegistrationUri as adapterSetAgentIdentityRegistrationUri
 } from '@/lib/agentAdapter';
-import ReputationRegistryABI from '@erc8004/sdk/abis/ReputationRegistry.json';
+import ReputationRegistryABI from '../../erc8004-agentic-trust-sdk/abis/ReputationRegistry.json';
 
 
 import { useAgentIdentityClient } from './AIAgentIdentityClientProvider';
@@ -42,6 +41,9 @@ import { useAgentIdentityClientFor, useAgentIdentityClients } from './AIAgentIde
 import { useAgentENSClient } from './AIAgentENSClientProvider';
 import { useAgentENSClientFor } from './AIAgentENSClientsProvider';
 import { useOrgIdentityClient } from './OrgIdentityClientProvider';
+import type { EnsClientApi } from './AIAgentENSClientProvider';
+import type { IdentityClientApi } from './AIAgentIdentityClientProvider';
+import type { OrgIdentityClientApi } from './OrgIdentityClientProvider';
 import { getExplorerUrl, getExplorerName, getIdentityRegistry, getBundlerUrl, getRpcUrl, getChainConfig, getChainIdHex, getViemChain, getNetworkType, CHAIN_CONFIGS } from '../config/chains';
 
 const registryAbi = IdentityRegistryABI as any;
@@ -190,9 +192,9 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 
 	// Refs
 	const saveTimeoutRef = React.useRef<number | undefined>(undefined);
-	const agentIdentityClientRef = React.useRef<AIAgentIdentityClient | null>(null);
-	const agentENSClientRef = React.useRef<AIAgentENSClient | null>(null);
-	const orgIdentityClientRef = React.useRef<OrgIdentityClient | null>(null);
+	const agentIdentityClientRef = React.useRef<IdentityClientApi | null>(null);
+	const agentENSClientRef = React.useRef<EnsClientApi | null>(null);
+	const orgIdentityClientRef = React.useRef<OrgIdentityClientApi | null>(null);
 
 	// Client hooks
 	const agentENSClient = useAgentENSClient();
@@ -300,8 +302,8 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 
 				const { ethers } = await import('ethers');
 				const ethersProvider = new ethers.JsonRpcProvider(rpcUrl);
-				const { EthersAdapter } = await import('@erc8004/sdk');
-				const { ERC8004Client } = await import('@erc8004/sdk');
+				const { EthersAdapter } = await import('@agentic-trust/8004-sdk');
+				const { ERC8004Client } = await import('@agentic-trust/8004-sdk');
 				const adapter = new EthersAdapter(ethersProvider);
 				const erc8004Client = new ERC8004Client({
 					adapter,
@@ -1106,8 +1108,6 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 
 	async function fetchData(page = 1, overrides?: { name?: string; address?: string; agentId?: string; chainId?: number }) {
 		setIsLoading(true);
-		console.info("&&&&&&&&&&&& fetchData: page: ", page)
-		console.info("&&&&&&&&&&&& fetchData: overrides: ", overrides)
 		const url = new URL("/api/agents", window.location.origin);
 		const nameFilter = overrides?.name ?? domain;
 		const addressFilter = overrides?.address ?? address;
@@ -1475,8 +1475,8 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 			const rpcUrl = process.env.NEXT_PUBLIC_ETH_SEPOLIA_RPC_URL as string;
 			const { ethers } = await import('ethers');
 			const ethersProvider = new ethers.JsonRpcProvider(rpcUrl);
-			const { EthersAdapter } = await import('@erc8004/sdk');
-			const { ERC8004Client } = await import('@erc8004/sdk');
+			const { EthersAdapter } = await import('@agentic-trust/8004-sdk');
+			const { ERC8004Client } = await import('@agentic-trust/8004-sdk');
 			const adapter = new EthersAdapter(ethersProvider);
 			const erc8004Client = new ERC8004Client({
 				adapter,

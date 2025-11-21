@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { buildAgentDetail } from '@agentic-trust/core/server';
-import { getAdminClient } from '@/lib/server/adminClient';
+import { buildAgentDetail, getAgenticTrustClient } from '@agentic-trust/core/server';
 
 export async function GET(
   request: NextRequest,
@@ -13,7 +12,7 @@ export async function GET(
     const decodedDid = decodeURIComponent(didAgent);
 
     // Use singleton AgenticTrustClient and buildAgentDetail
-    const agenticTrustClient = await getAdminClient();
+    const agenticTrustClient = await getAgenticTrustClient();
     const payload = await buildAgentDetail(agenticTrustClient, decodedDid);
 
     return NextResponse.json(payload);
