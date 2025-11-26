@@ -133,7 +133,7 @@ export const graphiqlHTML = `<!DOCTYPE html>
     didIdentity
     didAccount
     didName
-    metadataURI
+    tokenUri
     description
     image
     type

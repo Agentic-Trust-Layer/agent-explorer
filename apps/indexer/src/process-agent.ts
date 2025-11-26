@@ -278,7 +278,7 @@ export async function processAgentDirectly(
     // Insert or update agent
     console.log('********************* process-agent: inserting or updating agent: ', agentId, agentAccount, ownerAddress, agentName, tokenURI, a2aEndpoint, blockNumber, currentTime);
     await executeUpdate(db, `
-      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, metadataURI, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
@@ -286,7 +286,7 @@ export async function processAgentDirectly(
         agentOwner=excluded.agentOwner,
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
         a2aEndpoint=COALESCE(excluded.a2aEndpoint, a2aEndpoint),
-        metadataURI=COALESCE(excluded.metadataURI, metadataURI),
+        tokenUri=COALESCE(excluded.tokenUri, tokenUri),
         didIdentity=COALESCE(excluded.didIdentity, didIdentity),
         didAccount=COALESCE(excluded.didAccount, didAccount),
         didName=COALESCE(excluded.didName, didName)

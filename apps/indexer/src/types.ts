@@ -5,7 +5,7 @@ export type AgentRow = {
   agentAddress: Address;     // deprecated, use agentAccount instead
   agentAccount: Address;     // the agent's account address
   owner?: Address;           // not in your ABI; keep optional for future
-  metadataURI?: string | null; // optional for future
+  tokenUri?: string | null; // optional for future
   createdAtBlock: number;
   didIdentity?: string;      // did:8004:chainId:agentId
   didAccount?: string;       // did:ethr:chainId:agentAccount

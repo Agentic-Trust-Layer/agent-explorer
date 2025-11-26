@@ -128,8 +128,6 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
   const fetchFn = (globalThis as any).fetch as undefined | ((input: any, init?: any) => Promise<any>);
   if (!fetchFn) return null;
   try {
-    console.info("............fetchIpfsJson: tokenURI: ", tokenURI)
-    
     // Handle inline data URIs (data:application/json,...)
     if (tokenURI.startsWith('data:application/json')) {
       try {
@@ -168,7 +166,6 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
           }
         }
         
-        console.info("............fetchIpfsJson: parsed inline data:", parsed);
         return parsed;
       } catch (e) {
         console.warn("............fetchIpfsJson: Failed to parse inline data URI:", e);
@@ -178,8 +175,6 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
     
     const cid = extractCid(tokenURI);
     if (cid) {
-      console.info("............fetchIpfsJson: cid: ", cid)
-      
       // Detect if URI suggests a specific service (from URL format)
       const isPinataUrl = tokenURI.includes('pinata') || tokenURI.includes('gateway.pinata.cloud');
       const isWeb3StorageUrl = tokenURI.includes('w3s.link') || tokenURI.includes('web3.storage');
@@ -255,14 +250,13 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
   return null;
 }
 
-export async function upsertFromTransfer(to: string, tokenId: bigint, blockNumber: bigint, tokenURI: string | null, chainId: number, dbOverride?: any) {
+export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo: any, blockNumber: bigint, tokenURI: string | null, chainId: number, dbOverride?: any) {
   // Use provided db override (for Workers) or fall back to module-level db (for local)
   const dbInstance = dbOverride || db;
   
   if (!dbInstance) {
     throw new Error('Database instance required for upsertFromTransfer. In Workers, db must be passed via dbOverride parameter');
   }
-  console.info("............upsertFromTransfer: tokenURI: ", tokenURI)
   const agentId = toDecString(tokenId);
   const ownerAddress = to;
   const agentAccount = to; // mirror owner for now
@@ -277,30 +271,32 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, blockNumbe
   let a2aEndpoint: string | null = null;
   let description: string | null = null;
   let image: string | null = null;
-  if (tokenURI) {
+  if (tokenInfo && tokenInfo.agentName) { 
+    console.info("............upsertFromTransfer: tokenInfo: ", tokenInfo)
+    agentName = tokenInfo.agentName;
+    description = tokenInfo.description;
+    image = tokenInfo.image;
+    a2aEndpoint = tokenInfo.a2aEndpoint;
+  }
+  else if (tokenURI) {
     try {
-      console.info("............upsertFromTransfer: fetching metadata from tokenURI before insert");
       const metadata = await fetchIpfsJson(tokenURI);
       if (metadata && typeof metadata === 'object') {
-        console.info("............upsertFromTransfer: metadata fetched:", metadata);
         preFetchedMetadata = metadata;
         
         // Extract agent name
         if (typeof metadata.name === 'string' && metadata.name.trim()) {
           agentName = metadata.name.trim();
-          console.info("............upsertFromTransfer: found agentName:", agentName);
         }
         
         // Extract description
         if (typeof metadata.description === 'string' && metadata.description.trim()) {
           description = metadata.description.trim();
-          console.info("............upsertFromTransfer: found description:", description);
         }
         
         // Extract image
         if (metadata.image != null) {
           image = String(metadata.image);
-          console.info("............upsertFromTransfer: found image:", image);
         }
         
         // Extract a2a endpoint from endpoints array
@@ -310,25 +306,14 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, blockNumbe
           return e && typeof e.endpoint === 'string' ? e.endpoint : null;
         };
         a2aEndpoint = findEndpoint('A2A') || findEndpoint('a2a');
-        if (a2aEndpoint) {
-          console.info("............upsertFromTransfer: found a2aEndpoint:", a2aEndpoint);
-        }
       }
     } catch (e) {
       console.warn("............upsertFromTransfer: Failed to fetch metadata before insert:", e);
     }
   }
 
+
   if (ownerAddress != '0x000000000000000000000000000000000000dEaD') {
-    console.info("@@@@@@@@@@@@@@@@@@@@@ upsertFromTransfer: ", agentAddress)
-    console.info("............insert into table: agentId: ", agentId)
-    console.info("............insert into table: agentAddress: ", agentAddress)
-    console.info("............insert into table: agentOwner: ", ownerAddress)
-    console.info("............insert into table: agentName: ", agentName)
-    console.info("............insert into table: a2aEndpoint: ", a2aEndpoint)
-    console.info("............insert into table: metadataURI: ", tokenURI)
-    console.info("............insert into table: chainId: ", chainId)
-    console.info("............insert into table: block: ", blockNumber)
     const currentTime = Math.floor(Date.now() / 1000);
     
     // Compute DID values
@@ -337,7 +322,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, blockNumbe
     const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
     
     await dbInstance.prepare(`
-      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, metadataURI, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
@@ -345,7 +330,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, blockNumbe
         agentOwner=excluded.agentOwner,
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
         a2aEndpoint=COALESCE(excluded.a2aEndpoint, a2aEndpoint),
-        metadataURI=COALESCE(excluded.metadataURI, metadataURI),
+        tokenUri=COALESCE(excluded.tokenUri, tokenUri),
         didIdentity=COALESCE(excluded.didIdentity, didIdentity),
         didAccount=COALESCE(excluded.didAccount, didAccount),
         didName=COALESCE(excluded.didName, didName)
@@ -909,6 +894,159 @@ async function recordFeedbackResponseFromGraph(
   );
 }
 
+async function upsertValidationRequestFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  batch?: BatchWriter
+): Promise<void> {
+  if (!item?.id) {
+    console.warn('⚠️  upsertValidationRequestFromGraph: missing id', item);
+    return;
+  }
+  const id = String(item.id);
+  const agentId = String(item.agentId ?? '0');
+  const validatorAddressRaw = item.validatorAddress ? String(item.validatorAddress) : '';
+  const validatorAddress = validatorAddressRaw.toLowerCase();
+  if (!validatorAddress) {
+    console.warn('⚠️  upsertValidationRequestFromGraph: missing validatorAddress for', id);
+    return;
+  }
+
+  const requestUri = item.requestUri != null ? String(item.requestUri) : null;
+  let requestJson: string | null = null;
+  if (item.requestJson != null) {
+    if (typeof item.requestJson === 'string') {
+      requestJson = item.requestJson;
+    } else {
+      try {
+        requestJson = JSON.stringify(item.requestJson);
+      } catch {
+        requestJson = String(item.requestJson);
+      }
+    }
+  }
+  const requestHash = normalizeHex(item.requestHash);
+  const txHash = normalizeHex(item.txHash);
+  const blockNumber = item.blockNumber !== null && item.blockNumber !== undefined ? Number(item.blockNumber) : 0;
+  const timestamp = item.timestamp !== null && item.timestamp !== undefined ? Number(item.timestamp) : 0;
+  const now = Math.floor(Date.now() / 1000);
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO validation_requests (
+      id, chainId, agentId, validatorAddress, requestUri, requestJson,
+      requestHash, txHash, blockNumber, timestamp, createdAt, updatedAt
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      validatorAddress=excluded.validatorAddress,
+      requestUri=excluded.requestUri,
+      requestJson=excluded.requestJson,
+      requestHash=COALESCE(excluded.requestHash, requestHash),
+      txHash=excluded.txHash,
+      blockNumber=excluded.blockNumber,
+      timestamp=excluded.timestamp,
+      updatedAt=excluded.updatedAt
+  `);
+
+  await enqueueOrRun(batch, stmt, [
+    id,
+    chainId,
+    agentId,
+    validatorAddress,
+    requestUri,
+    requestJson,
+    requestHash,
+    txHash,
+    blockNumber,
+    timestamp,
+    now,
+    now,
+  ]);
+}
+
+async function upsertValidationResponseFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  batch?: BatchWriter
+): Promise<void> {
+  if (!item?.id) {
+    console.warn('⚠️  upsertValidationResponseFromGraph: missing id', item);
+    return;
+  }
+
+  const id = String(item.id);
+  const agentId = String(item.agentId ?? '0');
+  const validatorAddressRaw = item.validatorAddress ? String(item.validatorAddress) : '';
+  const validatorAddress = validatorAddressRaw.toLowerCase();
+  if (!validatorAddress) {
+    console.warn('⚠️  upsertValidationResponseFromGraph: missing validatorAddress for', id);
+    return;
+  }
+
+  const requestHash = normalizeHex(item.requestHash);
+  const responseValue = item.response !== null && item.response !== undefined ? Number(item.response) : null;
+  const responseUri = item.responseUri != null ? String(item.responseUri) : null;
+  let responseJson: string | null = null;
+  if (item.responseJson != null) {
+    if (typeof item.responseJson === 'string') {
+      responseJson = item.responseJson;
+    } else {
+      try {
+        responseJson = JSON.stringify(item.responseJson);
+      } catch {
+        responseJson = String(item.responseJson);
+      }
+    }
+  }
+  const responseHash = normalizeHex(item.responseHash);
+  const tag = normalizeHex(item.tag);
+  const txHash = normalizeHex(item.txHash);
+  const blockNumber = item.blockNumber !== null && item.blockNumber !== undefined ? Number(item.blockNumber) : 0;
+  const timestamp = item.timestamp !== null && item.timestamp !== undefined ? Number(item.timestamp) : 0;
+  const now = Math.floor(Date.now() / 1000);
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO validation_responses (
+      id, chainId, agentId, validatorAddress, requestHash, response,
+      responseUri, responseJson, responseHash, tag, txHash, blockNumber,
+      timestamp, createdAt, updatedAt
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      validatorAddress=excluded.validatorAddress,
+      requestHash=COALESCE(excluded.requestHash, requestHash),
+      response=excluded.response,
+      responseUri=excluded.responseUri,
+      responseJson=excluded.responseJson,
+      responseHash=excluded.responseHash,
+      tag=excluded.tag,
+      txHash=excluded.txHash,
+      blockNumber=excluded.blockNumber,
+      timestamp=excluded.timestamp,
+      updatedAt=excluded.updatedAt
+  `);
+
+  await enqueueOrRun(batch, stmt, [
+    id,
+    chainId,
+    agentId,
+    validatorAddress,
+    requestHash,
+    responseValue,
+    responseUri,
+    responseJson,
+    responseHash,
+    tag,
+    txHash,
+    blockNumber,
+    timestamp,
+    now,
+    now,
+  ]);
+}
+
 // Parse CAIP-10 like eip155:chainId:0x... to 0x address
 function parseCaip10Address(value: string | null | undefined): string | null {
   try {
@@ -932,14 +1070,14 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   const agentAccount = ownerAddress;
   const agentAddress = ownerAddress; // keep for backward compatibility
   let agentName = typeof item?.agentName === 'string' ? item.agentName : '';
-  const metadataURI = typeof item?.uri === 'string' ? item.uri : null;
+  const tokenUri = typeof item?.uri === 'string' ? item.uri : null;
 
   // If name is missing but we have a tokenURI, try to fetch and infer fields
   let inferred: any | null = null;
-  if ((!agentName || agentName.trim() === '') && metadataURI) {
+  if ((!agentName || agentName.trim() === '') && tokenUri) {
     try {
-      console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: metadataURI: ", metadataURI)
-      inferred = await fetchIpfsJson(metadataURI);
+      console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: tokenUri: ", tokenUri)
+      inferred = await fetchIpfsJson(tokenUri);
       if (inferred && typeof inferred === 'object') {
         console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: inferred: ", inferred)
         if (typeof inferred.name === 'string' && inferred.name.trim() !== '') {
@@ -952,10 +1090,10 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   
   // Also fetch URI metadata if metadataJson is empty to get complete data
   let uriMetadata: any | null = null;
-  if (metadataURI && (!item?.metadataJson || (typeof item.metadataJson === 'string' && item.metadataJson.trim() === ''))) {
+  if (tokenUri && (!item?.metadataJson || (typeof item.metadataJson === 'string' && item.metadataJson.trim() === ''))) {
     try {
-      console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: metadataJson is empty, fetching from metadataURI:", metadataURI);
-      uriMetadata = await fetchIpfsJson(metadataURI);
+      console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: metadataJson is empty, fetching from tokenUri:", tokenUri);
+      uriMetadata = await fetchIpfsJson(tokenUri);
       if (uriMetadata && typeof uriMetadata === 'object') {
         console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: fetched URI metadata:", uriMetadata);
         
@@ -979,14 +1117,14 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
   
   await db.prepare(`
-    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, metadataURI, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(chainId, agentId) DO UPDATE SET
       agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
       agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
       agentOwner=excluded.agentOwner,
       agentName=CASE WHEN excluded.agentName IS NOT NULL AND length(excluded.agentName) > 0 THEN excluded.agentName ELSE agentName END,
-      metadataURI=COALESCE(excluded.metadataURI, metadataURI),
+      tokenUri=COALESCE(excluded.tokenUri, tokenUri),
       didIdentity=COALESCE(excluded.didIdentity, didIdentity),
       didAccount=COALESCE(excluded.didAccount, didAccount),
       didName=COALESCE(excluded.didName, didName)
@@ -997,7 +1135,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     agentAccount,
     ownerAddress,
     agentName,
-    metadataURI,
+    tokenUri,
     0,
     currentTime
   );
@@ -1062,7 +1200,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
           console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: updated image from URI:", image);
         }
         
-        // Extract endpoints using the same logic as upsertFromTransfer
+        // Extract endpoints using the same logic
         const endpoints = Array.isArray(uriMetadata.endpoints) ? uriMetadata.endpoints : [];
         const findEndpoint = (n: string) => {
           const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
@@ -1112,6 +1250,188 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     JSON.stringify([]),
     raw,
     updateTime,
+    chainId,
+    agentId,
+  );
+}
+
+async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance: any) {
+  const tokenIdRaw = update?.token?.id ?? update?.tokenId ?? update?.id;
+  if (tokenIdRaw == null) {
+    console.warn('............applyUriUpdateFromGraph: missing token id in update', update?.id);
+    return;
+  }
+
+  let tokenId: bigint;
+  try {
+    tokenId = BigInt(tokenIdRaw);
+  } catch (error) {
+    console.warn('............applyUriUpdateFromGraph: invalid token id', tokenIdRaw, error);
+    return;
+  }
+  if (tokenId <= 0n) return;
+
+  const agentId = toDecString(tokenId);
+  const normalizeString = (value: any): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+  const findEndpoint = (meta: any, label: string): string | null => {
+    if (!meta) return null;
+    const directKey = normalizeString(meta?.[`${label}Endpoint`]);
+    if (directKey) return directKey;
+    const endpoints = Array.isArray(meta?.endpoints) ? meta.endpoints : [];
+    const target = label.toLowerCase();
+    for (const entry of endpoints) {
+      const name = typeof entry?.name === 'string' ? entry.name.toLowerCase() : '';
+      if (name === target) {
+        const raw = normalizeString(entry?.endpoint) || normalizeString(entry?.url);
+        if (raw) return raw;
+      }
+    }
+    return null;
+  };
+
+  let tokenUri = normalizeString(update?.newUri);
+  if (!tokenUri) tokenUri = normalizeString(update?.token?.uri);
+
+  let metadataRaw: string | null = null;
+  let metadataObj: any = null;
+  if (typeof update?.newUriJson === 'string' && update.newUriJson.trim()) {
+    metadataRaw = update.newUriJson;
+    try {
+      metadataObj = JSON.parse(update.newUriJson);
+    } catch (error) {
+      console.warn('............applyUriUpdateFromGraph: failed to parse newUriJson string', error);
+    }
+  } else if (update?.newUriJson && typeof update.newUriJson === 'object') {
+    metadataObj = update.newUriJson;
+    try {
+      metadataRaw = JSON.stringify(update.newUriJson);
+    } catch {}
+  }
+
+  
+  /*
+  if (!metadataObj && tokenUri) {
+    try {
+      metadataObj = await fetchIpfsJson(tokenUri);
+      if (metadataObj) metadataRaw = JSON.stringify(metadataObj);
+    } catch (error) {
+      console.warn('............applyUriUpdateFromGraph: failed to fetch metadata for tokenUri', tokenUri, error);
+    }
+  }
+  */
+
+  const tokenData = update?.token || {};
+  console.info("............applyUriUpdateFromGraph: tokenData: ", tokenData)
+  const metadataName = normalizeString(metadataObj?.name);
+  const fallbackName = normalizeString(tokenData?.agentName);
+  const agentName = metadataName || fallbackName;
+
+  const metadataDescription = normalizeString(metadataObj?.description);
+  const fallbackDescription = normalizeString(tokenData?.description);
+  const description = metadataDescription || fallbackDescription;
+
+  const metadataImage = metadataObj?.image != null ? String(metadataObj.image) : null;
+  const fallbackImage = tokenData?.image != null ? String(tokenData.image) : null;
+  const image = metadataImage || fallbackImage;
+
+  const metadataA2a = findEndpoint(metadataObj, 'a2a') || normalizeString(metadataObj?.a2aEndpoint);
+  const fallbackA2a = normalizeString(tokenData?.a2aEndpoint) || normalizeString(tokenData?.chatEndpoint);
+  const a2aEndpoint = metadataA2a || fallbackA2a;
+
+  const metadataEns = findEndpoint(metadataObj, 'ens') || normalizeString(metadataObj?.ensEndpoint);
+  const fallbackEns = normalizeString(tokenData?.ensName);
+  const ensEndpoint = metadataEns || fallbackEns;
+
+  const metadataAccount = normalizeString(metadataObj?.agentAccount);
+  const fallbackAccount = normalizeString(tokenData?.agentAccount);
+  const agentAccount = parseCaip10Address(metadataAccount) || parseCaip10Address(fallbackAccount);
+  const agentAccountEndpoint = agentAccount ? `eip155:${chainId}:${agentAccount}` : null;
+
+  let rawJson = metadataRaw;
+  if (!rawJson && metadataObj) {
+    try {
+      rawJson = JSON.stringify(metadataObj);
+    } catch {}
+  }
+  if (!rawJson) {
+    try {
+      rawJson = JSON.stringify({
+        agentName,
+        description,
+        image,
+        a2aEndpoint,
+        ensEndpoint,
+        agentAccount: agentAccountEndpoint,
+        tokenUri,
+      });
+    } catch {
+      rawJson = null;
+    }
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const blockNumberNumeric = Number(update?.blockNumber ?? 0);
+  const zeroAddress = '0x0000000000000000000000000000000000000000';
+  const ownerAddress = agentAccount ?? zeroAddress;
+  const didIdentity = `did:8004:${chainId}:${agentId}`;
+  const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
+  const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
+
+  await dbInstance.prepare(`
+    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(chainId, agentId) DO UPDATE SET
+      tokenUri=COALESCE(excluded.tokenUri, tokenUri),
+      agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
+      agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '' THEN excluded.agentAccount ELSE agentAccount END,
+      agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '' THEN excluded.agentAddress ELSE agentAddress END,
+      agentOwner=CASE WHEN excluded.agentOwner IS NOT NULL AND excluded.agentOwner != '' THEN excluded.agentOwner ELSE agentOwner END,
+      didIdentity=COALESCE(excluded.didIdentity, didIdentity),
+      didAccount=COALESCE(excluded.didAccount, didAccount),
+      didName=COALESCE(excluded.didName, didName)
+  `).run(
+    chainId,
+    agentId,
+    ownerAddress,
+    ownerAddress,
+    ownerAddress,
+    agentName ?? '',
+    tokenUri,
+    blockNumberNumeric,
+    now,
+    didIdentity,
+    didAccount,
+    didName,
+  );
+
+  await dbInstance.prepare(`
+    UPDATE agents SET
+      tokenUri = COALESCE(?, tokenUri),
+      agentName = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE agentName END,
+      description = COALESCE(?, description),
+      image = COALESCE(?, image),
+      a2aEndpoint = COALESCE(?, a2aEndpoint),
+      ensEndpoint = COALESCE(?, ensEndpoint),
+      agentAccount = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE agentAccount END,
+      agentAccountEndpoint = COALESCE(?, agentAccountEndpoint),
+      rawJson = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE rawJson END,
+      updatedAtTime = ?
+    WHERE chainId = ? AND agentId = ?
+  `).run(
+    tokenUri,
+    agentName, agentName, agentName,
+    description,
+    image,
+    a2aEndpoint,
+    ensEndpoint,
+    agentAccount, agentAccount, agentAccount,
+    agentAccountEndpoint,
+    rawJson, rawJson, rawJson,
+    now,
     chainId,
     agentId,
   );
@@ -1177,10 +1497,16 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   // Use dbInstance directly instead of getCheckpoint (which uses global db)
   const transferCheckpointKey = chainId ? `lastProcessed_${chainId}` : 'lastProcessed';
   const feedbackCheckpointKey = chainId ? `lastProcessedFeedback_${chainId}` : 'lastProcessedFeedback';
+  const uriUpdateCheckpointKey = chainId ? `lastUriUpdate_${chainId}` : 'lastUriUpdate';
+  const validationCheckpointKey = chainId ? `lastValidation_${chainId}` : 'lastValidation';
   const lastTransferRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(transferCheckpointKey) as { value?: string } | undefined;
   const lastFeedbackRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(feedbackCheckpointKey) as { value?: string } | undefined;
+  const lastUriUpdateRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(uriUpdateCheckpointKey) as { value?: string } | undefined;
+  const lastValidationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(validationCheckpointKey) as { value?: string } | undefined;
   const lastTransfer = lastTransferRow?.value ? BigInt(lastTransferRow.value) : 0n;
   const lastFeedback = lastFeedbackRow?.value ? BigInt(lastFeedbackRow.value) : 0n;
+  const lastUriUpdate = lastUriUpdateRow?.value ? BigInt(lastUriUpdateRow.value) : 0n;
+  const lastValidation = lastValidationRow?.value ? BigInt(lastValidationRow.value) : 0n;
 
 
   console.info("............backfill: query: ", graphqlUrl, "for chain:", chainId)
@@ -1239,16 +1565,21 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const optional = options?.optional ?? false;
     const checkpointForLog = options?.lastCheckpoint ?? lastTransfer;
 
+    console.info("............ test message 123 ...............")
+
     console.info(`............[${label}] Fetching with pageSize ${pageSize}, last checkpoint ${checkpointForLog.toString()}`);
     while (hasMore) {
       batchNumber++;
       console.info(`............[${label}] Fetching batch ${batchNumber}, skip: ${skip}`);
 
+      console.info("............ test message fetch json ...............")
       const resp = await fetchJson({
         query,
         variables: { first: pageSize, skip }
       }) as any;
 
+      console.info("............ test message resp ...............", resp)
+      
       if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
         const missingField = resp.errors.some((err: any) => {
           const message = err?.message || '';
@@ -1347,10 +1678,67 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   }`;
 
+  const uriUpdatesQuery = `query UriUpdates($first: Int!, $skip: Int!) {
+    uriUpdates(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+      id
+      newUri
+      newUriJson
+      blockNumber
+      token {
+        id
+        ensName
+        image
+        uri
+        description
+        chatEndpoint
+        agentName
+        agentAccount
+        a2aEndpoint
+      }
+    }
+  }`;
+
+  const validationRequestQuery = `query ValidationRequests($first: Int!, $skip: Int!) {
+    validationRequests(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+      id
+      validatorAddress
+      agentId
+      requestUri
+      requestJson
+      requestHash
+      txHash
+      blockNumber
+      timestamp
+    }
+  }`;
+
+  const validationResponseQuery = `query ValidationResponses($first: Int!, $skip: Int!) {
+    validationResponses(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+      id
+      validatorAddress
+      agentId
+      requestHash
+      response
+      responseUri
+      responseJson
+      responseHash
+      tag
+      txHash
+      blockNumber
+      timestamp
+    }
+  }`;
+
+
   const transferItems = await fetchAllFromSubgraph('transfers', transfersQuery, 'transfers', { lastCheckpoint: lastTransfer });
+  
+
   const feedbackItems = await fetchAllFromSubgraph('repFeedbacks', feedbackQuery, 'repFeedbacks', { optional: true, lastCheckpoint: lastFeedback });
   const feedbackRevokedItems = await fetchAllFromSubgraph('repFeedbackRevokeds', feedbackRevokedQuery, 'repFeedbackRevokeds', { optional: true, lastCheckpoint: lastFeedback });
   const feedbackResponseItems = await fetchAllFromSubgraph('repResponseAppendeds', feedbackResponseQuery, 'repResponseAppendeds', { optional: true, lastCheckpoint: lastFeedback });
+  const uriUpdateItems = await fetchAllFromSubgraph('uriUpdates', uriUpdatesQuery, 'uriUpdates', { optional: true, lastCheckpoint: lastUriUpdate });
+  const validationRequestItems = await fetchAllFromSubgraph('validationRequests', validationRequestQuery, 'validationRequests', { optional: true, lastCheckpoint: lastValidation });
+  const validationResponseItems = await fetchAllFromSubgraph('validationResponses', validationResponseQuery, 'validationResponses', { optional: true, lastCheckpoint: lastValidation });
 
   let transferCheckpointBlock = lastTransfer;
   const updateTransferCheckpointIfNeeded = async (blockNumber: bigint) => {
@@ -1368,6 +1756,22 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   };
 
+  let uriUpdateCheckpointBlock = lastUriUpdate;
+  const updateUriCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > uriUpdateCheckpointBlock) {
+      uriUpdateCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(uriUpdateCheckpointKey, String(blockNumber));
+    }
+  };
+
+  let validationCheckpointBlock = lastValidation;
+  const updateValidationCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > validationCheckpointBlock) {
+      validationCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(validationCheckpointKey, String(blockNumber));
+    }
+  };
+
   // Upsert latest tokens metadata first (oldest-first by mintedAt)
 
   // Apply transfers newer than checkpoint
@@ -1379,6 +1783,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const feedbackInsertBatch = createBatchWriter(dbInstance, 'rep_feedbacks');
   const feedbackRevokedBatch = createBatchWriter(dbInstance, 'rep_feedback_revoked');
   const feedbackResponseBatch = createBatchWriter(dbInstance, 'rep_feedback_responses');
+  const validationRequestBatch = createBatchWriter(dbInstance, 'validation_requests');
+  const validationResponseBatch = createBatchWriter(dbInstance, 'validation_responses');
 
   console.info("............  process transfers: ", transfersOrdered.length);
   for (let i = 0; i < transfersOrdered.length; i++) {
@@ -1388,8 +1794,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const toAddr = String(tr?.to?.id || '').toLowerCase();
     const blockNum = BigInt(tr?.blockNumber || 0);
     if (tokenId <= 0n || !toAddr) continue;
-    const uri = await tryReadTokenURI(client, tokenId);
-    await upsertFromTransfer(toAddr, tokenId, blockNum, uri, chainId, dbInstance); 
+    //const uri = await tryReadTokenURI(client, tokenId);
+    await upsertFromTransfer(toAddr, tokenId, tr?.token as any, blockNum, null, chainId, dbInstance); 
     await updateTransferCheckpointIfNeeded(blockNum);
     if ((i + 1) % 25 === 0 || i === transfersOrdered.length - 1) {
       console.info(`............  transfer progress: ${i + 1}/${transfersOrdered.length} (block ${blockNum})`);
@@ -1469,9 +1875,85 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       throw error;
     }
   }
+
+  const validationRequestsOrdered = validationRequestItems
+    .filter((item) => Number(item?.blockNumber || 0) > Number(lastValidation))
+    .slice()
+    .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
+
+  console.info("............  process validation requests: ", validationRequestsOrdered.length);
+  if (validationRequestsOrdered.length > 0) {
+    console.info('............  sample validation request ids:', validationRequestsOrdered.slice(0, 3).map((req) => `${req?.id || 'unknown'}@${req?.blockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < validationRequestsOrdered.length; i++) {
+    const req = validationRequestsOrdered[i];
+    const blockNum = BigInt(req?.blockNumber || 0);
+    try {
+      console.info(`............  processing validation request: agentId=${req?.agentId}, id=${req?.id}`);
+      await upsertValidationRequestFromGraph(req, chainId, dbInstance, validationRequestBatch);
+      await updateValidationCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 25 === 0 || i === validationRequestsOrdered.length - 1) {
+        console.info(`............  validation request progress: ${i + 1}/${validationRequestsOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing validation request:', { id: req?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+
+  const validationResponsesOrdered = validationResponseItems
+    .filter((item) => Number(item?.blockNumber || 0) > Number(lastValidation))
+    .slice()
+    .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
+
+  console.info("............  process validation responses: ", validationResponsesOrdered.length);
+  if (validationResponsesOrdered.length > 0) {
+    console.info('............  sample validation response ids:', validationResponsesOrdered.slice(0, 3).map((resp) => `${resp?.id || 'unknown'}@${resp?.blockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < validationResponsesOrdered.length; i++) {
+    const resp = validationResponsesOrdered[i];
+    const blockNum = BigInt(resp?.blockNumber || 0);
+    try {
+      await upsertValidationResponseFromGraph(resp, chainId, dbInstance, validationResponseBatch);
+      await updateValidationCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 25 === 0 || i === validationResponsesOrdered.length - 1) {
+        console.info(`............  validation response progress: ${i + 1}/${validationResponsesOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing validation response:', { id: resp?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+
+  const uriUpdatesOrdered = uriUpdateItems
+    .filter((item) => Number(item?.blockNumber || 0) > Number(lastUriUpdate))
+    .slice()
+    .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
+
+  console.info("............  process uri updates: ", uriUpdatesOrdered.length);
+  if (uriUpdatesOrdered.length > 0) {
+    console.info('............  sample uri update ids:', uriUpdatesOrdered.slice(0, 3).map((u) => `${u?.id || 'unknown'}@${u?.blockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < uriUpdatesOrdered.length; i++) {
+    const update = uriUpdatesOrdered[i];
+    const blockNum = BigInt(update?.blockNumber || 0);
+    try {
+      await applyUriUpdateFromGraph(update, chainId, dbInstance);
+      await updateUriCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 25 === 0 || i === uriUpdatesOrdered.length - 1) {
+        console.info(`............  uri update progress: ${i + 1}/${uriUpdatesOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing uri update:', { id: update?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+
   await feedbackInsertBatch.flush();
   await feedbackRevokedBatch.flush();
   await feedbackResponseBatch.flush();
+  await validationRequestBatch.flush();
+  await validationResponseBatch.flush();
 
   // Note: tokens query removed - we're now using transfers only
   // If tokens are needed, add a separate paginated query here
@@ -1489,7 +1971,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
  
 
 }
-
+/*
 async function backfillByIds(client: ERC8004Client) {
 
   const chainId = await client.getChainId();
@@ -1541,7 +2023,7 @@ async function backfillByIds(client: ERC8004Client) {
     }
   }
 }
-/*
+
 function watch() {
   const unsubs = [
     client.watchContractEvent({ address: IDENTITY_REGISTRY as `0x${string}`, abi: identityRegistryAbi, eventName: 'Transfer', onLogs: async (logs) => {
@@ -1629,7 +2111,7 @@ async function processSingleAgentId(agentId: string) {
         
         if (owner && owner !== '0x0000000000000000000000000000000000000000') {
           console.log(`  ✅ Agent ${agentId} exists on ${name}, owner: ${owner}`);
-          await upsertFromTransfer(owner.toLowerCase(), agentIdBigInt, blockNumber || 0n, tokenURI, chainId);
+          await upsertFromTransfer(owner.toLowerCase(), agentIdBigInt, null, blockNumber || 0n, tokenURI, chainId);
           console.log(`  ✅ Successfully processed agentId ${agentId} on ${name}`);
         } else {
           console.log(`  ⚠️  Agent ${agentId} does not exist or is burned on ${name}`);

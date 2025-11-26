@@ -16,7 +16,7 @@ query GetAllAgentFields {
     didName
     
     # Metadata fields
-    metadataURI
+    tokenUri
     description
     image
     type
@@ -54,7 +54,7 @@ query GetSingleAgent {
     didIdentity
     didAccount
     didName
-    metadataURI
+    tokenUri
     description
     image
     type
@@ -95,7 +95,7 @@ query SearchAgentsGraph {
       didIdentity
       didAccount
       didName
-      metadataURI
+      tokenUri
       description
       image
       type

@@ -17,7 +17,7 @@ export const graphQLSchemaString = `
     didName: String
 
     agentOwner: String!
-    metadataURI: String
+    tokenUri: String
     createdAtBlock: Int!
     createdAtTime: Int!
     type: String
@@ -33,6 +33,10 @@ export const graphQLSchemaString = `
     mcp: Boolean
     x402support: Boolean
     active: Boolean
+    feedbackCount: Int
+    feedbackAverageScore: Float
+    validationPendingCount: Int
+    validationCompletedCount: Int
   }
 
   enum AgentOrderBy {
@@ -95,6 +99,26 @@ export const graphQLSchemaString = `
     mcpTools_in: [String!]
     mcpPrompts_in: [String!]
     mcpResources_in: [String!]
+
+    feedbackCount_gt: Int
+    feedbackCount_gte: Int
+    feedbackCount_lt: Int
+    feedbackCount_lte: Int
+
+    validationPendingCount_gt: Int
+    validationPendingCount_gte: Int
+    validationPendingCount_lt: Int
+    validationPendingCount_lte: Int
+
+    validationCompletedCount_gt: Int
+    validationCompletedCount_gte: Int
+    validationCompletedCount_lt: Int
+    validationCompletedCount_lte: Int
+
+    feedbackAverageScore_gt: Float
+    feedbackAverageScore_gte: Float
+    feedbackAverageScore_lt: Float
+    feedbackAverageScore_lte: Float
   }
 
   type AgentSearchResult {
@@ -166,6 +190,39 @@ export const graphQLSchemaString = `
     txHash: String
     blockNumber: Int
     timestamp: Int
+  }
+
+  type ValidationRequest {
+    id: ID!
+    chainId: Int!
+    agentId: String!
+    validatorAddress: String!
+    requestUri: String
+    requestJson: String
+    requestHash: String
+    txHash: String
+    blockNumber: Int
+    timestamp: Int
+    createdAt: Int
+    updatedAt: Int
+  }
+
+  type ValidationResponse {
+    id: ID!
+    chainId: Int!
+    agentId: String!
+    validatorAddress: String!
+    requestHash: String
+    response: Int
+    responseUri: String
+    responseJson: String
+    responseHash: String
+    tag: String
+    txHash: String
+    blockNumber: Int
+    timestamp: Int
+    createdAt: Int
+    updatedAt: Int
   }
 
   enum FeedbackOrderBy {
@@ -347,6 +404,49 @@ export const graphQLSchemaString = `
       orderBy: String
       orderDirection: String
     ): [RepFeedbackRevocation!]!
+
+    validationRequests(
+      chainId: Int
+      agentId: String
+      validatorAddress: String
+      requestHash: String
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [ValidationRequest!]!
+
+    validationRequest(id: ID!): ValidationRequest
+
+    validationResponses(
+      chainId: Int
+      agentId: String
+      validatorAddress: String
+      requestHash: String
+      tag: String
+      response: Int
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [ValidationResponse!]!
+
+    validationResponse(id: ID!): ValidationResponse
+
+    countValidationRequests(
+      chainId: Int
+      agentId: String
+      validatorAddress: String
+      requestHash: String
+    ): Int!
+
+    countValidationResponses(
+      chainId: Int
+      agentId: String
+      validatorAddress: String
+      requestHash: String
+      tag: String
+    ): Int!
   }
 
   type Mutation {

@@ -56,7 +56,7 @@ export type Agent = {
 	agentAddress: string;
 	agentName: string;
 	owner?: string;
-	metadataURI?: string | null;
+	tokenUri?: string | null;
 	createdAtBlock: number;
 	createdAtTime: number;
 	description?: string | null;
@@ -233,17 +233,17 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 
 			let fetched: any | null = null;
 
-			// Check if metadataURI is an inline data URI (contains the JSON data directly)
-			if (row.metadataURI && row.metadataURI.startsWith('data:application/json')) {
+			// Check if tokenUri is an inline data URI (contains the JSON data directly)
+			if (row.tokenUri && row.tokenUri.startsWith('data:application/json')) {
 				try {
-					console.info("............openIdentityJson: metadataURI is inline data:", row.metadataURI);
-					const commaIndex = row.metadataURI.indexOf(',');
+					console.info("............openIdentityJson: tokenUri is inline data:", row.tokenUri);
+					const commaIndex = row.tokenUri.indexOf(',');
 					if (commaIndex !== -1) {
-						const jsonData = row.metadataURI.substring(commaIndex + 1);
+						const jsonData = row.tokenUri.substring(commaIndex + 1);
 						let parsed;
 
 						// Check if it's base64 encoded or plain JSON
-						if (row.metadataURI.startsWith('data:application/json;base64,')) {
+						if (row.tokenUri.startsWith('data:application/json;base64,')) {
 							try {
 								// Try base64 decode first
 								const jsonString = Buffer.from(jsonData, 'base64').toString('utf-8');
@@ -269,19 +269,19 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 						}
 
 						fetched = parsed;
-						setIdentityTokenUri(row.metadataURI);
+						setIdentityTokenUri(row.tokenUri);
 						console.info("............openIdentityJson: parsed inline data:", fetched);
 					}
 				} catch (e) {
 					console.warn("............openIdentityJson: Failed to parse inline data URI:", e);
 				}
 			}
-			// Check if metadataURI is a plain JSON string
-			else if (row.metadataURI && row.metadataURI.trim().startsWith('{') && row.metadataURI.trim().endsWith('}')) {
+			// Check if tokenUri is a plain JSON string
+			else if (row.tokenUri && row.tokenUri.trim().startsWith('{') && row.tokenUri.trim().endsWith('}')) {
 				try {
-					console.info("............openIdentityJson: metadataURI is plain JSON:", row.metadataURI);
-					fetched = JSON.parse(row.metadataURI);
-					setIdentityTokenUri(row.metadataURI);
+					console.info("............openIdentityJson: tokenUri is plain JSON:", row.tokenUri);
+					fetched = JSON.parse(row.tokenUri);
+					setIdentityTokenUri(row.tokenUri);
 					console.info("............openIdentityJson: parsed plain JSON:", fetched);
 				} catch (e) {
 					console.warn("............openIdentityJson: Failed to parse plain JSON:", e);
@@ -527,8 +527,8 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 			}
 
 			// Get the token URI from the database row
-			if (row.metadataURI) {
-				tokenUri = row.metadataURI;
+			if (row.tokenUri) {
+				tokenUri = row.tokenUri;
 				console.info("+++++++++++++++++++ openAgentInfo: using tokenUri from row", tokenUri);
 			}
 
@@ -542,7 +542,7 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 					account = agentDetails.agentAddress;
 				}
 				if (!tokenUri) {
-					tokenUri = agentDetails.metadataURI || null;
+					tokenUri = agentDetails.tokenUri || null;
 				}
 			}
 
@@ -783,7 +783,7 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 		 try {
 			 const rows = data?.rows || [];
 			 rows.forEach((row) => {
-				 const uri = row.metadataURI;
+				 const uri = row.tokenUri;
 				 //if (!isValidRegistrationUri(uri)) {
 				 //	if (tokenUriValidById[row.agentId] === undefined) setTokenUriValidById((p) => ({ ...p, [row.agentId]: false }));
 				 //	return;
@@ -2648,7 +2648,7 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 													e.stopPropagation();
 													openIdentityJson(row);
 												}}
-												disabled={!isValidRegistrationUri(row.metadataURI) || tokenUriValidById[row.agentId] === false}
+												disabled={!isValidRegistrationUri(row.tokenUri) || tokenUriValidById[row.agentId] === false}
 												sx={{ fontSize: '0.7rem', minWidth: 'auto', px: 1 }}
 											>
 												Reg
@@ -2957,12 +2957,12 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 										>
 											Info
 										</Button>
-										<Tooltip title={row.metadataURI || 'No registration URI'}>
+										<Tooltip title={row.tokenUri || 'No registration URI'}>
 											<span>
 												<Button
 													size="small"
 													onClick={() => openIdentityJson(row)}
-													disabled={!isValidRegistrationUri(row.metadataURI) || tokenUriValidById[row.agentId] === false /* allow null (unknown) */}
+													disabled={!isValidRegistrationUri(row.tokenUri) || tokenUriValidById[row.agentId] === false /* allow null (unknown) */}
 													sx={{ minWidth: 'auto', px: 0.5, py: 0.25, fontSize: '0.65rem', lineHeight: 1, height: 'auto' }}
 												>
 													Reg

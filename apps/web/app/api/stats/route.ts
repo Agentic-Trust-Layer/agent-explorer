@@ -61,7 +61,7 @@ export async function GET() {
           agentName
           description
           image
-          metadataURI
+          tokenUri
           ensEndpoint
           createdAtTime
         }
@@ -111,7 +111,7 @@ export async function GET() {
     const chains = Object.keys(chainGroups).map(chainIdStr => {
       const chainId = parseInt(chainIdStr);
       const chainAgents = chainGroups[chainId];
-      const withMetadata = chainAgents.filter((a: any) => a.metadataURI).length;
+      const withMetadata = chainAgents.filter((a: any) => a.tokenUri).length;
       const withENS = chainAgents.filter((a: any) => a.ensEndpoint).length;
       const recent = chainAgents.filter((a: any) => a.createdAtTime > last24Hours).length;
 

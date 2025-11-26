@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS agents (
   agentAddress TEXT NOT NULL,
   agentOwner TEXT NOT NULL,
   agentName TEXT NOT NULL,
-  metadataURI TEXT,
+  tokenUri TEXT,
   createdAtBlock INTEGER NOT NULL,
   createdAtTime INTEGER NOT NULL,
   type TEXT,

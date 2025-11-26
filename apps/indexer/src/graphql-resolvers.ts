@@ -178,10 +178,33 @@ function buildGraphWhereClause(where?: {
   mcpTools_in?: string[];
   mcpPrompts_in?: string[];
   mcpResources_in?: string[];
+  feedbackCount_gt?: number;
+  feedbackCount_gte?: number;
+  feedbackCount_lt?: number;
+  feedbackCount_lte?: number;
+  validationPendingCount_gt?: number;
+  validationPendingCount_gte?: number;
+  validationPendingCount_lt?: number;
+  validationPendingCount_lte?: number;
+  validationCompletedCount_gt?: number;
+  validationCompletedCount_gte?: number;
+  validationCompletedCount_lt?: number;
+  validationCompletedCount_lte?: number;
+  feedbackAverageScore_gt?: number;
+  feedbackAverageScore_gte?: number;
+  feedbackAverageScore_lt?: number;
+  feedbackAverageScore_lte?: number;
 }): { where: string; params: any[] } {
   if (!where) return { where: '', params: [] };
   const conditions: string[] = [];
   const params: any[] = [];
+
+  const addAggregateComparison = (expr: string, operator: string, value: any) => {
+    if (value !== undefined && value !== null) {
+      conditions.push(`${expr} ${operator} ?`);
+      params.push(value);
+    }
+  };
 
   // Equality / IN filters
   if (where.chainId !== undefined) {
@@ -292,6 +315,26 @@ function buildGraphWhereClause(where?: {
     conditions.push(`createdAtTime <= ?`);
     params.push(where.createdAtTime_lte);
   }
+
+  addAggregateComparison(FEEDBACK_COUNT_EXPR, '>', where.feedbackCount_gt);
+  addAggregateComparison(FEEDBACK_COUNT_EXPR, '>=', where.feedbackCount_gte);
+  addAggregateComparison(FEEDBACK_COUNT_EXPR, '<', where.feedbackCount_lt);
+  addAggregateComparison(FEEDBACK_COUNT_EXPR, '<=', where.feedbackCount_lte);
+
+  addAggregateComparison(VALIDATION_PENDING_EXPR, '>', where.validationPendingCount_gt);
+  addAggregateComparison(VALIDATION_PENDING_EXPR, '>=', where.validationPendingCount_gte);
+  addAggregateComparison(VALIDATION_PENDING_EXPR, '<', where.validationPendingCount_lt);
+  addAggregateComparison(VALIDATION_PENDING_EXPR, '<=', where.validationPendingCount_lte);
+
+  addAggregateComparison(VALIDATION_COMPLETED_EXPR, '>', where.validationCompletedCount_gt);
+  addAggregateComparison(VALIDATION_COMPLETED_EXPR, '>=', where.validationCompletedCount_gte);
+  addAggregateComparison(VALIDATION_COMPLETED_EXPR, '<', where.validationCompletedCount_lt);
+  addAggregateComparison(VALIDATION_COMPLETED_EXPR, '<=', where.validationCompletedCount_lte);
+
+  addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '>', where.feedbackAverageScore_gt);
+  addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '>=', where.feedbackAverageScore_gte);
+  addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '<', where.feedbackAverageScore_lt);
+  addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '<=', where.feedbackAverageScore_lte);
 
   // Presence checks
   if (where.hasA2aEndpoint === true) {
@@ -511,6 +554,134 @@ function buildFeedbackGraphWhereClause(where?: any): { where: string; params: an
   return { where: whereSql, params };
 }
 
+function buildValidationOrderByClause(
+  orderBy?: string,
+  orderDirection?: string,
+  allowedColumns: string[] = ['blockNumber', 'timestamp'],
+  defaultColumn: string = 'blockNumber'
+): string {
+  const column = orderBy && allowedColumns.includes(orderBy) ? orderBy : defaultColumn;
+  const direction = (orderDirection?.toUpperCase() === 'ASC') ? 'ASC' : 'DESC';
+  const numericColumns = new Set(['blockNumber', 'timestamp', 'response']);
+  const orderExpr = numericColumns.has(column) ? `CAST(${column} AS INTEGER)` : column;
+  return `ORDER BY ${orderExpr} ${direction}`;
+}
+
+function buildValidationRequestWhereClause(filters: {
+  chainId?: number;
+  agentId?: string;
+  validatorAddress?: string;
+  requestHash?: string;
+}): { where: string; params: any[] } {
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (filters.chainId !== undefined) {
+    conditions.push('chainId = ?');
+    params.push(filters.chainId);
+  }
+  if (filters.agentId) {
+    conditions.push('agentId = ?');
+    params.push(filters.agentId);
+  }
+  if (filters.validatorAddress) {
+    conditions.push('validatorAddress = ?');
+    params.push(filters.validatorAddress.toLowerCase());
+  }
+  if (filters.requestHash) {
+    conditions.push('requestHash = ?');
+    params.push(filters.requestHash.toLowerCase());
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { where, params };
+}
+
+function buildValidationResponseWhereClause(filters: {
+  chainId?: number;
+  agentId?: string;
+  validatorAddress?: string;
+  requestHash?: string;
+  tag?: string;
+  response?: number;
+}): { where: string; params: any[] } {
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (filters.chainId !== undefined) {
+    conditions.push('chainId = ?');
+    params.push(filters.chainId);
+  }
+  if (filters.agentId) {
+    conditions.push('agentId = ?');
+    params.push(filters.agentId);
+  }
+  if (filters.validatorAddress) {
+    conditions.push('validatorAddress = ?');
+    params.push(filters.validatorAddress.toLowerCase());
+  }
+  if (filters.requestHash) {
+    conditions.push('requestHash = ?');
+    params.push(filters.requestHash.toLowerCase());
+  }
+  if (filters.tag) {
+    conditions.push('tag = ?');
+    params.push(filters.tag.toLowerCase());
+  }
+  if (filters.response !== undefined && filters.response !== null) {
+    conditions.push('response = ?');
+    params.push(filters.response);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { where, params };
+}
+
+const FEEDBACK_COUNT_EXPR = `
+(SELECT COUNT(*)
+ FROM rep_feedbacks rf
+ WHERE rf.chainId = agents.chainId
+   AND rf.agentId = agents.agentId)`;
+
+const FEEDBACK_AVG_SCORE_EXPR = `
+(SELECT AVG(score)
+ FROM rep_feedbacks rf
+ WHERE rf.chainId = agents.chainId
+   AND rf.agentId = agents.agentId
+   AND rf.score IS NOT NULL)`;
+
+const VALIDATION_PENDING_EXPR = `
+(SELECT COUNT(*)
+ FROM validation_requests vr
+ WHERE vr.chainId = agents.chainId
+   AND vr.agentId = agents.agentId
+   AND NOT EXISTS (
+     SELECT 1
+     FROM validation_responses vresp
+     WHERE vresp.chainId = vr.chainId
+       AND vresp.agentId = vr.agentId
+       AND COALESCE(vresp.requestHash, '') = COALESCE(vr.requestHash, '')
+   ))`;
+
+const VALIDATION_COMPLETED_EXPR = `
+(SELECT COUNT(*)
+ FROM validation_responses vresp
+ WHERE vresp.chainId = agents.chainId
+   AND vresp.agentId = agents.agentId)`;
+
+const AGENT_SUMMARY_COLUMNS = `
+  ${FEEDBACK_COUNT_EXPR} AS feedbackCount,
+  ${FEEDBACK_AVG_SCORE_EXPR} AS feedbackAverageScore,
+  ${VALIDATION_PENDING_EXPR} AS validationPendingCount,
+  ${VALIDATION_COMPLETED_EXPR} AS validationCompletedCount
+`;
+
+const AGENT_BASE_COLUMNS = `
+  agents.*,
+  COALESCE(agentAccount, agentAddress) as agentAccount,
+  ${AGENT_SUMMARY_COLUMNS}
+`;
+
 /**
  * Create GraphQL resolvers
  * @param db - Database instance (can be D1 adapter or native D1)
@@ -545,7 +716,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         const { chainId, agentId, agentOwner, agentName, limit = 100, offset = 0, orderBy, orderDirection } = args;
         const { where, params } = buildWhereClause({ chainId, agentId, agentOwner, agentName });
         const orderByClause = buildOrderByClause(execOrderBy, execOrderDirection);
-        const query = `SELECT *, COALESCE(agentAccount, agentAddress) as agentAccount FROM agents ${where} ${orderByClause} LIMIT ? OFFSET ?`;
+        const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${where} ${orderByClause} LIMIT ? OFFSET ?`;
         const allParams = [...params, limit, offset];
         const results = await executeQuery(db, query, allParams);
         console.log('[agents] rows:', results.length, 'params:', { chainId, agentId, agentOwner, agentName, limit, offset, execOrderBy, execOrderDirection });
@@ -573,7 +744,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         const { where: whereSql, params } = buildGraphWhereClause(where);
         const orderByClause = buildOrderByClause(orderByField, orderDir);
 
-        const agentsQuery = `SELECT *, COALESCE(agentAccount, agentAddress) as agentAccount FROM agents ${whereSql} ${orderByClause} LIMIT ? OFFSET ?`;
+        const agentsQuery = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${whereSql} ${orderByClause} LIMIT ? OFFSET ?`;
         const agentsParams = [...params, pageSize, offset];
         const agentsRaw = await executeQuery(db, agentsQuery, agentsParams);
         const agents = enrichAgentRecords(agentsRaw);
@@ -594,7 +765,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
     agent: async (args: { chainId: number; agentId: string }) => {
       try {
         const { chainId, agentId } = args;
-        const result = await executeQuerySingle(db, 'SELECT *, COALESCE(agentAccount, agentAddress) as agentAccount FROM agents WHERE chainId = ? AND agentId = ?', [chainId, agentId]);
+        const result = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`, [chainId, agentId]);
         return enrichAgentRecord(result);
       } catch (error) {
         console.error('❌ Error in agent resolver:', error);
@@ -611,7 +782,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         }
         const lowerName = normalizedName.toLowerCase();
         console.log('🔍 lowerName:', lowerName);
-        const result = await executeQuerySingle(db, 'SELECT *, COALESCE(agentAccount, agentAddress) as agentAccount FROM agents WHERE LOWER(agentName) = ? LIMIT 1', [lowerName]);
+        const result = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE LOWER(agentName) = ? LIMIT 1`, [lowerName]);
         console.log('🔍 result:', JSON.stringify(result, null, 2)); 
         return enrichAgentRecord(result);
       } catch (error) {
@@ -624,7 +795,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
       try {
         const { chainId, limit = 100, offset = 0, orderBy, orderDirection } = args;
         const orderByClause = buildOrderByClause(orderBy, orderDirection);
-        const query = `SELECT *, COALESCE(agentAccount, agentAddress) as agentAccount FROM agents WHERE chainId = ? ${orderByClause} LIMIT ? OFFSET ?`;
+        const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? ${orderByClause} LIMIT ? OFFSET ?`;
         const results = await executeQuery(db, query, [chainId, limit, offset]);
         console.log('[agentsByChain] rows:', results.length, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
@@ -637,7 +808,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
     agentsByOwner: async (args: { agentOwner: string; chainId?: number; limit?: number; offset?: number; orderBy?: string; orderDirection?: string }) => {
       try {
         const { agentOwner, chainId, limit = 100, offset = 0, orderBy, orderDirection } = args;
-        let query = 'SELECT *, COALESCE(agentAccount, agentAddress) as agentAccount FROM agents WHERE agentOwner = ?';
+        let query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE agentOwner = ?`;
         const params: any[] = [agentOwner];
         
         if (chainId !== undefined) {
@@ -664,7 +835,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         const searchPattern = `%${searchQuery}%`;
 
         let sqlQuery = `
-          SELECT *, COALESCE(agentAccount, agentAddress) as agentAccount FROM agents
+          SELECT ${AGENT_BASE_COLUMNS} FROM agents
           WHERE (agentName LIKE ? OR description LIKE ? OR agentId LIKE ? OR COALESCE(agentAccount, agentAddress) LIKE ?)
         `;
         const params: any[] = [searchPattern, searchPattern, searchPattern, searchPattern];
@@ -955,6 +1126,127 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
       }
     },
 
+    validationRequests: async (args: {
+      chainId?: number;
+      agentId?: string;
+      validatorAddress?: string;
+      requestHash?: string;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      try {
+        const {
+          chainId,
+          agentId,
+          validatorAddress,
+          requestHash,
+          limit = 100,
+          offset = 0,
+          orderBy,
+          orderDirection,
+        } = args || {};
+        const { where, params } = buildValidationRequestWhereClause({ chainId, agentId, validatorAddress, requestHash });
+        const orderByClause = buildValidationOrderByClause(orderBy, orderDirection, ['blockNumber', 'timestamp'], 'blockNumber');
+        const sql = `SELECT * FROM validation_requests ${where} ${orderByClause} LIMIT ? OFFSET ?`;
+        const rows = await executeQuery(db, sql, [...params, limit, offset]);
+        console.log('[validationRequests] rows:', rows.length, 'params:', args);
+        return rows;
+      } catch (error) {
+        console.error('❌ Error in validationRequests resolver:', error);
+        throw error;
+      }
+    },
+
+    validationRequest: async (args: { id: string }) => {
+      try {
+        return await executeQuerySingle(db, 'SELECT * FROM validation_requests WHERE id = ?', [args.id]);
+      } catch (error) {
+        console.error('❌ Error in validationRequest resolver:', error);
+        throw error;
+      }
+    },
+
+    validationResponses: async (args: {
+      chainId?: number;
+      agentId?: string;
+      validatorAddress?: string;
+      requestHash?: string;
+      tag?: string;
+      response?: number;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      try {
+        const {
+          chainId,
+          agentId,
+          validatorAddress,
+          requestHash,
+          tag,
+          response,
+          limit = 100,
+          offset = 0,
+          orderBy,
+          orderDirection,
+        } = args || {};
+        const { where, params } = buildValidationResponseWhereClause({ chainId, agentId, validatorAddress, requestHash, tag, response });
+        const orderByClause = buildValidationOrderByClause(orderBy, orderDirection, ['blockNumber', 'timestamp', 'response'], 'blockNumber');
+        const sql = `SELECT * FROM validation_responses ${where} ${orderByClause} LIMIT ? OFFSET ?`;
+        const rows = await executeQuery(db, sql, [...params, limit, offset]);
+        console.log('[validationResponses] rows:', rows.length, 'params:', args);
+        return rows;
+      } catch (error) {
+        console.error('❌ Error in validationResponses resolver:', error);
+        throw error;
+      }
+    },
+
+    validationResponse: async (args: { id: string }) => {
+      try {
+        return await executeQuerySingle(db, 'SELECT * FROM validation_responses WHERE id = ?', [args.id]);
+      } catch (error) {
+        console.error('❌ Error in validationResponse resolver:', error);
+        throw error;
+      }
+    },
+
+    countValidationRequests: async (args: {
+      chainId?: number;
+      agentId?: string;
+      validatorAddress?: string;
+      requestHash?: string;
+    }) => {
+      try {
+        const { where, params } = buildValidationRequestWhereClause(args || {});
+        const row = await executeQuerySingle(db, `SELECT COUNT(*) as count FROM validation_requests ${where}`, params);
+        return (row as any)?.count || 0;
+      } catch (error) {
+        console.error('❌ Error in countValidationRequests resolver:', error);
+        throw error;
+      }
+    },
+
+    countValidationResponses: async (args: {
+      chainId?: number;
+      agentId?: string;
+      validatorAddress?: string;
+      requestHash?: string;
+      tag?: string;
+    }) => {
+      try {
+        const { where, params } = buildValidationResponseWhereClause({ ...args });
+        const row = await executeQuerySingle(db, `SELECT COUNT(*) as count FROM validation_responses ${where}`, params);
+        return (row as any)?.count || 0;
+      } catch (error) {
+        console.error('❌ Error in countValidationResponses resolver:', error);
+        throw error;
+      }
+    },
+
     createAccessCode: async (args: { address: string }) => {
       try {
         const { address } = args;
@@ -1035,6 +1327,31 @@ function enrichAgentRecord(agent: any): any {
     agent.didIdentity = agent.didIdentity || dids.didIdentity;
     agent.didAccount = agent.didAccount || dids.didAccount;
     agent.didName = agent.didName || dids.didName;
+  }
+
+  const normalizeInt = (value: any): number => {
+    if (value === null || value === undefined) return 0;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
+  };
+
+  const normalizeFloat = (value: any): number | null => {
+    if (value === null || value === undefined) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  if (Object.prototype.hasOwnProperty.call(agent, 'feedbackCount')) {
+    agent.feedbackCount = normalizeInt(agent.feedbackCount);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'validationPendingCount')) {
+    agent.validationPendingCount = normalizeInt(agent.validationPendingCount);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'validationCompletedCount')) {
+    agent.validationCompletedCount = normalizeInt(agent.validationCompletedCount);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'feedbackAverageScore')) {
+    agent.feedbackAverageScore = normalizeFloat(agent.feedbackAverageScore);
   }
 
   return agent;

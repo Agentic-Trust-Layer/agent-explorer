@@ -16,7 +16,7 @@ export type Agent = {
 	agentAddress: string;
 	agentName: string;
 	owner?: string;
-	metadataURI?: string | null;
+	tokenUri?: string | null;
 	createdAtBlock: number;
 	createdAtTime: number;
   description?: string | null;
