@@ -2061,7 +2061,7 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 					{/* Search Form */}
 					<Box component="form" onSubmit={handleSubmit} sx={{ display: 'block' }}>
 						<Grid container spacing={2}>
-							<Grid item xs={12} md={2} sx={{ display: { xs: 'none', sm: 'block' } }}>
+							<Grid item xs={12} md="auto" sx={{ display: { xs: 'none', sm: 'block' }, minWidth: 160, maxWidth: 220 }}>
 								<TextField
 									fullWidth
 									select
@@ -2087,7 +2087,7 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 									))}
 								</TextField>
 							</Grid>
-							<Grid item xs={12} md={2} sx={{ display: { xs: 'none', sm: 'block' } }}>
+							<Grid item xs={12} sm={6} md="auto" sx={{ minWidth: 220, maxWidth: 320 }}>
 								<TextField
 									fullWidth
 									label="address"
@@ -2108,7 +2108,7 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 									}}
 								/>
 							</Grid>
-							<Grid item xs={7} sm={12} md={3}>
+							<Grid item xs={12} md sx={{ flexGrow: 1 }}>
 								<TextField
 									fullWidth
 									label="name"
@@ -2129,7 +2129,7 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 									}}
 								/>
 							</Grid>
-							<Grid item xs={5} sm={12} md={2}>
+							<Grid item xs={12} sm={6} md="auto" sx={{ minWidth: 140, maxWidth: 180 }}>
 								<TextField
 									fullWidth
 									label="id"
@@ -2159,10 +2159,12 @@ export function AgentTable({ chainIdHex, addAgentOpen: externalAddAgentOpen, onA
 									}}
 								/>
 							</Grid>
-							<Grid item xs={12} md={1} sx={{ display: { xs: 'none', sm: 'block' } }}>
-								<FormControlLabel control={<Checkbox checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} size="small" />} label="Mine" />
-							</Grid>
-							<Grid item xs={12} md={2}>
+							{eoa && (
+								<Grid item xs={12} md="auto" sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center' }}>
+									<FormControlLabel control={<Checkbox checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} size="small" />} label="Mine" />
+								</Grid>
+							)}
+							<Grid item xs={12} md="auto" sx={{ minWidth: 220 }}>
 								<Stack direction="row" spacing={1} sx={{ height: '100%', flexWrap: { xs: 'nowrap', sm: 'nowrap' } }}>
 									<Button
 										type="submit"

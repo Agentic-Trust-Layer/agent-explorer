@@ -92,6 +92,7 @@ export const graphQLSchemaString = `
     mcp: Boolean
     x402support: Boolean
     active: Boolean
+    is8004Agent: Boolean
 
     operator_in: [String!]
     supportedTrust_in: [String!]
