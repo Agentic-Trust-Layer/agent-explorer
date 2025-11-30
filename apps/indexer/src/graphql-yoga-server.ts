@@ -18,7 +18,7 @@ import {
   BASE_SEPOLIA_RPC_HTTP_URL,
   OP_SEPOLIA_RPC_HTTP_URL,
 } from './env';
-import { ERC8004Client, EthersAdapter } from '@erc8004/sdk';
+import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 import { ethers } from 'ethers';
 
 async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL_SERVER_PORT ?? 4000)) {

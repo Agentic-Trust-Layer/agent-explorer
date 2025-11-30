@@ -191,6 +191,10 @@ function buildGraphWhereClause(where?: {
   validationCompletedCount_gte?: number;
   validationCompletedCount_lt?: number;
   validationCompletedCount_lte?: number;
+  validationRequestedCount_gt?: number;
+  validationRequestedCount_gte?: number;
+  validationRequestedCount_lt?: number;
+  validationRequestedCount_lte?: number;
   feedbackAverageScore_gt?: number;
   feedbackAverageScore_gte?: number;
   feedbackAverageScore_lt?: number;
@@ -331,6 +335,11 @@ function buildGraphWhereClause(where?: {
   addAggregateComparison(VALIDATION_COMPLETED_EXPR, '>=', where.validationCompletedCount_gte);
   addAggregateComparison(VALIDATION_COMPLETED_EXPR, '<', where.validationCompletedCount_lt);
   addAggregateComparison(VALIDATION_COMPLETED_EXPR, '<=', where.validationCompletedCount_lte);
+
+  addAggregateComparison(VALIDATION_REQUESTED_EXPR, '>', where.validationRequestedCount_gt);
+  addAggregateComparison(VALIDATION_REQUESTED_EXPR, '>=', where.validationRequestedCount_gte);
+  addAggregateComparison(VALIDATION_REQUESTED_EXPR, '<', where.validationRequestedCount_lt);
+  addAggregateComparison(VALIDATION_REQUESTED_EXPR, '<=', where.validationRequestedCount_lte);
 
   addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '>', where.feedbackAverageScore_gt);
   addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '>=', where.feedbackAverageScore_gte);
@@ -675,11 +684,18 @@ const VALIDATION_COMPLETED_EXPR = `
  WHERE vresp.chainId = agents.chainId
    AND vresp.agentId = agents.agentId)`;
 
+const VALIDATION_REQUESTED_EXPR = `
+(SELECT COUNT(*)
+ FROM validation_requests vr
+ WHERE vr.chainId = agents.chainId
+   AND vr.agentId = agents.agentId)`;
+
 const AGENT_SUMMARY_COLUMNS = `
   ${FEEDBACK_COUNT_EXPR} AS feedbackCount,
   ${FEEDBACK_AVG_SCORE_EXPR} AS feedbackAverageScore,
   ${VALIDATION_PENDING_EXPR} AS validationPendingCount,
-  ${VALIDATION_COMPLETED_EXPR} AS validationCompletedCount
+  ${VALIDATION_COMPLETED_EXPR} AS validationCompletedCount,
+  ${VALIDATION_REQUESTED_EXPR} AS validationRequestedCount
 `;
 
 const AGENT_BASE_COLUMNS = `
@@ -1355,6 +1371,9 @@ function enrichAgentRecord(agent: any): any {
   }
   if (Object.prototype.hasOwnProperty.call(agent, 'validationCompletedCount')) {
     agent.validationCompletedCount = normalizeInt(agent.validationCompletedCount);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'validationRequestedCount')) {
+    agent.validationRequestedCount = normalizeInt(agent.validationRequestedCount);
   }
   if (Object.prototype.hasOwnProperty.call(agent, 'feedbackAverageScore')) {
     agent.feedbackAverageScore = normalizeFloat(agent.feedbackAverageScore);

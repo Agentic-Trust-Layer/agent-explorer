@@ -37,6 +37,7 @@ export const graphQLSchemaString = `
     feedbackAverageScore: Float
     validationPendingCount: Int
     validationCompletedCount: Int
+    validationRequestedCount: Int
   }
 
   enum AgentOrderBy {
@@ -115,6 +116,11 @@ export const graphQLSchemaString = `
     validationCompletedCount_gte: Int
     validationCompletedCount_lt: Int
     validationCompletedCount_lte: Int
+
+    validationRequestedCount_gt: Int
+    validationRequestedCount_gte: Int
+    validationRequestedCount_lt: Int
+    validationRequestedCount_lte: Int
 
     feedbackAverageScore_gt: Float
     feedbackAverageScore_gte: Float

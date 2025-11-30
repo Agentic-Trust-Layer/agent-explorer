@@ -71,7 +71,7 @@ async function createWorkersIndexAgentResolver(db: any, env?: any) {
   const backfillClients: any[] = [];
   try {
     const { ethers } = await import('ethers');
-    const { ERC8004Client, EthersAdapter } = await import('@erc8004/sdk');
+    const { ERC8004Client, EthersAdapter } = await import('@agentic-trust/8004-sdk');
     
     if (ethSepoliaRpc && ethSepoliaRegistry) {
       const provider = new ethers.JsonRpcProvider(ethSepoliaRpc);

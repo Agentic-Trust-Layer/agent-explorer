@@ -2,7 +2,7 @@ import { createPublicClient, http, webSocket, type Address, decodeEventLog } fro
 import { db, getCheckpoint, setCheckpoint } from "./db";
 import { RPC_WS_URL, CONFIRMATIONS, START_BLOCK, LOGS_CHUNK_SIZE, BACKFILL_MODE, ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY, GRAPHQL_POLL_MS } from "./env";
 import { ethers } from 'ethers';
-import { ERC8004Client, EthersAdapter } from '@erc8004/sdk';
+import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 
 
 import { 
@@ -68,9 +68,9 @@ function toDecString(x: bigint | number | string) {
 
 export async function tryReadTokenURI(client: ERC8004Client, tokenId: bigint): Promise<string | null> {
   try {
-    console.info("............tryReadTokenURI: tokenId: ", tokenId)
+
     const uri = await client.identity.getTokenURI(tokenId);
-    console.info("............tryReadTokenURI: uri: ", uri)
+
     return uri ?? null;
   } catch {
     return null;
@@ -217,18 +217,15 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
       
       for (const { url: ipfsUrl, service } of gateways) {
         try {
-          console.info(`............fetchIpfsJson: trying ${service}: ${ipfsUrl}`)
           const timeoutSignal = createTimeoutSignal(10000); // 10 second timeout per gateway
           const resp = await fetchFn(ipfsUrl, { 
             signal: timeoutSignal
           });
           if (resp?.ok) {
             const json = await resp.json();
-            console.info(`............fetchIpfsJson: ✅ success from ${service}, json:`, JSON.stringify(json))
             return json ?? null;
           } else {
-            console.info(`............fetchIpfsJson: ${service} returned status ${resp.status}, trying next gateway`)
-          }
+           }
         } catch (e: any) {
           const errorMsg = e?.message || String(e);
           // Don't log timeout errors for every gateway (too noisy)
@@ -259,53 +256,88 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
   }
   const agentId = toDecString(tokenId);
   const ownerAddress = to;
-  const agentAccount = to; // mirror owner for now
+  let agentAccount = to; // mirror owner for now
   const agentAddress = to; // keep for backward compatibility
-  let agentName = ""; // not modeled in ERC-721; leave empty
+  let agentName = readAgentName(tokenInfo) || ""; // not modeled in ERC-721; leave empty
+  let resolvedTokenURI = tokenURI ?? (typeof tokenInfo?.uri === 'string' ? tokenInfo.uri : null);
+  const mintedTimestamp = (() => {
+    try {
+      if (tokenInfo?.mintedAt === undefined || tokenInfo?.mintedAt === null) return null;
+      const parsed = Number(tokenInfo.mintedAt);
+      return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const metadataAgentAccount = parseCaip10Address(tokenInfo?.agentAccount);
+  if (metadataAgentAccount) {
+    agentAccount = metadataAgentAccount;
+  }
 
   console.info(".... ownerAddress", ownerAddress)
   console.info(".... chainId", chainId)
 
   // Fetch metadata from tokenURI BEFORE database insert to populate all fields
   let preFetchedMetadata: any = null;
+  const applyMetadataHints = (meta: any) => {
+    if (!meta || typeof meta !== 'object') return;
+    const inferredName = readAgentName(meta);
+    if ((!agentName || agentName.trim() === '') && inferredName) {
+      agentName = inferredName;
+    }
+    if ((!description || !description.trim()) && typeof meta.description === 'string' && meta.description.trim()) {
+      description = meta.description.trim();
+    }
+    if (!image && meta.image != null) {
+      image = String(meta.image);
+    }
+    if (!a2aEndpoint) {
+      const endpoints = Array.isArray(meta.endpoints) ? meta.endpoints : [];
+      const findEndpoint = (n: string) => {
+        const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
+        return e && typeof e.endpoint === 'string' ? e.endpoint : null;
+      };
+      a2aEndpoint = findEndpoint('A2A') || findEndpoint('a2a') || a2aEndpoint;
+    }
+  };
   let a2aEndpoint: string | null = null;
   let description: string | null = null;
   let image: string | null = null;
-  if (tokenInfo && tokenInfo.agentName) { 
+  const tokenInfoName = readAgentName(tokenInfo);
+  if (tokenInfo && tokenInfoName) { 
     console.info("............upsertFromTransfer: tokenInfo: ", tokenInfo)
-    agentName = tokenInfo.agentName;
-    description = tokenInfo.description;
-    image = tokenInfo.image;
-    a2aEndpoint = tokenInfo.a2aEndpoint;
+    agentName = tokenInfoName;
   }
-  else if (tokenURI) {
+  if (tokenInfo && typeof tokenInfo.description === 'string' && tokenInfo.description.trim()) {
+    description = tokenInfo.description.trim();
+  }
+  if (tokenInfo && tokenInfo.image != null) {
+    image = String(tokenInfo.image);
+  }
+  if (tokenInfo && typeof tokenInfo.a2aEndpoint === 'string' && tokenInfo.a2aEndpoint.trim()) {
+    a2aEndpoint = tokenInfo.a2aEndpoint;
+  } else if (!a2aEndpoint && typeof tokenInfo?.chatEndpoint === 'string' && tokenInfo.chatEndpoint.trim()) {
+    a2aEndpoint = tokenInfo.chatEndpoint.trim();
+  }
+
+  if (tokenInfo?.metadataJson) {
+    if (typeof tokenInfo.metadataJson === 'string' && tokenInfo.metadataJson.trim()) {
+      try {
+        preFetchedMetadata = JSON.parse(tokenInfo.metadataJson);
+      } catch (error) {
+        console.warn("............upsertFromTransfer: Failed to parse token metadataJson string:", error);
+      }
+    } else if (typeof tokenInfo.metadataJson === 'object') {
+      preFetchedMetadata = tokenInfo.metadataJson;
+    }
+  }
+  applyMetadataHints(preFetchedMetadata);
+  if (!preFetchedMetadata && resolvedTokenURI) {
     try {
-      const metadata = await fetchIpfsJson(tokenURI);
+      const metadata = await fetchIpfsJson(resolvedTokenURI);
       if (metadata && typeof metadata === 'object') {
         preFetchedMetadata = metadata;
-        
-        // Extract agent name
-        if (typeof metadata.name === 'string' && metadata.name.trim()) {
-          agentName = metadata.name.trim();
-        }
-        
-        // Extract description
-        if (typeof metadata.description === 'string' && metadata.description.trim()) {
-          description = metadata.description.trim();
-        }
-        
-        // Extract image
-        if (metadata.image != null) {
-          image = String(metadata.image);
-        }
-        
-        // Extract a2a endpoint from endpoints array
-        const endpoints = Array.isArray(metadata.endpoints) ? metadata.endpoints : [];
-        const findEndpoint = (n: string) => {
-          const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
-          return e && typeof e.endpoint === 'string' ? e.endpoint : null;
-        };
-        a2aEndpoint = findEndpoint('A2A') || findEndpoint('a2a');
+        applyMetadataHints(preFetchedMetadata);
       }
     } catch (e) {
       console.warn("............upsertFromTransfer: Failed to fetch metadata before insert:", e);
@@ -314,7 +346,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
 
   if (ownerAddress != '0x000000000000000000000000000000000000dEaD') {
-    const currentTime = Math.floor(Date.now() / 1000);
+    const createdAtTime = mintedTimestamp ?? Math.floor(Date.now() / 1000);
     
     // Compute DID values
     const didIdentity = `did:8004:${chainId}:${agentId}`;
@@ -341,10 +373,10 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       agentAccount,
       ownerAddress,
       agentName,
-      tokenURI,
+      resolvedTokenURI,
       a2aEndpoint,
       Number(blockNumber),
-      currentTime,
+      createdAtTime,
       didIdentity,
       didAccount,
       didName
@@ -352,12 +384,12 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
 
     // Use pre-fetched metadata if available, otherwise fetch now
-    const metadata = preFetchedMetadata || await fetchIpfsJson(tokenURI);
+    const metadata = preFetchedMetadata || (resolvedTokenURI ? await fetchIpfsJson(resolvedTokenURI) : null);
     if (metadata) {
       try {
         const meta = metadata as any;
         const type = typeof meta.type === 'string' ? meta.type : null;
-        const name = typeof meta.name === 'string' ? meta.name : null;
+        const name = readAgentName(meta);
 
         // Use pre-extracted description and image, or extract from metadata if not already extracted
         const desc = description || (typeof meta.description === 'string' ? meta.description : null);
@@ -1062,6 +1094,27 @@ function parseCaip10Address(value: string | null | undefined): string | null {
   return null;
 }
 
+function readAgentName(source: any): string | null {
+  const normalize = (value: any): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  };
+
+  try {
+    if (!source) return null;
+    if (typeof source === 'string') {
+      return normalize(source);
+    }
+    if (typeof source === 'object') {
+      const direct = normalize((source as any)?.agentName);
+      if (direct) return direct;
+      return normalize((source as any)?.name);
+    }
+  } catch {}
+  return null;
+}
+
 export async function upsertFromTokenGraph(item: any, chainId: number) {
   const tokenId = BigInt(item?.id || 0);
   if (tokenId <= 0n) return;
@@ -1069,19 +1122,49 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   const ownerAddress = parseCaip10Address(item?.agentAccount) || '0x0000000000000000000000000000000000000000';
   const agentAccount = ownerAddress;
   const agentAddress = ownerAddress; // keep for backward compatibility
-  let agentName = typeof item?.agentName === 'string' ? item.agentName : '';
+  let agentName = readAgentName(item) || '';
   const tokenUri = typeof item?.uri === 'string' ? item.uri : null;
+  const mintedAtBigInt = (() => {
+    try {
+      const raw = item?.mintedAt ?? item?.blockNumber ?? 0;
+      if (typeof raw === 'bigint') return raw;
+      if (typeof raw === 'number') return BigInt(Math.max(0, raw));
+      if (typeof raw === 'string' && raw.trim() !== '') return BigInt(raw.trim());
+    } catch {}
+    return 0n;
+  })();
+  const mintedAtNumber = (() => {
+    const maxSafe = BigInt(Number.MAX_SAFE_INTEGER);
+    const clamped = mintedAtBigInt > maxSafe ? maxSafe : mintedAtBigInt;
+    return Number(clamped);
+  })();
+  const createdAtBlock = mintedAtNumber || 0;
+  const createdAtTime = (() => {
+    const candidates = [item?.timestamp, item?.mintedAtTime, mintedAtNumber, Math.floor(Date.now() / 1000)];
+    for (const candidate of candidates) {
+      const parsed = Number(candidate);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+    return Math.floor(Date.now() / 1000);
+  })();
+
+  let uriMetadata: any | null = null;
+  let inferred: any | null = null;
+
+  console.info("@@@@@@@@@@@@@@@@@@@ upsertFromTokenGraph 0: item: ", item)
 
   // If name is missing but we have a tokenURI, try to fetch and infer fields
-  let inferred: any | null = null;
+  /*
+  
   if ((!agentName || agentName.trim() === '') && tokenUri) {
     try {
       console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: tokenUri: ", tokenUri)
       inferred = await fetchIpfsJson(tokenUri);
       if (inferred && typeof inferred === 'object') {
         console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: inferred: ", inferred)
-        if (typeof inferred.name === 'string' && inferred.name.trim() !== '') {
-          agentName = inferred.name.trim();
+        const inferredName = readAgentName(inferred);
+        if (inferredName) {
+          agentName = inferredName;
           console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: agentName: ", agentName)
         }
       }
@@ -1089,7 +1172,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   }
   
   // Also fetch URI metadata if metadataJson is empty to get complete data
-  let uriMetadata: any | null = null;
+  
   if (tokenUri && (!item?.metadataJson || (typeof item.metadataJson === 'string' && item.metadataJson.trim() === ''))) {
     try {
       console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: metadataJson is empty, fetching from tokenUri:", tokenUri);
@@ -1098,15 +1181,19 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
         console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: fetched URI metadata:", uriMetadata);
         
         // Update agentName from URI metadata if it's missing
-        if ((!agentName || agentName.trim() === '') && typeof uriMetadata.name === 'string' && uriMetadata.name.trim()) {
-          agentName = uriMetadata.name.trim();
-          console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: updated agentName from URI:", agentName);
+        if ((!agentName || agentName.trim() === '')) {
+          const uriAgentName = readAgentName(uriMetadata);
+          if (uriAgentName) {
+            agentName = uriAgentName;
+            console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: updated agentName from URI:", agentName);
+          }
         }
       }
     } catch (uriError) {
       console.warn("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: Failed to fetch URI metadata:", uriError);
     }
   }
+  */
 
   console.info("@@@@@@@@@@@@@@@@@@@ upsertFromTokenGraph 1: agentName: ", agentId, agentName)
   const currentTime = Math.floor(Date.now() / 1000);
@@ -1136,12 +1223,15 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     ownerAddress,
     agentName,
     tokenUri,
-    0,
-    currentTime
+    createdAtBlock,
+    createdAtTime,
+    didIdentity,
+    didAccount,
+    didName
   );
 
   const type = null;
-  let name: string | null = typeof item?.agentName === 'string' ? item.agentName : null;
+  let name: string | null = readAgentName(item);
   let description: string | null = typeof item?.description === 'string' ? item.description : null;
   let image: string | null = item?.image == null ? null : String(item.image);
   let a2aEndpoint: string | null = typeof item?.a2aEndpoint === 'string' ? item.a2aEndpoint : null;
@@ -1150,7 +1240,10 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   // Fill from inferred registration JSON when missing
   if (inferred && typeof inferred === 'object') {
     try {
-      if ((!name || !name.trim()) && typeof inferred.name === 'string') name = inferred.name.trim();
+      if ((!name || !name.trim())) {
+        const inferredAgentName = readAgentName(inferred);
+        if (inferredAgentName) name = inferredAgentName;
+      }
       if ((!description || !description.trim()) && typeof inferred.description === 'string') description = inferred.description;
       if (!image && inferred.image != null) image = String(inferred.image);
       if (!a2aEndpoint) {
@@ -1187,8 +1280,9 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
         raw = JSON.stringify(uriMetadata);
         
         // Update fields from URI metadata (override empty values from GraphQL)
-        if (typeof uriMetadata.name === 'string' && uriMetadata.name.trim()) {
-          name = uriMetadata.name.trim();
+        const uriAgentName = readAgentName(uriMetadata);
+        if (uriAgentName) {
+          name = uriAgentName;
           console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: updated name from URI:", name);
         }
         if (typeof uriMetadata.description === 'string' && uriMetadata.description.trim()) {
@@ -1326,9 +1420,9 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
 
   const tokenData = update?.token || {};
   console.info("............applyUriUpdateFromGraph: tokenData: ", tokenData)
-  const metadataName = normalizeString(metadataObj?.name);
-  const fallbackName = normalizeString(tokenData?.agentName);
-  const agentName = metadataName || fallbackName;
+  const metadataName = readAgentName(metadataObj);
+  const fallbackName = readAgentName(tokenData);
+  const agentName = metadataName || fallbackName || null;
 
   const metadataDescription = normalizeString(metadataObj?.description);
   const fallbackDescription = normalizeString(tokenData?.description);
@@ -1381,6 +1475,7 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
   const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
 
+  console.info(">>>>>>>>>>. applyUriUpdateFromGraph: agentName: ", agentName)
   await dbInstance.prepare(`
     INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1484,8 +1579,6 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   } 
 
 
-  console.info("............backfill: chainId: ", chainId)
-  console.info("............backfill: graphqlUrl: ", graphqlUrl)
 
 
   // GraphQL-driven indexing: fetch latest transfers and upsert
@@ -1499,26 +1592,25 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const feedbackCheckpointKey = chainId ? `lastProcessedFeedback_${chainId}` : 'lastProcessedFeedback';
   const uriUpdateCheckpointKey = chainId ? `lastUriUpdate_${chainId}` : 'lastUriUpdate';
   const validationCheckpointKey = chainId ? `lastValidation_${chainId}` : 'lastValidation';
+  const tokenCheckpointKey = chainId ? `lastToken_${chainId}` : 'lastToken';
   const lastTransferRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(transferCheckpointKey) as { value?: string } | undefined;
   const lastFeedbackRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(feedbackCheckpointKey) as { value?: string } | undefined;
   const lastUriUpdateRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(uriUpdateCheckpointKey) as { value?: string } | undefined;
   const lastValidationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(validationCheckpointKey) as { value?: string } | undefined;
+  const lastTokenRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(tokenCheckpointKey) as { value?: string } | undefined;
   const lastTransfer = lastTransferRow?.value ? BigInt(lastTransferRow.value) : 0n;
   const lastFeedback = lastFeedbackRow?.value ? BigInt(lastFeedbackRow.value) : 0n;
   const lastUriUpdate = lastUriUpdateRow?.value ? BigInt(lastUriUpdateRow.value) : 0n;
   const lastValidation = lastValidationRow?.value ? BigInt(lastValidationRow.value) : 0n;
+  const lastToken = lastTokenRow?.value ? BigInt(lastTokenRow.value) : 0n;
 
-
-  console.info("............backfill: query: ", graphqlUrl, "for chain:", chainId)
 
   const fetchJson = async (body: any) => {
     // Normalize URL: some gateways expect <key>/<subgraph> without trailing /graphql
     // The Graph Studio URLs are already complete, so we don't need to append /graphql
     const endpoint = (graphqlUrl || '').replace(/\/graphql\/?$/i, '');
     
-    console.info("............fetchJson: endpoint:", endpoint);
-    console.info("............fetchJson: query:", body.query?.substring(0, 200));
-    
+
     // Prepare headers
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -1565,21 +1657,14 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const optional = options?.optional ?? false;
     const checkpointForLog = options?.lastCheckpoint ?? lastTransfer;
 
-    console.info("............ test message 123 ...............")
-
-    console.info(`............[${label}] Fetching with pageSize ${pageSize}, last checkpoint ${checkpointForLog.toString()}`);
     while (hasMore) {
       batchNumber++;
-      console.info(`............[${label}] Fetching batch ${batchNumber}, skip: ${skip}`);
-
-      console.info("............ test message fetch json ...............")
       const resp = await fetchJson({
         query,
         variables: { first: pageSize, skip }
       }) as any;
 
-      console.info("............ test message resp ...............", resp)
-      
+
       if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
         const missingField = resp.errors.some((err: any) => {
           const message = err?.message || '';
@@ -1597,7 +1682,6 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       }
 
       const batchItems = (resp?.data?.[field] as any[]) || [];
-      console.info(`............[${label}] Batch ${batchNumber}: ${batchItems.length} rows`);
 
       if (batchItems.length === 0) {
         hasMore = false;
@@ -1613,14 +1697,40 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       }
     }
 
-    console.info(`............[${label}] Total fetched: ${allItems.length}`);
     return allItems;
   };
+
+  const tokensQuery = `query Tokens($first: Int!, $skip: Int!) {
+    tokens(first: $first, skip: $skip, orderBy: mintedAt, orderDirection: asc) {
+      id
+      mintedAt
+      uri
+      metadataJson
+      agentName
+      agentAccount
+      description
+      image
+      a2aEndpoint
+      ensName
+    }
+  }`;
 
   const transfersQuery = `query TokensAndTransfers($first: Int!, $skip: Int!) {
     transfers(first: $first, skip: $skip, orderBy: timestamp, orderDirection: asc) {
       id
-      token { id }
+      token {
+        id
+        uri
+        mintedAt
+        agentName
+        agentAccount
+        description
+        image
+        a2aEndpoint
+        chatEndpoint
+        ensName
+        metadataJson
+      }
       from { id }
       to { id }
       blockNumber
@@ -1731,6 +1841,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
 
   const transferItems = await fetchAllFromSubgraph('transfers', transfersQuery, 'transfers', { lastCheckpoint: lastTransfer });
+  const tokenItems = await fetchAllFromSubgraph('tokens', tokensQuery, 'tokens', { lastCheckpoint: lastToken });
   
 
   const feedbackItems = await fetchAllFromSubgraph('repFeedbacks', feedbackQuery, 'repFeedbacks', { optional: true, lastCheckpoint: lastFeedback });
@@ -1772,6 +1883,14 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   };
 
+  let tokenCheckpointBlock = lastToken;
+  const updateTokenCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > tokenCheckpointBlock) {
+      tokenCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(tokenCheckpointKey, String(blockNumber));
+    }
+  };
+
   // Upsert latest tokens metadata first (oldest-first by mintedAt)
 
   // Apply transfers newer than checkpoint
@@ -1794,8 +1913,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const toAddr = String(tr?.to?.id || '').toLowerCase();
     const blockNum = BigInt(tr?.blockNumber || 0);
     if (tokenId <= 0n || !toAddr) continue;
-    //const uri = await tryReadTokenURI(client, tokenId);
-    await upsertFromTransfer(toAddr, tokenId, tr?.token as any, blockNum, null, chainId, dbInstance); 
+    const transferTokenUri = typeof tr?.token?.uri === 'string' ? tr.token.uri : null;
+    await upsertFromTransfer(toAddr, tokenId, tr?.token as any, blockNum, transferTokenUri, chainId, dbInstance); 
     await updateTransferCheckpointIfNeeded(blockNum);
     if ((i + 1) % 25 === 0 || i === transfersOrdered.length - 1) {
       console.info(`............  transfer progress: ${i + 1}/${transfersOrdered.length} (block ${blockNum})`);
@@ -1955,18 +2074,47 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   await validationRequestBatch.flush();
   await validationResponseBatch.flush();
 
-  // Note: tokens query removed - we're now using transfers only
-  // If tokens are needed, add a separate paginated query here
-  const tokenItems: any[] = [];
-  const tokensOrdered = tokenItems
-  .slice()
-  .sort((a, b) => Number((a.mintedAt || 0)) - Number((b.mintedAt || 0)));
 
-  console.info("............  process tokens: ", tokensOrdered.length)
-  for (const t of tokensOrdered) {
-    console.info(">>>>>>>>>>>>>>> upsertFromTokenGraph: t: ", t)
-    await upsertFromTokenGraph(t, chainId); // ETH Sepolia chainId
+  /*
+  const tokenRecords = tokenItems
+    .map((item) => {
+      let mintedAt = 0n;
+      try {
+        mintedAt = BigInt(item?.mintedAt ?? item?.blockNumber ?? 0);
+      } catch {}
+      return { item, mintedAt };
+    })
+    .filter(({ mintedAt }) => mintedAt > lastToken)
+    .sort((a, b) => {
+      if (a.mintedAt === b.mintedAt) return 0;
+      return a.mintedAt < b.mintedAt ? -1 : 1;
+    });
+
+  console.info("............  process tokens: ", tokenRecords.length);
+  if (tokenRecords.length > 0) {
+    console.info(
+      '............  sample token ids:',
+      tokenRecords
+        .slice(0, 3)
+        .map(({ item, mintedAt }) => `${item?.id || 'unknown'}@${mintedAt}`)
+        .join(', '),
+    );
   }
+
+  for (let i = 0; i < tokenRecords.length; i++) {
+    const { item, mintedAt } = tokenRecords[i];
+    try {
+      await upsertFromTokenGraph(item, chainId);
+      await updateTokenCheckpointIfNeeded(mintedAt);
+      if ((i + 1) % 25 === 0 || i === tokenRecords.length - 1) {
+        console.info(`............  token progress: ${i + 1}/${tokenRecords.length} (mintedAt ${mintedAt})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing token:', { id: item?.id, mintedAt: String(mintedAt), error });
+      throw error;
+    }
+  }
+  */
 
  
 

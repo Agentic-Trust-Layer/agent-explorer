@@ -21,10 +21,13 @@
     "sync:d1": "tsx scripts/sync-to-d1.ts && wrangler d1 execute erc8004-indexer --remote --file=./migrations/sync_to_d1.sql"
   },
   "dependencies": {
+    "@agentic-trust/core": "^1.0.32",
+    "@agentic-trust/8004-ext-sdk": "^1.0.32",
+    "@agentic-trust/8004-sdk": "^1.0.32",
+    "@agentic-trust/veramo-agent-extension": "^1.0.32",
     "dotenv": "^16.4.5",
     "viem": "^2.13.3",
     "ethers": "^6.13.2",
-    "@erc8004/sdk": "workspace:*",
     "express": "^4.18.2",
     "graphql": "^16.8.1",
     "graphql-http": "^1.18.0",

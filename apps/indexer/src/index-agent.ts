@@ -2,7 +2,7 @@
  * Shared logic for indexAgent resolver used by both Express (local) and Workers (production)
  */
 
-import { ERC8004Client, EthersAdapter } from '@erc8004/sdk';
+import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 import type { JsonRpcProvider } from 'ethers';
 import { processAgentDirectly } from './process-agent';
 
@@ -111,7 +111,6 @@ export async function createIndexAgentResolver(config: IndexAgentConfig) {
         try {
           // Check if agent exists by trying to get owner
           const owner = await client.identity.getOwner(agentIdBigInt);
-          console.log("............owner: ", owner, "agentIdBigInt: ", agentIdBigInt);
           otherMessageText += "agent: " + agentIdBigInt + " on chain: " + name + " owner: " + owner + " ";
           const tokenURI = await client.identity.getTokenURI(agentIdBigInt).catch(() => null);
           

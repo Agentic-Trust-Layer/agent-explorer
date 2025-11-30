@@ -5,7 +5,7 @@ import express from 'express';
 import { db, formatSQLTimestamp, getCheckpoint, setCheckpoint } from './db';
 import crypto from 'crypto';
 import { ethers } from 'ethers';
-import { ERC8004Client, EthersAdapter } from '@erc8004/sdk';
+import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 import { processAgentDirectly } from './process-agent';
 import { createGraphQLResolvers, validateAccessCode as validateAccessCodeShared } from './graphql-resolvers';
 import { createDBQueries } from './create-resolvers';
@@ -196,7 +196,7 @@ export function createGraphQLServer(port: number = 4000) {
   });
 
   // GraphQL endpoint - show GraphiQL UI on GET, handle queries on POST
-  console.info("............graphiql 1: /graphql")
+
   app.get('/graphql', (req, res) => {
     res.send(graphiqlHTML);
   });
@@ -204,7 +204,7 @@ export function createGraphQLServer(port: number = 4000) {
   // Handle POST requests for GraphQL queries
   // graphql-http's createHandler from 'use/express' returns Express middleware
   // It should automatically read from req.body (parsed by express.json())
-  console.info("............graphiql 2: /graphql")
+
   app.post('/graphql', handler);
 
   // Health check endpoint
@@ -213,7 +213,7 @@ export function createGraphQLServer(port: number = 4000) {
   });
 
   // Simple GraphiQL endpoint - same as /graphql
-  console.info("............graphiql: /graphiql")
+
   app.get('/graphiql', (req, res) => {
     res.send(graphiqlHTML);
   });
