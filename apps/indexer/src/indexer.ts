@@ -225,7 +225,7 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
             const json = await resp.json();
             return json ?? null;
           } else {
-           }
+          }
         } catch (e: any) {
           const errorMsg = e?.message || String(e);
           // Don't log timeout errors for every gateway (too noisy)
@@ -284,7 +284,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     const inferredName = readAgentName(meta);
     if ((!agentName || agentName.trim() === '') && inferredName) {
       agentName = inferredName;
-    }
+        }
     if ((!description || !description.trim()) && typeof meta.description === 'string' && meta.description.trim()) {
       description = meta.description.trim();
     }
@@ -293,10 +293,10 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     }
     if (!a2aEndpoint) {
       const endpoints = Array.isArray(meta.endpoints) ? meta.endpoints : [];
-      const findEndpoint = (n: string) => {
-        const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
-        return e && typeof e.endpoint === 'string' ? e.endpoint : null;
-      };
+        const findEndpoint = (n: string) => {
+          const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
+          return e && typeof e.endpoint === 'string' ? e.endpoint : null;
+        };
       a2aEndpoint = findEndpoint('A2A') || findEndpoint('a2a') || a2aEndpoint;
     }
   };
@@ -318,7 +318,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     a2aEndpoint = tokenInfo.a2aEndpoint;
   } else if (!a2aEndpoint && typeof tokenInfo?.chatEndpoint === 'string' && tokenInfo.chatEndpoint.trim()) {
     a2aEndpoint = tokenInfo.chatEndpoint.trim();
-  }
+        }
 
   if (tokenInfo?.metadataJson) {
     if (typeof tokenInfo.metadataJson === 'string' && tokenInfo.metadataJson.trim()) {
@@ -1185,7 +1185,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
           const uriAgentName = readAgentName(uriMetadata);
           if (uriAgentName) {
             agentName = uriAgentName;
-            console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: updated agentName from URI:", agentName);
+          console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: updated agentName from URI:", agentName);
           }
         }
       }
@@ -1610,7 +1610,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     // The Graph Studio URLs are already complete, so we don't need to append /graphql
     const endpoint = (graphqlUrl || '').replace(/\/graphql\/?$/i, '');
     
-
+    
     // Prepare headers
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -1651,21 +1651,21 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     options?: { optional?: boolean; lastCheckpoint?: bigint }
   ) => {
     const allItems: any[] = [];
-    let skip = 0;
-    let hasMore = true;
-    let batchNumber = 0;
+  let skip = 0;
+  let hasMore = true;
+  let batchNumber = 0;
     const optional = options?.optional ?? false;
     const checkpointForLog = options?.lastCheckpoint ?? lastTransfer;
-
-    while (hasMore) {
-      batchNumber++;
-      const resp = await fetchJson({
+  
+  while (hasMore) {
+    batchNumber++;
+    const resp = await fetchJson({ 
         query,
-        variables: { first: pageSize, skip }
-      }) as any;
+      variables: { first: pageSize, skip } 
+    }) as any;
 
 
-      if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
+    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
         const missingField = resp.errors.some((err: any) => {
           const message = err?.message || '';
           if (typeof message !== 'string') return false;
@@ -1679,24 +1679,24 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
         console.error(`............[${label}] GraphQL errors:`, JSON.stringify(resp.errors, null, 2));
         throw new Error(`GraphQL query failed for ${label}: ${JSON.stringify(resp.errors)}`);
-      }
-
+    }
+    
       const batchItems = (resp?.data?.[field] as any[]) || [];
-
-      if (batchItems.length === 0) {
-        hasMore = false;
+    
+    if (batchItems.length === 0) {
+      hasMore = false;
         console.info(`............[${label}] No more rows found, stopping pagination`);
-      } else {
+    } else {
         allItems.push(...batchItems);
-        if (batchItems.length < pageSize) {
-          hasMore = false;
+      if (batchItems.length < pageSize) {
+        hasMore = false;
           console.info(`............[${label}] Reached end (got ${batchItems.length} < ${pageSize})`);
-        } else {
-          skip += pageSize;
-        }
+      } else {
+        skip += pageSize;
       }
     }
-
+  }
+  
     return allItems;
   };
 
@@ -1888,7 +1888,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     if (blockNumber > tokenCheckpointBlock) {
       tokenCheckpointBlock = blockNumber;
       await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(tokenCheckpointKey, String(blockNumber));
-    }
+  }
   };
 
   // Upsert latest tokens metadata first (oldest-first by mintedAt)
@@ -1973,7 +1973,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
   const feedbackResponsesOrdered = feedbackResponseItems
     .filter((item) => Number(item?.blockNumber || 0) > Number(lastFeedback))
-    .slice()
+  .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
   console.info("............  process feedback responses: ", feedbackResponsesOrdered.length);
