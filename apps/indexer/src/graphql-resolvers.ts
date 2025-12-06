@@ -652,6 +652,150 @@ function buildValidationResponseWhereClause(filters: {
   return { where, params };
 }
 
+function buildTokenMetadataWhereClause(filters?: {
+  chainId?: number;
+  agentId?: string;
+  agentId_in?: string[];
+  key?: string;
+  key_in?: string[];
+  key_contains?: string;
+  key_contains_nocase?: string;
+  valueText_contains?: string;
+  valueText_contains_nocase?: string;
+  value_contains?: string;
+}): { where: string; params: any[] } {
+  if (!filters) return { where: '', params: [] };
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (filters.chainId !== undefined) {
+    conditions.push('chainId = ?');
+    params.push(filters.chainId);
+  }
+
+  if (filters.agentId) {
+    conditions.push('agentId = ?');
+    params.push(filters.agentId);
+  }
+
+  if (Array.isArray(filters.agentId_in) && filters.agentId_in.length > 0) {
+    conditions.push(`agentId IN (${filters.agentId_in.map(() => '?').join(',')})`);
+    params.push(...filters.agentId_in);
+  }
+
+  if (filters.key) {
+    conditions.push('metadataKey = ?');
+    params.push(filters.key);
+  }
+
+  if (Array.isArray(filters.key_in) && filters.key_in.length > 0) {
+    conditions.push(`metadataKey IN (${filters.key_in.map(() => '?').join(',')})`);
+    params.push(...filters.key_in);
+  }
+
+  if (filters.key_contains) {
+    conditions.push('metadataKey LIKE ?');
+    params.push(`%${filters.key_contains}%`);
+  }
+
+  if (filters.key_contains_nocase) {
+    conditions.push('LOWER(metadataKey) LIKE LOWER(?)');
+    params.push(`%${filters.key_contains_nocase}%`);
+  }
+
+  if (filters.valueText_contains) {
+    conditions.push('valueText LIKE ?');
+    params.push(`%${filters.valueText_contains}%`);
+  }
+
+  if (filters.valueText_contains_nocase) {
+    conditions.push('LOWER(valueText) LIKE LOWER(?)');
+    params.push(`%${filters.valueText_contains_nocase}%`);
+  }
+
+  if (filters.value_contains) {
+    conditions.push('valueHex LIKE ?');
+    params.push(`%${filters.value_contains}%`);
+  }
+
+  const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { where: whereSql, params };
+}
+
+function buildTokenMetadataOrderByClause(orderBy?: string | null, orderDirection?: string | null): string {
+  const validColumns = ['agentId', 'key', 'updatedAtTime'];
+  const column = orderBy && validColumns.includes(orderBy) ? orderBy : 'agentId';
+  const direction = (orderDirection?.toUpperCase() === 'DESC') ? 'DESC' : 'ASC';
+  const mappedColumn = column === 'key' ? 'metadataKey' : column;
+  const orderColumn = mappedColumn === 'agentId' ? 'CAST(agentId AS INTEGER)' : mappedColumn;
+  return `ORDER BY ${orderColumn} ${direction}`;
+}
+
+function formatTokenMetadataRow(row: any): any {
+  if (!row) return row;
+  const updatedAt = row.updatedAtTime !== undefined && row.updatedAtTime !== null ? Number(row.updatedAtTime) : null;
+  return {
+    chainId: Number(row.chainId ?? 0),
+    agentId: String(row.agentId ?? ''),
+    id: String(row.metadataId ?? row.id ?? ''),
+    key: row.metadataKey ?? row.key ?? '',
+    value: row.valueHex ?? row.value ?? null,
+    valueText: row.valueText ?? null,
+    indexedKey: row.indexedKey ?? null,
+    updatedAtTime: updatedAt,
+  };
+}
+
+async function attachTokenMetadataToAgents(db: any, agents: any[]): Promise<void> {
+  if (!Array.isArray(agents) || agents.length === 0) {
+    return;
+  }
+
+  const groups = new Map<number, Set<string>>();
+  for (const agent of agents) {
+    if (!agent || agent.chainId === undefined || agent.agentId === undefined) continue;
+    const chainId = Number(agent.chainId);
+    const agentId = String(agent.agentId);
+    if (!groups.has(chainId)) {
+      groups.set(chainId, new Set());
+    }
+    groups.get(chainId)!.add(agentId);
+  }
+
+  const metadataMap = new Map<string, any[]>();
+  const chunkSize = 50;
+
+  for (const [chainId, agentSet] of groups.entries()) {
+    const agentIds = Array.from(agentSet);
+    for (let i = 0; i < agentIds.length; i += chunkSize) {
+      const chunk = agentIds.slice(i, i + chunkSize);
+      if (!chunk.length) continue;
+      const placeholders = chunk.map(() => '?').join(',');
+      const sql = `
+        SELECT chainId, metadataId, agentId, metadataKey, valueHex, valueText, indexedKey, updatedAtTime
+        FROM token_metadata
+        WHERE chainId = ? AND agentId IN (${placeholders})
+        ORDER BY metadataKey ASC
+      `;
+      const rows = await executeQuery(db, sql, [chainId, ...chunk]);
+      for (const row of rows) {
+        const formatted = formatTokenMetadataRow(row);
+        const key = `${formatted.chainId}:${formatted.agentId}`;
+        if (!metadataMap.has(key)) {
+          metadataMap.set(key, []);
+        }
+        metadataMap.get(key)!.push(formatted);
+      }
+    }
+  }
+
+  for (const agent of agents) {
+    if (!agent) continue;
+    const key = `${agent.chainId}:${agent.agentId}`;
+    agent.metadata = metadataMap.get(key) || [];
+  }
+}
+
 const FEEDBACK_COUNT_EXPR = `
 (SELECT COUNT(*)
  FROM rep_feedbacks rf
@@ -704,6 +848,17 @@ const AGENT_BASE_COLUMNS = `
   ${AGENT_SUMMARY_COLUMNS}
 `;
 
+const TOKEN_METADATA_COLUMNS = `
+  chainId,
+  metadataId,
+  agentId,
+  metadataKey,
+  valueHex,
+  valueText,
+  indexedKey,
+  updatedAtTime
+`;
+
 /**
  * Create GraphQL resolvers
  * @param db - Database instance (can be D1 adapter or native D1)
@@ -741,6 +896,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${where} ${orderByClause} LIMIT ? OFFSET ?`;
         const allParams = [...params, limit, offset];
         const results = await executeQuery(db, query, allParams);
+        await attachTokenMetadataToAgents(db, results);
         console.log('[agents] rows:', results.length, 'params:', { chainId, agentId, agentOwner, agentName, limit, offset, execOrderBy, execOrderDirection });
         return enrichAgentRecords(results);
       } catch (error) {
@@ -769,6 +925,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         const agentsQuery = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${whereSql} ${orderByClause} LIMIT ? OFFSET ?`;
         const agentsParams = [...params, pageSize, offset];
         const agentsRaw = await executeQuery(db, agentsQuery, agentsParams);
+        await attachTokenMetadataToAgents(db, agentsRaw);
         const agents = enrichAgentRecords(agentsRaw);
 
         const countQuery = `SELECT COUNT(*) as count FROM agents ${whereSql}`;
@@ -788,6 +945,9 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
       try {
         const { chainId, agentId } = args;
         const result = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`, [chainId, agentId]);
+        if (result) {
+          await attachTokenMetadataToAgents(db, [result]);
+        }
         return enrichAgentRecord(result);
       } catch (error) {
         console.error('❌ Error in agent resolver:', error);
@@ -806,6 +966,9 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         console.log('🔍 lowerName:', lowerName);
         const result = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE LOWER(agentName) = ? LIMIT 1`, [lowerName]);
         console.log('🔍 result:', JSON.stringify(result, null, 2)); 
+        if (result) {
+          await attachTokenMetadataToAgents(db, [result]);
+        }
         return enrichAgentRecord(result);
       } catch (error) {
         console.error('❌ Error in agentByName resolver:', error);
@@ -819,6 +982,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         const orderByClause = buildOrderByClause(orderBy, orderDirection);
         const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? ${orderByClause} LIMIT ? OFFSET ?`;
         const results = await executeQuery(db, query, [chainId, limit, offset]);
+        await attachTokenMetadataToAgents(db, results);
         console.log('[agentsByChain] rows:', results.length, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
       } catch (error) {
@@ -843,6 +1007,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         params.push(limit, offset);
         
         const results = await executeQuery(db, query, params);
+        await attachTokenMetadataToAgents(db, results);
         console.log('[agentsByOwner] rows:', results.length, 'agentOwner:', agentOwner, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
       } catch (error) {
@@ -872,6 +1037,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         params.push(limit, offset);
 
         const results = await executeQuery(db, sqlQuery, params);
+        await attachTokenMetadataToAgents(db, results);
         console.log('[searchAgents] rows:', results.length, 'query:', searchQuery, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
       } catch (error) {
@@ -903,6 +1069,50 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         return (result as any)?.count || 0;
       } catch (error) {
         console.error('❌ Error in countAgents resolver:', error);
+        throw error;
+      }
+    },
+
+    tokenMetadata: async (args: {
+      where?: any;
+      first?: number | null;
+      skip?: number | null;
+      orderBy?: string | null;
+      orderDirection?: string | null;
+    }) => {
+      try {
+        const { where, first, skip, orderBy, orderDirection } = args || {};
+        const pageSize = typeof first === 'number' && Number.isFinite(first) && first > 0 ? first : 100;
+        const offset = typeof skip === 'number' && Number.isFinite(skip) && skip >= 0 ? skip : 0;
+        const { where: whereSql, params } = buildTokenMetadataWhereClause(where);
+        const orderClause = buildTokenMetadataOrderByClause(orderBy || undefined, orderDirection || undefined);
+        const rows = await executeQuery(
+          db,
+          `SELECT ${TOKEN_METADATA_COLUMNS} FROM token_metadata ${whereSql} ${orderClause} LIMIT ? OFFSET ?`,
+          [...params, pageSize, offset]
+        );
+        const formatted = rows.map(formatTokenMetadataRow);
+        const countRow = await executeQuerySingle(db, `SELECT COUNT(*) as count FROM token_metadata ${whereSql}`, params);
+        const total = (countRow as any)?.count || 0;
+        const hasMore = (offset + pageSize) < total;
+        return { entries: formatted, total, hasMore };
+      } catch (error) {
+        console.error('❌ Error in tokenMetadata resolver:', error);
+        throw error;
+      }
+    },
+
+    tokenMetadataById: async (args: { chainId: number; id: string }) => {
+      try {
+        const { chainId, id } = args;
+        const row = await executeQuerySingle(
+          db,
+          `SELECT ${TOKEN_METADATA_COLUMNS} FROM token_metadata WHERE chainId = ? AND metadataId = ?`,
+          [chainId, id]
+        );
+        return row ? formatTokenMetadataRow(row) : null;
+      } catch (error) {
+        console.error('❌ Error in tokenMetadataById resolver:', error);
         throw error;
       }
     },

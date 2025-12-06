@@ -534,7 +534,11 @@ function createBatchWriter(dbInstance: any, label: string, batchSize = 50): Batc
         await attempt();
         return;
       } catch (error: any) {
-        const isNetworkError = error?.code === 'ECONNRESET' || /fetch failed/i.test(error?.message || '');
+        const message = String(error?.message || '');
+        const isNetworkError =
+          error?.code === 'ECONNRESET' ||
+          /fetch failed/i.test(message) ||
+          /D1 API error:\s*5\d{2}/i.test(message);
         if (!isNetworkError || i === maxRetries - 1) {
           throw error;
         }
@@ -595,6 +599,65 @@ async function enqueueOrRun(batch: BatchWriter | undefined, stmt: any, params: a
 function normalizeHex(value: string | null | undefined): string | null {
   if (!value) return null;
   return String(value).toLowerCase();
+}
+
+function decodeHexToUtf8(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  let normalized = value.trim();
+  if (!normalized) return null;
+  if (normalized.startsWith('0x') || normalized.startsWith('0X')) {
+    normalized = normalized.slice(2);
+  }
+  if (!normalized) return '';
+  if (normalized.length % 2 === 1) {
+    normalized = `0${normalized}`;
+  }
+
+  const byteLength = Math.floor(normalized.length / 2);
+  const bytes = new Uint8Array(byteLength);
+  for (let i = 0; i < byteLength; i++) {
+    const byteHex = normalized.slice(i * 2, i * 2 + 2);
+    const parsed = parseInt(byteHex, 16);
+    if (Number.isNaN(parsed)) {
+      return null;
+    }
+    bytes[i] = parsed;
+  }
+
+  try {
+    let text: string | null = null;
+    if (typeof TextDecoder !== 'undefined') {
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      text = decoder.decode(bytes);
+    } else if (typeof Buffer !== 'undefined') {
+      text = Buffer.from(bytes).toString('utf8');
+    }
+    if (text === null) return null;
+    return text.replace(/\u0000+$/g, '');
+  } catch {
+    return null;
+  }
+}
+
+function extractMetadataIdentifier(metadataId: string | null | undefined): { agentId: string; metadataKey: string } | null {
+  if (typeof metadataId !== 'string') return null;
+  const trimmed = metadataId.trim();
+  if (!trimmed) return null;
+  const separatorIndex = trimmed.indexOf('-');
+  if (separatorIndex <= 0) return null;
+  const agentSegment = trimmed.slice(0, separatorIndex);
+  const keySegment = trimmed.slice(separatorIndex + 1);
+  if (!agentSegment || !keySegment) return null;
+
+  let agentId = agentSegment;
+  try {
+    const numeric = BigInt(agentSegment);
+    agentId = numeric.toString();
+  } catch {
+    // keep original segment if not numeric
+  }
+
+  return { agentId, metadataKey: keySegment };
 }
 
 async function resolveFeedbackIndex(
@@ -1075,6 +1138,64 @@ async function upsertValidationResponseFromGraph(
     blockNumber,
     timestamp,
     now,
+    now,
+  ]);
+}
+
+async function upsertTokenMetadataFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  batch?: BatchWriter
+): Promise<void> {
+  if (!item) return;
+
+  const metadataIdRaw = typeof item.id === 'string' ? item.id : null;
+  const keyRaw = typeof item.key === 'string' ? item.key : null;
+  if (!metadataIdRaw || !keyRaw) {
+    console.warn('⚠️  upsertTokenMetadataFromGraph: missing id or key', item);
+    return;
+  }
+
+  const parsedIdentifier = extractMetadataIdentifier(metadataIdRaw);
+  if (!parsedIdentifier) {
+    console.warn('⚠️  upsertTokenMetadataFromGraph: unable to parse metadata id', metadataIdRaw);
+    return;
+  }
+
+  const metadataKey = keyRaw.trim();
+  if (!metadataKey) {
+    console.warn('⚠️  upsertTokenMetadataFromGraph: empty metadata key', item);
+    return;
+  }
+
+  const valueHex = typeof item.value === 'string' ? item.value : null;
+  const valueText = valueHex ? decodeHexToUtf8(valueHex) : null;
+  const indexedKey = typeof item.indexedKey === 'string' ? item.indexedKey : null;
+  const now = Math.floor(Date.now() / 1000);
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO token_metadata (
+      chainId, metadataId, agentId, metadataKey, valueHex, valueText, indexedKey, updatedAtTime
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(chainId, metadataId) DO UPDATE SET
+      agentId=excluded.agentId,
+      metadataKey=excluded.metadataKey,
+      valueHex=excluded.valueHex,
+      valueText=excluded.valueText,
+      indexedKey=excluded.indexedKey,
+      updatedAtTime=excluded.updatedAtTime
+  `);
+
+  await enqueueOrRun(batch, stmt, [
+    chainId,
+    metadataIdRaw,
+    parsedIdentifier.agentId,
+    metadataKey,
+    valueHex,
+    valueText,
+    indexedKey,
     now,
   ]);
 }
@@ -1593,16 +1714,19 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const uriUpdateCheckpointKey = chainId ? `lastUriUpdate_${chainId}` : 'lastUriUpdate';
   const validationCheckpointKey = chainId ? `lastValidation_${chainId}` : 'lastValidation';
   const tokenCheckpointKey = chainId ? `lastToken_${chainId}` : 'lastToken';
+  const tokenMetadataCheckpointKey = chainId ? `lastTokenMetadata_${chainId}` : 'lastTokenMetadata';
   const lastTransferRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(transferCheckpointKey) as { value?: string } | undefined;
   const lastFeedbackRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(feedbackCheckpointKey) as { value?: string } | undefined;
   const lastUriUpdateRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(uriUpdateCheckpointKey) as { value?: string } | undefined;
   const lastValidationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(validationCheckpointKey) as { value?: string } | undefined;
   const lastTokenRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(tokenCheckpointKey) as { value?: string } | undefined;
+  const lastTokenMetadataRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(tokenMetadataCheckpointKey) as { value?: string } | undefined;
   const lastTransfer = lastTransferRow?.value ? BigInt(lastTransferRow.value) : 0n;
   const lastFeedback = lastFeedbackRow?.value ? BigInt(lastFeedbackRow.value) : 0n;
   const lastUriUpdate = lastUriUpdateRow?.value ? BigInt(lastUriUpdateRow.value) : 0n;
   const lastValidation = lastValidationRow?.value ? BigInt(lastValidationRow.value) : 0n;
   const lastToken = lastTokenRow?.value ? BigInt(lastTokenRow.value) : 0n;
+  const lastTokenMetadata = lastTokenMetadataRow?.value ? BigInt(lastTokenMetadataRow.value) : 0n;
 
 
   const fetchJson = async (body: any) => {
@@ -1648,16 +1772,21 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     label: string,
     query: string,
     field: string,
-    options?: { optional?: boolean; lastCheckpoint?: bigint }
+	    options?: { optional?: boolean; lastCheckpoint?: bigint; maxSkip?: number }
   ) => {
     const allItems: any[] = [];
+	    const maxSkip = options?.maxSkip ?? 5000;
   let skip = 0;
   let hasMore = true;
   let batchNumber = 0;
     const optional = options?.optional ?? false;
     const checkpointForLog = options?.lastCheckpoint ?? lastTransfer;
   
-  while (hasMore) {
+	  while (hasMore) {
+	    if (skip > maxSkip) {
+	      console.warn(`............[${label}] Reached skip limit (${maxSkip}); stopping pagination early after ${allItems.length} items`);
+	      break;
+	    }
     batchNumber++;
     const resp = await fetchJson({ 
         query,
@@ -1665,17 +1794,25 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }) as any;
 
 
-    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
+  	    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
         const missingField = resp.errors.some((err: any) => {
           const message = err?.message || '';
           if (typeof message !== 'string') return false;
           return message.includes(`field "${field}"`) || message.includes(`field \`${field}\``) || message.includes(field);
         });
+	        const skipLimitError = resp.errors.some((err: any) => {
+	          const message = String(err?.message || '').toLowerCase();
+	          return message.includes('skip') && message.includes('argument');
+	        });
 
         if (optional && missingField) {
           console.warn(`............[${label}] Skipping: subgraph does not expose field "${field}". Message: ${resp.errors[0]?.message || 'unknown'}`);
           return [];
         }
+	        if (optional && skipLimitError) {
+	          console.warn(`............[${label}] Skipping remaining pages: ${resp.errors[0]?.message || 'skip limit hit'}`);
+	          return allItems;
+	        }
 
         console.error(`............[${label}] GraphQL errors:`, JSON.stringify(resp.errors, null, 2));
         throw new Error(`GraphQL query failed for ${label}: ${JSON.stringify(resp.errors)}`);
@@ -1683,7 +1820,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     
       const batchItems = (resp?.data?.[field] as any[]) || [];
     
-    if (batchItems.length === 0) {
+      if (batchItems.length === 0) {
       hasMore = false;
         console.info(`............[${label}] No more rows found, stopping pagination`);
     } else {
@@ -1693,6 +1830,10 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
           console.info(`............[${label}] Reached end (got ${batchItems.length} < ${pageSize})`);
       } else {
         skip += pageSize;
+	        if (skip > maxSkip) {
+	          console.warn(`............[${label}] Next skip (${skip}) would exceed limit (${maxSkip}); stopping pagination`);
+	          hasMore = false;
+	        }
       }
     }
   }
@@ -1891,6 +2032,14 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   }
   };
 
+  let tokenMetadataCheckpointBlock = lastTokenMetadata;
+  const updateTokenMetadataCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > tokenMetadataCheckpointBlock) {
+      tokenMetadataCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(tokenMetadataCheckpointKey, String(blockNumber));
+    }
+  };
+
   // Upsert latest tokens metadata first (oldest-first by mintedAt)
 
   // Apply transfers newer than checkpoint
@@ -1904,6 +2053,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const feedbackResponseBatch = createBatchWriter(dbInstance, 'rep_feedback_responses');
   const validationRequestBatch = createBatchWriter(dbInstance, 'validation_requests');
   const validationResponseBatch = createBatchWriter(dbInstance, 'validation_responses');
+  const tokenMetadataBatch = createBatchWriter(dbInstance, 'token_metadata');
 
   console.info("............  process transfers: ", transfersOrdered.length);
   for (let i = 0; i < transfersOrdered.length; i++) {
@@ -1919,6 +2069,36 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     if ((i + 1) % 25 === 0 || i === transfersOrdered.length - 1) {
       console.info(`............  transfer progress: ${i + 1}/${transfersOrdered.length} (block ${blockNum})`);
     }
+  }
+
+  const tokenMetadataQuery = `query TokenMetadata($first: Int!, $skip: Int!) {
+    tokenMetadata_collection(first: $first, skip: $skip) {
+      id
+      key
+      value
+      indexedKey
+    }
+  }`;
+
+  const shouldProcessTokenMetadata = transferCheckpointBlock > lastTokenMetadata;
+  if (shouldProcessTokenMetadata) {
+    const tokenMetadataItems = await fetchAllFromSubgraph('tokenMetadata', tokenMetadataQuery, 'tokenMetadata_collection', { optional: true });
+    console.info("............  process token metadata entries: ", tokenMetadataItems.length);
+    for (let i = 0; i < tokenMetadataItems.length; i++) {
+      const meta = tokenMetadataItems[i];
+      try {
+        await upsertTokenMetadataFromGraph(meta, chainId, dbInstance, tokenMetadataBatch);
+        if ((i + 1) % 100 === 0 || i === tokenMetadataItems.length - 1) {
+          console.info(`............  token metadata progress: ${i + 1}/${tokenMetadataItems.length}`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing token metadata entry:', { id: meta?.id, error });
+        throw error;
+      }
+    }
+    await updateTokenMetadataCheckpointIfNeeded(transferCheckpointBlock);
+  } else {
+    console.info(`............  token metadata already synced to block ${lastTokenMetadata}; skipping`);
   }
 
   const feedbacksOrdered = feedbackItems
@@ -2073,6 +2253,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   await feedbackResponseBatch.flush();
   await validationRequestBatch.flush();
   await validationResponseBatch.flush();
+  await tokenMetadataBatch.flush();
 
 
   /*
@@ -2150,8 +2331,8 @@ async function backfillByIds(client: ERC8004Client) {
   if (max === 0n) {
     console.log('No tokens found via ID scan.');
     try {
-      console.info('Clearing database rows: agents, agent_metadata, events');
-      try { db.prepare('DELETE FROM agent_metadata').run(); } catch {}
+      console.info('Clearing database rows: agents, token_metadata, events');
+      try { db.prepare('DELETE FROM token_metadata').run(); } catch {}
       try { db.prepare('DELETE FROM agents').run(); } catch {}
       try { db.prepare('DELETE FROM events').run(); } catch {}
     } catch {}

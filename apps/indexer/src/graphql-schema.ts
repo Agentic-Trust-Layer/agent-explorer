@@ -38,6 +38,7 @@ export const graphQLSchemaString = `
     validationPendingCount: Int
     validationCompletedCount: Int
     validationRequestedCount: Int
+    metadata: [TokenMetadata!]!
   }
 
   enum AgentOrderBy {
@@ -132,6 +133,42 @@ export const graphQLSchemaString = `
     agents: [Agent!]!
     total: Int!
     hasMore: Boolean!
+  }
+
+  type TokenMetadata {
+    chainId: Int!
+    agentId: String!
+    id: String!
+    key: String!
+    value: String
+    valueText: String
+    indexedKey: String
+    updatedAtTime: Int
+  }
+
+  type TokenMetadataSearchResult {
+    entries: [TokenMetadata!]!
+    total: Int!
+    hasMore: Boolean!
+  }
+
+  enum TokenMetadataOrderBy {
+    agentId
+    key
+    updatedAtTime
+  }
+
+  input TokenMetadataWhereInput {
+    chainId: Int
+    agentId: String
+    agentId_in: [String!]
+    key: String
+    key_in: [String!]
+    key_contains: String
+    key_contains_nocase: String
+    valueText_contains: String
+    valueText_contains_nocase: String
+    value_contains: String
   }
 
   type AccessCode {
@@ -343,6 +380,19 @@ export const graphQLSchemaString = `
       agentOwner: String
       agentName: String
     ): Int!
+
+    tokenMetadata(
+      where: TokenMetadataWhereInput
+      first: Int
+      skip: Int
+      orderBy: TokenMetadataOrderBy
+      orderDirection: OrderDirection
+    ): TokenMetadataSearchResult!
+
+    tokenMetadataById(
+      chainId: Int!
+      id: String!
+    ): TokenMetadata
 
     feedbacks(
       chainId: Int

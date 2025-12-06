@@ -218,6 +218,8 @@ export default {
             searchAgentsGraph: (_p: any, args: any, ctx: any) => ctx.dbQueries.searchAgentsGraph(args),
             getAccessCode: (_p: any, args: any, ctx: any) => ctx.dbQueries.getAccessCode(args),
             countAgents: (_p: any, args: any, ctx: any) => ctx.dbQueries.countAgents(args),
+            tokenMetadata: (_p: any, args: any, ctx: any) => ctx.dbQueries.tokenMetadata(args),
+            tokenMetadataById: (_p: any, args: any, ctx: any) => ctx.dbQueries.tokenMetadataById(args),
             feedbacks: (_p: any, args: any, ctx: any) => ctx.dbQueries.feedbacks(args),
             feedback: (_p: any, args: any, ctx: any) => ctx.dbQueries.feedback(args),
             feedbackByReference: (_p: any, args: any, ctx: any) => ctx.dbQueries.feedbackByReference(args),
