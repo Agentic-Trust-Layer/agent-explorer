@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { graphQLSchemaString } from './graphql-schema';
 import { createDBQueries } from './create-resolvers';
+import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 import { db } from './db';
 import {
   needsAuthentication,
@@ -90,8 +91,12 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
     backfillClients,
   });
 
+  const semanticSearchService = createSemanticSearchServiceFromEnv();
+
   // Create shared resolvers and adapt to Yoga-style resolvers map
-  const shared = createDBQueries(db, localIndexAgentResolver) as any;
+  const shared = createDBQueries(db, localIndexAgentResolver, {
+    semanticSearchService,
+  }) as any;
   const resolvers = {
     Query: {
       agents: (_parent: unknown, args: any) => shared.agents(args),
@@ -103,6 +108,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
       searchAgentsGraph: (_parent: unknown, args: any) => shared.searchAgentsGraph(args),
       getAccessCode: (_parent: unknown, args: any) => shared.getAccessCode(args),
       countAgents: (_parent: unknown, args: any) => shared.countAgents(args),
+      semanticAgentSearch: (_parent: unknown, args: any) => shared.semanticAgentSearch(args),
     },
     Mutation: {
       createAccessCode: (_parent: unknown, args: any) => shared.createAccessCode(args),

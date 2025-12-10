@@ -3,6 +3,9 @@ import { db, getCheckpoint, setCheckpoint } from "./db";
 import { RPC_WS_URL, CONFIRMATIONS, START_BLOCK, LOGS_CHUNK_SIZE, BACKFILL_MODE, ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY, GRAPHQL_POLL_MS } from "./env";
 import { ethers } from 'ethers';
 import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
+import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
+import { ingestAgentsIntoSemanticStore } from './semantic/agent-ingest.js';
+import { resolveEoaOwner } from './ownership.js';
 
 
 import { 
@@ -346,6 +349,8 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
 
   if (ownerAddress != '0x000000000000000000000000000000000000dEaD') {
+    const resolvedEoaOwner = await resolveEoaOwnerSafe(chainId, ownerAddress);
+    const eoaOwner = resolvedEoaOwner ?? ownerAddress;
     const createdAtTime = mintedTimestamp ?? Math.floor(Date.now() / 1000);
     
     // Compute DID values
@@ -354,12 +359,13 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
     
     await dbInstance.prepare(`
-      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
         agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
         agentOwner=excluded.agentOwner,
+        eoaOwner=CASE WHEN excluded.eoaOwner IS NOT NULL AND excluded.eoaOwner != '' THEN excluded.eoaOwner ELSE eoaOwner END,
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
         a2aEndpoint=COALESCE(excluded.a2aEndpoint, a2aEndpoint),
         tokenUri=COALESCE(excluded.tokenUri, tokenUri),
@@ -372,6 +378,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       agentAddress, // keep for backward compatibility
       agentAccount,
       ownerAddress,
+      eoaOwner,
       agentName,
       resolvedTokenURI,
       a2aEndpoint,
@@ -1215,6 +1222,15 @@ function parseCaip10Address(value: string | null | undefined): string | null {
   return null;
 }
 
+async function resolveEoaOwnerSafe(chainId: number, ownerAddress: string | null | undefined): Promise<string | null> {
+  try {
+    return await resolveEoaOwner(chainId, ownerAddress ?? null);
+  } catch (error) {
+    console.warn('[ownership] Failed to resolve EOA owner', { chainId, ownerAddress, error });
+    return ownerAddress ?? null;
+  }
+}
+
 function readAgentName(source: any): string | null {
   const normalize = (value: any): string | null => {
     if (typeof value !== 'string') return null;
@@ -1323,14 +1339,16 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   const didIdentity = `did:8004:${chainId}:${agentId}`;
   const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
   const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
+  const eoaOwner = (await resolveEoaOwnerSafe(chainId, ownerAddress)) ?? ownerAddress;
   
   await db.prepare(`
-    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(chainId, agentId) DO UPDATE SET
       agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
       agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
       agentOwner=excluded.agentOwner,
+      eoaOwner=CASE WHEN excluded.eoaOwner IS NOT NULL AND excluded.eoaOwner != '' THEN excluded.eoaOwner ELSE eoaOwner END,
       agentName=CASE WHEN excluded.agentName IS NOT NULL AND length(excluded.agentName) > 0 THEN excluded.agentName ELSE agentName END,
       tokenUri=COALESCE(excluded.tokenUri, tokenUri),
       didIdentity=COALESCE(excluded.didIdentity, didIdentity),
@@ -1342,6 +1360,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     agentAddress, // keep for backward compatibility
     agentAccount,
     ownerAddress,
+    eoaOwner,
     agentName,
     tokenUri,
     createdAtBlock,
@@ -1592,20 +1611,22 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   const blockNumberNumeric = Number(update?.blockNumber ?? 0);
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const ownerAddress = agentAccount ?? zeroAddress;
+  const eoaOwner = (await resolveEoaOwnerSafe(chainId, ownerAddress)) ?? ownerAddress;
   const didIdentity = `did:8004:${chainId}:${agentId}`;
   const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
   const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
 
   console.info(">>>>>>>>>>. applyUriUpdateFromGraph: agentName: ", agentName)
   await dbInstance.prepare(`
-    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(chainId, agentId) DO UPDATE SET
       tokenUri=COALESCE(excluded.tokenUri, tokenUri),
       agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
       agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '' THEN excluded.agentAccount ELSE agentAccount END,
       agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '' THEN excluded.agentAddress ELSE agentAddress END,
       agentOwner=CASE WHEN excluded.agentOwner IS NOT NULL AND excluded.agentOwner != '' THEN excluded.agentOwner ELSE agentOwner END,
+      eoaOwner=CASE WHEN excluded.eoaOwner IS NOT NULL AND excluded.eoaOwner != '' THEN excluded.eoaOwner ELSE eoaOwner END,
       didIdentity=COALESCE(excluded.didIdentity, didIdentity),
       didAccount=COALESCE(excluded.didAccount, didAccount),
       didName=COALESCE(excluded.didName, didName)
@@ -1615,6 +1636,7 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     ownerAddress,
     ownerAddress,
     ownerAddress,
+    eoaOwner,
     agentName ?? '',
     tokenUri,
     blockNumberNumeric,
@@ -1772,7 +1794,12 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     label: string,
     query: string,
     field: string,
-	    options?: { optional?: boolean; lastCheckpoint?: bigint; maxSkip?: number }
+    options?: {
+      optional?: boolean;
+      lastCheckpoint?: bigint;
+      maxSkip?: number;
+      buildVariables?: (args: { first: number; skip: number }) => Record<string, any>;
+    }
   ) => {
     const allItems: any[] = [];
 	    const maxSkip = options?.maxSkip ?? 5000;
@@ -1788,9 +1815,13 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 	      break;
 	    }
     batchNumber++;
+    const variables = options?.buildVariables
+      ? options.buildVariables({ first: pageSize, skip })
+      : { first: pageSize, skip };
+
     const resp = await fetchJson({ 
-        query,
-      variables: { first: pageSize, skip } 
+      query,
+      variables
     }) as any;
 
 
@@ -2071,34 +2102,73 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   }
 
-  const tokenMetadataQuery = `query TokenMetadata($first: Int!, $skip: Int!) {
-    tokenMetadata_collection(first: $first, skip: $skip) {
+  const tokenMetadataQuery = `query TokenMetadata($first: Int!, $skip: Int!, $minBlock: BigInt!) {
+    tokenMetadata_collection(
+      first: $first,
+      skip: $skip,
+      orderBy: blockNumber,
+      orderDirection: asc,
+      where: { blockNumber_gt: $minBlock }
+    ) {
       id
       key
       value
       indexedKey
+      blockNumber
     }
   }`;
 
-  const shouldProcessTokenMetadata = transferCheckpointBlock > lastTokenMetadata;
-  if (shouldProcessTokenMetadata) {
-    const tokenMetadataItems = await fetchAllFromSubgraph('tokenMetadata', tokenMetadataQuery, 'tokenMetadata_collection', { optional: true });
+  const minTokenMetadataBlock = lastTokenMetadata > 0n ? lastTokenMetadata : 0n;
+  const tokenMetadataItems = await fetchAllFromSubgraph(
+    'tokenMetadata',
+    tokenMetadataQuery,
+    'tokenMetadata_collection',
+    {
+      optional: true,
+      buildVariables: ({ first, skip }) => ({
+        first,
+        skip,
+        minBlock: minTokenMetadataBlock.toString(),
+      }),
+    }
+  );
+
+  if (tokenMetadataItems.length === 0) {
+    console.info(`............  no token metadata updates beyond block ${lastTokenMetadata}`);
+  } else {
     console.info("............  process token metadata entries: ", tokenMetadataItems.length);
+    let maxMetadataBlock = lastTokenMetadata;
     for (let i = 0; i < tokenMetadataItems.length; i++) {
       const meta = tokenMetadataItems[i];
+      const metadataBlockRaw = meta?.blockNumber ?? meta?.block?.number ?? 0;
+      let metadataBlock = 0n;
+      try {
+        metadataBlock = metadataBlockRaw ? BigInt(metadataBlockRaw) : 0n;
+      } catch {
+        metadataBlock = 0n;
+      }
+
+      if (metadataBlock <= lastTokenMetadata) {
+        continue;
+      }
+
       try {
         await upsertTokenMetadataFromGraph(meta, chainId, dbInstance, tokenMetadataBatch);
+        if (metadataBlock > maxMetadataBlock) {
+          maxMetadataBlock = metadataBlock;
+        }
         if ((i + 1) % 100 === 0 || i === tokenMetadataItems.length - 1) {
-          console.info(`............  token metadata progress: ${i + 1}/${tokenMetadataItems.length}`);
+          console.info(`............  token metadata progress: ${i + 1}/${tokenMetadataItems.length} (block ${metadataBlock})`);
         }
       } catch (error) {
         console.error('❌ Error processing token metadata entry:', { id: meta?.id, error });
         throw error;
       }
     }
-    await updateTokenMetadataCheckpointIfNeeded(transferCheckpointBlock);
-  } else {
-    console.info(`............  token metadata already synced to block ${lastTokenMetadata}; skipping`);
+
+    if (maxMetadataBlock > lastTokenMetadata) {
+      await updateTokenMetadataCheckpointIfNeeded(maxMetadataBlock);
+    }
   }
 
   const feedbacksOrdered = feedbackItems
@@ -2500,6 +2570,24 @@ async function processSingleAgentId(agentId: string) {
       */
   } catch (e) {
     console.error('Initial GraphQL backfill failed:', e);
+  }
+
+  const pineconeTarget = {
+    index: process.env.PINECONE_INDEX || '(unset)',
+    namespace: process.env.PINECONE_NAMESPACE || '(default)',
+  };
+  console.info('[semantic-ingest] pinecone target', pineconeTarget);
+  const semanticSearchService = createSemanticSearchServiceFromEnv();
+  if (semanticSearchService) {
+    try {
+      console.info('[semantic-ingest] starting Pinecone ingest');
+      const ingestResult = await ingestAgentsIntoSemanticStore(db, semanticSearchService, { chunkSize: 100 });
+      console.log(`✅ Semantic ingest completed: ${ingestResult.processed} agents across ${ingestResult.batches} batches`);
+    } catch (error) {
+      console.error('❌ Semantic ingest failed:', error);
+    }
+  } else {
+    console.log('[semantic-ingest] Semantic search not configured; skipping Pinecone ingest');
   }
   // Subscribe to on-chain events as a safety net (optional)
   //const unwatch = watch();

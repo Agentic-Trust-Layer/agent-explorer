@@ -29,6 +29,9 @@ importers:
       '@agentic-trust/veramo-agent-extension':
         specifier: ^1.0.32
         version: 1.0.32(bufferutil@4.0.9)(encoding@0.1.13)(graphql@16.12.0)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.22.3)
+      '@pinecone-database/pinecone':
+        specifier: ^6.1.3
+        version: 6.1.3
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -867,6 +870,10 @@ packages:
 
   '@noble/secp256k1@1.7.2':
     resolution: {integrity: sha512-/qzwYl5eFLH8OWIecQWM31qld2g1NfjgylK+TNhqtaUKP37Nm+Y+z30Fjhw0Ct8p9yCQEm2N3W/AckdIb3SMcQ==}
+
+  '@pinecone-database/pinecone@6.1.3':
+    resolution: {integrity: sha512-EegC8sLP40+xdq3bu80TR6OZe3Sc4LuJFSFZb8RbMr3xvODEsvXe4QoS+kFx2PDR5g3dokP44NFR9AxseCeVQA==}
+    engines: {node: '>=18.0.0'}
 
   '@protobufjs/aspromise@1.1.2':
     resolution: {integrity: sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==}
@@ -4559,6 +4566,8 @@ snapshots:
 
   '@noble/secp256k1@1.7.2': {}
 
+  '@pinecone-database/pinecone@6.1.3': {}
+
   '@protobufjs/aspromise@1.1.2': {}
 
   '@protobufjs/base64@1.1.2': {}
@@ -6541,7 +6550,7 @@ snapshots:
 
   iso-url@1.2.1: {}
 
-  isows@1.0.7(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)):
+  isows@1.0.7(ws@8.18.3):
     dependencies:
       ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
 
@@ -7868,7 +7877,7 @@ snapshots:
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
       abitype: 1.1.0(typescript@5.9.3)(zod@3.22.3)
-      isows: 1.0.7(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))
+      isows: 1.0.7(ws@8.18.3)
       ox: 0.9.6(typescript@5.9.3)(zod@3.22.3)
       ws: 8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     optionalDependencies:

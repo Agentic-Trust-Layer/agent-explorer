@@ -1,3 +1,5 @@
+import { resolveEoaOwner } from './ownership.js';
+
 /**
  * Shared function to process and index an agent directly from chain data
  * Works with both D1 adapter (Node.js) and native D1 (Cloudflare Workers)
@@ -16,6 +18,15 @@ async function executeUpdate(db: any, sql: string, params: any[]): Promise<void>
   } else {
     // D1 adapter: use .run(...params)
     await stmt.run(...params);
+  }
+}
+
+async function resolveEoaOwnerSafe(chainId: number, ownerAddress: string | null | undefined): Promise<string | null> {
+  try {
+    return await resolveEoaOwner(chainId, ownerAddress ?? null);
+  } catch (error) {
+    console.warn('[process-agent] Failed to resolve EOA owner', { chainId, ownerAddress, error });
+    return ownerAddress ?? null;
   }
 }
 
@@ -269,6 +280,8 @@ export async function processAgentDirectly(
   // Don't process if agent is burned
   if (ownerAddress !== '0x000000000000000000000000000000000000dEaD') {
     const currentTime = Math.floor(Date.now() / 1000);
+    const resolvedEoaOwner = await resolveEoaOwnerSafe(chainId, ownerAddress);
+    const eoaOwner = resolvedEoaOwner ?? ownerAddress;
     
     // Compute DID values
     const didIdentity = `did:8004:${chainId}:${agentId}`;
@@ -278,12 +291,13 @@ export async function processAgentDirectly(
     // Insert or update agent
     console.log('********************* process-agent: inserting or updating agent: ', agentId, agentAccount, ownerAddress, agentName, tokenURI, a2aEndpoint, blockNumber, currentTime);
     await executeUpdate(db, `
-      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, agentName, tokenUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
         agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
         agentOwner=excluded.agentOwner,
+        eoaOwner=CASE WHEN excluded.eoaOwner IS NOT NULL AND excluded.eoaOwner != '' THEN excluded.eoaOwner ELSE eoaOwner END,
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
         a2aEndpoint=COALESCE(excluded.a2aEndpoint, a2aEndpoint),
         tokenUri=COALESCE(excluded.tokenUri, tokenUri),
@@ -296,6 +310,7 @@ export async function processAgentDirectly(
       agentAccount, // Keep agentAddress for backward compatibility
       agentAccount,
       ownerAddress,
+      eoaOwner,
       agentName,
       tokenURI,
       a2aEndpoint,

@@ -9,6 +9,7 @@ query GetAllAgentFields {
     agentAccount
     agentName
     agentOwner
+    eoaOwner
     
     # New DID fields
     didIdentity
@@ -51,6 +52,7 @@ query GetSingleAgent {
     agentAccount
     agentName
     agentOwner
+    eoaOwner
     didIdentity
     didAccount
     didName
@@ -92,6 +94,7 @@ query SearchAgentsGraph {
       agentAccount
       agentName
       agentOwner
+      eoaOwner
       didIdentity
       didAccount
       didName

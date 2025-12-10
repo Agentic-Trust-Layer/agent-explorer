@@ -9,6 +9,7 @@ import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 import { processAgentDirectly } from './process-agent';
 import { createGraphQLResolvers, validateAccessCode as validateAccessCodeShared } from './graphql-resolvers';
 import { createDBQueries } from './create-resolvers';
+import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 import {
   needsAuthentication,
   extractAccessCode,
@@ -134,7 +135,10 @@ const localIndexAgentResolver = await createIndexAgentResolver({
 });
 
 // Create resolvers using shared function
-const root = createDBQueries(db, localIndexAgentResolver);
+const semanticSearchService = createSemanticSearchServiceFromEnv();
+const root = createDBQueries(db, localIndexAgentResolver, {
+  semanticSearchService,
+});
 
 // processAgentDirectly is now imported from './process-agent'
 

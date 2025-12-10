@@ -2,7 +2,7 @@
  * Shared function to create GraphQL resolvers with environment-specific indexAgent
  */
 
-import { createGraphQLResolvers } from './graphql-resolvers.js';
+import { createGraphQLResolvers, type GraphQLResolverOptions } from './graphql-resolvers.js';
 
 /**
  * Create GraphQL resolvers with optional custom indexAgent resolver
@@ -10,9 +10,10 @@ import { createGraphQLResolvers } from './graphql-resolvers.js';
  */
 export function createDBQueries(
   db: any,
-  indexAgentResolver?: (args: { agentId: string; chainId?: number }, env?: any) => Promise<any>
+  indexAgentResolver?: (args: { agentId: string; chainId?: number }, env?: any) => Promise<any>,
+  options?: GraphQLResolverOptions,
 ) {
-  const sharedResolvers = createGraphQLResolvers(db);
+  const sharedResolvers = createGraphQLResolvers(db, options);
   
   if (indexAgentResolver) {
     return {

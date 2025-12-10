@@ -45,6 +45,7 @@ async function syncToD1() {
       agent.agentId,
       agent.agentAddress,
       agent.agentOwner,
+      agent.eoaOwner ?? agent.agentOwner,
       agent.agentName || '',
       agent.tokenUri || null,
       agent.createdAtBlock,
@@ -62,7 +63,7 @@ async function syncToD1() {
     
     // Use INSERT OR REPLACE to handle conflicts
     const sql = `INSERT OR REPLACE INTO agents (
-      chainId, agentId, agentAddress, agentOwner, agentName, tokenUri,
+      chainId, agentId, agentAddress, agentOwner, eoaOwner, agentName, tokenUri,
       createdAtBlock, createdAtTime, type, description, image,
       a2aEndpoint, ensEndpoint, agentAccountEndpoint, supportedTrust,
       rawJson, updatedAtTime

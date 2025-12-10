@@ -17,6 +17,7 @@ export const graphQLSchemaString = `
     didName: String
 
     agentOwner: String!
+    eoaOwner: String
     tokenUri: String
     createdAtBlock: Int!
     createdAtTime: Int!
@@ -47,6 +48,7 @@ export const graphQLSchemaString = `
     createdAtTime
     createdAtBlock
     agentOwner
+    eoaOwner
   }
 
   enum OrderDirection {
@@ -63,6 +65,9 @@ export const graphQLSchemaString = `
 
     agentOwner: String
     agentOwner_in: [String!]
+
+    eoaOwner: String
+    eoaOwner_in: [String!]
 
     agentName_contains: String
     agentName_contains_nocase: String
@@ -150,6 +155,31 @@ export const graphQLSchemaString = `
     entries: [TokenMetadata!]!
     total: Int!
     hasMore: Boolean!
+  }
+
+  type SemanticAgentMatch {
+    agent: Agent
+    score: Float!
+    matchReasons: [String!]
+  }
+
+  type SemanticAgentSearchResult {
+    matches: [SemanticAgentMatch!]!
+    total: Int!
+  }
+
+  input SemanticAgentSearchInput {
+    text: String!
+    topK: Int
+    minScore: Float
+    filters: SemanticSearchFilterInput
+  }
+
+  input SemanticSearchFilterInput {
+    capabilities: [String!]
+    inputMode: String
+    outputMode: String
+    tags: [String!]
   }
 
   enum TokenMetadataOrderBy {
@@ -380,6 +410,10 @@ export const graphQLSchemaString = `
       agentOwner: String
       agentName: String
     ): Int!
+
+    semanticAgentSearch(
+      input: SemanticAgentSearchInput!
+    ): SemanticAgentSearchResult!
 
     tokenMetadata(
       where: TokenMetadataWhereInput

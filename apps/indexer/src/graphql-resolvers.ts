@@ -1,3 +1,6 @@
+import type { SemanticSearchService } from './semantic/semantic-search-service.js';
+import type { VectorQueryMatch } from './semantic/interfaces.js';
+
 /**
  * Shared GraphQL resolvers that work with both D1 adapter and native D1
  * This module abstracts the database interface differences
@@ -92,6 +95,7 @@ function buildWhereClause(filters: {
   chainId?: number;
   agentId?: string;
   agentOwner?: string;
+  eoaOwner?: string;
   agentName?: string;
 }): { where: string; params: any[] } {
   const conditions: string[] = [];
@@ -112,6 +116,11 @@ function buildWhereClause(filters: {
     params.push(filters.agentOwner);
   }
 
+  if (filters.eoaOwner) {
+    conditions.push(`eoaOwner = ?`);
+    params.push(filters.eoaOwner);
+  }
+
   if (filters.agentName) {
     conditions.push(`agentName LIKE ?`);
     params.push(`%${filters.agentName}%`);
@@ -126,7 +135,7 @@ function buildWhereClause(filters: {
  */
 function buildOrderByClause(orderBy?: string, orderDirection?: string): string {
   // Valid columns for ordering
-  const validColumns = ['agentId', 'agentName', 'createdAtTime', 'createdAtBlock', 'agentOwner'];
+  const validColumns = ['agentId', 'agentName', 'createdAtTime', 'createdAtBlock', 'agentOwner', 'eoaOwner'];
   
   // Default to agentId ASC if not specified
   const column = orderBy && validColumns.includes(orderBy) ? orderBy : 'agentId';
@@ -148,6 +157,8 @@ function buildGraphWhereClause(where?: {
   agentId_in?: string[];
   agentOwner?: string;
   agentOwner_in?: string[];
+  eoaOwner?: string;
+  eoaOwner_in?: string[];
   agentName_contains?: string;
   agentName_contains_nocase?: string;
   agentName_starts_with?: string;
@@ -235,6 +246,14 @@ function buildGraphWhereClause(where?: {
   if (Array.isArray(where.agentOwner_in) && where.agentOwner_in.length > 0) {
     conditions.push(`agentOwner IN (${where.agentOwner_in.map(() => '?').join(',')})`);
     params.push(...where.agentOwner_in);
+  }
+  if (where.eoaOwner) {
+    conditions.push(`eoaOwner = ?`);
+    params.push(where.eoaOwner);
+  }
+  if (Array.isArray(where.eoaOwner_in) && where.eoaOwner_in.length > 0) {
+    conditions.push(`eoaOwner IN (${where.eoaOwner_in.map(() => '?').join(',')})`);
+    params.push(...where.eoaOwner_in);
   }
 
   // Text filters - agentName
@@ -796,6 +815,101 @@ async function attachTokenMetadataToAgents(db: any, agents: any[]): Promise<void
   }
 }
 
+function parseChainIdValue(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function parseAgentIdValue(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  return null;
+}
+
+function extractAgentIdentifier(match: VectorQueryMatch): AgentIdentifier | null {
+  const metadata = (match.metadata ?? {}) as Record<string, unknown>;
+  const chainId = parseChainIdValue(metadata['chainId']);
+  const agentId = parseAgentIdValue(metadata['agentId']);
+
+  if (chainId !== null && agentId) {
+    return { chainId, agentId };
+  }
+
+  if (typeof match.id === 'string' && match.id.includes(':')) {
+    const [maybeChainId, maybeAgentId] = match.id.split(':', 2);
+    const parsedChainId = parseChainIdValue(maybeChainId);
+    const parsedAgentId = parseAgentIdValue(maybeAgentId);
+    if (parsedChainId !== null && parsedAgentId) {
+      return { chainId: parsedChainId, agentId: parsedAgentId };
+    }
+  }
+
+  return null;
+}
+
+async function hydrateSemanticMatches(db: any, matches: VectorQueryMatch[]) {
+  if (!Array.isArray(matches) || matches.length === 0) {
+    return [];
+  }
+
+  const keyedMatches = matches.map((match) => ({
+    match,
+    identifier: extractAgentIdentifier(match),
+  }));
+
+  const groups = new Map<number, Set<string>>();
+  for (const entry of keyedMatches) {
+    if (!entry.identifier) continue;
+    const { chainId, agentId } = entry.identifier;
+    if (!groups.has(chainId)) {
+      groups.set(chainId, new Set());
+    }
+    groups.get(chainId)!.add(agentId);
+  }
+
+  const agentRows: any[] = [];
+  for (const [chainId, agentIdsSet] of groups.entries()) {
+    const agentIds = Array.from(agentIdsSet);
+    if (!agentIds.length) continue;
+    const placeholders = agentIds.map(() => '?').join(',');
+    const sql = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId IN (${placeholders})`;
+    const rows = await executeQuery(db, sql, [chainId, ...agentIds]);
+    agentRows.push(...rows);
+  }
+
+  if (agentRows.length > 0) {
+    await attachTokenMetadataToAgents(db, agentRows);
+  }
+
+  const agentMap = new Map<string, any>();
+  for (const row of agentRows) {
+    const key = `${row.chainId}:${row.agentId}`;
+    agentMap.set(key, enrichAgentRecord(row));
+  }
+
+  return keyedMatches.map(({ match, identifier }) => {
+    const agentKey = identifier ? `${identifier.chainId}:${identifier.agentId}` : null;
+    const agent = agentKey ? agentMap.get(agentKey) ?? null : null;
+    return {
+      agent,
+      score: typeof match.score === 'number' ? match.score : 0,
+      matchReasons: match.matchReasons ?? undefined,
+    };
+  });
+}
+
 const FEEDBACK_COUNT_EXPR = `
 (SELECT COUNT(*)
  FROM rep_feedbacks rf
@@ -859,18 +973,29 @@ const TOKEN_METADATA_COLUMNS = `
   updatedAtTime
 `;
 
+interface AgentIdentifier {
+  chainId: number;
+  agentId: string;
+}
+
+export interface GraphQLResolverOptions {
+  env?: any;
+  semanticSearchService?: SemanticSearchService | null;
+}
+
 /**
  * Create GraphQL resolvers
  * @param db - Database instance (can be D1 adapter or native D1)
  * @param options - Additional options (like env for indexAgent)
  */
-export function createGraphQLResolvers(db: any, options?: { env?: any }) {
+export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions) {
 
   return {
     agents: async (args: {
       chainId?: number;
       agentId?: string;
       agentOwner?: string;
+      eoaOwner?: string;
       agentName?: string;
       limit?: number;
       offset?: number;
@@ -890,14 +1015,14 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
 
       try {
         
-        const { chainId, agentId, agentOwner, agentName, limit = 100, offset = 0, orderBy, orderDirection } = args;
-        const { where, params } = buildWhereClause({ chainId, agentId, agentOwner, agentName });
+        const { chainId, agentId, agentOwner, eoaOwner, agentName, limit = 100, offset = 0, orderBy, orderDirection } = args;
+        const { where, params } = buildWhereClause({ chainId, agentId, agentOwner, eoaOwner, agentName });
         const orderByClause = buildOrderByClause(execOrderBy, execOrderDirection);
         const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${where} ${orderByClause} LIMIT ? OFFSET ?`;
         const allParams = [...params, limit, offset];
         const results = await executeQuery(db, query, allParams);
         await attachTokenMetadataToAgents(db, results);
-        console.log('[agents] rows:', results.length, 'params:', { chainId, agentId, agentOwner, agentName, limit, offset, execOrderBy, execOrderDirection });
+        console.log('[agents] rows:', results.length, 'params:', { chainId, agentId, agentOwner, eoaOwner, agentName, limit, offset, execOrderBy, execOrderDirection });
         return enrichAgentRecords(results);
       } catch (error) {
         console.error('❌ Error in agents resolver:', error);
@@ -1060,6 +1185,7 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
       chainId?: number;
       agentId?: string;
       agentOwner?: string;
+      eoaOwner?: string;
       agentName?: string;
     }) => {
       try {
@@ -1069,6 +1195,46 @@ export function createGraphQLResolvers(db: any, options?: { env?: any }) {
         return (result as any)?.count || 0;
       } catch (error) {
         console.error('❌ Error in countAgents resolver:', error);
+        throw error;
+      }
+    },
+
+    semanticAgentSearch: async (args: {
+      input: {
+        text: string;
+        topK?: number;
+        minScore?: number;
+        filters?: any;
+      };
+    }) => {
+      const semanticSearch = options?.semanticSearchService ?? null;
+      if (!semanticSearch) {
+        console.warn('[semanticAgentSearch] Semantic search not configured');
+        return { matches: [], total: 0 };
+      }
+
+      const input = args?.input;
+      const text = input?.text?.trim();
+      if (!input || !text) {
+        return { matches: [], total: 0 };
+      }
+
+      try {
+        const matches = await semanticSearch.search({
+          text,
+          topK: input.topK,
+          minScore: input.minScore,
+          filters: input.filters,
+        });
+
+        if (!matches.length) {
+          return { matches: [], total: 0 };
+        }
+
+        const hydrated = await hydrateSemanticMatches(db, matches);
+        return { matches: hydrated, total: hydrated.length };
+      } catch (error) {
+        console.error('❌ Error in semanticAgentSearch resolver:', error);
         throw error;
       }
     },

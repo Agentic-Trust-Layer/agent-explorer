@@ -17,6 +17,7 @@ import {
   corsHeaders as sharedCorsHeaders,
 } from './graphql-handler.js';
 import { graphiqlHTML } from './graphiql-template.js';
+import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 
 /**
  * Workers-specific indexAgent resolver factory
@@ -142,9 +143,15 @@ async function createWorkersIndexAgentResolver(db: any, env?: any) {
 
 // Create a function that returns createDBQueries with Workers indexAgent
 // Note: This is async and must be awaited when called
+let semanticSearchCache: ReturnType<typeof createSemanticSearchServiceFromEnv> | undefined;
 const createWorkersDBQueries = async (db: any, env?: any) => {
   const indexAgentResolver = await createWorkersIndexAgentResolver(db, env);
-  return createDBQueries(db, indexAgentResolver);
+  if (semanticSearchCache === undefined) {
+    semanticSearchCache = createSemanticSearchServiceFromEnv(env) ?? null;
+  }
+  return createDBQueries(db, indexAgentResolver, {
+    semanticSearchService: semanticSearchCache ?? null,
+  });
 };
 
 
@@ -218,6 +225,7 @@ export default {
             searchAgentsGraph: (_p: any, args: any, ctx: any) => ctx.dbQueries.searchAgentsGraph(args),
             getAccessCode: (_p: any, args: any, ctx: any) => ctx.dbQueries.getAccessCode(args),
             countAgents: (_p: any, args: any, ctx: any) => ctx.dbQueries.countAgents(args),
+            semanticAgentSearch: (_p: any, args: any, ctx: any) => ctx.dbQueries.semanticAgentSearch(args),
             tokenMetadata: (_p: any, args: any, ctx: any) => ctx.dbQueries.tokenMetadata(args),
             tokenMetadataById: (_p: any, args: any, ctx: any) => ctx.dbQueries.tokenMetadataById(args),
             feedbacks: (_p: any, args: any, ctx: any) => ctx.dbQueries.feedbacks(args),

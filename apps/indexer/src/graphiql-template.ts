@@ -130,6 +130,7 @@ export const graphiqlHTML = `<!DOCTYPE html>
     agentAccount
     agentName
     agentOwner
+    eoaOwner
     didIdentity
     didAccount
     didName

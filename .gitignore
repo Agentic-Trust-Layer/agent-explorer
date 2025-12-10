@@ -10,7 +10,7 @@ dist
 # env
 .env
 .env.local
-wrangler.toml
+*.toml
 
 # db
 data
