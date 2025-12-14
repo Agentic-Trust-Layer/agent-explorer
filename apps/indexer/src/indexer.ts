@@ -185,6 +185,11 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
       // Try multiple IPFS gateways as fallbacks
       // Prioritize based on detected service, then try all options
       const gateways: Array<{ url: string; service: string }> = [];
+
+      // If tokenURI is already a gateway URL, try it first.
+      if (/^https?:\/\//i.test(tokenURI) && (tokenURI.includes('.ipfs.') || tokenURI.includes('/ipfs/'))) {
+        gateways.push({ url: tokenURI, service: 'Original tokenURI gateway' });
+      }
       
       // Pinata gateways (try first if detected as Pinata, otherwise after Web3Storage)
       const pinataGateways = [
@@ -202,6 +207,8 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
       const publicGateways = [
         { url: `https://ipfs.io/ipfs/${cid}`, service: 'IPFS.io' },
         { url: `https://cloudflare-ipfs.com/ipfs/${cid}`, service: 'Cloudflare IPFS' },
+        { url: `https://${cid}.ipfs.dweb.link`, service: 'Protocol Labs (ipfs.dweb.link subdomain)' },
+        { url: `https://ipfs.dweb.link/ipfs/${cid}`, service: 'Protocol Labs (ipfs.dweb.link path)' },
         { url: `https://dweb.link/ipfs/${cid}`, service: 'Protocol Labs (dweb.link)' },
         { url: `https://gateway.ipfs.io/ipfs/${cid}`, service: 'IPFS Gateway' },
       ];
@@ -221,11 +228,13 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
       for (const { url: ipfsUrl, service } of gateways) {
         try {
           const timeoutSignal = createTimeoutSignal(10000); // 10 second timeout per gateway
+          console.info(`............fetchIpfsJson: trying ${service}: ${ipfsUrl}`);
           const resp = await fetchFn(ipfsUrl, { 
             signal: timeoutSignal
           });
           if (resp?.ok) {
             const json = await resp.json();
+            console.info(`............fetchIpfsJson: ✅ success from ${service}`);
             return json ?? null;
           } else {
           }
@@ -397,6 +406,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         const meta = metadata as any;
         const type = typeof meta.type === 'string' ? meta.type : null;
         const name = readAgentName(meta);
+        const agentCategory = readAgentCategory(meta);
 
         // Use pre-extracted description and image, or extract from metadata if not already extracted
         const desc = description || (typeof meta.description === 'string' ? meta.description : null);
@@ -438,6 +448,10 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
               WHEN ? IS NOT NULL AND ? != '' THEN ? 
               ELSE agentName 
             END,
+            agentCategory = CASE
+              WHEN ? IS NOT NULL AND ? != '' THEN ?
+              ELSE agentCategory
+            END,
             agentAddress = CASE
               WHEN (agentAddress IS NULL OR agentAddress = '0x0000000000000000000000000000000000000000')
                    AND (? IS NOT NULL AND ? != '0x0000000000000000000000000000000000000000')
@@ -477,6 +491,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         `).run(
           type,
           name, name, name,
+          agentCategory, agentCategory, agentCategory,
           agentAddress, agentAddress, agentAddress, // keep for backward compatibility
           agentAccount, agentAccount, agentAccount,
           desc, desc, desc,
@@ -1252,6 +1267,51 @@ function readAgentName(source: any): string | null {
   return null;
 }
 
+function normalizeMetadataString(value: any): string | null {
+  try {
+    if (value == null) return null;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+    const coerced = String(value).trim();
+    return coerced.length > 0 ? coerced : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract "Category" from common NFT metadata formats:
+ * - top-level `category`/`Category`
+ * - `attributes[]` entries with trait_type/key/name == "Category" (case-insensitive)
+ */
+function readAgentCategory(metadata: any): string | null {
+  try {
+    if (!metadata || typeof metadata !== 'object') return null;
+
+    const direct =
+      normalizeMetadataString((metadata as any).agentCategory) ??
+      normalizeMetadataString((metadata as any).category) ??
+      normalizeMetadataString((metadata as any).Category);
+    if (direct) return direct;
+
+    const attrs = Array.isArray((metadata as any).attributes) ? (metadata as any).attributes : [];
+    for (const attr of attrs) {
+      const key =
+        normalizeMetadataString(attr?.trait_type) ??
+        normalizeMetadataString(attr?.traitType) ??
+        normalizeMetadataString(attr?.key) ??
+        normalizeMetadataString(attr?.name);
+      if (key && key.toLowerCase() === 'category') {
+        const v = normalizeMetadataString(attr?.value);
+        if (v) return v;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export async function upsertFromTokenGraph(item: any, chainId: number) {
   const tokenId = BigInt(item?.id || 0);
   if (tokenId <= 0n) return;
@@ -1460,10 +1520,15 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
 
   // Write extended fields into agents
   const updateTime = Math.floor(Date.now() / 1000);
+  const agentCategory = readAgentCategory(uriMetadata ?? (typeof item?.metadataJson === 'object' ? item.metadataJson : null));
   await db.prepare(`
     UPDATE agents SET
       type = COALESCE(type, ?),
       agentName = COALESCE(NULLIF(TRIM(?), ''), agentName),
+      agentCategory = CASE
+        WHEN ? IS NOT NULL AND ? != '' THEN ?
+        ELSE agentCategory
+      END,
       description = COALESCE(?, description),
       image = COALESCE(?, image),
       a2aEndpoint = COALESCE(?, a2aEndpoint),
@@ -1476,6 +1541,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   `).run(
     type,
     name,
+    agentCategory, agentCategory, agentCategory,
     description,
     image,
     a2aEndpoint,
@@ -1580,6 +1646,8 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   const fallbackEns = normalizeString(tokenData?.ensName);
   const ensEndpoint = metadataEns || fallbackEns;
 
+  const agentCategory = readAgentCategory(metadataObj);
+
   const metadataAccount = normalizeString(metadataObj?.agentAccount);
   const fallbackAccount = normalizeString(tokenData?.agentAccount);
   const agentAccount = parseCaip10Address(metadataAccount) || parseCaip10Address(fallbackAccount);
@@ -1650,6 +1718,10 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     UPDATE agents SET
       tokenUri = COALESCE(?, tokenUri),
       agentName = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE agentName END,
+      agentCategory = CASE
+        WHEN ? IS NOT NULL AND ? != '' THEN ?
+        ELSE agentCategory
+      END,
       description = COALESCE(?, description),
       image = COALESCE(?, image),
       a2aEndpoint = COALESCE(?, a2aEndpoint),
@@ -1662,6 +1734,7 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   `).run(
     tokenUri,
     agentName, agentName, agentName,
+    agentCategory, agentCategory, agentCategory,
     description,
     image,
     a2aEndpoint,

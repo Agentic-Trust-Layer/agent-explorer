@@ -18,6 +18,7 @@ export const graphQLSchemaString = `
 
     agentOwner: String!
     eoaOwner: String
+    agentCategory: String
     tokenUri: String
     createdAtBlock: Int!
     createdAtTime: Int!
@@ -49,6 +50,7 @@ export const graphQLSchemaString = `
     createdAtBlock
     agentOwner
     eoaOwner
+    agentCategory
   }
 
   enum OrderDirection {
@@ -68,6 +70,11 @@ export const graphQLSchemaString = `
 
     eoaOwner: String
     eoaOwner_in: [String!]
+
+    agentCategory: String
+    agentCategory_in: [String!]
+    agentCategory_contains: String
+    agentCategory_contains_nocase: String
 
     agentName_contains: String
     agentName_contains_nocase: String

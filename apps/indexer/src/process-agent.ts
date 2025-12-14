@@ -79,6 +79,47 @@ function createTimeoutSignal(timeoutMs: number): AbortSignal {
   return controller.signal;
 }
 
+function normalizeMetadataString(value: any): string | null {
+  if (value == null) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+  const coerced = String(value).trim();
+  return coerced.length > 0 ? coerced : null;
+}
+
+/**
+ * Extract "Category" from common NFT metadata formats:
+ * - top-level `category`/`Category`
+ * - `attributes[]` entries with trait_type/key/name == "Category" (case-insensitive)
+ */
+function readAgentCategory(metadata: any): string | null {
+  try {
+    if (!metadata || typeof metadata !== 'object') return null;
+
+    const direct =
+      normalizeMetadataString((metadata as any).agentCategory) ??
+      normalizeMetadataString((metadata as any).category) ??
+      normalizeMetadataString((metadata as any).Category);
+    if (direct) return direct;
+
+    const attrs = Array.isArray((metadata as any).attributes) ? (metadata as any).attributes : [];
+    for (const attr of attrs) {
+      const key =
+        normalizeMetadataString(attr?.trait_type) ??
+        normalizeMetadataString(attr?.traitType) ??
+        normalizeMetadataString(attr?.key) ??
+        normalizeMetadataString(attr?.name);
+      if (key && key.toLowerCase() === 'category') {
+        const v = normalizeMetadataString(attr?.value);
+        if (v) return v;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 /**
  * Improved token URI parser with better error handling and fallbacks
  */
@@ -153,6 +194,11 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
       // Try multiple IPFS gateways as fallbacks
       // Prioritize based on detected service, then try all options
       const gateways: Array<{ url: string; service: string }> = [];
+
+      // If tokenURI is already a gateway URL, try it first.
+      if (/^https?:\/\//i.test(tokenURI) && (tokenURI.includes('.ipfs.') || tokenURI.includes('/ipfs/'))) {
+        gateways.push({ url: tokenURI, service: 'Original tokenURI gateway' });
+      }
       
       // Pinata gateways (try first if detected as Pinata, otherwise after Web3Storage)
       const pinataGateways = [
@@ -170,6 +216,8 @@ async function fetchIpfsJson(tokenURI: string | null): Promise<any | null> {
       const publicGateways = [
         { url: `https://ipfs.io/ipfs/${cid}`, service: 'IPFS.io' },
         { url: `https://cloudflare-ipfs.com/ipfs/${cid}`, service: 'Cloudflare IPFS' },
+        { url: `https://${cid}.ipfs.dweb.link`, service: 'Protocol Labs (ipfs.dweb.link subdomain)' },
+        { url: `https://ipfs.dweb.link/ipfs/${cid}`, service: 'Protocol Labs (ipfs.dweb.link path)' },
         { url: `https://dweb.link/ipfs/${cid}`, service: 'Protocol Labs (dweb.link)' },
         { url: `https://gateway.ipfs.io/ipfs/${cid}`, service: 'IPFS Gateway' },
       ];
@@ -346,6 +394,7 @@ export async function processAgentDirectly(
         const mcp = !!(meta.mcp === true || meta.mcp === 1 || String(meta.mcp).toLowerCase() === 'true');
         const x402support = !!(meta.x402support === true || meta.x402support === 1 || String(meta.x402support).toLowerCase() === 'true');
         const active = !!(meta.active === true || meta.active === 1 || String(meta.active).toLowerCase() === 'true');
+        const agentCategory = readAgentCategory(meta);
         const operators = Array.isArray((meta.operators ?? meta.Operators)) ? (meta.operators ?? meta.Operators) : [];
         const a2aSkills = Array.isArray(meta.a2aSkills) ? meta.a2aSkills : [];
         const mcpTools = Array.isArray(meta.mcpTools) ? meta.mcpTools : [];
@@ -402,6 +451,10 @@ export async function processAgentDirectly(
             mcp = COALESCE(?, mcp),
             x402support = COALESCE(?, x402support),
             active = COALESCE(?, active),
+            agentCategory = CASE
+              WHEN ? IS NOT NULL AND ? != '' THEN ?
+              ELSE agentCategory
+            END,
             rawJson = COALESCE(?, rawJson),
             updatedAtTime = ?
           WHERE chainId = ? AND agentId = ?
@@ -423,6 +476,7 @@ export async function processAgentDirectly(
           mcp ? 1 : 0,
           x402support ? 1 : 0,
           active ? 1 : 0,
+          agentCategory, agentCategory, agentCategory,
           JSON.stringify(meta),
           updateTime,
           chainId,

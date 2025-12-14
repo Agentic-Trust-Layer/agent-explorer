@@ -135,7 +135,15 @@ function buildWhereClause(filters: {
  */
 function buildOrderByClause(orderBy?: string, orderDirection?: string): string {
   // Valid columns for ordering
-  const validColumns = ['agentId', 'agentName', 'createdAtTime', 'createdAtBlock', 'agentOwner', 'eoaOwner'];
+  const validColumns = [
+    'agentId',
+    'agentName',
+    'createdAtTime',
+    'createdAtBlock',
+    'agentOwner',
+    'eoaOwner',
+    'agentCategory',
+  ];
   
   // Default to agentId ASC if not specified
   const column = orderBy && validColumns.includes(orderBy) ? orderBy : 'agentId';
@@ -159,6 +167,10 @@ function buildGraphWhereClause(where?: {
   agentOwner_in?: string[];
   eoaOwner?: string;
   eoaOwner_in?: string[];
+  agentCategory?: string;
+  agentCategory_in?: string[];
+  agentCategory_contains?: string;
+  agentCategory_contains_nocase?: string;
   agentName_contains?: string;
   agentName_contains_nocase?: string;
   agentName_starts_with?: string;
@@ -256,6 +268,15 @@ function buildGraphWhereClause(where?: {
     params.push(...where.eoaOwner_in);
   }
 
+  if (where.agentCategory) {
+    conditions.push(`agentCategory = ?`);
+    params.push(where.agentCategory);
+  }
+  if (Array.isArray(where.agentCategory_in) && where.agentCategory_in.length > 0) {
+    conditions.push(`agentCategory IN (${where.agentCategory_in.map(() => '?').join(',')})`);
+    params.push(...where.agentCategory_in);
+  }
+
   // Text filters - agentName
   if (where.agentName_contains) {
     conditions.push(`agentName LIKE ?`);
@@ -290,6 +311,16 @@ function buildGraphWhereClause(where?: {
   if (where.description_contains_nocase) {
     conditions.push(`LOWER(description) LIKE LOWER(?)`);
     params.push(`%${where.description_contains_nocase}%`);
+  }
+
+  // Text filters - agentCategory
+  if (where.agentCategory_contains) {
+    conditions.push(`agentCategory LIKE ?`);
+    params.push(`%${where.agentCategory_contains}%`);
+  }
+  if (where.agentCategory_contains_nocase) {
+    conditions.push(`LOWER(agentCategory) LIKE LOWER(?)`);
+    params.push(`%${where.agentCategory_contains_nocase}%`);
   }
 
   // Endpoints and DID
