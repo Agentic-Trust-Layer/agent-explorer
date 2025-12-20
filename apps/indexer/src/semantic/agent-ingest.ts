@@ -4,6 +4,7 @@ import type { SemanticAgentRecord } from './types.js';
 type AgentSemanticRow = {
   chainId: number;
   agentId: string;
+  effectiveUpdatedAt: number;
   agentName?: string | null;
   description?: string | null;
   type?: string | null;
@@ -23,11 +24,13 @@ type AgentSemanticRow = {
 };
 
 const DEFAULT_CHUNK_SIZE = 75;
+const DEFAULT_CHECKPOINT_KEY = 'semanticIngestCursor';
 
 const AGENT_CHUNK_QUERY = `
 SELECT
   a.chainId,
   a.agentId,
+  COALESCE(a.updatedAtTime, a.createdAtTime, 0) AS effectiveUpdatedAt,
   a.agentName,
   a.description,
   a.type,
@@ -54,8 +57,30 @@ SELECT
     WHERE tm.chainId = a.chainId AND tm.agentId = a.agentId
   ), '[]') AS tokenMetadataJson
 FROM agents a
-ORDER BY a.chainId ASC, LENGTH(a.agentId) ASC, a.agentId ASC
-LIMIT ? OFFSET ?
+WHERE
+  (
+    COALESCE(a.updatedAtTime, a.createdAtTime, 0) > ?
+  )
+  OR
+  (
+    COALESCE(a.updatedAtTime, a.createdAtTime, 0) = ?
+    AND (
+      a.chainId > ?
+      OR (
+        a.chainId = ?
+        AND (
+          LENGTH(a.agentId) > ?
+          OR (LENGTH(a.agentId) = ? AND a.agentId > ?)
+        )
+      )
+    )
+  )
+ORDER BY
+  COALESCE(a.updatedAtTime, a.createdAtTime, 0) ASC,
+  a.chainId ASC,
+  LENGTH(a.agentId) ASC,
+  a.agentId ASC
+LIMIT ?
 `;
 
 function safeJsonParse<T>(value: unknown, fallback: T): T {
@@ -196,20 +221,89 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
   return record;
 }
 
-async function fetchAgentChunk(db: any, limit: number, offset: number): Promise<AgentSemanticRow[]> {
+async function fetchAgentChunk(
+  db: any,
+  limit: number,
+  cursor: { time: number; chainId: number; agentId: string },
+): Promise<AgentSemanticRow[]> {
   const stmt = db.prepare(AGENT_CHUNK_QUERY);
+  const agentId = cursor.agentId ?? '';
+  const agentIdLen = agentId.length;
+  const bindParams = [
+    cursor.time,
+    cursor.time,
+    cursor.chainId,
+    cursor.chainId,
+    agentIdLen,
+    agentIdLen,
+    agentId,
+    limit,
+  ];
   if (stmt.bind && typeof stmt.bind === 'function') {
-    const result = await stmt.bind(limit, offset).all();
+    const result = await stmt.bind(...bindParams).all();
     return Array.isArray(result?.results) ? (result.results as AgentSemanticRow[]) : [];
   }
-  const rows = await stmt.all(limit, offset);
+  const rows = await stmt.all(...bindParams);
   return Array.isArray(rows) ? (rows as AgentSemanticRow[]) : [];
+}
+
+function parseCursor(value: unknown): { time: number; chainId: number; agentId: string } {
+  if (typeof value !== 'string' || !value.trim()) {
+    return { time: 0, chainId: 0, agentId: '' };
+  }
+  const parts = value.split('|');
+  if (parts.length < 3) {
+    return { time: 0, chainId: 0, agentId: '' };
+  }
+  const time = Number(parts[0]);
+  const chainId = Number(parts[1]);
+  const agentId = parts.slice(2).join('|'); // preserve if agentId ever contains '|'
+  return {
+    time: Number.isFinite(time) && time >= 0 ? Math.trunc(time) : 0,
+    chainId: Number.isFinite(chainId) && chainId >= 0 ? Math.trunc(chainId) : 0,
+    agentId: typeof agentId === 'string' ? agentId : '',
+  };
+}
+
+function formatCursor(cursor: { time: number; chainId: number; agentId: string }): string {
+  const time = Number.isFinite(cursor.time) && cursor.time >= 0 ? Math.trunc(cursor.time) : 0;
+  const chainId = Number.isFinite(cursor.chainId) && cursor.chainId >= 0 ? Math.trunc(cursor.chainId) : 0;
+  const agentId = typeof cursor.agentId === 'string' ? cursor.agentId : '';
+  return `${time}|${chainId}|${agentId}`;
+}
+
+async function getCheckpointValue(db: any, key: string): Promise<string | null> {
+  try {
+    const stmt = db.prepare('SELECT value FROM checkpoints WHERE key = ?');
+    if (stmt.bind && typeof stmt.bind === 'function') {
+      const row = await stmt.bind(key).first();
+      return row?.value ? String(row.value) : null;
+    }
+    const row = await stmt.get(key);
+    return row?.value ? String((row as any).value) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setCheckpointValue(db: any, key: string, value: string): Promise<void> {
+  try {
+    const stmt = db.prepare('INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
+    if (stmt.bind && typeof stmt.bind === 'function') {
+      await stmt.bind(key, value).run();
+      return;
+    }
+    await stmt.run(key, value);
+  } catch {
+    // best-effort
+  }
 }
 
 
 export interface SemanticIngestOptions {
   chunkSize?: number;
   logger?: Pick<Console, 'info' | 'error'>;
+  checkpointKey?: string;
 }
 
 export interface SemanticIngestResult {
@@ -223,15 +317,17 @@ export async function ingestAgentsIntoSemanticStore(
   options: SemanticIngestOptions = {},
 ): Promise<SemanticIngestResult> {
   const chunkSize = options.chunkSize && options.chunkSize > 0 ? options.chunkSize : DEFAULT_CHUNK_SIZE;
-  let offset = 0;
+  const checkpointKey = options.checkpointKey?.trim() || DEFAULT_CHECKPOINT_KEY;
+  const initial = parseCursor(await getCheckpointValue(db, checkpointKey));
+  let cursor = { ...initial };
   let processed = 0;
   let batches = 0;
 
   while (true) {
-    console.info('[semantic-ingest] fetching rows', { offset, chunkSize });
-    const rows = await fetchAgentChunk(db, chunkSize, offset);
+    console.info('[semantic-ingest] fetching rows', { chunkSize, cursor });
+    const rows = await fetchAgentChunk(db, chunkSize, cursor);
     if (!rows.length) {
-      console.info('[semantic-ingest] no more agent rows found', { offset });
+      console.info('[semantic-ingest] no more agent rows found', { cursor });
       break;
     }
 
@@ -261,10 +357,13 @@ export async function ingestAgentsIntoSemanticStore(
       console.warn('[semantic-ingest] chunk contained no usable agent records', { chunk: batches + 1 });
     }
 
-    offset += rows.length;
-    if (rows.length < chunkSize) {
-      break;
-    }
+    const last = rows[rows.length - 1];
+    cursor = {
+      time: Number(last?.effectiveUpdatedAt ?? cursor.time) || cursor.time,
+      chainId: Number(last?.chainId ?? cursor.chainId) || cursor.chainId,
+      agentId: String(last?.agentId ?? cursor.agentId),
+    };
+    await setCheckpointValue(db, checkpointKey, formatCursor(cursor));
   }
 
   return { processed, batches };

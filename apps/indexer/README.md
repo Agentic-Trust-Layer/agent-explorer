@@ -46,12 +46,25 @@ GraphiQL UI available at: http://localhost:4000/graphql
 
 ### Initial Setup
 
-1. **Create D1 Database** (if not already created):
+1. **Configure wrangler.toml**:
+   ```bash
+   # Copy the example configuration
+   cp wrangler.toml.example wrangler.toml
+   ```
+   Edit `wrangler.toml` with your actual values:
+   - Database ID (from D1 database creation)
+   - API keys (Alchemy, Pinecone, Venice)
+   - Secret access codes
+   - Registry contract addresses
+   
+   **⚠️ IMPORTANT**: `wrangler.toml` contains secrets and is git-ignored. Never commit this file.
+
+2. **Create D1 Database** (if not already created):
    ```bash
    cd apps/indexer
    pnpm d1:create
    ```
-   Note the database name and add it to `wrangler.toml` under `[[d1_databases]]`.
+   Note the database ID and add it to `wrangler.toml` under `[[d1_databases]]`.
 
 2. **Run Migrations**:
    ```bash
@@ -99,7 +112,27 @@ This will deploy the GraphQL API to Cloudflare Workers. The endpoint URL will be
 ### Environment Variables
 
 Set these in Cloudflare Workers dashboard or via Wrangler:
-- `GRAPHQL_SECRET_ACCESS_CODE` - Secret access code for server-to-server auth (set via `wrangler secret put`)
+
+**Secrets (use `wrangler secret put`):**
+- `GRAPHQL_SECRET_ACCESS_CODE` - Secret access code for server-to-server auth
+- `VENICE_API_KEY` - Venice AI API key for embeddings (required for semantic search)
+- `PINECONE_API_KEY` - Pinecone API key (required for semantic search)
+
+**Regular Variables (can be in `wrangler.toml` [vars] or set as secrets):**
+- `PINECONE_INDEX` - Pinecone index name (default: "agentictrust")
+- `PINECONE_NAMESPACE` - Pinecone namespace (optional)
+- `VENICE_MODEL` - Venice embedding model (optional, default: "text-embedding-bge-m3")
+- `VENICE_BASE_URL` - Venice API base URL (optional)
+- `SEMANTIC_SEARCH_MIN_SCORE` - Minimum similarity score for semantic search (optional)
+
+**To set secrets:**
+```bash
+# From apps/indexer directory
+wrangler secret put VENICE_API_KEY
+wrangler secret put PINECONE_API_KEY
+wrangler secret put GRAPHQL_SECRET_ACCESS_CODE
+```
+Enter the values when prompted. These are encrypted and not exposed in logs.
 
 ### Local Worker Development
 ```bash

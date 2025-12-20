@@ -21,6 +21,29 @@ function normalizeResults(result: any): any[] {
   return [];
 }
 
+function normalizeHexLike(value: any): string | null {
+  if (value == null) return null;
+  const s = String(value).trim().toLowerCase();
+  return s ? s : null;
+}
+
+function isAddressHex(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return /^0x[0-9a-f]{40}$/.test(value);
+}
+
+function clamp01(x: number): number {
+  if (!Number.isFinite(x)) return 0;
+  if (x < 0) return 0;
+  if (x > 1) return 1;
+  return x;
+}
+
+function normalizeInterfaceId(value: any): string {
+  const v = normalizeHexLike(value);
+  return v ?? '0x00000000';
+}
+
 /**
  * Helper to normalize a single result
  */
@@ -979,12 +1002,28 @@ const VALIDATION_REQUESTED_EXPR = `
  WHERE vr.chainId = agents.chainId
    AND vr.agentId = agents.agentId)`;
 
+const INITIATED_ASSOCIATION_COUNT_EXPR = `
+(SELECT COUNT(*)
+ FROM associations assoc
+ WHERE assoc.chainId = agents.chainId
+   AND substr(assoc.initiatorAccountId, -40) = substr(LOWER(COALESCE(agents.agentAccount, agents.agentAddress)), -40)
+   AND (assoc.revokedAt IS NULL OR assoc.revokedAt = 0))`;
+
+const APPROVED_ASSOCIATION_COUNT_EXPR = `
+(SELECT COUNT(*)
+ FROM associations assoc
+ WHERE assoc.chainId = agents.chainId
+   AND substr(assoc.approverAccountId, -40) = substr(LOWER(COALESCE(agents.agentAccount, agents.agentAddress)), -40)
+   AND (assoc.revokedAt IS NULL OR assoc.revokedAt = 0))`;
+
 const AGENT_SUMMARY_COLUMNS = `
   ${FEEDBACK_COUNT_EXPR} AS feedbackCount,
   ${FEEDBACK_AVG_SCORE_EXPR} AS feedbackAverageScore,
   ${VALIDATION_PENDING_EXPR} AS validationPendingCount,
   ${VALIDATION_COMPLETED_EXPR} AS validationCompletedCount,
-  ${VALIDATION_REQUESTED_EXPR} AS validationRequestedCount
+  ${VALIDATION_REQUESTED_EXPR} AS validationRequestedCount,
+  ${INITIATED_ASSOCIATION_COUNT_EXPR} AS initiatedAssociationCount,
+  ${APPROVED_ASSOCIATION_COUNT_EXPR} AS approvedAssociationCount
 `;
 
 const AGENT_BASE_COLUMNS = `
@@ -1720,7 +1759,365 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
 
     // indexAgent will be added by the specific implementation (graphql.ts or worker-db.ts)
     // because it needs environment-specific logic
+
+    associations: async (args: {
+      where?: any;
+      first?: number | null;
+      skip?: number | null;
+      orderBy?: string | null;
+      orderDirection?: string | null;
+    }) => {
+      const { where, first, skip, orderBy, orderDirection } = args || {};
+      const pageSize = typeof first === 'number' && Number.isFinite(first) && first > 0 ? first : 50;
+      const offset = typeof skip === 'number' && Number.isFinite(skip) && skip >= 0 ? skip : 0;
+
+      const conditions: string[] = [];
+      const params: any[] = [];
+
+      const addEq = (col: string, val: any) => {
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          conditions.push(`${col} = ?`);
+          params.push(String(val).toLowerCase());
+        }
+      };
+      const addIn = (col: string, values?: any[]) => {
+        if (Array.isArray(values) && values.length > 0) {
+          conditions.push(`${col} IN (${values.map(() => '?').join(',')})`);
+          params.push(...values.map((v) => String(v).toLowerCase()));
+        }
+      };
+
+      if (where?.chainId !== undefined && where?.chainId !== null) {
+        conditions.push(`chainId = ?`);
+        params.push(where.chainId);
+      }
+      if (Array.isArray(where?.chainId_in) && where.chainId_in.length > 0) {
+        conditions.push(`chainId IN (${where.chainId_in.map(() => '?').join(',')})`);
+        params.push(...where.chainId_in);
+      }
+      addEq('associationId', where?.associationId);
+      addIn('associationId', where?.associationId_in);
+      addEq('interfaceId', where?.interfaceId);
+      addIn('interfaceId', where?.interfaceId_in);
+      addEq('initiatorAccountId', where?.initiatorAccountId);
+      addEq('approverAccountId', where?.approverAccountId);
+      addIn('initiatorAccountId', where?.initiatorAccountId_in);
+      addIn('approverAccountId', where?.approverAccountId_in);
+      if (where?.revoked === true) conditions.push(`revokedAt IS NOT NULL`);
+      if (where?.revoked === false) conditions.push(`(revokedAt IS NULL OR revokedAt = 0)`);
+
+      const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+      const orderCol = (typeof orderBy === 'string' && ['lastUpdatedBlockNumber', 'createdBlockNumber', 'createdTimestamp', 'lastUpdatedTimestamp'].includes(orderBy))
+        ? orderBy
+        : 'lastUpdatedBlockNumber';
+      const dir = (String(orderDirection || '').toUpperCase() === 'ASC') ? 'ASC' : 'DESC';
+      const sql = `
+        SELECT *
+        FROM associations
+        ${whereSql}
+        ORDER BY CAST(${orderCol} AS INTEGER) ${dir}
+        LIMIT ? OFFSET ?
+      `;
+
+      const rows = await executeQuery(db, sql, [...params, pageSize, offset]);
+      return await hydrateAssociations(db, rows);
+    },
+
+    agentAssociations: async (args: {
+      chainId: number;
+      agentId: string;
+      role?: 'INITIATOR' | 'APPROVER' | 'ANY' | null;
+      interfaceId?: string | null;
+      first?: number | null;
+      skip?: number | null;
+    }) => {
+      const chainId = Number(args.chainId);
+      const agentId = String(args.agentId);
+      const role = (args.role ?? 'ANY') as any;
+      const interfaceId = args.interfaceId ? String(args.interfaceId).toLowerCase() : null;
+      const pageSize = typeof args.first === 'number' && Number.isFinite(args.first) && args.first > 0 ? args.first : 50;
+      const offset = typeof args.skip === 'number' && Number.isFinite(args.skip) && args.skip >= 0 ? args.skip : 0;
+
+      const agentRow = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`, [chainId, agentId]);
+      const agentAccount = normalizeHexLike((agentRow as any)?.agentAccount) || normalizeHexLike((agentRow as any)?.agentAddress);
+      if (!agentAccount || !isAddressHex(agentAccount)) {
+        return [];
+      }
+
+      const conditions: string[] = ['chainId = ?'];
+      const params: any[] = [chainId];
+      if (interfaceId) {
+        conditions.push('interfaceId = ?');
+        params.push(interfaceId);
+      }
+      if (role === 'INITIATOR') {
+        conditions.push('substr(initiatorAccountId, -40) = substr(?, -40)');
+        params.push(agentAccount);
+      } else if (role === 'APPROVER') {
+        conditions.push('substr(approverAccountId, -40) = substr(?, -40)');
+        params.push(agentAccount);
+      } else {
+        conditions.push('(substr(initiatorAccountId, -40) = substr(?, -40) OR substr(approverAccountId, -40) = substr(?, -40))');
+        params.push(agentAccount, agentAccount);
+      }
+
+      const sql = `
+        SELECT *
+        FROM associations
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY CAST(lastUpdatedBlockNumber AS INTEGER) DESC
+        LIMIT ? OFFSET ?
+      `;
+      const rows = await executeQuery(db, sql, [...params, pageSize, offset]);
+      return await hydrateAssociations(db, rows);
+    },
+
+    graphqlEndpointAssociations: async (args: {
+      chainId: number;
+      agentId: string;
+      role?: 'INITIATOR' | 'APPROVER' | 'ANY' | null;
+      first?: number | null;
+      skip?: number | null;
+    }) => {
+      // Fixed interfaceId for "GraphQL endpoint association"
+      return await (createGraphQLResolvers(db, options) as any).agentAssociations({
+        chainId: args.chainId,
+        agentId: args.agentId,
+        role: args.role ?? 'ANY',
+        interfaceId: '0x00000000',
+        first: args.first,
+        skip: args.skip,
+      });
+    },
+
+    graphqlEndpointAssociationsBetween: async (args: {
+      chainId: number;
+      agentIdA: string;
+      agentIdB: string;
+      first?: number | null;
+      skip?: number | null;
+    }) => {
+      const chainId = Number(args.chainId);
+      const pageSize = typeof args.first === 'number' && Number.isFinite(args.first) && args.first > 0 ? args.first : 50;
+      const offset = typeof args.skip === 'number' && Number.isFinite(args.skip) && args.skip >= 0 ? args.skip : 0;
+
+      const getAccountForAgent = async (agentId: string) => {
+        const row = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`, [chainId, String(agentId)]);
+        const acct = normalizeHexLike((row as any)?.agentAccount) || normalizeHexLike((row as any)?.agentAddress);
+        return acct && isAddressHex(acct) ? acct : null;
+      };
+
+      const acctA = await getAccountForAgent(args.agentIdA);
+      const acctB = await getAccountForAgent(args.agentIdB);
+      if (!acctA || !acctB) return [];
+
+      const sql = `
+        SELECT *
+        FROM associations
+        WHERE chainId = ?
+          AND interfaceId = ?
+          AND (
+            (initiatorAccountId = ? AND approverAccountId = ?)
+            OR
+            (initiatorAccountId = ? AND approverAccountId = ?)
+          )
+        ORDER BY CAST(lastUpdatedBlockNumber AS INTEGER) DESC
+        LIMIT ? OFFSET ?
+      `;
+      const rows = await executeQuery(db, sql, [chainId, '0x00000000', acctA, acctB, acctB, acctA, pageSize, offset]);
+      return await hydrateAssociations(db, rows);
+    },
+
+    trustScore: async (args: {
+      chainId: number;
+      agentId: string;
+      client: string;
+      interfaceId?: string | null;
+    }) => {
+      const chainId = Number(args.chainId);
+      const agentId = String(args.agentId);
+      const client = normalizeHexLike(args.client);
+      const interfaceId = normalizeInterfaceId(args.interfaceId);
+
+      const reasons: Array<{ code: string; weight?: number | null; detail?: string | null }> = [];
+
+      if (!client || !isAddressHex(client)) {
+        return {
+          interfaceId,
+          score: 0,
+          reputationScore: 0,
+          overlapScore: 0,
+          clientMembershipCount: 0,
+          agentMembershipCount: 0,
+          sharedMembershipCount: 0,
+          sharedMembershipKeys: [],
+          reasons: [{ code: 'INVALID_CLIENT', weight: 1, detail: 'client must be a 0x-prefixed address' }],
+        };
+      }
+
+      // Load agent (includes feedback/validation aggregates via AGENT_BASE_COLUMNS)
+      const agentRow = await executeQuerySingle(
+        db,
+        `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`,
+        [chainId, agentId],
+      );
+      if (!agentRow) {
+        return {
+          interfaceId,
+          score: 0,
+          reputationScore: 0,
+          overlapScore: 0,
+          clientMembershipCount: 0,
+          agentMembershipCount: 0,
+          sharedMembershipCount: 0,
+          sharedMembershipKeys: [],
+          reasons: [{ code: 'AGENT_NOT_FOUND', weight: 1, detail: 'No agent row found' }],
+        };
+      }
+
+      const agentAccount = normalizeHexLike((agentRow as any)?.agentAccount) || normalizeHexLike((agentRow as any)?.agentAddress);
+      if (!agentAccount || !isAddressHex(agentAccount)) {
+        reasons.push({ code: 'AGENT_ACCOUNT_NOT_ADDRESS', weight: 1, detail: 'Agent account is not an address-like association id; overlap will be 0' });
+      }
+
+      // Reputation component (simple + explainable; you can swap later)
+      // feedbackAverageScore appears as Float; score scale unknown; assume 0..5 if present.
+      const avg = Number((agentRow as any)?.feedbackAverageScore);
+      const validationCompleted = Number((agentRow as any)?.validationCompletedCount);
+      const feedbackComponent = Number.isFinite(avg) ? clamp01(avg / 5) : 0;
+      const validationComponent = Number.isFinite(validationCompleted) ? clamp01(Math.min(10, Math.max(0, validationCompleted)) / 10) : 0;
+      const reputationScore = clamp01(0.6 * feedbackComponent + 0.4 * validationComponent);
+      reasons.push({ code: 'REPUTATION', weight: reputationScore, detail: `feedback=${feedbackComponent.toFixed(3)}, validation=${validationComponent.toFixed(3)}` });
+
+      // Graph overlap component using associations.data as "membership key"
+      const now = Math.floor(Date.now() / 1000);
+      const baseWhere = `
+        chainId = ?
+        AND interfaceId = ?
+        AND (revokedAt IS NULL OR revokedAt = 0)
+        AND validAt <= ?
+        AND (validUntil = 0 OR validUntil >= ?)
+      `;
+
+      const fetchMembershipKeys = async (accountId: string): Promise<Set<string>> => {
+        const rows = await executeQuery(
+          db,
+          `
+            SELECT data
+            FROM associations
+            WHERE ${baseWhere}
+              AND (substr(initiatorAccountId, -40) = substr(?, -40) OR substr(approverAccountId, -40) = substr(?, -40))
+          `,
+          [chainId, interfaceId, now, now, accountId, accountId],
+        );
+        const out = new Set<string>();
+        for (const row of rows) {
+          const key = normalizeHexLike((row as any)?.data);
+          if (key) out.add(key);
+        }
+        return out;
+      };
+
+      const clientKeys = await fetchMembershipKeys(client);
+      let agentKeys = new Set<string>();
+      if (agentAccount && isAddressHex(agentAccount)) {
+        agentKeys = await fetchMembershipKeys(agentAccount);
+      }
+
+      const shared: string[] = [];
+      for (const k of clientKeys) {
+        if (agentKeys.has(k)) shared.push(k);
+      }
+      shared.sort();
+
+      const unionSize = new Set<string>([...clientKeys, ...agentKeys]).size;
+      const overlapScore = unionSize > 0 ? clamp01(shared.length / unionSize) : 0;
+      reasons.push({ code: 'OVERLAP', weight: overlapScore, detail: `shared=${shared.length}, union=${unionSize}` });
+
+      // Final score: simple blend (tune later)
+      const score = clamp01(0.6 * reputationScore + 0.4 * overlapScore);
+
+      return {
+        interfaceId,
+        score,
+        reputationScore,
+        overlapScore,
+        clientMembershipCount: clientKeys.size,
+        agentMembershipCount: agentKeys.size,
+        sharedMembershipCount: shared.length,
+        sharedMembershipKeys: shared,
+        reasons,
+      };
+    },
   };
+}
+
+async function hydrateAssociations(db: any, rows: any[]): Promise<any[]> {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+
+  // Collect address-like account ids to map back to agents.
+  const accountIds = new Set<string>();
+  for (const row of rows) {
+    const i = normalizeHexLike(row?.initiatorAccountId);
+    const a = normalizeHexLike(row?.approverAccountId);
+    if (isAddressHex(i)) accountIds.add(i!);
+    if (isAddressHex(a)) accountIds.add(a!);
+  }
+
+  const agentByAccount = new Map<string, any>();
+  if (accountIds.size > 0) {
+    const accounts = Array.from(accountIds);
+    const suffixes = accounts
+      .map((acct) => normalizeHexLike(acct))
+      .filter((acct): acct is string => Boolean(acct))
+      .map((acct) => acct.slice(-40));
+    // D1 has a max bind limit; keep it safe.
+    const chunkSize = 50;
+    for (let i = 0; i < suffixes.length; i += chunkSize) {
+      const chunk = suffixes.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => '?').join(',');
+      const sql = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE substr(LOWER(COALESCE(agentAccount, agentAddress)), -40) IN (${placeholders})`;
+      const agentRows = await executeQuery(db, sql, chunk);
+      await attachTokenMetadataToAgents(db, agentRows);
+      for (const arow of agentRows) {
+        const acct = normalizeHexLike(arow?.agentAccount) || normalizeHexLike(arow?.agentAddress);
+        if (acct) agentByAccount.set(acct, enrichAgentRecord(arow));
+      }
+    }
+  }
+
+  return rows.map((row) => {
+    const initiatorAccountId = normalizeHexLike(row?.initiatorAccountId) ?? '';
+    const approverAccountId = normalizeHexLike(row?.approverAccountId) ?? '';
+    const initiatorAgent = agentByAccount.get(initiatorAccountId) ?? null;
+    const approverAgent = agentByAccount.get(approverAccountId) ?? null;
+
+    return {
+      chainId: Number(row?.chainId ?? 0),
+      associationId: String(row?.associationId ?? row?.id ?? ''),
+      initiatorAccount: { id: initiatorAccountId },
+      approverAccount: { id: approverAccountId },
+      initiator: String(row?.initiator ?? ''),
+      approver: String(row?.approver ?? ''),
+      validAt: Number(row?.validAt ?? 0),
+      validUntil: Number(row?.validUntil ?? 0),
+      interfaceId: String(row?.interfaceId ?? ''),
+      data: String(row?.data ?? ''),
+      initiatorKeyType: String(row?.initiatorKeyType ?? ''),
+      approverKeyType: String(row?.approverKeyType ?? ''),
+      initiatorSignature: String(row?.initiatorSignature ?? ''),
+      approverSignature: String(row?.approverSignature ?? ''),
+      revokedAt: row?.revokedAt === null || row?.revokedAt === undefined ? null : Number(row.revokedAt),
+      createdTxHash: String(row?.createdTxHash ?? ''),
+      createdBlockNumber: Number(row?.createdBlockNumber ?? 0),
+      createdTimestamp: Number(row?.createdTimestamp ?? 0),
+      lastUpdatedTxHash: String(row?.lastUpdatedTxHash ?? ''),
+      lastUpdatedBlockNumber: Number(row?.lastUpdatedBlockNumber ?? 0),
+      lastUpdatedTimestamp: Number(row?.lastUpdatedTimestamp ?? 0),
+      initiatorAgent,
+      approverAgent,
+    };
+  });
 }
 
 /**
@@ -1781,6 +2178,12 @@ function enrichAgentRecord(agent: any): any {
   }
   if (Object.prototype.hasOwnProperty.call(agent, 'validationRequestedCount')) {
     agent.validationRequestedCount = normalizeInt(agent.validationRequestedCount);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'initiatedAssociationCount')) {
+    agent.initiatedAssociationCount = normalizeInt(agent.initiatedAssociationCount);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'approvedAssociationCount')) {
+    agent.approvedAssociationCount = normalizeInt(agent.approvedAssociationCount);
   }
   if (Object.prototype.hasOwnProperty.call(agent, 'feedbackAverageScore')) {
     agent.feedbackAverageScore = normalizeFloat(agent.feedbackAverageScore);

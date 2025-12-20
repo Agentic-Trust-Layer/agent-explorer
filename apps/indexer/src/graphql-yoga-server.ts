@@ -109,6 +109,11 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
       getAccessCode: (_parent: unknown, args: any) => shared.getAccessCode(args),
       countAgents: (_parent: unknown, args: any) => shared.countAgents(args),
       semanticAgentSearch: (_parent: unknown, args: any) => shared.semanticAgentSearch(args),
+      associations: (_parent: unknown, args: any) => shared.associations(args),
+      agentAssociations: (_parent: unknown, args: any) => shared.agentAssociations(args),
+      graphqlEndpointAssociations: (_parent: unknown, args: any) => shared.graphqlEndpointAssociations(args),
+      graphqlEndpointAssociationsBetween: (_parent: unknown, args: any) => shared.graphqlEndpointAssociationsBetween(args),
+      trustScore: (_parent: unknown, args: any) => shared.trustScore(args),
     },
     Mutation: {
       createAccessCode: (_parent: unknown, args: any) => shared.createAccessCode(args),

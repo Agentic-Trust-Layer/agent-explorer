@@ -40,7 +40,83 @@ export const graphQLSchemaString = `
     validationPendingCount: Int
     validationCompletedCount: Int
     validationRequestedCount: Int
+    initiatedAssociationCount: Int
+    approvedAssociationCount: Int
     metadata: [TokenMetadata!]!
+  }
+
+  type TrustReason {
+    code: String!
+    weight: Float
+    detail: String
+  }
+
+  type TrustScore {
+    interfaceId: String!
+    score: Float!
+    reputationScore: Float!
+    overlapScore: Float!
+    clientMembershipCount: Int!
+    agentMembershipCount: Int!
+    sharedMembershipCount: Int!
+    sharedMembershipKeys: [String!]!
+    reasons: [TrustReason!]!
+  }
+
+  type AssociationAccount {
+    id: String!
+  }
+
+  type Association {
+    chainId: Int!
+    associationId: String!
+
+    initiatorAccount: AssociationAccount!
+    approverAccount: AssociationAccount!
+
+    initiator: String!
+    approver: String!
+    validAt: Int!
+    validUntil: Int!
+    interfaceId: String!
+    data: String!
+
+    initiatorKeyType: String!
+    approverKeyType: String!
+    initiatorSignature: String!
+    approverSignature: String!
+
+    revokedAt: Int
+
+    createdTxHash: String!
+    createdBlockNumber: Int!
+    createdTimestamp: Int!
+    lastUpdatedTxHash: String!
+    lastUpdatedBlockNumber: Int!
+    lastUpdatedTimestamp: Int!
+
+    initiatorAgent: Agent
+    approverAgent: Agent
+  }
+
+  enum AssociationRole {
+    INITIATOR
+    APPROVER
+    ANY
+  }
+
+  input AssociationWhereInput {
+    chainId: Int
+    chainId_in: [Int!]
+    associationId: String
+    associationId_in: [String!]
+    interfaceId: String
+    interfaceId_in: [String!]
+    initiatorAccountId: String
+    approverAccountId: String
+    initiatorAccountId_in: [String!]
+    approverAccountId_in: [String!]
+    revoked: Boolean
   }
 
   enum AgentOrderBy {
@@ -434,6 +510,46 @@ export const graphQLSchemaString = `
       chainId: Int!
       id: String!
     ): TokenMetadata
+
+    associations(
+      where: AssociationWhereInput
+      first: Int
+      skip: Int
+      orderBy: String
+      orderDirection: String
+    ): [Association!]!
+
+    agentAssociations(
+      chainId: Int!
+      agentId: String!
+      role: AssociationRole
+      interfaceId: String
+      first: Int
+      skip: Int
+    ): [Association!]!
+
+    graphqlEndpointAssociations(
+      chainId: Int!
+      agentId: String!
+      role: AssociationRole
+      first: Int
+      skip: Int
+    ): [Association!]!
+
+    graphqlEndpointAssociationsBetween(
+      chainId: Int!
+      agentIdA: String!
+      agentIdB: String!
+      first: Int
+      skip: Int
+    ): [Association!]!
+
+    trustScore(
+      chainId: Int!
+      agentId: String!
+      client: String!
+      interfaceId: String
+    ): TrustScore!
 
     feedbacks(
       chainId: Int

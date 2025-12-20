@@ -8,20 +8,20 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
   binding = "DB"
   database_name = "erc8004-indexer"
-  database_id = "2b924f66-77c1-4faa-9b14-c0b1c6d208e9"
+  database_id = "YOUR_D1_DATABASE_ID"
 
 # Environment variables
 [vars]
 NODE_ENV = "production"
-GRAPHQL_SECRET_ACCESS_CODE = "ERC8004-secret-code"
-ETH_SEPOLIA_RPC_HTTP_URL = "https://eth-sepolia.g.alchemy.com/v2/WvEny4nR70VTUMX0DfR-A"
+GRAPHQL_SECRET_ACCESS_CODE = "YOUR_SECRET_ACCESS_CODE"
+ETH_SEPOLIA_RPC_HTTP_URL = "YOUR_ETH_SEPOLIA_RPC_URL"
 ETH_SEPOLIA_IDENTITY_REGISTRY = "0x8004a6090Cd10A7288092483047B097295Fb8847"
-BASE_SEPOLIA_RPC_HTTP_URL = "https://base-sepolia.g.alchemy.com/v2/WvEny4nR70VTUMX0DfR-A"
+BASE_SEPOLIA_RPC_HTTP_URL = "YOUR_BASE_SEPOLIA_RPC_URL"
 BASE_SEPOLIA_IDENTITY_REGISTRY = "0x8004AA63c570c570eBF15376c0dB199918BFe9Fb"
 
-PINECONE_API_KEY="pcsk_5SR1GD_525kD1yhurKXK6Sp7uoYfDtrWSAEE1nQCA2DGoMT7JZB8rLh8eu4G8UfiYhmtxV"
-PINECONE_INDEX="agentictrust"
-VENICE_API_KEY="8tHsiE3plCHzKRGcJytyYTDVl1rnWQYMiObPLR-mD6"
+PINECONE_API_KEY="YOUR_PINECONE_API_KEY"
+PINECONE_INDEX="YOUR_PINECONE_INDEX_NAME"
+VENICE_API_KEY="YOUR_VENICE_API_KEY"
 
 
 
@@ -31,4 +31,5 @@ VENICE_API_KEY="8tHsiE3plCHzKRGcJytyYTDVl1rnWQYMiObPLR-mD6"
 # Development environment - deployed with: wrangler deploy --env development
 [env.development]
 name = "erc8004-indexer-graphql-dev"
+
 

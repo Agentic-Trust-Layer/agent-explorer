@@ -309,7 +309,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
           return e && typeof e.endpoint === 'string' ? e.endpoint : null;
         };
-      a2aEndpoint = findEndpoint('A2A') || findEndpoint('a2a') || a2aEndpoint;
+      a2aEndpoint = a2aEndpoint || findEndpoint('A2A') || findEndpoint('a2a');
     }
   };
   let a2aEndpoint: string | null = null;
@@ -1512,6 +1512,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
           ensEndpoint = uriEnsEndpoint;
           console.info("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: updated ensEndpoint from URI:", ensEndpoint);
         }
+
       } else {
         raw = JSON.stringify({ agentName: name, description, image, a2aEndpoint, ensEndpoint, agentAccount: agentAccountEndpoint });
       }
@@ -1521,6 +1522,15 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   // Write extended fields into agents
   const updateTime = Math.floor(Date.now() / 1000);
   const agentCategory = readAgentCategory(uriMetadata ?? (typeof item?.metadataJson === 'object' ? item.metadataJson : null));
+  
+  // Extract active field from metadata
+  // Default to false, only set to true if explicitly set to true in tokenUri JSON
+  const metadataForActive = uriMetadata ?? (typeof item?.metadataJson === 'object' ? item.metadataJson : null);
+  const activeValue = metadataForActive?.active;
+  const active = activeValue !== undefined
+    ? !!(activeValue === true || activeValue === 1 || String(activeValue).toLowerCase() === 'true')
+    : false; // Default to false if not present
+  
   await db.prepare(`
     UPDATE agents SET
       type = COALESCE(type, ?),
@@ -1535,6 +1545,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
       ensEndpoint = COALESCE(?, ensEndpoint),
       agentAccountEndpoint = COALESCE(?, agentAccountEndpoint),
       supportedTrust = COALESCE(?, supportedTrust),
+      active = ?,
       rawJson = COALESCE(?, rawJson),
       updatedAtTime = ?
     WHERE chainId = ? AND agentId = ?
@@ -1548,6 +1559,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     ensEndpoint,
     agentAccountEndpoint,
     JSON.stringify([]),
+    active ? 1 : 0,
     raw,
     updateTime,
     chainId,
@@ -1646,12 +1658,22 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   const fallbackEns = normalizeString(tokenData?.ensName);
   const ensEndpoint = metadataEns || fallbackEns;
 
+
   const agentCategory = readAgentCategory(metadataObj);
 
   const metadataAccount = normalizeString(metadataObj?.agentAccount);
   const fallbackAccount = normalizeString(tokenData?.agentAccount);
   const agentAccount = parseCaip10Address(metadataAccount) || parseCaip10Address(fallbackAccount);
   const agentAccountEndpoint = agentAccount ? `eip155:${chainId}:${agentAccount}` : null;
+
+  // Extract active field from metadata
+  // Default to false, only set to true if explicitly set to true in tokenUri JSON
+  const metadataActive = metadataObj?.active;
+  const fallbackActive = tokenData?.active;
+  const activeValue = metadataActive !== undefined ? metadataActive : fallbackActive;
+  const active = activeValue !== undefined 
+    ? !!(activeValue === true || activeValue === 1 || String(activeValue).toLowerCase() === 'true')
+    : false; // Default to false if not present
 
   let rawJson = metadataRaw;
   if (!rawJson && metadataObj) {
@@ -1728,6 +1750,7 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
       ensEndpoint = COALESCE(?, ensEndpoint),
       agentAccount = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE agentAccount END,
       agentAccountEndpoint = COALESCE(?, agentAccountEndpoint),
+      active = ?,
       rawJson = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE rawJson END,
       updatedAtTime = ?
     WHERE chainId = ? AND agentId = ?
@@ -1739,9 +1762,10 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     image,
     a2aEndpoint,
     ensEndpoint,
-    agentAccount, agentAccount, agentAccount,
-    agentAccountEndpoint,
-    rawJson, rawJson, rawJson,
+      agentAccount, agentAccount, agentAccount,
+      agentAccountEndpoint,
+      active ? 1 : 0,
+      rawJson, rawJson, rawJson,
     now,
     chainId,
     agentId,
@@ -1769,6 +1793,154 @@ async function recordEvent(ev: any, type: string, args: any, agentIdForEventOrDb
     ev.transactionHash,
     JSON.stringify({ ...args, agentId })
   );
+}
+
+async function upsertAssociationFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  associationAccountsBatch?: BatchWriter,
+  associationsBatch?: BatchWriter,
+): Promise<void> {
+  if (!item?.id) {
+    console.warn('⚠️  upsertAssociationFromGraph: missing id', item);
+    return;
+  }
+
+  const associationId = normalizeHex(String(item.id));
+  if (!associationId) return;
+
+  const initiatorAccountId = normalizeHex(item?.initiatorAccount?.id ? String(item.initiatorAccount.id) : null);
+  const approverAccountId = normalizeHex(item?.approverAccount?.id ? String(item.approverAccount.id) : null);
+  if (!initiatorAccountId || !approverAccountId) {
+    console.warn('⚠️  upsertAssociationFromGraph: missing initiator/approver account id for', associationId);
+    return;
+  }
+
+  // Ensure account rows exist (best-effort; no FK constraints enforced in D1 by default)
+  const accountStmt = dbInstance.prepare(`INSERT OR IGNORE INTO association_accounts(id) VALUES(?)`);
+  await enqueueOrRun(associationAccountsBatch, accountStmt, [initiatorAccountId]);
+  await enqueueOrRun(associationAccountsBatch, accountStmt, [approverAccountId]);
+
+  const initiator = normalizeHex(item?.initiator != null ? String(item.initiator) : null) ?? '';
+  const approver = normalizeHex(item?.approver != null ? String(item.approver) : null) ?? '';
+  const interfaceId = normalizeHex(item?.interfaceId != null ? String(item.interfaceId) : null) ?? '';
+  const data = normalizeHex(item?.data != null ? String(item.data) : null) ?? '';
+  const initiatorKeyType = normalizeHex(item?.initiatorKeyType != null ? String(item.initiatorKeyType) : null) ?? '';
+  const approverKeyType = normalizeHex(item?.approverKeyType != null ? String(item.approverKeyType) : null) ?? '';
+  const initiatorSignature = normalizeHex(item?.initiatorSignature != null ? String(item.initiatorSignature) : null) ?? '';
+  const approverSignature = normalizeHex(item?.approverSignature != null ? String(item.approverSignature) : null) ?? '';
+
+  const validAt = item?.validAt != null ? Number(item.validAt) : 0;
+  const validUntil = item?.validUntil != null ? Number(item.validUntil) : 0;
+  const revokedAt = item?.revokedAt != null ? Number(item.revokedAt) : null;
+
+  const createdTxHash = normalizeHex(item?.createdTxHash != null ? String(item.createdTxHash) : null) ?? '';
+  const createdBlockNumber = item?.createdBlockNumber != null ? Number(item.createdBlockNumber) : 0;
+  const createdTimestamp = item?.createdTimestamp != null ? Number(item.createdTimestamp) : 0;
+  const lastUpdatedTxHash = normalizeHex(item?.lastUpdatedTxHash != null ? String(item.lastUpdatedTxHash) : null) ?? '';
+  const lastUpdatedBlockNumber = item?.lastUpdatedBlockNumber != null ? Number(item.lastUpdatedBlockNumber) : 0;
+  const lastUpdatedTimestamp = item?.lastUpdatedTimestamp != null ? Number(item.lastUpdatedTimestamp) : 0;
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO associations(
+      chainId, associationId,
+      initiatorAccountId, approverAccountId,
+      initiator, approver, validAt, validUntil, interfaceId, data,
+      initiatorKeyType, approverKeyType, initiatorSignature, approverSignature,
+      revokedAt,
+      createdTxHash, createdBlockNumber, createdTimestamp,
+      lastUpdatedTxHash, lastUpdatedBlockNumber, lastUpdatedTimestamp
+    )
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(chainId, associationId) DO UPDATE SET
+      initiatorAccountId=excluded.initiatorAccountId,
+      approverAccountId=excluded.approverAccountId,
+      initiator=excluded.initiator,
+      approver=excluded.approver,
+      validAt=excluded.validAt,
+      validUntil=excluded.validUntil,
+      interfaceId=excluded.interfaceId,
+      data=excluded.data,
+      initiatorKeyType=excluded.initiatorKeyType,
+      approverKeyType=excluded.approverKeyType,
+      initiatorSignature=excluded.initiatorSignature,
+      approverSignature=excluded.approverSignature,
+      revokedAt=excluded.revokedAt,
+      createdTxHash=excluded.createdTxHash,
+      createdBlockNumber=excluded.createdBlockNumber,
+      createdTimestamp=excluded.createdTimestamp,
+      lastUpdatedTxHash=excluded.lastUpdatedTxHash,
+      lastUpdatedBlockNumber=excluded.lastUpdatedBlockNumber,
+      lastUpdatedTimestamp=excluded.lastUpdatedTimestamp
+  `);
+
+  await enqueueOrRun(associationsBatch, stmt, [
+    chainId,
+    associationId,
+    initiatorAccountId,
+    approverAccountId,
+    initiator,
+    approver,
+    validAt,
+    validUntil,
+    interfaceId,
+    data,
+    initiatorKeyType,
+    approverKeyType,
+    initiatorSignature,
+    approverSignature,
+    revokedAt,
+    createdTxHash,
+    createdBlockNumber,
+    createdTimestamp,
+    lastUpdatedTxHash,
+    lastUpdatedBlockNumber,
+    lastUpdatedTimestamp,
+  ]);
+}
+
+async function recordAssociationRevocationFromGraph(
+  item: any,
+  chainId: number,
+  dbInstance: any,
+  batch?: BatchWriter,
+): Promise<void> {
+  if (!item?.id) {
+    console.warn('⚠️  recordAssociationRevocationFromGraph: missing id', item);
+    return;
+  }
+  const id = String(item.id);
+  const associationId = normalizeHex(item?.associationId != null ? String(item.associationId) : null);
+  if (!associationId) {
+    console.warn('⚠️  recordAssociationRevocationFromGraph: missing associationId for', id);
+    return;
+  }
+  const revokedAt = item?.revokedAt != null ? Number(item.revokedAt) : 0;
+  const txHash = normalizeHex(item?.txHash != null ? String(item.txHash) : null) ?? '';
+  const blockNumber = item?.blockNumber != null ? Number(item.blockNumber) : 0;
+  const timestamp = item?.timestamp != null ? Number(item.timestamp) : 0;
+
+  const stmt = dbInstance.prepare(`
+    INSERT INTO association_revocations(chainId, id, associationId, revokedAt, txHash, blockNumber, timestamp)
+    VALUES(?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(chainId, id) DO UPDATE SET
+      associationId=excluded.associationId,
+      revokedAt=excluded.revokedAt,
+      txHash=excluded.txHash,
+      blockNumber=excluded.blockNumber,
+      timestamp=excluded.timestamp
+  `);
+
+  await enqueueOrRun(batch, stmt, [
+    chainId,
+    id,
+    associationId,
+    revokedAt,
+    txHash,
+    blockNumber,
+    timestamp,
+  ]);
 }
 
 export async function backfill(client: ERC8004Client, dbOverride?: any) {
@@ -1810,18 +1982,24 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const validationCheckpointKey = chainId ? `lastValidation_${chainId}` : 'lastValidation';
   const tokenCheckpointKey = chainId ? `lastToken_${chainId}` : 'lastToken';
   const tokenMetadataCheckpointKey = chainId ? `lastTokenMetadata_${chainId}` : 'lastTokenMetadata';
+  const associationCheckpointKey = chainId ? `lastAssociation_${chainId}` : 'lastAssociation';
+  const associationRevocationCheckpointKey = chainId ? `lastAssociationRevocation_${chainId}` : 'lastAssociationRevocation';
   const lastTransferRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(transferCheckpointKey) as { value?: string } | undefined;
   const lastFeedbackRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(feedbackCheckpointKey) as { value?: string } | undefined;
   const lastUriUpdateRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(uriUpdateCheckpointKey) as { value?: string } | undefined;
   const lastValidationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(validationCheckpointKey) as { value?: string } | undefined;
   const lastTokenRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(tokenCheckpointKey) as { value?: string } | undefined;
   const lastTokenMetadataRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(tokenMetadataCheckpointKey) as { value?: string } | undefined;
+  const lastAssociationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(associationCheckpointKey) as { value?: string } | undefined;
+  const lastAssociationRevocationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(associationRevocationCheckpointKey) as { value?: string } | undefined;
   const lastTransfer = lastTransferRow?.value ? BigInt(lastTransferRow.value) : 0n;
   const lastFeedback = lastFeedbackRow?.value ? BigInt(lastFeedbackRow.value) : 0n;
   const lastUriUpdate = lastUriUpdateRow?.value ? BigInt(lastUriUpdateRow.value) : 0n;
   const lastValidation = lastValidationRow?.value ? BigInt(lastValidationRow.value) : 0n;
   const lastToken = lastTokenRow?.value ? BigInt(lastTokenRow.value) : 0n;
   const lastTokenMetadata = lastTokenMetadataRow?.value ? BigInt(lastTokenMetadataRow.value) : 0n;
+  const lastAssociation = lastAssociationRow?.value ? BigInt(lastAssociationRow.value) : 0n;
+  const lastAssociationRevocation = lastAssociationRevocationRow?.value ? BigInt(lastAssociationRevocationRow.value) : 0n;
 
 
   const fetchJson = async (body: any) => {
@@ -2084,6 +2262,42 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   }`;
 
+  const associationsQuery = `query Associations($first: Int!, $skip: Int!) {
+    associations(first: $first, skip: $skip, orderBy: lastUpdatedBlockNumber, orderDirection: asc) {
+      id
+      initiatorAccount { id }
+      approverAccount { id }
+      initiator
+      approver
+      validAt
+      validUntil
+      interfaceId
+      data
+      initiatorKeyType
+      approverKeyType
+      initiatorSignature
+      approverSignature
+      revokedAt
+      createdTxHash
+      createdBlockNumber
+      createdTimestamp
+      lastUpdatedTxHash
+      lastUpdatedBlockNumber
+      lastUpdatedTimestamp
+    }
+  }`;
+
+  const associationRevocationsQuery = `query AssociationRevocations($first: Int!, $skip: Int!) {
+    associationRevocations(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+      id
+      associationId
+      revokedAt
+      txHash
+      blockNumber
+      timestamp
+    }
+  }`;
+
 
   const transferItems = await fetchAllFromSubgraph('transfers', transfersQuery, 'transfers', { lastCheckpoint: lastTransfer });
   const tokenItems = await fetchAllFromSubgraph('tokens', tokensQuery, 'tokens', { lastCheckpoint: lastToken });
@@ -2095,6 +2309,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const uriUpdateItems = await fetchAllFromSubgraph('uriUpdates', uriUpdatesQuery, 'uriUpdates', { optional: true, lastCheckpoint: lastUriUpdate });
   const validationRequestItems = await fetchAllFromSubgraph('validationRequests', validationRequestQuery, 'validationRequests', { optional: true, lastCheckpoint: lastValidation });
   const validationResponseItems = await fetchAllFromSubgraph('validationResponses', validationResponseQuery, 'validationResponses', { optional: true, lastCheckpoint: lastValidation });
+  const associationItems = await fetchAllFromSubgraph('associations', associationsQuery, 'associations', { optional: true, lastCheckpoint: lastAssociation });
+  const associationRevocationItems = await fetchAllFromSubgraph('associationRevocations', associationRevocationsQuery, 'associationRevocations', { optional: true, lastCheckpoint: lastAssociationRevocation });
 
   let transferCheckpointBlock = lastTransfer;
   const updateTransferCheckpointIfNeeded = async (blockNumber: bigint) => {
@@ -2144,6 +2360,22 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   };
 
+  let associationCheckpointBlock = lastAssociation;
+  const updateAssociationCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > associationCheckpointBlock) {
+      associationCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(associationCheckpointKey, String(blockNumber));
+    }
+  };
+
+  let associationRevocationCheckpointBlock = lastAssociationRevocation;
+  const updateAssociationRevocationCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > associationRevocationCheckpointBlock) {
+      associationRevocationCheckpointBlock = blockNumber;
+      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(associationRevocationCheckpointKey, String(blockNumber));
+    }
+  };
+
   // Upsert latest tokens metadata first (oldest-first by mintedAt)
 
   // Apply transfers newer than checkpoint
@@ -2158,6 +2390,9 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const validationRequestBatch = createBatchWriter(dbInstance, 'validation_requests');
   const validationResponseBatch = createBatchWriter(dbInstance, 'validation_responses');
   const tokenMetadataBatch = createBatchWriter(dbInstance, 'token_metadata');
+  const associationAccountsBatch = createBatchWriter(dbInstance, 'association_accounts');
+  const associationsBatch = createBatchWriter(dbInstance, 'associations');
+  const associationRevocationsBatch = createBatchWriter(dbInstance, 'association_revocations');
 
   console.info("............  process transfers: ", transfersOrdered.length);
   for (let i = 0; i < transfersOrdered.length; i++) {
@@ -2391,12 +2626,63 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   }
 
+  const associationsOrdered = associationItems
+    .filter((item) => Number(item?.lastUpdatedBlockNumber || item?.createdBlockNumber || 0) > Number(lastAssociation))
+    .slice()
+    .sort((a, b) => Number(a?.lastUpdatedBlockNumber || a?.createdBlockNumber || 0) - Number(b?.lastUpdatedBlockNumber || b?.createdBlockNumber || 0));
+
+  console.info("............  process associations: ", associationsOrdered.length);
+  if (associationsOrdered.length > 0) {
+    console.info('............  sample association ids:', associationsOrdered.slice(0, 3).map((a) => `${a?.id || 'unknown'}@${a?.lastUpdatedBlockNumber || a?.createdBlockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < associationsOrdered.length; i++) {
+    const assoc = associationsOrdered[i];
+    const blockNum = BigInt(assoc?.lastUpdatedBlockNumber || assoc?.createdBlockNumber || 0);
+    try {
+      await upsertAssociationFromGraph(assoc, chainId, dbInstance, associationAccountsBatch, associationsBatch);
+      await updateAssociationCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 50 === 0 || i === associationsOrdered.length - 1) {
+        console.info(`............  associations progress: ${i + 1}/${associationsOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing association:', { id: assoc?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+
+  const associationRevocationsOrdered = associationRevocationItems
+    .filter((item) => Number(item?.blockNumber || 0) > Number(lastAssociationRevocation))
+    .slice()
+    .sort((a, b) => Number(a?.blockNumber || 0) - Number(b?.blockNumber || 0));
+
+  console.info("............  process association revocations: ", associationRevocationsOrdered.length);
+  if (associationRevocationsOrdered.length > 0) {
+    console.info('............  sample association revocation ids:', associationRevocationsOrdered.slice(0, 3).map((r) => `${r?.id || 'unknown'}@${r?.blockNumber || '0'}`).join(', '));
+  }
+  for (let i = 0; i < associationRevocationsOrdered.length; i++) {
+    const rev = associationRevocationsOrdered[i];
+    const blockNum = BigInt(rev?.blockNumber || 0);
+    try {
+      await recordAssociationRevocationFromGraph(rev, chainId, dbInstance, associationRevocationsBatch);
+      await updateAssociationRevocationCheckpointIfNeeded(blockNum);
+      if ((i + 1) % 50 === 0 || i === associationRevocationsOrdered.length - 1) {
+        console.info(`............  association revocation progress: ${i + 1}/${associationRevocationsOrdered.length} (block ${blockNum})`);
+      }
+    } catch (error) {
+      console.error('❌ Error processing association revocation:', { id: rev?.id, blockNum: String(blockNum), error });
+      throw error;
+    }
+  }
+
   await feedbackInsertBatch.flush();
   await feedbackRevokedBatch.flush();
   await feedbackResponseBatch.flush();
   await validationRequestBatch.flush();
   await validationResponseBatch.flush();
   await tokenMetadataBatch.flush();
+  await associationAccountsBatch.flush();
+  await associationsBatch.flush();
+  await associationRevocationsBatch.flush();
 
 
   /*
@@ -2650,6 +2936,7 @@ async function processSingleAgentId(agentId: string) {
     namespace: process.env.PINECONE_NAMESPACE || '(default)',
   };
   console.info('[semantic-ingest] pinecone target', pineconeTarget);
+
   const semanticSearchService = createSemanticSearchServiceFromEnv();
   if (semanticSearchService) {
     try {
@@ -2662,6 +2949,7 @@ async function processSingleAgentId(agentId: string) {
   } else {
     console.log('[semantic-ingest] Semantic search not configured; skipping Pinecone ingest');
   }
+
   // Subscribe to on-chain events as a safety net (optional)
   //const unwatch = watch();
 

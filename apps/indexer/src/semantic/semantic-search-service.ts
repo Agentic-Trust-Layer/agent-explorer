@@ -10,6 +10,15 @@ export interface SemanticSearchParams {
 
 export class SemanticSearchService {
   private readonly defaultMinScore: number;
+  private static readonly MAX_EMBEDDING_TOKENS = 8192;
+  // Heuristic: token ~= 4 chars for typical English/JSON-ish text.
+  // Keep margin to avoid hard failures from tokenizer differences.
+  private static readonly APPROX_CHARS_PER_TOKEN = 4;
+  private static readonly TOKEN_SAFETY_MARGIN = 512;
+  private static readonly MAX_EMBEDDING_CHARS =
+    (SemanticSearchService.MAX_EMBEDDING_TOKENS - SemanticSearchService.TOKEN_SAFETY_MARGIN) *
+    SemanticSearchService.APPROX_CHARS_PER_TOKEN;
+  private static readonly MAX_EMBEDDING_SPLIT_DEPTH = 8;
 
   constructor(
     private readonly embeddingProvider: EmbeddingProvider,
@@ -67,7 +76,8 @@ export class SemanticSearchService {
       return [];
     }
 
-    const vector = await this.embeddingProvider.generateEmbedding(normalized);
+    const safeQuery = this.clampTextForEmbedding(normalized);
+    const vector = await this.generateEmbeddingResilient(safeQuery);
     console.info('[semantic-search] executing query', {
       textPreview: normalized.slice(0, 64),
       topK: params.topK ?? 5,
@@ -124,14 +134,50 @@ export class SemanticSearchService {
     if (!texts.length) {
       return [];
     }
+
+    const chunkedByText = texts.map((text, index) => {
+      const chunks = this.chunkTextForEmbedding(text);
+      if (chunks.length > 1) {
+        console.warn('[semantic-search] embedding text exceeded token limit; chunking', {
+          index,
+          originalChars: text.length,
+          chunks: chunks.length,
+          maxChars: SemanticSearchService.MAX_EMBEDDING_CHARS,
+        });
+      }
+      return chunks;
+    });
+
+    const allChunks: string[] = [];
+    const chunkSpans: Array<{ start: number; count: number }> = [];
+    for (const chunks of chunkedByText) {
+      const start = allChunks.length;
+      allChunks.push(...chunks);
+      chunkSpans.push({ start, count: chunks.length });
+    }
+
+    let chunkEmbeddings: number[][];
     if (typeof this.embeddingProvider.generateBatchEmbeddings === 'function') {
-      return await this.embeddingProvider.generateBatchEmbeddings(texts);
+      try {
+        chunkEmbeddings = await this.embeddingProvider.generateBatchEmbeddings(allChunks);
+      } catch (error) {
+        if (this.isTokenLimitError(error)) {
+          console.warn('[semantic-search] batch embedding hit token limit; falling back to per-chunk requests');
+          chunkEmbeddings = await this.embedChunksIndividually(allChunks);
+        } else {
+          throw error;
+        }
+      }
+    } else {
+      chunkEmbeddings = await this.embedChunksIndividually(allChunks);
     }
-    const vectors: number[][] = [];
-    for (const text of texts) {
-      vectors.push(await this.embeddingProvider.generateEmbedding(text));
-    }
-    return vectors;
+
+    return chunkSpans.map(({ start, count }) => {
+      const vectors = chunkEmbeddings.slice(start, start + count).filter((vec) => Array.isArray(vec) && vec.length > 0);
+      if (!vectors.length) return [];
+      if (vectors.length === 1) return vectors[0] ?? [];
+      return this.averageVectors(vectors);
+    });
   }
 
   private buildAgentText(record: SemanticAgentRecord): string {
@@ -165,6 +211,181 @@ export class SemanticSearchService {
     }
     segments.push(...this.serializeMetadataSegments(record.metadata));
     return segments.filter(Boolean).join('. ');
+  }
+
+  private async embedChunksIndividually(chunks: string[]): Promise<number[][]> {
+    const vectors: number[][] = [];
+    for (const chunk of chunks) {
+      vectors.push(await this.generateEmbeddingResilient(chunk));
+    }
+    return vectors;
+  }
+
+  private isTokenLimitError(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error ?? '');
+    return /maximum token limit|exceeds the maximum token limit|8192 tokens/i.test(message);
+  }
+
+  private findSplitIndex(text: string): number {
+    const mid = Math.floor(text.length / 2);
+    const window = 4000;
+    const start = Math.max(0, mid - window);
+    const end = Math.min(text.length, mid + window);
+    const slice = text.slice(start, end);
+
+    // Prefer paragraph boundary, then sentence-ish boundary, then whitespace.
+    const candidates = ['\n\n', '\n', '. ', '; ', ', ', ' '];
+    for (const needle of candidates) {
+      const idx = slice.lastIndexOf(needle, mid - start);
+      if (idx !== -1) {
+        return start + idx + needle.length;
+      }
+    }
+    return mid;
+  }
+
+  private async generateEmbeddingResilient(text: string, depth = 0): Promise<number[]> {
+    const trimmed = text?.trim() ?? '';
+    if (!trimmed) return [];
+
+    try {
+      return await this.embeddingProvider.generateEmbedding(trimmed);
+    } catch (error) {
+      if (!this.isTokenLimitError(error)) {
+        throw error;
+      }
+
+      if (depth >= SemanticSearchService.MAX_EMBEDDING_SPLIT_DEPTH) {
+        const clamped = this.clampTextForEmbedding(trimmed);
+        if (clamped.length < trimmed.length) {
+          console.warn('[semantic-search] token limit persists; truncating text for embedding', {
+            depth,
+            originalChars: trimmed.length,
+            clampedChars: clamped.length,
+          });
+          return await this.embeddingProvider.generateEmbedding(clamped);
+        }
+        throw error;
+      }
+
+      const splitAt = this.findSplitIndex(trimmed);
+      const left = trimmed.slice(0, splitAt).trim();
+      const right = trimmed.slice(splitAt).trim();
+
+      // If we can't split meaningfully, truncate harder and retry once.
+      if (!left || !right) {
+        const hard = trimmed.slice(0, Math.max(1, Math.floor(trimmed.length / 2))).trim();
+        if (!hard || hard === trimmed) {
+          throw error;
+        }
+        console.warn('[semantic-search] token limit; hard-splitting text for embedding', {
+          depth,
+          originalChars: trimmed.length,
+          hardChars: hard.length,
+        });
+        return await this.generateEmbeddingResilient(hard, depth + 1);
+      }
+
+      console.warn('[semantic-search] token limit; splitting text for embedding', {
+        depth,
+        leftChars: left.length,
+        rightChars: right.length,
+      });
+
+      const [a, b] = await Promise.all([
+        this.generateEmbeddingResilient(left, depth + 1),
+        this.generateEmbeddingResilient(right, depth + 1),
+      ]);
+      const vectors = [a, b].filter((vec) => Array.isArray(vec) && vec.length > 0);
+      if (!vectors.length) return [];
+      if (vectors.length === 1) return vectors[0] ?? [];
+      return this.averageVectors(vectors);
+    }
+  }
+
+  private averageVectors(vectors: number[][]): number[] {
+    const dim = vectors[0]?.length ?? 0;
+    if (!dim) return [];
+    const sum = new Array<number>(dim).fill(0);
+    let count = 0;
+    for (const vec of vectors) {
+      if (!Array.isArray(vec) || vec.length !== dim) continue;
+      for (let i = 0; i < dim; i++) {
+        sum[i] += vec[i] ?? 0;
+      }
+      count += 1;
+    }
+    if (!count) return [];
+    for (let i = 0; i < dim; i++) {
+      sum[i] /= count;
+    }
+    return sum;
+  }
+
+  private clampTextForEmbedding(text: string): string {
+    const trimmed = text?.trim() ?? '';
+    if (!trimmed) return '';
+    if (trimmed.length <= SemanticSearchService.MAX_EMBEDDING_CHARS) return trimmed;
+    return trimmed.slice(0, SemanticSearchService.MAX_EMBEDDING_CHARS);
+  }
+
+  private chunkTextForEmbedding(text: string): string[] {
+    const trimmed = text?.trim() ?? '';
+    if (!trimmed) return [''];
+
+    const maxChars = SemanticSearchService.MAX_EMBEDDING_CHARS;
+    if (trimmed.length <= maxChars) return [trimmed];
+
+    // Prefer splitting on paragraph boundaries, then fall back to hard slices.
+    const paragraphs = trimmed.split(/\n{2,}/g).map((p) => p.trim()).filter(Boolean);
+    const chunks: string[] = [];
+    let current = '';
+
+    const flush = () => {
+      const c = current.trim();
+      if (c) chunks.push(c);
+      current = '';
+    };
+
+    const pushWithLimit = (segment: string) => {
+      const seg = segment.trim();
+      if (!seg) return;
+
+      // If segment itself is too large, hard-slice it.
+      if (seg.length > maxChars) {
+        flush();
+        for (let i = 0; i < seg.length; i += maxChars) {
+          const slice = seg.slice(i, i + maxChars).trim();
+          if (slice) chunks.push(slice);
+        }
+        return;
+      }
+
+      if (!current) {
+        current = seg;
+        return;
+      }
+
+      const candidate = `${current}\n\n${seg}`;
+      if (candidate.length <= maxChars) {
+        current = candidate;
+      } else {
+        flush();
+        current = seg;
+      }
+    };
+
+    if (!paragraphs.length) {
+      // Shouldn't happen, but keep behavior safe.
+      return [trimmed.slice(0, maxChars)];
+    }
+
+    for (const para of paragraphs) {
+      pushWithLimit(para);
+    }
+    flush();
+
+    return chunks.length ? chunks : [trimmed.slice(0, maxChars)];
   }
 
   private buildVectorMetadata(record: SemanticAgentRecord): Record<string, unknown> {

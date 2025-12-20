@@ -33,8 +33,28 @@ export function createSemanticSearchServiceFromEnv(env?: Record<string, any>): S
   const pineconeIndex = readEnv(env, 'PINECONE_INDEX');
   const veniceApiKey = readEnv(env, 'VENICE_API_KEY');
 
+  // Debug logging for Workers environment
+  if (typeof process === 'undefined' || !process.env) {
+    // Running in Workers - log what we found
+    console.info('[semantic-factory] Workers environment check:', {
+      hasEnv: !!env,
+      envKeys: env ? Object.keys(env).filter(k => k.includes('API') || k.includes('INDEX')) : [],
+      hasPineconeKey: !!pineconeApiKey,
+      hasPineconeIndex: !!pineconeIndex,
+      hasVeniceKey: !!veniceApiKey,
+      veniceKeyLength: veniceApiKey ? veniceApiKey.length : 0,
+      veniceKeyPreview: veniceApiKey ? `${veniceApiKey.substring(0, 4)}...${veniceApiKey.substring(veniceApiKey.length - 4)}` : 'missing',
+    });
+  }
+
   if (!pineconeApiKey || !pineconeIndex || !veniceApiKey) {
-    console.warn('⚠️ Semantic search disabled: missing Pinecone or Venice configuration');
+    console.warn('⚠️ Semantic search disabled: missing Pinecone or Venice configuration', {
+      missing: {
+        pineconeApiKey: !pineconeApiKey,
+        pineconeIndex: !pineconeIndex,
+        veniceApiKey: !veniceApiKey,
+      }
+    });
     return null;
   }
 
