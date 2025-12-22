@@ -42,6 +42,15 @@ export const graphQLSchemaString = `
     validationRequestedCount: Int
     initiatedAssociationCount: Int
     approvedAssociationCount: Int
+    atiOverallScore: Int
+    atiOverallConfidence: Float
+    atiVersion: String
+    atiComputedAt: Int
+    atiBundleJson: String
+    trustLedgerScore: Int
+    trustLedgerBadgeCount: Int
+    trustLedgerOverallRank: Int
+    trustLedgerCapabilityRank: Int
     metadata: [TokenMetadata!]!
   }
 
@@ -61,6 +70,50 @@ export const graphQLSchemaString = `
     sharedMembershipCount: Int!
     sharedMembershipKeys: [String!]!
     reasons: [TrustReason!]!
+  }
+
+  type AgentTrustComponent {
+    component: String!
+    score: Float!
+    weight: Float!
+    evidenceCountsJson: String
+  }
+
+  type AgentTrustIndex {
+    chainId: Int!
+    agentId: String!
+    overallScore: Int!
+    overallConfidence: Float
+    version: String!
+    computedAt: Int!
+    bundleJson: String
+    components: [AgentTrustComponent!]!
+  }
+
+  type TrustLedgerBadgeDefinition {
+    badgeId: String!
+    program: String!
+    name: String!
+    description: String
+    iconRef: String
+    points: Int!
+    ruleId: String!
+    ruleJson: String
+    active: Boolean!
+    createdAt: Int!
+    updatedAt: Int!
+  }
+
+  input TrustLedgerBadgeDefinitionInput {
+    badgeId: String!
+    program: String!
+    name: String!
+    description: String
+    iconRef: String
+    points: Int!
+    ruleId: String!
+    ruleJson: String
+    active: Boolean!
   }
 
   type AssociationAccount {
@@ -127,6 +180,10 @@ export const graphQLSchemaString = `
     agentOwner
     eoaOwner
     agentCategory
+    trustLedgerScore
+    trustLedgerBadgeCount
+    trustLedgerOverallRank
+    trustLedgerCapabilityRank
   }
 
   enum OrderDirection {
@@ -215,6 +272,31 @@ export const graphQLSchemaString = `
     feedbackAverageScore_gte: Float
     feedbackAverageScore_lt: Float
     feedbackAverageScore_lte: Float
+
+    atiOverallScore_gt: Int
+    atiOverallScore_gte: Int
+    atiOverallScore_lt: Int
+    atiOverallScore_lte: Int
+
+    trustLedgerScore_gt: Int
+    trustLedgerScore_gte: Int
+    trustLedgerScore_lt: Int
+    trustLedgerScore_lte: Int
+
+    trustLedgerBadgeCount_gt: Int
+    trustLedgerBadgeCount_gte: Int
+    trustLedgerBadgeCount_lt: Int
+    trustLedgerBadgeCount_lte: Int
+
+    trustLedgerOverallRank_gt: Int
+    trustLedgerOverallRank_gte: Int
+    trustLedgerOverallRank_lt: Int
+    trustLedgerOverallRank_lte: Int
+
+    trustLedgerCapabilityRank_gt: Int
+    trustLedgerCapabilityRank_gte: Int
+    trustLedgerCapabilityRank_lt: Int
+    trustLedgerCapabilityRank_lte: Int
   }
 
   type AgentSearchResult {
@@ -551,6 +633,14 @@ export const graphQLSchemaString = `
       interfaceId: String
     ): TrustScore!
 
+    agentTrustIndex(chainId: Int!, agentId: String!): AgentTrustIndex
+    agentTrustComponents(chainId: Int!, agentId: String!): [AgentTrustComponent!]!
+
+    trustLedgerBadgeDefinitions(
+      program: String
+      active: Boolean
+    ): [TrustLedgerBadgeDefinition!]!
+
     feedbacks(
       chainId: Int
       agentId: String
@@ -666,6 +756,15 @@ export const graphQLSchemaString = `
   type Mutation {
     createAccessCode(address: String!): AccessCode!
     indexAgent(agentId: String!, chainId: Int): IndexAgentResult!
+
+    upsertTrustLedgerBadgeDefinition(
+      input: TrustLedgerBadgeDefinitionInput!
+    ): TrustLedgerBadgeDefinition!
+
+    setTrustLedgerBadgeActive(
+      badgeId: String!
+      active: Boolean!
+    ): TrustLedgerBadgeDefinition!
   }
 
   type IndexAgentResult {

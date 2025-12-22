@@ -1,4 +1,5 @@
 import { resolveEoaOwner } from './ownership.js';
+import { computeAndUpsertATI } from './ati.js';
 
 /**
  * Shared function to process and index an agent directly from chain data
@@ -505,6 +506,13 @@ export async function processAgentDirectly(
       } catch (error) {
         console.warn('Error updating metadata:', error);
       }
+    }
+
+    // Precompute ATI for fast frontend retrieval
+    try {
+      await computeAndUpsertATI(db, chainId, agentId);
+    } catch (e) {
+      console.warn('............ATI compute failed (processAgentDirectly)', e);
     }
   }
 }

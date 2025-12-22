@@ -6,6 +6,8 @@ import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 import { ingestAgentsIntoSemanticStore } from './semantic/agent-ingest.js';
 import { resolveEoaOwner } from './ownership.js';
+import { computeAndUpsertATI } from './ati.js';
+import { trustLedgerProcessAgent } from './trust-ledger/processor.js';
 
 
 import { 
@@ -398,6 +400,17 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       didName
     );
 
+    // Precompute ATI for fast frontend retrieval
+    try {
+      await computeAndUpsertATI(dbInstance, chainId, agentId);
+    } catch (e) {
+      console.warn('............ATI compute failed (upsertFromTransfer)', e);
+    }
+    try {
+      await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: null, evidence: { source: 'transfer' } });
+    } catch (e) {
+      console.warn('............Trust Ledger processing failed (upsertFromTransfer)', e);
+    }
 
     // Use pre-fetched metadata if available, otherwise fetch now
     const metadata = preFetchedMetadata || (resolvedTokenURI ? await fetchIpfsJson(resolvedTokenURI) : null);
@@ -508,6 +521,18 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           chainId,
           agentId,
         );
+
+        // Precompute ATI after metadata update
+        try {
+          await computeAndUpsertATI(dbInstance, chainId, agentId);
+        } catch (e) {
+          console.warn('............ATI compute failed (metadata update)', e);
+        }
+        try {
+          await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: null, evidence: { source: 'metadata' } });
+        } catch (e) {
+          console.warn('............Trust Ledger processing failed (metadata update)', e);
+        }
 
         await recordEvent({ transactionHash: `token:${agentId}`, logIndex: 0, blockNumber }, 'MetadataFetched', { tokenId: agentId }, dbInstance);
       } catch (error) {
@@ -851,6 +876,13 @@ async function upsertFeedbackFromGraph(
     now,
   ]);
 
+  // Trust Ledger processing (badge/points) depends on feedback milestones.
+  try {
+    await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: id, evidence: { source: 'feedback', feedbackIndex } });
+  } catch (e) {
+    console.warn('............Trust Ledger processing failed (upsertFeedbackFromGraph)', e);
+  }
+
   return feedbackIndex;
 }
 
@@ -1080,6 +1112,13 @@ async function upsertValidationRequestFromGraph(
     now,
     now,
   ]);
+
+  // Trust Ledger processing (badge/points) depends on validation milestones.
+  try {
+    await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: id, evidence: { source: 'validationResponse' } });
+  } catch (e) {
+    console.warn('............Trust Ledger processing failed (upsertValidationResponseFromGraph)', e);
+  }
 }
 
 async function upsertValidationResponseFromGraph(
@@ -1770,6 +1809,18 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     chainId,
     agentId,
   );
+
+  // Precompute ATI for fast frontend retrieval
+  try {
+    await computeAndUpsertATI(dbInstance, chainId, agentId);
+  } catch (e) {
+    console.warn('............ATI compute failed (applyUriUpdateFromGraph)', e);
+  }
+  try {
+    await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: String(update?.id ?? ''), evidence: { source: 'uriUpdate' } });
+  } catch (e) {
+    console.warn('............Trust Ledger processing failed (applyUriUpdateFromGraph)', e);
+  }
 }
 
 async function recordEvent(ev: any, type: string, args: any, agentIdForEventOrDb?: string | any, dbOverride?: any) {
@@ -1898,6 +1949,24 @@ async function upsertAssociationFromGraph(
     lastUpdatedBlockNumber,
     lastUpdatedTimestamp,
   ]);
+
+  // Best-effort: recompute ATI for any agents matching initiator/approver account suffixes.
+  try {
+    const suffixA = initiatorAccountId.slice(-40);
+    const suffixB = approverAccountId.slice(-40);
+    const agentRows = await dbInstance
+      .prepare(`SELECT agentId FROM agents WHERE chainId = ? AND (substr(LOWER(COALESCE(agentAccount, agentAddress)), -40) = ? OR substr(LOWER(COALESCE(agentAccount, agentAddress)), -40) = ?) LIMIT 10`)
+      .all(chainId, suffixA, suffixB);
+    const results = Array.isArray((agentRows as any)?.results) ? (agentRows as any).results : Array.isArray(agentRows) ? agentRows : [];
+    for (const r of results) {
+      const aid = String(r?.agentId ?? '');
+      if (!aid) continue;
+      await computeAndUpsertATI(dbInstance, chainId, aid);
+      await trustLedgerProcessAgent(dbInstance, chainId, aid, { evidenceEventId: null, evidence: { source: 'association', associationId } });
+    }
+  } catch (e) {
+    console.warn('............ATI compute failed (association upsert)', e);
+  }
 }
 
 async function recordAssociationRevocationFromGraph(
@@ -2726,7 +2795,17 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   }
   */
 
- 
+  // Update trust ledger rankings after all processing is complete
+  try {
+    const { updateTrustLedgerRankings } = await import('./trust-ledger/rankings.js');
+    const chainId = await client.getChainId();
+    console.log(`[backfill] Updating trust ledger rankings for chain ${chainId}...`);
+    await updateTrustLedgerRankings(dbInstance, chainId);
+    console.log(`[backfill] Trust ledger rankings updated for chain ${chainId}`);
+  } catch (error) {
+    console.error('[backfill] Error updating trust ledger rankings:', error);
+    // Don't throw - rankings update failure shouldn't break indexing
+  }
 
 }
 /*

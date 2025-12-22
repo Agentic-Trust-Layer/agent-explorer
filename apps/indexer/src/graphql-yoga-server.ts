@@ -114,10 +114,15 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
       graphqlEndpointAssociations: (_parent: unknown, args: any) => shared.graphqlEndpointAssociations(args),
       graphqlEndpointAssociationsBetween: (_parent: unknown, args: any) => shared.graphqlEndpointAssociationsBetween(args),
       trustScore: (_parent: unknown, args: any) => shared.trustScore(args),
+      agentTrustIndex: (_parent: unknown, args: any) => shared.agentTrustIndex(args),
+      agentTrustComponents: (_parent: unknown, args: any) => shared.agentTrustComponents(args),
+      trustLedgerBadgeDefinitions: (_parent: unknown, args: any) => shared.trustLedgerBadgeDefinitions(args),
     },
     Mutation: {
       createAccessCode: (_parent: unknown, args: any) => shared.createAccessCode(args),
       indexAgent: (_parent: unknown, args: any) => shared.indexAgent(args),
+      upsertTrustLedgerBadgeDefinition: (_parent: unknown, args: any) => shared.upsertTrustLedgerBadgeDefinition(args),
+      setTrustLedgerBadgeActive: (_parent: unknown, args: any) => shared.setTrustLedgerBadgeActive(args),
     },
   };
 

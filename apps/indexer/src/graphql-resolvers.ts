@@ -166,14 +166,26 @@ function buildOrderByClause(orderBy?: string, orderDirection?: string): string {
     'agentOwner',
     'eoaOwner',
     'agentCategory',
+    'trustLedgerScore',
+    'trustLedgerBadgeCount',
+    'trustLedgerOverallRank',
+    'trustLedgerCapabilityRank',
   ];
   
   // Default to agentId ASC if not specified
   const column = orderBy && validColumns.includes(orderBy) ? orderBy : 'agentId';
   const direction = (orderDirection?.toUpperCase() === 'DESC') ? 'DESC' : 'ASC';
   
-  // Cast agentId to integer for proper numeric sorting
-  const orderColumn = column === 'agentId' ? 'CAST(agentId AS INTEGER)' : column;
+  // Cast numeric columns to integer for proper sorting
+  let orderColumn: string;
+  if (column === 'agentId') {
+    orderColumn = 'CAST(agentId AS INTEGER)';
+  } else if (column === 'trustLedgerScore' || column === 'trustLedgerBadgeCount' || column === 'trustLedgerOverallRank' || column === 'trustLedgerCapabilityRank') {
+    // Use COALESCE to handle NULL values (treat as 0)
+    orderColumn = `COALESCE(${column}, 0)`;
+  } else {
+    orderColumn = column;
+  }
   
   return `ORDER BY ${orderColumn} ${direction}`;
 }
@@ -245,6 +257,28 @@ function buildGraphWhereClause(where?: {
   feedbackAverageScore_gte?: number;
   feedbackAverageScore_lt?: number;
   feedbackAverageScore_lte?: number;
+  atiOverallScore_gt?: number;
+  atiOverallScore_gte?: number;
+  atiOverallScore_lt?: number;
+  atiOverallScore_lte?: number;
+  trustLedgerScore_gt?: number;
+  trustLedgerScore_gte?: number;
+  trustLedgerScore_lt?: number;
+  trustLedgerScore_lte?: number;
+  trustLedgerBadgeCount_gt?: number;
+  trustLedgerBadgeCount_gte?: number;
+  trustLedgerBadgeCount_lt?: number;
+  trustLedgerBadgeCount_lte?: number;
+
+  trustLedgerOverallRank_gt?: number;
+  trustLedgerOverallRank_gte?: number;
+  trustLedgerOverallRank_lt?: number;
+  trustLedgerOverallRank_lte?: number;
+
+  trustLedgerCapabilityRank_gt?: number;
+  trustLedgerCapabilityRank_gte?: number;
+  trustLedgerCapabilityRank_lt?: number;
+  trustLedgerCapabilityRank_lte?: number;
 }): { where: string; params: any[] } {
   if (!where) return { where: '', params: [] };
   const conditions: string[] = [];
@@ -418,6 +452,31 @@ function buildGraphWhereClause(where?: {
   addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '>=', where.feedbackAverageScore_gte);
   addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '<', where.feedbackAverageScore_lt);
   addAggregateComparison(FEEDBACK_AVG_SCORE_EXPR, '<=', where.feedbackAverageScore_lte);
+
+  addAggregateComparison(ATI_OVERALL_SCORE_EXPR, '>', where.atiOverallScore_gt);
+  addAggregateComparison(ATI_OVERALL_SCORE_EXPR, '>=', where.atiOverallScore_gte);
+  addAggregateComparison(ATI_OVERALL_SCORE_EXPR, '<', where.atiOverallScore_lt);
+  addAggregateComparison(ATI_OVERALL_SCORE_EXPR, '<=', where.atiOverallScore_lte);
+
+  addAggregateComparison(TRUST_LEDGER_SCORE_EXPR, '>', where.trustLedgerScore_gt);
+  addAggregateComparison(TRUST_LEDGER_SCORE_EXPR, '>=', where.trustLedgerScore_gte);
+  addAggregateComparison(TRUST_LEDGER_SCORE_EXPR, '<', where.trustLedgerScore_lt);
+  addAggregateComparison(TRUST_LEDGER_SCORE_EXPR, '<=', where.trustLedgerScore_lte);
+
+  addAggregateComparison(TRUST_LEDGER_BADGE_COUNT_EXPR, '>', where.trustLedgerBadgeCount_gt);
+  addAggregateComparison(TRUST_LEDGER_BADGE_COUNT_EXPR, '>=', where.trustLedgerBadgeCount_gte);
+  addAggregateComparison(TRUST_LEDGER_BADGE_COUNT_EXPR, '<', where.trustLedgerBadgeCount_lt);
+  addAggregateComparison(TRUST_LEDGER_BADGE_COUNT_EXPR, '<=', where.trustLedgerBadgeCount_lte);
+
+  addAggregateComparison(TRUST_LEDGER_OVERALL_RANK_EXPR, '>', where.trustLedgerOverallRank_gt);
+  addAggregateComparison(TRUST_LEDGER_OVERALL_RANK_EXPR, '>=', where.trustLedgerOverallRank_gte);
+  addAggregateComparison(TRUST_LEDGER_OVERALL_RANK_EXPR, '<', where.trustLedgerOverallRank_lt);
+  addAggregateComparison(TRUST_LEDGER_OVERALL_RANK_EXPR, '<=', where.trustLedgerOverallRank_lte);
+
+  addAggregateComparison(TRUST_LEDGER_CAPABILITY_RANK_EXPR, '>', where.trustLedgerCapabilityRank_gt);
+  addAggregateComparison(TRUST_LEDGER_CAPABILITY_RANK_EXPR, '>=', where.trustLedgerCapabilityRank_gte);
+  addAggregateComparison(TRUST_LEDGER_CAPABILITY_RANK_EXPR, '<', where.trustLedgerCapabilityRank_lt);
+  addAggregateComparison(TRUST_LEDGER_CAPABILITY_RANK_EXPR, '<=', where.trustLedgerCapabilityRank_lte);
 
   // Presence checks
   if (where.hasA2aEndpoint === true) {
@@ -1016,6 +1075,51 @@ const APPROVED_ASSOCIATION_COUNT_EXPR = `
    AND substr(assoc.approverAccountId, -40) = substr(LOWER(COALESCE(agents.agentAccount, agents.agentAddress)), -40)
    AND (assoc.revokedAt IS NULL OR assoc.revokedAt = 0))`;
 
+const ATI_OVERALL_SCORE_EXPR = `
+(SELECT ati.overallScore
+ FROM agent_trust_index ati
+ WHERE ati.chainId = agents.chainId AND ati.agentId = agents.agentId)`;
+
+const ATI_OVERALL_CONFIDENCE_EXPR = `
+(SELECT ati.overallConfidence
+ FROM agent_trust_index ati
+ WHERE ati.chainId = agents.chainId AND ati.agentId = agents.agentId)`;
+
+const ATI_VERSION_EXPR = `
+(SELECT ati.version
+ FROM agent_trust_index ati
+ WHERE ati.chainId = agents.chainId AND ati.agentId = agents.agentId)`;
+
+const ATI_COMPUTED_AT_EXPR = `
+(SELECT ati.computedAt
+ FROM agent_trust_index ati
+ WHERE ati.chainId = agents.chainId AND ati.agentId = agents.agentId)`;
+
+const ATI_BUNDLE_JSON_EXPR = `
+(SELECT ati.bundleJson
+ FROM agent_trust_index ati
+ WHERE ati.chainId = agents.chainId AND ati.agentId = agents.agentId)`;
+
+const TRUST_LEDGER_SCORE_EXPR = `
+(SELECT tls.totalPoints
+ FROM trust_ledger_scores tls
+ WHERE tls.chainId = agents.chainId AND tls.agentId = agents.agentId)`;
+
+const TRUST_LEDGER_BADGE_COUNT_EXPR = `
+(SELECT tls.badgeCount
+ FROM trust_ledger_scores tls
+ WHERE tls.chainId = agents.chainId AND tls.agentId = agents.agentId)`;
+
+const TRUST_LEDGER_OVERALL_RANK_EXPR = `
+(SELECT tlr.overallRank
+ FROM trust_ledger_rankings tlr
+ WHERE tlr.chainId = agents.chainId AND tlr.agentId = agents.agentId AND tlr.capability IS NULL)`;
+
+const TRUST_LEDGER_CAPABILITY_RANK_EXPR = `
+(SELECT tlr.capabilityRank
+ FROM trust_ledger_rankings tlr
+ WHERE tlr.chainId = agents.chainId AND tlr.agentId = agents.agentId AND tlr.capability = agents.agentCategory)`;
+
 const AGENT_SUMMARY_COLUMNS = `
   ${FEEDBACK_COUNT_EXPR} AS feedbackCount,
   ${FEEDBACK_AVG_SCORE_EXPR} AS feedbackAverageScore,
@@ -1023,7 +1127,16 @@ const AGENT_SUMMARY_COLUMNS = `
   ${VALIDATION_COMPLETED_EXPR} AS validationCompletedCount,
   ${VALIDATION_REQUESTED_EXPR} AS validationRequestedCount,
   ${INITIATED_ASSOCIATION_COUNT_EXPR} AS initiatedAssociationCount,
-  ${APPROVED_ASSOCIATION_COUNT_EXPR} AS approvedAssociationCount
+  ${APPROVED_ASSOCIATION_COUNT_EXPR} AS approvedAssociationCount,
+  ${ATI_OVERALL_SCORE_EXPR} AS atiOverallScore,
+  ${ATI_OVERALL_CONFIDENCE_EXPR} AS atiOverallConfidence,
+  ${ATI_VERSION_EXPR} AS atiVersion,
+  ${ATI_COMPUTED_AT_EXPR} AS atiComputedAt,
+  ${ATI_BUNDLE_JSON_EXPR} AS atiBundleJson,
+  ${TRUST_LEDGER_SCORE_EXPR} AS trustLedgerScore,
+  ${TRUST_LEDGER_BADGE_COUNT_EXPR} AS trustLedgerBadgeCount,
+  ${TRUST_LEDGER_OVERALL_RANK_EXPR} AS trustLedgerOverallRank,
+  ${TRUST_LEDGER_CAPABILITY_RANK_EXPR} AS trustLedgerCapabilityRank
 `;
 
 const AGENT_BASE_COLUMNS = `
@@ -1051,6 +1164,63 @@ interface AgentIdentifier {
 export interface GraphQLResolverOptions {
   env?: any;
   semanticSearchService?: SemanticSearchService | null;
+}
+
+async function fetchAgentTrustComponents(db: any, chainId: number, agentId: string): Promise<any[]> {
+  const rows = await executeQuery(
+    db,
+    `
+      SELECT component, score, weight, evidenceCountsJson
+      FROM agent_trust_components
+      WHERE chainId = ? AND agentId = ?
+      ORDER BY component ASC
+    `,
+    [chainId, agentId],
+  );
+  return rows.map((row) => ({
+    component: String((row as any)?.component ?? ''),
+    score: Number((row as any)?.score ?? 0),
+    weight: Number((row as any)?.weight ?? 0),
+    evidenceCountsJson: (row as any)?.evidenceCountsJson != null ? String((row as any).evidenceCountsJson) : null,
+  }));
+}
+
+async function fetchTrustLedgerBadgeDefinitions(db: any, args?: { program?: string | null; active?: boolean | null }) {
+  const conditions: string[] = [];
+  const params: any[] = [];
+  if (args?.program && String(args.program).trim()) {
+    conditions.push('program = ?');
+    params.push(String(args.program).trim());
+  }
+  if (args?.active === true) {
+    conditions.push('active = 1');
+  } else if (args?.active === false) {
+    conditions.push('(active IS NULL OR active = 0)');
+  }
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const rows = await executeQuery(
+    db,
+    `
+      SELECT badgeId, program, name, description, iconRef, points, ruleId, ruleJson, active, createdAt, updatedAt
+      FROM trust_ledger_badge_definitions
+      ${where}
+      ORDER BY badgeId ASC
+    `,
+    params,
+  );
+  return rows.map((row) => ({
+    badgeId: String((row as any)?.badgeId ?? ''),
+    program: String((row as any)?.program ?? ''),
+    name: String((row as any)?.name ?? ''),
+    description: (row as any)?.description != null ? String((row as any).description) : null,
+    iconRef: (row as any)?.iconRef != null ? String((row as any).iconRef) : null,
+    points: Number((row as any)?.points ?? 0) || 0,
+    ruleId: String((row as any)?.ruleId ?? ''),
+    ruleJson: (row as any)?.ruleJson != null ? String((row as any).ruleJson) : null,
+    active: Boolean((row as any)?.active === 1 || (row as any)?.active === true),
+    createdAt: Number((row as any)?.createdAt ?? 0) || 0,
+    updatedAt: Number((row as any)?.updatedAt ?? 0) || 0,
+  }));
 }
 
 /**
@@ -2049,6 +2219,115 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         reasons,
       };
     },
+
+    agentTrustComponents: async (args: { chainId: number; agentId: string }) => {
+      const chainId = Number(args.chainId);
+      const agentId = String(args.agentId);
+      return await fetchAgentTrustComponents(db, chainId, agentId);
+    },
+
+    agentTrustIndex: async (args: { chainId: number; agentId: string }) => {
+      const chainId = Number(args.chainId);
+      const agentId = String(args.agentId);
+      const row = await executeQuerySingle(
+        db,
+        `
+          SELECT chainId, agentId, overallScore, overallConfidence, version, computedAt, bundleJson
+          FROM agent_trust_index
+          WHERE chainId = ? AND agentId = ?
+          LIMIT 1
+        `,
+        [chainId, agentId],
+      );
+      if (!row) return null;
+      const components = await fetchAgentTrustComponents(db, chainId, agentId);
+      return {
+        chainId: Number((row as any)?.chainId ?? chainId),
+        agentId: String((row as any)?.agentId ?? agentId),
+        overallScore: Number((row as any)?.overallScore ?? 0),
+        overallConfidence:
+          (row as any)?.overallConfidence === null || (row as any)?.overallConfidence === undefined
+            ? null
+            : Number((row as any).overallConfidence),
+        version: String((row as any)?.version ?? ''),
+        computedAt: Number((row as any)?.computedAt ?? 0),
+        bundleJson: (row as any)?.bundleJson != null ? String((row as any).bundleJson) : null,
+        components,
+      };
+    },
+
+    trustLedgerBadgeDefinitions: async (args: { program?: string | null; active?: boolean | null }) => {
+      return await fetchTrustLedgerBadgeDefinitions(db, args);
+    },
+
+    upsertTrustLedgerBadgeDefinition: async (args: { input: any }) => {
+      const input = args?.input ?? {};
+      const badgeId = String(input.badgeId ?? '').trim();
+      if (!badgeId) throw new Error('badgeId is required');
+      const program = String(input.program ?? '').trim();
+      const name = String(input.name ?? '').trim();
+      const points = Number(input.points ?? 0);
+      const ruleId = String(input.ruleId ?? '').trim();
+      const ruleJson = input.ruleJson != null ? String(input.ruleJson) : null;
+      const description = input.description != null ? String(input.description) : null;
+      const iconRef = input.iconRef != null ? String(input.iconRef) : null;
+      const active = input.active === false ? 0 : 1;
+      const now = Math.floor(Date.now() / 1000);
+
+      if (!program) throw new Error('program is required');
+      if (!name) throw new Error('name is required');
+      if (!Number.isFinite(points)) throw new Error('points must be a number');
+      if (!ruleId) throw new Error('ruleId is required');
+      if (ruleJson && ruleJson.trim()) {
+        try {
+          JSON.parse(ruleJson);
+        } catch {
+          throw new Error('ruleJson must be valid JSON');
+        }
+      }
+
+      await executeUpdate(
+        db,
+        `
+          INSERT INTO trust_ledger_badge_definitions(
+            badgeId, program, name, description, iconRef, points, ruleId, ruleJson, active, createdAt, updatedAt
+          )
+          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(badgeId) DO UPDATE SET
+            program=excluded.program,
+            name=excluded.name,
+            description=excluded.description,
+            iconRef=excluded.iconRef,
+            points=excluded.points,
+            ruleId=excluded.ruleId,
+            ruleJson=excluded.ruleJson,
+            active=excluded.active,
+            updatedAt=excluded.updatedAt
+        `,
+        [badgeId, program, name, description, iconRef, Math.trunc(points), ruleId, ruleJson, active, now, now],
+      );
+
+      const defs = await fetchTrustLedgerBadgeDefinitions(db, { program: null, active: null });
+      const updated = defs.find((d: any) => String(d.badgeId) === badgeId);
+      if (!updated) throw new Error('Failed to read back badge definition');
+      return updated;
+    },
+
+    setTrustLedgerBadgeActive: async (args: { badgeId: string; active: boolean }) => {
+      const badgeId = String(args.badgeId ?? '').trim();
+      if (!badgeId) throw new Error('badgeId is required');
+      const active = args.active === false ? 0 : 1;
+      const now = Math.floor(Date.now() / 1000);
+      await executeUpdate(
+        db,
+        `UPDATE trust_ledger_badge_definitions SET active = ?, updatedAt = ? WHERE badgeId = ?`,
+        [active, now, badgeId],
+      );
+      const defs = await fetchTrustLedgerBadgeDefinitions(db, { program: null, active: null });
+      const updated = defs.find((d: any) => String(d.badgeId) === badgeId);
+      if (!updated) throw new Error('Badge not found');
+      return updated;
+    },
   };
 }
 
@@ -2185,8 +2464,29 @@ function enrichAgentRecord(agent: any): any {
   if (Object.prototype.hasOwnProperty.call(agent, 'approvedAssociationCount')) {
     agent.approvedAssociationCount = normalizeInt(agent.approvedAssociationCount);
   }
+  if (Object.prototype.hasOwnProperty.call(agent, 'atiOverallScore')) {
+    agent.atiOverallScore = normalizeInt(agent.atiOverallScore);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'atiComputedAt')) {
+    agent.atiComputedAt = normalizeInt(agent.atiComputedAt);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'atiOverallConfidence')) {
+    agent.atiOverallConfidence = normalizeFloat(agent.atiOverallConfidence);
+  }
   if (Object.prototype.hasOwnProperty.call(agent, 'feedbackAverageScore')) {
     agent.feedbackAverageScore = normalizeFloat(agent.feedbackAverageScore);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'trustLedgerScore')) {
+    agent.trustLedgerScore = normalizeInt(agent.trustLedgerScore);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'trustLedgerBadgeCount')) {
+    agent.trustLedgerBadgeCount = normalizeInt(agent.trustLedgerBadgeCount);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'trustLedgerOverallRank')) {
+    agent.trustLedgerOverallRank = normalizeInt(agent.trustLedgerOverallRank);
+  }
+  if (Object.prototype.hasOwnProperty.call(agent, 'trustLedgerCapabilityRank')) {
+    agent.trustLedgerCapabilityRank = normalizeInt(agent.trustLedgerCapabilityRank);
   }
 
   return agent;
