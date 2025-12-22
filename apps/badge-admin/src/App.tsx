@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { BadgeAdminConfig, TrustLedgerBadgeDefinition, TrustLedgerBadgeDefinitionInput } from './api';
 import { listBadgeDefinitions, setBadgeActive, upsertBadgeDefinition } from './api';
+import { EndpointTester } from './EndpointTester';
 
 function loadEnvConfig(): BadgeAdminConfig {
   const envUrl = import.meta.env.VITE_BADGE_ADMIN_GRAPHQL_URL as string | undefined;
@@ -38,6 +39,7 @@ export function App() {
   const cfg = useMemo(() => loadEnvConfig(), []);
   const [program, setProgram] = useState<string>('trust-ledger');
   const [showInactive, setShowInactive] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<'badges' | 'endpoint-tester'>('badges');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -165,24 +167,57 @@ export function App() {
             <p className="text-sm text-slate-400">Manage Trust Ledger badge rules stored in D1.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              className="rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
-              onClick={() => void refresh()}
-              disabled={loading}
-            >
-              Refresh
-            </button>
-            <button
-              className="rounded-md bg-indigo-600 px-3 py-2 text-sm hover:bg-indigo-500"
-              onClick={beginNew}
-              disabled={loading}
-            >
-              New badge
-            </button>
+            {activeTab === 'badges' ? (
+              <>
+                <button
+                  className="rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
+                  onClick={() => void refresh()}
+                  disabled={loading}
+                >
+                  Refresh
+                </button>
+                <button
+                  className="rounded-md bg-indigo-600 px-3 py-2 text-sm hover:bg-indigo-500"
+                  onClick={beginNew}
+                  disabled={loading}
+                >
+                  New badge
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4 md:grid-cols-3">
+        <div className="mt-6 flex gap-2 border-b border-slate-800">
+          <button
+            className={classNames(
+              'border-b-2 px-4 py-2 text-sm',
+              activeTab === 'badges'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200',
+            )}
+            onClick={() => setActiveTab('badges')}
+          >
+            Badges
+          </button>
+          <button
+            className={classNames(
+              'border-b-2 px-4 py-2 text-sm',
+              activeTab === 'endpoint-tester'
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200',
+            )}
+            onClick={() => setActiveTab('endpoint-tester')}
+          >
+            Endpoint Tester
+          </button>
+        </div>
+
+        {activeTab === 'endpoint-tester' ? (
+          <EndpointTester />
+        ) : (
+          <>
+            <div className="mt-6 grid grid-cols-1 gap-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4 md:grid-cols-3">
           <div className="md:col-span-3">
             <div className="text-xs text-slate-400">Configured via env</div>
             <div className="mt-1 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-300">
@@ -286,7 +321,8 @@ export function App() {
             </tbody>
           </table>
         </div>
-      </div>
+          </>
+        )}
 
       {editing ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
@@ -429,6 +465,7 @@ export function App() {
           </div>
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

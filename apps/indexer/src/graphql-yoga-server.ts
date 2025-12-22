@@ -117,6 +117,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
       agentTrustIndex: (_parent: unknown, args: any) => shared.agentTrustIndex(args),
       agentTrustComponents: (_parent: unknown, args: any) => shared.agentTrustComponents(args),
       trustLedgerBadgeDefinitions: (_parent: unknown, args: any) => shared.trustLedgerBadgeDefinitions(args),
+      fetchAgentCard: (_parent: unknown, args: any) => shared.fetchAgentCard(args),
     },
     Mutation: {
       createAccessCode: (_parent: unknown, args: any) => shared.createAccessCode(args),

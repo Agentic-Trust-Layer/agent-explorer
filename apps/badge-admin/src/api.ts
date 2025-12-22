@@ -149,4 +149,22 @@ export async function setBadgeActive(
   return data.setTrustLedgerBadgeActive;
 }
 
+export async function fetchAgentCard(
+  cfg: BadgeAdminConfig,
+  url: string,
+  authHeader?: string,
+): Promise<any> {
+  const query = `
+    query FetchAgentCard($url: String!, $authHeader: String) {
+      fetchAgentCard(url: $url, authHeader: $authHeader)
+    }
+  `;
+  const data = await graphqlRequest<{ fetchAgentCard: string }>(
+    cfg,
+    query,
+    { url, authHeader },
+  );
+  return JSON.parse(data.fetchAgentCard);
+}
+
 

@@ -751,6 +751,8 @@ export const graphQLSchemaString = `
       requestHash: String
       tag: String
     ): Int!
+
+    fetchAgentCard(url: String!, authHeader: String): String!
   }
 
   type Mutation {

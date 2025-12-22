@@ -1885,6 +1885,74 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       }
     },
 
+    fetchAgentCard: async (args: { url: string; authHeader?: string }) => {
+      // Server-side fetch bypasses browser CORS restrictions
+      try {
+        const targetUrl = String(args.url ?? '').trim();
+        if (!targetUrl) throw new Error('url is required');
+
+        const headers: Record<string, string> = {
+          Accept: 'application/json, text/plain, */*',
+          // Some upstreams treat unknown UAs differently; keep this, but we'll retry on 401.
+          'User-Agent': 'agent-explorer/1.0',
+        };
+
+        // Add authentication header if provided
+        if (args.authHeader) {
+          const authHeader = String(args.authHeader).trim();
+          if (authHeader) {
+            // Support multiple authentication formats:
+            // 1. "Basic base64string" - already formatted Basic auth
+            // 2. "Bearer token" - Bearer token format
+            // 3. Plain API key - send as Basic auth (apiKey as username, empty password)
+            if (authHeader.startsWith('Basic ') || authHeader.startsWith('basic ')) {
+              headers.Authorization = authHeader;
+            } else if (authHeader.startsWith('Bearer ') || authHeader.startsWith('bearer ')) {
+              headers.Authorization = authHeader;
+            } else {
+              const basicAuth = Buffer.from(`${authHeader}:`).toString('base64');
+              headers.Authorization = `Basic ${basicAuth}`;
+            }
+          }
+        }
+
+        const doFetch = async (h: Record<string, string>) => {
+          const resp = await fetch(targetUrl, { method: 'GET', headers: h });
+          return resp;
+        };
+
+        let response = await doFetch(headers);
+
+        // Some providers serve 401 to certain request profiles; retry with a browser-like UA
+        // to reduce false negatives (still without any auth).
+        if (response.status === 401 && !headers.Authorization) {
+          const retryHeaders: Record<string, string> = {
+            ...headers,
+            'User-Agent':
+              'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          };
+          response = await doFetch(retryHeaders);
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          const wwwAuth = response.headers.get('www-authenticate') || '';
+          if (response.status === 401) {
+            throw new Error(
+              `HTTP 401: Unauthorized. ${wwwAuth ? `WWW-Authenticate: ${wwwAuth}. ` : ''}` +
+                `${errorText ? `Server message: ${errorText}` : 'The server requires authentication.'}`,
+            );
+          }
+          throw new Error(`HTTP ${response.status}: ${response.statusText}${errorText ? ` - ${errorText}` : ''}`);
+        }
+
+        const agentCard = await response.json();
+        return JSON.stringify(agentCard);
+      } catch (error: any) {
+        throw new Error(`Failed to fetch agent card: ${error.message}`);
+      }
+    },
+
     createAccessCode: async (args: { address: string }) => {
       try {
         const { address } = args;
