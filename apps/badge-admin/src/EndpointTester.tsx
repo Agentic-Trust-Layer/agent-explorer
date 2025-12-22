@@ -57,6 +57,7 @@ export function EndpointTester() {
   const cfg = loadEnvConfig();
   const [endpointJson, setEndpointJson] = useState<string>('');
   const [endpointType, setEndpointType] = useState<'a2a' | 'mcp'>('a2a');
+  const [a2aFetchMode, setA2aFetchMode] = useState<'server' | 'client'>('server');
   const [authHeader, setAuthHeader] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,35 +92,79 @@ export function EndpointTester() {
       let agentCardUrl: string;
       const endpoint = config.endpoint.trim();
       
-      if (endpoint.includes('/.well-known/agent') || endpoint.includes('/.well-known/agent-card')) {
-        // Already points to agent card file
-        agentCardUrl = endpoint;
-      } else {
-        // Try agent.json first (ERC-8004 standard), then agent-card.json as fallback
-        const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
-        agentCardUrl = `${baseUrl}/.well-known/agent.json`;
+      try {
+        const u = new URL(endpoint);
+        const path = u.pathname || '';
+        const looksLikeAgentCardFile =
+          // common well-known locations
+          path.includes('/.well-known/') ||
+          // explicit filenames
+          path.endsWith('/agent.json') ||
+          path.endsWith('/agent-card.json') ||
+          // any json document URL (e.g. https://a2a.stackone.com/hibob/agent-card.json)
+          path.toLowerCase().endsWith('.json');
+
+        if (looksLikeAgentCardFile) {
+          agentCardUrl = endpoint;
+        } else {
+          // Treat input as base URL, append A2A default discovery path
+          const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+          agentCardUrl = `${baseUrl}/.well-known/agent.json`;
+        }
+      } catch {
+        // If URL parsing fails, fall back to prior simple behavior
+        if (
+          endpoint.includes('/.well-known/agent') ||
+          endpoint.includes('/.well-known/agent-card') ||
+          endpoint.toLowerCase().endsWith('.json')
+        ) {
+          agentCardUrl = endpoint;
+        } else {
+          const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+          agentCardUrl = `${baseUrl}/.well-known/agent.json`;
+        }
       }
 
       console.log(`[A2A] Fetching agent card from: ${agentCardUrl}`);
       
-      // Use server-side GraphQL query to bypass CORS restrictions
       let agentCard: AgentCard;
-      try {
+      const auth = authHeader.trim() || undefined;
+
+      const fetchViaServer = async (url: string) => {
         if (!cfg.graphqlUrl || !cfg.accessCode) {
           throw new Error('Missing GraphQL configuration. Cannot fetch agent card server-side.');
         }
-        agentCard = await fetchAgentCardViaGraphQL(cfg, agentCardUrl, authHeader.trim() || undefined);
+        return await fetchAgentCardViaGraphQL(cfg, url, auth);
+      };
+
+      const fetchViaClient = async (url: string) => {
+        // NOTE: This will be subject to browser CORS rules.
+        const resp = await fetch(url, {
+          method: 'GET',
+          mode: 'cors',
+          headers: {
+            Accept: 'application/json, text/plain, */*',
+            ...(auth ? { Authorization: auth } : {}),
+          } as any,
+        });
+        if (!resp.ok) {
+          const text = await resp.text().catch(() => '');
+          throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+        }
+        return (await resp.json()) as AgentCard;
+      };
+
+      const fetchFn = a2aFetchMode === 'client' ? fetchViaClient : fetchViaServer;
+
+      try {
+        agentCard = await fetchFn(agentCardUrl);
       } catch (fetchError: any) {
-        // If GraphQL fetch fails, try fallback URL
+        // If fetch fails, try fallback URL
         if (fetchError.message?.includes('404') && !endpoint.includes('/.well-known/agent')) {
           const baseUrl = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
           agentCardUrl = `${baseUrl}/.well-known/agent-card.json`;
           console.log(`[A2A] Trying fallback: ${agentCardUrl}`);
-          try {
-            agentCard = await fetchAgentCardViaGraphQL(cfg, agentCardUrl, authHeader.trim() || undefined);
-          } catch (fallbackError: any) {
-            throw new Error(`Failed to fetch agent card: ${fallbackError.message}`);
-          }
+          agentCard = await fetchFn(agentCardUrl);
         } else {
           throw new Error(`Failed to fetch agent card: ${fetchError.message}`);
         }
@@ -169,6 +214,8 @@ export function EndpointTester() {
         reachable: true,
         registrationEndpoint: config.endpoint, // The endpoint that points to agent.json
         a2aServiceEndpoint, // The A2A service endpoint from the agent card (for calling skills)
+        agentCardFetchUrl: agentCardUrl,
+        agentCardFetchMode: a2aFetchMode,
       });
 
       // Auto-select first skill if available
@@ -524,6 +571,28 @@ export function EndpointTester() {
 
       {endpointType === 'a2a' ? (
         <div className="mb-4">
+          <label className="mb-2 block text-xs text-slate-400">Agent card fetch mode</label>
+          <div className="mb-3 flex gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                value="server"
+                checked={a2aFetchMode === 'server'}
+                onChange={(e) => setA2aFetchMode(e.target.value as 'server' | 'client')}
+              />
+              Server-side (via GraphQL, bypasses CORS)
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                value="client"
+                checked={a2aFetchMode === 'client'}
+                onChange={(e) => setA2aFetchMode(e.target.value as 'server' | 'client')}
+              />
+              Client-side (direct fetch, may hit CORS)
+            </label>
+          </div>
+
           <label className="mb-2 block text-xs text-slate-400">
             Authentication (optional)
           </label>
@@ -598,6 +667,17 @@ export function EndpointTester() {
                     {(results as any).registrationEndpoint || 'N/A'}
                   </div>
                 </div>
+                {(results as any).agentCardFetchUrl ? (
+                  <div>
+                    <div className="text-xs text-slate-400">Agent Card Fetch</div>
+                    <div className="text-xs text-slate-300">
+                      mode: <span className="font-mono">{(results as any).agentCardFetchMode}</span>
+                    </div>
+                    <div className="text-xs font-mono text-slate-300 break-all">
+                      {(results as any).agentCardFetchUrl}
+                    </div>
+                  </div>
+                ) : null}
                 {(results as any).a2aServiceEndpoint ? (
                   <div>
                     <div className="text-xs text-slate-400">A2A Service Endpoint (from agent card)</div>

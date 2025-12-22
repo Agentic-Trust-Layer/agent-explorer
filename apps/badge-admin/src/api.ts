@@ -42,14 +42,25 @@ async function graphqlRequest<T>(
   if (!cfg.accessCode) {
     throw new Error('Missing access code (set VITE_BADGE_ADMIN_ACCESS_CODE)');
   }
-  const resp = await fetch(cfg.graphqlUrl, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      authorization: `Bearer ${cfg.accessCode}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
+  let resp: Response;
+  try {
+    resp = await fetch(cfg.graphqlUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${cfg.accessCode}`,
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+  } catch (e: any) {
+    // Browser fetch throws TypeError("Failed to fetch") for network errors and CORS blocks.
+    const msg = e?.message || String(e);
+    throw new Error(
+      `Failed to reach GraphQL server at ${cfg.graphqlUrl}. ` +
+        `This is usually a network/CORS issue between badge-admin and the GraphQL server. ` +
+        `Underlying error: ${msg}`,
+    );
+  }
   if (!resp.ok) {
     const text = await resp.text().catch(() => '');
     throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
