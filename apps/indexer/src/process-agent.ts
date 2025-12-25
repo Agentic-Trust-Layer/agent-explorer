@@ -1,5 +1,6 @@
 import { resolveEoaOwner } from './ownership.js';
 import { computeAndUpsertATI } from './ati.js';
+import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 
 /**
  * Shared function to process and index an agent directly from chain data
@@ -507,6 +508,13 @@ export async function processAgentDirectly(
         console.warn('Error updating metadata:', error);
       }
     }
+
+    // Fetch A2A agent card when tokenUri is set/updated (best-effort).
+    try {
+      if (tokenURI && a2aEndpoint) {
+        await upsertAgentCardForAgent(db, chainId, agentId, String(a2aEndpoint), { force: true });
+      }
+    } catch {}
 
     // Precompute ATI for fast frontend retrieval
     try {

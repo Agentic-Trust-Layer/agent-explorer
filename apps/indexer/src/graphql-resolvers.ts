@@ -1,4 +1,5 @@
 import type { SemanticSearchService } from './semantic/semantic-search-service.js';
+import { intentJsonToSearchText } from './semantic/intent-text.js';
 import type { VectorQueryMatch } from './semantic/interfaces.js';
 
 /**
@@ -1441,7 +1442,8 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
 
     semanticAgentSearch: async (args: {
       input: {
-        text: string;
+        text?: string | null;
+        intentJson?: string | null;
         topK?: number;
         minScore?: number;
         filters?: any;
@@ -1454,17 +1456,23 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       }
 
       const input = args?.input;
-      const text = input?.text?.trim();
-      if (!input || !text) {
+      const text = typeof input?.text === 'string' ? input.text.trim() : '';
+      const intentJson = typeof input?.intentJson === 'string' ? input.intentJson.trim() : '';
+      const intentText = intentJson ? intentJsonToSearchText(intentJson) : '';
+      const combined = [text, intentText].filter((s) => typeof s === 'string' && s.trim().length > 0).join('\n\n');
+
+      if (!input || !combined.trim()) {
         return { matches: [], total: 0 };
       }
 
       try {
+        // Force semantic search to only consider vectors that were embedded with an A2A agent card.
+        const enforcedFilters = { ...(input.filters ?? {}), hasAgentCard: true };
         const matches = await semanticSearch.search({
-          text,
+          text: combined,
           topK: input.topK,
           minScore: input.minScore,
-          filters: input.filters,
+          filters: enforcedFilters,
         });
 
         if (!matches.length) {

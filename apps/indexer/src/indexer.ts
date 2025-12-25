@@ -8,6 +8,7 @@ import { ingestAgentsIntoSemanticStore } from './semantic/agent-ingest.js';
 import { resolveEoaOwner } from './ownership.js';
 import { computeAndUpsertATI } from './ati.js';
 import { trustLedgerProcessAgent } from './trust-ledger/processor.js';
+import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 
 
 import { 
@@ -35,6 +36,240 @@ const erc8004EthSepoliaClient = new ERC8004Client({
     chainId: 11155111, // Eth Sepolia
   }
 });
+
+function safeJsonParse(value: unknown): any | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function extractRegistrationA2AEndpoint(rawJson: unknown, fallbackA2AEndpoint?: string | null): string | null {
+  const parsed = safeJsonParse(rawJson);
+  const normalize = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+  const extractFromObject = (obj: any): string | null => {
+    if (!obj || typeof obj !== 'object') return null;
+
+    // Prefer endpoints[] with name/type indicating A2A
+    const endpoints = Array.isArray(obj.endpoints) ? obj.endpoints : Array.isArray(obj.Endpoints) ? obj.Endpoints : [];
+    for (const e of endpoints) {
+      const name = typeof e?.name === 'string' ? e.name.trim().toLowerCase() : '';
+      const type = typeof e?.type === 'string' ? e.type.trim().toLowerCase() : '';
+      const kind = typeof e?.kind === 'string' ? e.kind.trim().toLowerCase() : '';
+      const isA2A = name === 'a2a' || type === 'a2a' || kind === 'a2a';
+      if (!isA2A) continue;
+      const v =
+        normalize(e?.endpoint) ||
+        normalize(e?.url) ||
+        normalize(e?.href) ||
+        normalize(e?.uri);
+      if (v) return v;
+    }
+
+    // Common direct fields found in historical/raw metadata blobs
+    const direct =
+      normalize(obj.a2aEndpoint) ||
+      normalize(obj.a2a_endpoint) ||
+      normalize(obj.chatEndpoint) ||
+      normalize(obj.chat_endpoint) ||
+      normalize(obj.a2a) ||
+      normalize(obj.agentCardUrl) ||
+      normalize(obj.agentCardURL) ||
+      normalize(obj.agent_card_url);
+    if (direct) return direct;
+
+    // Some variants wrap the A2A endpoint under a2a: { endpoint/url }
+    if (obj.a2a && typeof obj.a2a === 'object') {
+      const nested = normalize(obj.a2a.endpoint) || normalize(obj.a2a.url) || normalize(obj.a2a.href);
+      if (nested) return nested;
+    }
+
+    return null;
+  };
+
+  if (parsed && typeof parsed === 'object') {
+    const v0 = extractFromObject(parsed);
+    if (v0) return v0;
+    // One common nesting shape: { metadata: {...} }
+    const v1 = extractFromObject((parsed as any).metadata);
+    if (v1) return v1;
+    // Another common nesting shape: { token: {...} }
+    const v2 = extractFromObject((parsed as any).token);
+    if (v2) return v2;
+  }
+
+  return typeof fallbackA2AEndpoint === 'string' && fallbackA2AEndpoint.trim() ? fallbackA2AEndpoint.trim() : null;
+}
+
+function parseAgentCardCursor(value: unknown): { chainId: number; agentId: string } {
+  if (typeof value !== 'string' || !value.trim()) return { chainId: 0, agentId: '' };
+  const parts = value.split('|');
+  if (parts.length < 2) return { chainId: 0, agentId: '' };
+  const chainId = Number(parts[0]);
+  const agentId = parts.slice(1).join('|');
+  return {
+    chainId: Number.isFinite(chainId) && chainId >= 0 ? Math.trunc(chainId) : 0,
+    agentId: typeof agentId === 'string' ? agentId : '',
+  };
+}
+
+function formatAgentCardCursor(cursor: { chainId: number; agentId: string }): string {
+  const chainId = Number.isFinite(cursor.chainId) && cursor.chainId >= 0 ? Math.trunc(cursor.chainId) : 0;
+  const agentId = typeof cursor.agentId === 'string' ? cursor.agentId : '';
+  return `${chainId}|${agentId}`;
+}
+
+async function getCheckpointValue(dbInstance: any, key: string): Promise<string | null> {
+  try {
+    const stmt = dbInstance.prepare('SELECT value FROM checkpoints WHERE key = ?');
+    if (stmt.bind && typeof stmt.bind === 'function') {
+      const row = await stmt.bind(key).first();
+      return row?.value ? String(row.value) : null;
+    }
+    const row = await stmt.get(key);
+    return row?.value ? String((row as any).value) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setCheckpointValue(dbInstance: any, key: string, value: string): Promise<void> {
+  try {
+    const stmt = dbInstance.prepare('INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
+    if (stmt.bind && typeof stmt.bind === 'function') {
+      await stmt.bind(key, value).run();
+      return;
+    }
+    await stmt.run(key, value);
+  } catch {
+    // best-effort
+  }
+}
+
+async function backfillAgentCards(dbInstance: any, opts?: { chunkSize?: number; reset?: boolean }) {
+  if (!dbInstance) return;
+  const checkpointKey = 'agentCardFetchCursor';
+  const chunkSize =
+    typeof opts?.chunkSize === 'number' && Number.isFinite(opts.chunkSize) && opts.chunkSize > 0 ? Math.trunc(opts.chunkSize) : 50;
+  const maxToProcessRaw = process.env.AGENT_CARD_BACKFILL_MAX;
+  const maxToProcess = maxToProcessRaw && String(maxToProcessRaw).trim() ? Number(maxToProcessRaw) : undefined;
+  const hardMax = Number.isFinite(maxToProcess as any) && (maxToProcess as any) > 0 ? Math.trunc(maxToProcess as any) : undefined;
+
+  if (opts?.reset) {
+    try {
+      await dbInstance.prepare('DELETE FROM checkpoints WHERE key = ?').run(checkpointKey);
+      console.info('[agent-card-backfill] reset: cleared agentCardFetchCursor checkpoint');
+    } catch (e) {
+      console.warn('[agent-card-backfill] reset requested but failed to clear checkpoint', e);
+    }
+  }
+
+  let cursor = parseAgentCardCursor(await getCheckpointValue(dbInstance, checkpointKey));
+
+  const query = `
+    SELECT chainId, agentId, a2aEndpoint, rawJson, agentCardJson, agentCardReadAt
+    FROM agents
+    WHERE
+      (
+        chainId > ?
+        OR (
+          chainId = ?
+          AND (
+            LENGTH(agentId) > ?
+            OR (LENGTH(agentId) = ? AND agentId > ?)
+          )
+        )
+      )
+      AND (
+        agentCardJson IS NULL OR agentCardJson = ''
+        OR agentCardReadAt IS NULL OR agentCardReadAt = 0
+      )
+    ORDER BY chainId ASC, LENGTH(agentId) ASC, agentId ASC
+    LIMIT ?
+  `;
+
+  console.info('[agent-card-backfill] starting', { chunkSize, cursor, max: hardMax ?? null });
+  let processed = 0;
+
+  while (true) {
+    if (hardMax !== undefined && processed >= hardMax) {
+      console.info('[agent-card-backfill] stopping due to AGENT_CARD_BACKFILL_MAX', { processed, max: hardMax, cursor });
+      break;
+    }
+    const agentIdLen = cursor.agentId.length;
+    const stmt = dbInstance.prepare(query);
+    const bindParams = [cursor.chainId, cursor.chainId, agentIdLen, agentIdLen, cursor.agentId, chunkSize];
+    let rows: any[] = [];
+    try {
+      if (stmt.bind && typeof stmt.bind === 'function') {
+        const result = await stmt.bind(...bindParams).all();
+        rows = Array.isArray(result?.results) ? result.results : [];
+      } else {
+        const result = await stmt.all(...bindParams);
+        rows = Array.isArray(result) ? result : [];
+      }
+    } catch (e) {
+      console.warn('[agent-card-backfill] query failed', e);
+      break;
+    }
+
+    if (!rows.length) {
+      console.info('[agent-card-backfill] complete (no more rows)', { cursor });
+      break;
+    }
+
+    for (const row of rows) {
+      if (hardMax !== undefined && processed >= hardMax) {
+        console.info('[agent-card-backfill] stopping due to AGENT_CARD_BACKFILL_MAX', { processed, max: hardMax, cursor });
+        break;
+      }
+      const chainId = Number(row?.chainId ?? 0) || 0;
+      const agentId = String(row?.agentId ?? '');
+      const fallbackA2A = row?.a2aEndpoint != null ? String(row.a2aEndpoint) : null;
+      const regA2A = extractRegistrationA2AEndpoint(row?.rawJson, fallbackA2A);
+
+      if (regA2A) {
+        try {
+          console.info('[agent-card-backfill] fetching agent card', { chainId, agentId, registrationA2AEndpoint: regA2A });
+          const ok = await upsertAgentCardForAgent(dbInstance, chainId, agentId, regA2A, { force: true });
+          if (ok) {
+            console.info('[agent-card-backfill] stored agent card', { chainId, agentId });
+          } else {
+            console.info('[agent-card-backfill] no agent card found', { chainId, agentId });
+          }
+        } catch {
+          console.warn('[agent-card-backfill] fetch failed', { chainId, agentId });
+          // best-effort: continue
+        }
+      } else {
+        console.info('[agent-card-backfill] skipping (no registration A2A endpoint)', { chainId, agentId });
+      }
+
+      cursor = { chainId, agentId };
+      await setCheckpointValue(dbInstance, checkpointKey, formatAgentCardCursor(cursor));
+      processed += 1;
+    }
+  }
+}
+
+async function maybeBackfillRdfFromStoredAgentCards(dbInstance: any) {
+  try {
+    const reset = process.env.RDF_EXPORT_BACKFILL_RESET === '1';
+    const chunkSizeRaw = process.env.RDF_EXPORT_BACKFILL_CHUNK_SIZE;
+    const maxRaw = process.env.RDF_EXPORT_BACKFILL_MAX;
+    const chunkSize = chunkSizeRaw && String(chunkSizeRaw).trim() ? Number(chunkSizeRaw) : undefined;
+    const max = maxRaw && String(maxRaw).trim() ? Number(maxRaw) : undefined;
+    const mod = await import('./rdf/export-agent-rdf');
+    if (typeof (mod as any).backfillAgentRdfFromStoredAgentCards === 'function') {
+      await (mod as any).backfillAgentRdfFromStoredAgentCards(dbInstance, { reset, chunkSize, max });
+    }
+  } catch (e) {
+    console.warn('[rdf-backfill] failed', e);
+  }
+}
 
 
 const baseSepliaEthersProvider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_HTTP_URL);
@@ -274,6 +509,18 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
   const agentAddress = to; // keep for backward compatibility
   let agentName = readAgentName(tokenInfo) || ""; // not modeled in ERC-721; leave empty
   let resolvedTokenURI = tokenURI ?? (typeof tokenInfo?.uri === 'string' ? tokenInfo.uri : null);
+  let shouldFetchAgentCard = false;
+  try {
+    const existing = await dbInstance
+      .prepare('SELECT tokenUri, agentCardReadAt FROM agents WHERE chainId = ? AND agentId = ?')
+      .get(chainId, agentId);
+    const prevTokenUri = (existing as any)?.tokenUri != null ? String((existing as any).tokenUri) : null;
+    const prevReadAt = Number((existing as any)?.agentCardReadAt ?? 0) || 0;
+    if (prevTokenUri !== resolvedTokenURI) shouldFetchAgentCard = true;
+    if (!prevReadAt) shouldFetchAgentCard = true;
+  } catch {
+    // best-effort
+  }
   const mintedTimestamp = (() => {
     try {
       if (tokenInfo?.mintedAt === undefined || tokenInfo?.mintedAt === null) return null;
@@ -534,6 +781,13 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         } catch (e) {
           console.warn('............Trust Ledger processing failed (metadata update)', e);
         }
+
+        // Fetch A2A agent card when tokenUri was set/updated (best-effort).
+        try {
+          if (a2aEndpoint && shouldFetchAgentCard) {
+            await upsertAgentCardForAgent(dbInstance, chainId, agentId, String(a2aEndpoint), { force: true });
+          }
+        } catch {}
 
         await recordEvent({ transactionHash: `token:${agentId}`, logIndex: 0, blockNumber }, 'MetadataFetched', { tokenId: agentId }, dbInstance);
       } catch (error) {
@@ -1598,6 +1852,13 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     chainId,
     agentId,
   );
+
+  // Fetch A2A agent card when tokenUri was set/updated (best-effort).
+  try {
+    if (tokenUri && a2aEndpoint) {
+      await upsertAgentCardForAgent(db, chainId, agentId, String(a2aEndpoint), { force: true });
+    }
+  } catch {}
 }
 
 async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance: any) {
@@ -1808,6 +2069,13 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     chainId,
     agentId,
   );
+
+  // Fetch A2A agent card when tokenUri was set/updated (best-effort).
+  try {
+    if (a2aEndpoint && tokenUri) {
+      await upsertAgentCardForAgent(dbInstance, chainId, agentId, String(a2aEndpoint), { force: true });
+    }
+  } catch {}
 
   // Precompute ATI for fast frontend retrieval
   try {
@@ -3134,6 +3402,25 @@ async function processSingleAgentId(agentId: string) {
     console.error('Initial GraphQL backfill failed:', e);
   }
 
+  // Backfill A2A agent cards for any agents missing agentCardJson (resumable via checkpoint).
+  // Enabled by default; disable with AGENT_CARD_BACKFILL=0
+  try {
+    const enabled = process.env.AGENT_CARD_BACKFILL !== '0';
+    if (enabled) {
+      const reset = process.env.AGENT_CARD_BACKFILL_RESET === '1';
+      const chunkSizeRaw = process.env.AGENT_CARD_BACKFILL_CHUNK_SIZE;
+      const chunkSize = chunkSizeRaw ? Number(chunkSizeRaw) : undefined;
+      await backfillAgentCards(db, { chunkSize, reset });
+    } else {
+      console.info('[agent-card-backfill] disabled (AGENT_CARD_BACKFILL=0)');
+    }
+  } catch (e) {
+    console.warn('[agent-card-backfill] failed', e);
+  }
+
+  // Optional: write RDF for agents that already have agentCardJson stored.
+  await maybeBackfillRdfFromStoredAgentCards(db);
+
   const pineconeTarget = {
     index: process.env.PINECONE_INDEX || '(unset)',
     namespace: process.env.PINECONE_NAMESPACE || '(default)',
@@ -3144,6 +3431,18 @@ async function processSingleAgentId(agentId: string) {
   if (semanticSearchService) {
     try {
       console.info('[semantic-ingest] starting Pinecone ingest');
+      if (process.env.SKIP_SEMANTIC_INGEST === '1') {
+        console.info('[semantic-ingest] skipped (SKIP_SEMANTIC_INGEST=1)');
+        return;
+      }
+      if (process.env.SEMANTIC_INGEST_RESET === '1') {
+        try {
+          await db.prepare("DELETE FROM checkpoints WHERE key = 'semanticIngestCursor'").run();
+          console.info('[semantic-ingest] reset: cleared semanticIngestCursor checkpoint');
+        } catch (e) {
+          console.warn('[semantic-ingest] reset requested but failed to clear semanticIngestCursor checkpoint', e);
+        }
+      }
       const ingestResult = await ingestAgentsIntoSemanticStore(db, semanticSearchService, { chunkSize: 100 });
       console.log(`✅ Semantic ingest completed: ${ingestResult.processed} agents across ${ingestResult.batches} batches`);
     } catch (error) {

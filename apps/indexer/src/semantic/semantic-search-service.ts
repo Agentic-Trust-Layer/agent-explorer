@@ -402,6 +402,25 @@ export class SemanticSearchService {
     if (record.metadata && Object.keys(record.metadata).length > 0) {
       metadata.details = record.metadata;
     }
+
+    // Flag vectors that were embedded with a parsed A2A agent card.
+    // We enforce semantic search to only query these vectors.
+    try {
+      const agentCard = record.metadata && typeof record.metadata === 'object' ? (record.metadata as any).agentCard : null;
+      const hasAgentCard =
+        agentCard &&
+        typeof agentCard === 'object' &&
+        !Array.isArray(agentCard) &&
+        (typeof (agentCard as any).protocolVersion === 'string' ||
+          typeof (agentCard as any).name === 'string' ||
+          Array.isArray((agentCard as any).skills)) &&
+        Object.keys(agentCard).length > 0;
+      if (hasAgentCard) {
+        metadata.hasAgentCard = true;
+      }
+    } catch {
+      // ignore
+    }
     return metadata;
   }
 

@@ -1,5 +1,6 @@
 import type { EmbeddingProvider } from './interfaces.js';
 import type { SemanticAgentRecord } from './types.js';
+import { intentJsonToSearchText } from './intent-text.js';
 
 export interface VeniceEmbeddingConfig {
   apiKey: string;
@@ -58,13 +59,60 @@ export class VeniceEmbeddingProvider implements EmbeddingProvider {
       ? `Outputs: ${agent.defaultOutputModes.join(', ')}`
       : '';
 
+    const metadataObj = agent.metadata && typeof agent.metadata === 'object' ? (agent.metadata as any) : null;
+    const agentCard = metadataObj?.agentCard ?? null;
+    const raw = metadataObj?.raw ?? null;
+
+    const skillsFromAgentCard: any[] = Array.isArray(agentCard?.skills) ? agentCard.skills : [];
+    const skillsFromRaw: any[] = Array.isArray(raw?.skills) ? raw.skills : [];
+    const rawSkills: any[] = skillsFromAgentCard.length ? skillsFromAgentCard : skillsFromRaw;
+
+    const skillLines: string[] = [];
+    const skillTags: string[] = [];
+    for (const s of rawSkills) {
+      if (!s || typeof s !== 'object') continue;
+      const id = typeof s.id === 'string' ? s.id.trim() : '';
+      const name = typeof s.name === 'string' ? s.name.trim() : '';
+      const desc = typeof s.description === 'string' ? s.description.trim() : '';
+      const line = [id ? `id=${id}` : '', name ? `name=${name}` : '', desc ? `description=${desc}` : '']
+        .filter(Boolean)
+        .join(' | ');
+      if (line) skillLines.push(`Skill: ${line}`);
+
+      if (Array.isArray(s.tags)) {
+        for (const t of s.tags) {
+          if (typeof t === 'string' && t.trim()) skillTags.push(t.trim());
+        }
+      }
+
+      // Examples often contain structured "intent" payloads; include a compact normalized form.
+      if (Array.isArray(s.examples)) {
+        for (const ex of s.examples.slice(0, 5)) {
+          const title = typeof ex?.title === 'string' ? ex.title.trim() : '';
+          const request = ex?.request ?? ex?.input ?? ex?.example ?? null;
+          const intentText = request ? intentJsonToSearchText(request) : '';
+          if (title && intentText) {
+            skillLines.push(`Example: ${title}\n${intentText}`);
+          } else if (intentText) {
+            skillLines.push(`Example:\n${intentText}`);
+          } else if (title) {
+            skillLines.push(`Example title: ${title}`);
+          }
+        }
+      }
+    }
+
+    const derivedSkillTags = skillTags.length ? `Skill tags: ${Array.from(new Set(skillTags)).join(', ')}` : '';
+
     return [
       agent.name,
       agent.description,
       tags,
+      derivedSkillTags,
       capabilities,
       inputs,
       outputs,
+      skillLines.length ? skillLines.join('\n') : '',
       this.serializeMetadata(agent.metadata),
     ]
       .filter(Boolean)

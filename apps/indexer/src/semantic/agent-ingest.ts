@@ -14,6 +14,7 @@ type AgentSemanticRow = {
   agentAccountEndpoint?: string | null;
   supportedTrust?: string | null;
   rawJson?: string | null;
+  agentCardJson?: string | null;
   operatorsJson?: string | null;
   skillsJson?: string | null;
   trustJson?: string | null;
@@ -40,6 +41,7 @@ SELECT
   a.agentAccountEndpoint,
   a.supportedTrust,
   a.rawJson,
+  a.agentCardJson,
   COALESCE((SELECT json_group_array(operator) FROM agent_operators ao WHERE ao.chainId = a.chainId AND ao.agentId = a.agentId), '[]') AS operatorsJson,
   COALESCE((SELECT json_group_array(skill) FROM agent_skills s WHERE s.chainId = a.chainId AND s.agentId = a.agentId), '[]') AS skillsJson,
   COALESCE((SELECT json_group_array(trust) FROM agent_supported_trust st WHERE st.chainId = a.chainId AND st.agentId = a.agentId), '[]') AS trustJson,
@@ -177,6 +179,13 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
   const tokenMetadataEntries = safeJsonParse<any[]>(row.tokenMetadataJson, []);
   const tokenMetadataMap = buildMetadataMap(tokenMetadataEntries);
   const rawJson = safeJsonParse<Record<string, unknown>>(row.rawJson, {});
+  const agentCardJson = safeJsonParse<Record<string, unknown>>(row.agentCardJson, {});
+
+  // Only ingest agents that have a valid, non-empty agent card JSON.
+  // This ensures semantic search operates exclusively over agent-card-enriched embeddings.
+  if (!agentCardJson || Object.keys(agentCardJson).length === 0) {
+    return null;
+  }
 
   const tags = dedupeStrings([...skills, ...prompts]);
   const capabilities = dedupeStrings([...trustFromTable, ...trustFromColumn, ...tools, ...resources]);
@@ -198,6 +207,7 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
   if (tokenMetadataEntries.length) metadata.tokenMetadata = tokenMetadataEntries;
   if (Object.keys(tokenMetadataMap).length) metadata.tokenMetadataMap = tokenMetadataMap;
   if (rawJson && Object.keys(rawJson).length) metadata.raw = rawJson;
+  if (agentCardJson && Object.keys(agentCardJson).length) metadata.agentCard = agentCardJson;
   const endpoints: Record<string, string> = {};
   if (row.a2aEndpoint?.trim()) endpoints.a2aEndpoint = row.a2aEndpoint.trim();
   if (row.ensEndpoint?.trim()) endpoints.ensEndpoint = row.ensEndpoint.trim();

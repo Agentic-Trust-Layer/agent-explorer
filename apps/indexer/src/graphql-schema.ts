@@ -30,6 +30,8 @@ export const graphQLSchemaString = `
     agentAccountEndpoint: String
     supportedTrust: String
     rawJson: String
+    agentCardJson: String
+    agentCardReadAt: Int
     updatedAtTime: Int
     did: String
     mcp: Boolean
@@ -334,7 +336,10 @@ export const graphQLSchemaString = `
   }
 
   input SemanticAgentSearchInput {
-    text: String!
+    # Natural language query (optional if intentJson is provided)
+    text: String
+    # Structured intent payload as JSON string (optional if text is provided)
+    intentJson: String
     topK: Int
     minScore: Float
     filters: SemanticSearchFilterInput

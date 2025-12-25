@@ -78,6 +78,27 @@ async function initializeSchema() {
       console.log('✅ access_codes table already exists in D1');
     }
   }
+
+  // Safety check: best-effort schema upgrades for development (migrations should do this in prod).
+  // Add columns used by newer code paths if they don't exist yet.
+  const tryAddColumn = async (table: string, column: string, type: string) => {
+    try {
+      await db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type};`);
+      console.log(`✅ ${table}.${column} column added`);
+    } catch (error: any) {
+      const msg = String(error?.message || '');
+      // D1/SQLite error messages vary; treat "duplicate column" / "already exists" as success.
+      if (/duplicate column|already exists|duplicate/i.test(msg)) {
+        console.log(`✅ ${table}.${column} column already exists`);
+        return;
+      }
+      // Some D1 API errors wrap SQLITE_ERROR in JSON; still just warn.
+      console.warn(`⚠️  Could not add column ${table}.${column} (run migration manually if needed).`, msg);
+    }
+  };
+
+  await tryAddColumn('agents', 'agentCardJson', 'TEXT');
+  await tryAddColumn('agents', 'agentCardReadAt', 'INTEGER');
 }
 
 initializeSchema();
