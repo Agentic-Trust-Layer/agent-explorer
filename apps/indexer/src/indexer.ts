@@ -288,8 +288,11 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     agentAccount = metadataAgentAccount;
   }
 
-  console.info(".... ownerAddress", ownerAddress)
-  console.info(".... chainId", chainId)
+  // Extremely noisy during backfills; enable only when debugging transfers.
+  if (process.env.DEBUG_TRANSFERS === '1') {
+    console.info(".... ownerAddress", ownerAddress);
+    console.info(".... chainId", chainId);
+  }
 
   // Fetch metadata from tokenURI BEFORE database insert to populate all fields
   let preFetchedMetadata: any = null;
@@ -406,11 +409,9 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     } catch (e) {
       console.warn('............ATI compute failed (upsertFromTransfer)', e);
     }
-    try {
-      await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: null, evidence: { source: 'transfer' } });
-    } catch (e) {
-      console.warn('............Trust Ledger processing failed (upsertFromTransfer)', e);
-    }
+    // NOTE: Transfer events don’t change validation/association/feedback signals used by the Trust Ledger badges.
+    // Running trust-ledger evaluation here makes backfills look “infinite” (lots of expensive badge-rule queries).
+    // Trust ledger processing is triggered by the relevant evidence events (validation/association/feedback) instead.
 
     // Use pre-fetched metadata if available, otherwise fetch now
     const metadata = preFetchedMetadata || (resolvedTokenURI ? await fetchIpfsJson(resolvedTokenURI) : null);
@@ -1112,13 +1113,6 @@ async function upsertValidationRequestFromGraph(
     now,
     now,
   ]);
-
-  // Trust Ledger processing (badge/points) depends on validation milestones.
-  try {
-    await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: id, evidence: { source: 'validationResponse' } });
-  } catch (e) {
-    console.warn('............Trust Ledger processing failed (upsertValidationResponseFromGraph)', e);
-  }
 }
 
 async function upsertValidationResponseFromGraph(
@@ -1612,6 +1606,11 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     console.warn('............applyUriUpdateFromGraph: missing token id in update', update?.id);
     return;
   }
+  // Some subgraphs use an event-style ID like "<txHash>-<logIndex>" for uriUpdates.
+  // Without a dedicated tokenId field, we can't map the update back to a token/agent reliably.
+  if (typeof tokenIdRaw === 'string' && tokenIdRaw.startsWith('0x') && tokenIdRaw.includes('-')) {
+    return;
+  }
 
   let tokenId: bigint;
   try {
@@ -2088,11 +2087,40 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       headers['Authorization'] = `Bearer ${GRAPHQL_API_KEY}`;
     }
     
-    const res = await fetch(endpoint, { 
-      method: 'POST', 
-      headers, 
-      body: JSON.stringify(body) 
-    } as any);
+    // Hard timeout so a stalled subgraph doesn't hang the whole indexer forever.
+    // Use Promise.race() so this works even if fetch abort semantics are flaky in a given runtime.
+    const timeoutMs = 60_000;
+    const controller = new AbortController();
+    let timeoutHandle: any;
+    let res: any;
+    try {
+      res = await Promise.race([
+        fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        } as any),
+        new Promise((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            try { controller.abort(); } catch {}
+            reject(new Error(`GraphQL timeout after ${timeoutMs}ms`));
+          }, timeoutMs);
+        }),
+      ]);
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (msg.toLowerCase().includes('timeout')) {
+        throw new Error(`GraphQL timeout after ${timeoutMs}ms`);
+      }
+      const name = String(e?.name || '');
+      if (name === 'AbortError') {
+        throw new Error(`GraphQL timeout after ${timeoutMs}ms`);
+      }
+      throw e;
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle);
+    }
     
     if (!res.ok) {
       let text = '';
@@ -2108,7 +2136,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
 
 
-  const pageSize = 1000; // Reduced page size to avoid Workers timeout (30s limit)
+  // Keep pages relatively small to reduce load on The Graph and avoid long-running queries/timeouts.
+  const pageSize = 200;
 
   const fetchAllFromSubgraph = async (
     label: string,
@@ -2118,6 +2147,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       optional?: boolean;
       lastCheckpoint?: bigint;
       maxSkip?: number;
+      maxRetries?: number;
       buildVariables?: (args: { first: number; skip: number }) => Record<string, any>;
     }
   ) => {
@@ -2127,7 +2157,9 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   let hasMore = true;
   let batchNumber = 0;
     const optional = options?.optional ?? false;
+    const maxRetries = options?.maxRetries ?? (optional ? 6 : 3);
     const checkpointForLog = options?.lastCheckpoint ?? lastTransfer;
+    const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
   
 	  while (hasMore) {
 	    if (skip > maxSkip) {
@@ -2135,14 +2167,43 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 	      break;
 	    }
     batchNumber++;
+    if (batchNumber === 1 && skip === 0) {
+      console.info(`............[${label}] Fetching first page (pageSize=${pageSize})`);
+    }
     const variables = options?.buildVariables
       ? options.buildVariables({ first: pageSize, skip })
       : { first: pageSize, skip };
 
-    const resp = await fetchJson({ 
-      query,
-      variables
-    }) as any;
+    let resp: any;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        resp = await fetchJson({
+          query,
+          variables
+        }) as any;
+        break;
+      } catch (e: any) {
+        console.error("............fetchJson error:", e);
+        const msg = String(e?.message || e || '');
+        const lower = msg.toLowerCase();
+        const isRetryableHttp =
+          lower.includes('graphql 429') ||
+          lower.includes('graphql 502') ||
+          lower.includes('graphql 503') ||
+          lower.includes('graphql 504') ||
+          lower.includes('timeout') ||
+          lower.includes('econnreset') ||
+          lower.includes('fetch failed');
+
+        if (!isRetryableHttp || attempt >= maxRetries) {
+          throw e;
+        }
+
+        const backoffMs = Math.min(30_000, 750 * Math.pow(2, attempt)) + Math.floor(Math.random() * 250);
+        console.warn(`............[${label}] Network/HTTP retry ${attempt + 1}/${maxRetries} (skip=${skip}, batch=${batchNumber}) after ${backoffMs}ms: ${msg}`);
+        await sleep(backoffMs);
+      }
+    }
 
 
   	    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
@@ -2155,6 +2216,17 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 	          const message = String(err?.message || '').toLowerCase();
 	          return message.includes('skip') && message.includes('argument');
 	        });
+          const overloadedError = resp.errors.some((err: any) => {
+            const message = String(err?.message || '').toLowerCase();
+            return (
+              message.includes('service is overloaded') ||
+              (message.includes('overloaded') && message.includes('service')) ||
+              message.includes('can not run the query right now') ||
+              message.includes('try again in a few minutes') ||
+              message.includes('rate limit') ||
+              message.includes('too many requests')
+            );
+          });
 
         if (optional && missingField) {
           console.warn(`............[${label}] Skipping: subgraph does not expose field "${field}". Message: ${resp.errors[0]?.message || 'unknown'}`);
@@ -2164,12 +2236,59 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 	          console.warn(`............[${label}] Skipping remaining pages: ${resp.errors[0]?.message || 'skip limit hit'}`);
 	          return allItems;
 	        }
+          if (overloadedError) {
+            // The subgraph sometimes returns "service is overloaded..." as a GraphQL error payload.
+            // Retry a few times; if still failing and this fetch is optional, skip so indexer keeps running.
+            let succeeded = false;
+            const overloadRetries = optional ? maxRetries : 1;
+            for (let attempt = 0; attempt < overloadRetries; attempt++) {
+              const backoffMs = Math.min(60_000, 1_000 * Math.pow(2, attempt)) + Math.floor(Math.random() * 500);
+              console.warn(`............[${label}] Subgraph overloaded; retry ${attempt + 1}/${overloadRetries} (skip=${skip}, batch=${batchNumber}) after ${backoffMs}ms. Error: ${resp.errors[0]?.message || 'unknown'}`);
+              await sleep(backoffMs);
+              const retryResp = await fetchJson({ query, variables }).catch((e: any) => ({ errors: [{ message: String(e?.message || e || '') }] }));
+              if (!retryResp?.errors || retryResp.errors.length === 0) {
+                resp = retryResp;
+                succeeded = true;
+                break;
+              }
+            }
 
-        console.error(`............[${label}] GraphQL errors:`, JSON.stringify(resp.errors, null, 2));
-        throw new Error(`GraphQL query failed for ${label}: ${JSON.stringify(resp.errors)}`);
+            if (!succeeded) {
+              // Even for non-optional entities, don't abort the whole run on overload; skip and try again next run.
+              console.warn(
+                `............[${label}] Skipping due to overload (optional=${optional}). ` +
+                `lastCheckpoint=${String(checkpointForLog)} itemsSoFar=${allItems.length}`
+              );
+              return allItems;
+            }
+          }
+
+        // Some subgraphs have inconsistent data where `UriUpdate.token` is declared non-null
+        // but occasionally resolves to null. The Graph returns errors but can still return
+        // partial `data`. If so, keep going and just drop null items later.
+        const uriUpdateTokenNullError =
+          field === 'uriUpdates' &&
+          resp?.data?.[field] &&
+          resp.errors.every((err: any) => String(err?.message || '').includes('Null value resolved for non-null field') && String(err?.message || '').includes('token'));
+        if (uriUpdateTokenNullError) {
+          console.warn(`............[${label}] Proceeding with partial data despite token null errors (will filter null items). errors=${resp.errors.length}`);
+          resp.errors = [];
+        }
+
+        // The overload retry path can replace `resp` with a successful response; re-check before failing.
+        // If this fetch is optional, never abort the whole backfill on errors—log and continue.
+        if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
+          const errJson = JSON.stringify(resp.errors, null, 2) ?? String(resp.errors);
+          if (optional) {
+            console.warn(`............[${label}] Skipping due to GraphQL errors (optional=true). lastCheckpoint=${String(checkpointForLog)} itemsSoFar=${allItems.length} errors=${errJson}`);
+            return allItems;
+          }
+          console.error(`............[${label}] GraphQL errors:`, errJson);
+          throw new Error(`GraphQL query failed for ${label}: ${errJson}`);
+        }
     }
     
-      const batchItems = (resp?.data?.[field] as any[]) || [];
+      const batchItems = (((resp?.data?.[field] as any[]) || []) as any[]).filter(Boolean);
     
       if (batchItems.length === 0) {
       hasMore = false;
@@ -2286,17 +2405,6 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       newUri
       newUriJson
       blockNumber
-      token {
-        id
-        ensName
-        image
-        uri
-        description
-        chatEndpoint
-        agentName
-        agentAccount
-        a2aEndpoint
-      }
     }
   }`;
 
@@ -2656,11 +2764,15 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   if (validationResponsesOrdered.length > 0) {
     console.info('............  sample validation response ids:', validationResponsesOrdered.slice(0, 3).map((resp) => `${resp?.id || 'unknown'}@${resp?.blockNumber || '0'}`).join(', '));
   }
+  const validationAgentsToProcess = new Map<string, string>();
   for (let i = 0; i < validationResponsesOrdered.length; i++) {
     const resp = validationResponsesOrdered[i];
     const blockNum = BigInt(resp?.blockNumber || 0);
     try {
       await upsertValidationResponseFromGraph(resp, chainId, dbInstance, validationResponseBatch);
+      if (resp?.agentId != null) {
+        validationAgentsToProcess.set(String(resp.agentId), String(resp?.id ?? ''));
+      }
       await updateValidationCheckpointIfNeeded(blockNum);
       if ((i + 1) % 25 === 0 || i === validationResponsesOrdered.length - 1) {
         console.info(`............  validation response progress: ${i + 1}/${validationResponsesOrdered.length} (block ${blockNum})`);
@@ -2752,6 +2864,18 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   await associationAccountsBatch.flush();
   await associationsBatch.flush();
   await associationRevocationsBatch.flush();
+
+  // Trust Ledger processing (badge/points) must happen AFTER batch flush so signals see the new rows.
+  if (validationAgentsToProcess.size > 0) {
+    console.info(`............  trust-ledger: processing ${validationAgentsToProcess.size} agent(s) affected by validation responses`);
+    for (const [aid, evidenceId] of validationAgentsToProcess.entries()) {
+      try {
+        await trustLedgerProcessAgent(dbInstance, chainId, aid, { evidenceEventId: evidenceId || null, evidence: { source: 'validationResponse' } });
+      } catch (e) {
+        console.warn('............Trust Ledger processing failed (validationResponse post-flush)', e);
+      }
+    }
+  }
 
 
   /*

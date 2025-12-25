@@ -178,4 +178,29 @@ export async function fetchAgentCard(
   return JSON.parse(data.fetchAgentCard);
 }
 
+export async function callA2A(
+  cfg: BadgeAdminConfig,
+  url: string,
+  method: string,
+  params: any,
+  authHeader?: string,
+): Promise<any> {
+  const query = `
+    query CallA2A($url: String!, $method: String!, $paramsJson: String, $authHeader: String) {
+      callA2A(url: $url, method: $method, paramsJson: $paramsJson, authHeader: $authHeader)
+    }
+  `;
+  const data = await graphqlRequest<{ callA2A: string }>(
+    cfg,
+    query,
+    { url, method, paramsJson: JSON.stringify(params ?? {}), authHeader },
+  );
+  // callA2A returns a JSON string (usually JSON-RPC response)
+  try {
+    return JSON.parse(data.callA2A);
+  } catch {
+    return data.callA2A;
+  }
+}
+
 

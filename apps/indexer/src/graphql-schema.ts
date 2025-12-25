@@ -753,6 +753,7 @@ export const graphQLSchemaString = `
     ): Int!
 
     fetchAgentCard(url: String!, authHeader: String): String!
+    callA2A(url: String!, method: String!, paramsJson: String, authHeader: String): String!
   }
 
   type Mutation {

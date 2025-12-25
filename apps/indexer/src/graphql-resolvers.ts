@@ -1953,6 +1953,69 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       }
     },
 
+    callA2A: async (args: { url: string; method: string; paramsJson?: string | null; authHeader?: string | null }) => {
+      // Server-side A2A call bypasses browser CORS restrictions
+      try {
+        const targetUrl = String(args.url ?? '').trim().replace(/\/+$/, '');
+        if (!targetUrl) throw new Error('url is required');
+        const method = String(args.method ?? '').trim();
+        if (!method) throw new Error('method is required');
+
+        let params: any = {};
+        if (args.paramsJson != null && String(args.paramsJson).trim()) {
+          try {
+            params = JSON.parse(String(args.paramsJson));
+          } catch (e: any) {
+            throw new Error(`paramsJson must be valid JSON: ${e?.message || String(e)}`);
+          }
+        }
+
+        const headers: Record<string, string> = {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'agent-explorer/1.0',
+        };
+
+        // Auth handling mirrors fetchAgentCard
+        if (args.authHeader) {
+          const authHeader = String(args.authHeader).trim();
+          if (authHeader) {
+            if (authHeader.startsWith('Basic ') || authHeader.startsWith('basic ')) {
+              headers.Authorization = authHeader;
+            } else if (authHeader.startsWith('Bearer ') || authHeader.startsWith('bearer ')) {
+              headers.Authorization = authHeader;
+            } else {
+              const basicAuth = Buffer.from(`${authHeader}:`).toString('base64');
+              headers.Authorization = `Basic ${basicAuth}`;
+            }
+          }
+        }
+
+        const payload = {
+          jsonrpc: '2.0',
+          id: Date.now().toString(),
+          method,
+          params,
+        };
+
+        const response = await fetch(targetUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+
+        const text = await response.text().catch(() => '');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${text || response.statusText}`);
+        }
+
+        // Return raw JSON-RPC response (or whatever the server returns)
+        return text;
+      } catch (error: any) {
+        throw new Error(`Failed to call A2A: ${error.message}`);
+      }
+    },
+
     createAccessCode: async (args: { address: string }) => {
       try {
         const { address } = args;

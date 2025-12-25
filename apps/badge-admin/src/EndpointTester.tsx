@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { BadgeAdminConfig } from './api';
-import { fetchAgentCard as fetchAgentCardViaGraphQL } from './api';
+import { callA2A as callA2AViaGraphQL, fetchAgentCard as fetchAgentCardViaGraphQL } from './api';
 
 interface EndpointConfig {
   name: string;
@@ -58,6 +58,7 @@ export function EndpointTester() {
   const [endpointJson, setEndpointJson] = useState<string>('');
   const [endpointType, setEndpointType] = useState<'a2a' | 'mcp'>('a2a');
   const [a2aFetchMode, setA2aFetchMode] = useState<'server' | 'client'>('server');
+  const [a2aCallMode, setA2aCallMode] = useState<'server' | 'client'>('server');
   const [authHeader, setAuthHeader] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -411,26 +412,41 @@ export function EndpointTester() {
           id: Date.now().toString(),
         };
         
-        console.log(`[A2A] Trying method "${methodName}" at A2A endpoint: ${a2aServiceEndpoint}`);
+        console.log(`[A2A] Trying method "${methodName}" via ${a2aCallMode} at A2A endpoint: ${a2aServiceEndpoint}`);
 
         try {
-          // A2A protocol: POST directly to the A2A endpoint (no path modifications)
-          const response = await fetch(a2aServiceEndpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify(a2aPayload),
-          });
+          let jsonRpcResponse: any;
+          if (a2aCallMode === 'server') {
+            if (!cfg.graphqlUrl || !cfg.accessCode) {
+              throw new Error('Missing GraphQL configuration. Cannot call A2A server-side.');
+            }
+            jsonRpcResponse = await callA2AViaGraphQL(
+              cfg,
+              a2aServiceEndpoint,
+              methodName,
+              input,
+              authHeader.trim() || undefined,
+            );
+          } else {
+            // A2A protocol: POST directly to the A2A endpoint (no path modifications)
+            const response = await fetch(a2aServiceEndpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                ...(authHeader.trim() ? { Authorization: authHeader.trim() } : {}),
+              } as any,
+              body: JSON.stringify(a2aPayload),
+            });
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+            if (!response.ok) {
+              const errorText = await response.text();
+              throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+            }
+
+            // A2A protocol returns JSON-RPC 2.0 response
+            jsonRpcResponse = await response.json();
           }
-
-          // A2A protocol returns JSON-RPC 2.0 response
-          const jsonRpcResponse = await response.json();
           
           // Handle JSON-RPC 2.0 response format
           if (jsonRpcResponse.error) {
@@ -459,6 +475,10 @@ export function EndpointTester() {
           success = true;
           break;
         } catch (e: any) {
+          // If the server requires authentication, don't spam retries with other method names.
+          if (String(e?.message || '').includes('HTTP 401')) {
+            throw e;
+          }
           // If it's a method not found error and we have more candidates, continue
           if (e.message?.includes('Method not found') && uniqueMethods.indexOf(methodName) < uniqueMethods.length - 1) {
             lastError = e;
@@ -588,6 +608,28 @@ export function EndpointTester() {
                 value="client"
                 checked={a2aFetchMode === 'client'}
                 onChange={(e) => setA2aFetchMode(e.target.value as 'server' | 'client')}
+              />
+              Client-side (direct fetch, may hit CORS)
+            </label>
+          </div>
+
+          <label className="mb-2 block text-xs text-slate-400">Skill call mode</label>
+          <div className="mb-3 flex gap-4 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                value="server"
+                checked={a2aCallMode === 'server'}
+                onChange={(e) => setA2aCallMode(e.target.value as 'server' | 'client')}
+              />
+              Server-side (via GraphQL, bypasses CORS)
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                value="client"
+                checked={a2aCallMode === 'client'}
+                onChange={(e) => setA2aCallMode(e.target.value as 'server' | 'client')}
               />
               Client-side (direct fetch, may hit CORS)
             </label>
