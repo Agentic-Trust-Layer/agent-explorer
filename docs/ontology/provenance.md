@@ -2,6 +2,10 @@
 
 Ontology: `agentictrust.owl`
 
+### Diagram
+
+![Core trust model](./images/sections/core-trust.png)
+
 ### What we use PROV-O for
 
 We ground trust and execution in PROV so:

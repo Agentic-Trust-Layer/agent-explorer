@@ -1,0 +1,44 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
+
+erc8004:Diagram_Trust a owl:Ontology .
+
+prov:Activity a owl:Class .
+prov:Entity a owl:Class .
+prov:SoftwareAgent a owl:Class .
+
+agentictrust:AIAgent a owl:Class ; rdfs:subClassOf prov:SoftwareAgent .
+agentictrust:TrustSituation a owl:Class ; rdfs:subClassOf prov:Activity .
+agentictrust:TrustAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:VerificationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:ReputationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+
+erc8004:TrustSituation a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
+erc8004:TrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+
+erc8004:ValidationRequest a owl:Class ; rdfs:subClassOf erc8004:TrustSituation .
+erc8004:ValidationResponse a owl:Class ;
+  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:VerificationAssertion .
+
+erc8004:Feedback a owl:Class ;
+  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:ReputationAssertion .
+
+erc8004:FeedbackResponse a owl:Class ;
+  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:ReputationAssertion .
+
+erc8004:hasFeedback a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:Feedback .
+
+erc8004:hasValidation a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:ValidationResponse .
+
+erc8004:validationRespondsToRequest a owl:ObjectProperty ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range erc8004:ValidationRequest .
+
+

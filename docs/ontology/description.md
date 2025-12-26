@@ -2,6 +2,10 @@
 
 Ontology: `agentictrust.owl`
 
+### Diagram
+
+![Core agent metadata](./images/sections/core-metadata.png)
+
 ### TrustDescription (DnS “Description”)
 
 - **Class**: `agentictrust:TrustDescription`

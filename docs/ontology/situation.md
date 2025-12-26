@@ -2,6 +2,12 @@
 
 Ontology: `agentictrust.owl`
 
+### Diagram
+
+![Core trust model](./images/sections/core-trust.png)
+
+![Skills execution trace](./images/sections/skills-execution.png)
+
 ### TrustSituation (DnS “Situation”)
 
 - **Class**: `agentictrust:TrustSituation`

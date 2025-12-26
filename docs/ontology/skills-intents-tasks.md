@@ -2,6 +2,14 @@
 
 Ontology: `agentictrust.owl` (core)
 
+### Diagrams
+
+![Skills declarations](./images/sections/skills-declarations.png)
+
+![Skills routing](./images/sections/skills-routing.png)
+
+![Skills execution trace](./images/sections/skills-execution.png)
+
 ### Discovery (cards/metadata)
 
 - `agentictrust:AgentCard` → `agentictrust:Skill`: `agentictrust:hasSkill`

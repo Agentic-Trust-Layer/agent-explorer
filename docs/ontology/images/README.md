@@ -7,6 +7,7 @@ These images are generated from the ontology source files using [`ontogram`](htt
 - `agentictrust.svg` / `agentictrust.png`
 - `ERC8004.svg` / `ERC8004.png`
 - `ERC8092.svg` / `ERC8092.png`
+- `sections/*.png` / `sections/*.svg` (smaller diagrams used throughout `docs/ontology/*.md`)
 
 If you want to regenerate:
 

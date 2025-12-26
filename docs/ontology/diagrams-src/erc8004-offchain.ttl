@@ -1,0 +1,44 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
+
+erc8004:Diagram_Offchain a owl:Ontology .
+
+prov:Entity a owl:Class .
+
+erc8004:ValidationOffchainData a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8004:FeedbackOffchainData a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8004:Attachment a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8004:ValidationAttachment a owl:Class ; rdfs:subClassOf erc8004:Attachment .
+erc8004:FeedbackAttachment a owl:Class ; rdfs:subClassOf erc8004:Attachment .
+erc8004:PaymentProof a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8004:ValidationType a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8004:ParseStatus a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8004:ProofFormat a owl:Class ; rdfs:subClassOf prov:Entity .
+
+erc8004:hasAttachment a owl:ObjectProperty ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ValidationAttachment .
+
+erc8004:hasFeedbackAttachment a owl:ObjectProperty ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range erc8004:FeedbackAttachment .
+
+erc8004:hasPaymentProof a owl:ObjectProperty ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range erc8004:PaymentProof .
+
+erc8004:hasValidationType a owl:ObjectProperty ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ValidationType .
+
+erc8004:hasParseStatus a owl:ObjectProperty ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ParseStatus .
+
+erc8004:hasProofFormat a owl:ObjectProperty ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ProofFormat .
+
+

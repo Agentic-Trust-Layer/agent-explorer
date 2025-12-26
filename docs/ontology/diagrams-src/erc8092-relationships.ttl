@@ -1,0 +1,48 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .
+
+erc8092:Diagram_Relationships a owl:Ontology .
+
+prov:Entity a owl:Class .
+prov:Agent a owl:Class .
+
+agentictrust:Relationship a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
+
+erc8092:ERC8092Relationship a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
+erc8092:ERC8092RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipAccount a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8092:RelationshipRevocationAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+
+agentictrust:assertsRelationship a owl:ObjectProperty ;
+  rdfs:domain agentictrust:RelationshipAssertion ;
+  rdfs:range agentictrust:Relationship .
+
+erc8092:initiator a owl:ObjectProperty ;
+  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:range prov:Agent .
+
+erc8092:approver a owl:ObjectProperty ;
+  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:range prov:Agent .
+
+erc8092:initiatorAccount a owl:ObjectProperty ;
+  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:range erc8092:RelationshipAccount .
+
+erc8092:approverAccount a owl:ObjectProperty ;
+  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:range erc8092:RelationshipAccount .
+
+erc8092:ownsRelationshipAccount a owl:ObjectProperty ;
+  rdfs:domain prov:Agent ;
+  rdfs:range erc8092:RelationshipAccount .
+
+erc8092:revocationOfRelationshipAssertion a owl:ObjectProperty ;
+  rdfs:domain erc8092:RelationshipRevocationAssertion ;
+  rdfs:range agentictrust:RelationshipAssertion .
+
+

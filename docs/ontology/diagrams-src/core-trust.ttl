@@ -1,0 +1,60 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+
+agentictrust:Diagram_CoreTrust a owl:Ontology .
+
+prov:Plan a owl:Class .
+p-plan:Plan a owl:Class .
+prov:Activity a owl:Class .
+prov:Entity a owl:Class .
+prov:Agent a owl:Class .
+
+agentictrust:TrustDescription a owl:Class ;
+  rdfs:subClassOf prov:Plan, p-plan:Plan .
+
+agentictrust:TrustSituation a owl:Class ;
+  rdfs:subClassOf prov:Activity .
+
+agentictrust:TrustAssertion a owl:Class ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:VerificationAssertion a owl:Class ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+agentictrust:ReputationAssertion a owl:Class ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+agentictrust:Relationship a owl:Class ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:RelationshipAssertion a owl:Class ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+agentictrust:realizesDescription a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustSituation ;
+  rdfs:range agentictrust:TrustDescription .
+
+agentictrust:generatedAssertion a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustSituation ;
+  rdfs:range agentictrust:TrustAssertion .
+
+agentictrust:aboutSubject a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range prov:Entity .
+
+agentictrust:assertsRelationship a owl:ObjectProperty ;
+  rdfs:domain agentictrust:RelationshipAssertion ;
+  rdfs:range agentictrust:Relationship .
+
+agentictrust:qualifiesRelationship a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range agentictrust:Relationship .
+
+agentictrust:hasTrustAssertion a owl:ObjectProperty ;
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrust:TrustAssertion .
+
+

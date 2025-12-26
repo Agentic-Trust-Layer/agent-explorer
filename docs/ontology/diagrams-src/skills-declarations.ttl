@@ -1,0 +1,46 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+
+agentictrust:Diagram_SkillsDeclarations a owl:Ontology .
+
+prov:Entity a owl:Class .
+
+agentictrust:AgentCard a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:AgentMetadata a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:Skill a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:Tag a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:SkillExample a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:JsonSchema a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:IntentType a owl:Class ; rdfs:subClassOf prov:Entity .
+
+agentictrust:hasSkill a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AgentCard ;
+  rdfs:range agentictrust:Skill .
+
+agentictrust:declaresSkill a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:range agentictrust:Skill .
+
+agentictrust:hasTag a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:Tag .
+
+agentictrust:hasExample a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:SkillExample .
+
+agentictrust:hasInputSchema a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:JsonSchema .
+
+agentictrust:hasOutputSchema a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:JsonSchema .
+
+agentictrust:supportsIntentType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:IntentType .
+
+

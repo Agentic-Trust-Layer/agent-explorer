@@ -1,0 +1,41 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+
+agentictrust:Diagram_SkillsRouting a owl:Ontology .
+
+prov:Entity a owl:Class .
+
+agentictrust:Skill a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:Intent a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:IntentType a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:IntentSubject a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:IntentCheck a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:TaskType a owl:Class ; rdfs:subClassOf prov:Entity .
+
+agentictrust:hasSubject a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:IntentSubject .
+
+agentictrust:hasCheck a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:IntentCheck .
+
+agentictrust:supportsIntentType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:IntentType .
+
+agentictrust:mapsToTaskType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:IntentType ;
+  rdfs:range agentictrust:TaskType .
+
+agentictrust:enablesTaskType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:TaskType .
+
+agentictrust:implementedBySkill a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TaskType ;
+  rdfs:range agentictrust:Skill .
+
+
