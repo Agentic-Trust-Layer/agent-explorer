@@ -16,13 +16,13 @@ The ontology separates:
 classDiagram
 direction LR
 
-class "agentictrust:AgentCard" as AgentCard
-class "agentictrust:AgentMetadata" as AgentMetadata
-class "agentictrust:Skill" as Skill
-class "agentictrust:Tag" as Tag
-class "agentictrust:SkillExample" as SkillExample
-class "agentictrust:JsonSchema" as JsonSchema
-class "agentictrust:IntentType" as IntentType
+class AgentCard["agentictrust:AgentCard"]
+class AgentMetadata["agentictrust:AgentMetadata"]
+class Skill["agentictrust:Skill"]
+class Tag["agentictrust:Tag"]
+class SkillExample["agentictrust:SkillExample"]
+class JsonSchema["agentictrust:JsonSchema"]
+class IntentType["agentictrust:IntentType"]
 
 AgentCard --> Skill : hasSkill
 AgentMetadata --> Skill : declaresSkill
@@ -40,12 +40,12 @@ Skill --> IntentType : supportsIntentType
 classDiagram
 direction LR
 
-class "agentictrust:Intent" as Intent
-class "agentictrust:IntentType" as IntentType
-class "agentictrust:IntentSubject" as IntentSubject
-class "agentictrust:IntentCheck" as IntentCheck
-class "agentictrust:TaskType" as TaskType
-class "agentictrust:Skill" as Skill
+class Intent["agentictrust:Intent"]
+class IntentType["agentictrust:IntentType"]
+class IntentSubject["agentictrust:IntentSubject"]
+class IntentCheck["agentictrust:IntentCheck"]
+class TaskType["agentictrust:TaskType"]
+class Skill["agentictrust:Skill"]
 
 IntentType --> TaskType : mapsToTaskType
 Skill --> TaskType : enablesTaskType
@@ -61,13 +61,13 @@ Intent --> IntentCheck : hasCheck
 classDiagram
 direction LR
 
-class "prov:Activity" as provActivity
-class "agentictrust:TaskExecution" as TaskExecution
-class "agentictrust:SkillInvocation" as SkillInvocation
-class "agentictrust:Task" as Task
-class "agentictrust:Intent" as Intent
-class "agentictrust:Skill" as Skill
-class "agentictrust:Message" as Message
+class provActivity["prov:Activity"]
+class TaskExecution["agentictrust:TaskExecution"]
+class SkillInvocation["agentictrust:SkillInvocation"]
+class Task["agentictrust:Task"]
+class Intent["agentictrust:Intent"]
+class Skill["agentictrust:Skill"]
+class Message["agentictrust:Message"]
 
 TaskExecution --|> provActivity
 SkillInvocation --|> provActivity

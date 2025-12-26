@@ -14,19 +14,19 @@ Source: `apps/badge-admin/public/ontology/agentictrust.owl`
 classDiagram
 direction LR
 
-class "prov:Plan" as provPlan
-class "p-plan:Plan" as pplanPlan
-class "prov:Activity" as provActivity
-class "prov:Entity" as provEntity
-class "prov:Agent" as provAgent
+class provPlan["prov:Plan"]
+class pplanPlan["p-plan:Plan"]
+class provActivity["prov:Activity"]
+class provEntity["prov:Entity"]
+class provAgent["prov:Agent"]
 
-class "agentictrust:TrustDescription" as TrustDescription
-class "agentictrust:TrustSituation" as TrustSituation
-class "agentictrust:TrustAssertion" as TrustAssertion
-class "agentictrust:VerificationAssertion" as VerificationAssertion
-class "agentictrust:ReputationAssertion" as ReputationAssertion
-class "agentictrust:Relationship" as Relationship
-class "agentictrust:RelationshipAssertion" as RelationshipAssertion
+class TrustDescription["agentictrust:TrustDescription"]
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+class VerificationAssertion["agentictrust:VerificationAssertion"]
+class ReputationAssertion["agentictrust:ReputationAssertion"]
+class Relationship["agentictrust:Relationship"]
+class RelationshipAssertion["agentictrust:RelationshipAssertion"]
 
 TrustDescription --|> provPlan
 TrustDescription --|> pplanPlan
@@ -51,15 +51,15 @@ provAgent --> TrustAssertion : hasTrustAssertion
 classDiagram
 direction LR
 
-class "prov:SoftwareAgent" as provSoftwareAgent
-class "prov:Entity" as provEntity
-class "prov:Agent" as provAgent
+class provSoftwareAgent["prov:SoftwareAgent"]
+class provEntity["prov:Entity"]
+class provAgent["prov:Agent"]
 
-class "agentictrust:AIAgent" as AIAgent
-class "agentictrust:AgentMetadata" as AgentMetadata
-class "agentictrust:AgentEndpoint" as AgentEndpoint
-class "agentictrust:Operator" as Operator
-class "agentictrust:EndpointType" as EndpointType
+class AIAgent["agentictrust:AIAgent"]
+class AgentMetadata["agentictrust:AgentMetadata"]
+class AgentEndpoint["agentictrust:AgentEndpoint"]
+class Operator["agentictrust:Operator"]
+class EndpointType["agentictrust:EndpointType"]
 
 AIAgent --|> provSoftwareAgent
 AgentMetadata --|> provEntity
@@ -71,7 +71,8 @@ AIAgent --> AgentMetadata : hasMetadata
 AgentMetadata --> AgentEndpoint : hasEndpointEntry
 AgentEndpoint --> EndpointType : endpointType
 AgentMetadata --> Operator : hasOperator
-AgentMetadata --> "agentictrust:Skill" : declaresSkill
+AgentMetadata --> Skill : declaresSkill
+class Skill["agentictrust:Skill"]
 ```
 
 

@@ -16,3 +16,8 @@ dist
 data
 *.db
 *.sqlite
+
+# python / local tooling
+.venv*
+__pycache__/
+*.pyc
