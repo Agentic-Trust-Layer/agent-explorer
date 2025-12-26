@@ -169,20 +169,20 @@ export function App() {
           <div className="flex items-center gap-2">
             {activeTab === 'badges' ? (
               <>
-                <button
-                  className="rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
-                  onClick={() => void refresh()}
-                  disabled={loading}
-                >
-                  Refresh
-                </button>
-                <button
-                  className="rounded-md bg-indigo-600 px-3 py-2 text-sm hover:bg-indigo-500"
-                  onClick={beginNew}
-                  disabled={loading}
-                >
-                  New badge
-                </button>
+            <button
+              className="rounded-md bg-slate-800 px-3 py-2 text-sm hover:bg-slate-700"
+              onClick={() => void refresh()}
+              disabled={loading}
+            >
+              Refresh
+            </button>
+            <button
+              className="rounded-md bg-indigo-600 px-3 py-2 text-sm hover:bg-indigo-500"
+              onClick={beginNew}
+              disabled={loading}
+            >
+              New badge
+            </button>
               </>
             ) : null}
           </div>
@@ -217,7 +217,7 @@ export function App() {
           <EndpointTester />
         ) : (
           <>
-            <div className="mt-6 grid grid-cols-1 gap-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4 md:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-4 rounded-lg border border-slate-800 bg-slate-900/40 p-4 md:grid-cols-3">
           <div className="md:col-span-3">
             <div className="text-xs text-slate-400">Configured via env</div>
             <div className="mt-1 rounded-md border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-xs text-slate-300">

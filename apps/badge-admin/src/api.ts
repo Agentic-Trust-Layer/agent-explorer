@@ -45,13 +45,13 @@ async function graphqlRequest<T>(
   let resp: Response;
   try {
     resp = await fetch(cfg.graphqlUrl, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${cfg.accessCode}`,
-      },
-      body: JSON.stringify({ query, variables }),
-    });
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${cfg.accessCode}`,
+    },
+    body: JSON.stringify({ query, variables }),
+  });
   } catch (e: any) {
     // Browser fetch throws TypeError("Failed to fetch") for network errors and CORS blocks.
     const msg = e?.message || String(e);

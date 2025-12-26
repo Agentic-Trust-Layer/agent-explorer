@@ -1,0 +1,525 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
+
+erc8004: a owl:Ontology ;
+  dcterms:title "ERC8004Ontology" ;
+  dcterms:description "ERC-8004 aligned terms for agent validation and feedback registries, layered on the AgenticTrust trust model." ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:versionInfo "0.1.0" ;
+  dcterms:license <https://opensource.org/license/mit/> .
+
+########
+# Base ERC-8004 classes (derive from AgenticTrust trust model)
+########
+
+erc8004:AgentRegistration a owl:Class ;
+  rdfs:label "AgentRegistrationJSON" ;
+  rdfs:comment "ERC-8004 registration metadata referenced by tokenUri; composed of protocol/name/skills/integration metadata." ;
+  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:ProtocolMetadata a owl:Class ;
+  rdfs:label "ProtocolMetadata" ;
+  rdfs:comment "Protocol-related registration metadata (supported protocols, endpoints, transports, versions)." ;
+  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:NameMetadata a owl:Class ;
+  rdfs:label "NameMetadata" ;
+  rdfs:comment "Naming/identity metadata (names, ENS, DIDs, identifiers)." ;
+  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:SkillsMetadata a owl:Class ;
+  rdfs:label "SkillsMetadata" ;
+  rdfs:comment "Skills/capabilities metadata (skills list, intent types, tags, categories)." ;
+  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:IntegrationMetadata a owl:Class ;
+  rdfs:label "IntegrationMetadata" ;
+  rdfs:comment "Integration metadata (SDKs, tool integrations, external services, auth/payment integration hints)." ;
+  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:hasAgentRegistration a owl:ObjectProperty ;
+  rdfs:label "hasAgentRegistration" ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:AgentRegistration .
+
+erc8004:hasProtocolMetadata a owl:ObjectProperty ;
+  rdfs:label "hasProtocolMetadata" ;
+  rdfs:domain erc8004:AgentRegistration ;
+  rdfs:range erc8004:ProtocolMetadata .
+
+erc8004:hasNameMetadata a owl:ObjectProperty ;
+  rdfs:label "hasNameMetadata" ;
+  rdfs:domain erc8004:AgentRegistration ;
+  rdfs:range erc8004:NameMetadata .
+
+erc8004:hasSkillsMetadata a owl:ObjectProperty ;
+  rdfs:label "hasSkillsMetadata" ;
+  rdfs:domain erc8004:AgentRegistration ;
+  rdfs:range erc8004:SkillsMetadata .
+
+erc8004:hasIntegrationMetadata a owl:ObjectProperty ;
+  rdfs:label "hasIntegrationMetadata" ;
+  rdfs:domain erc8004:AgentRegistration ;
+  rdfs:range erc8004:IntegrationMetadata .
+
+erc8004:TrustSituation a owl:Class ;
+  rdfs:label "ERC8004TrustSituation" ;
+  rdfs:comment "Base class for ERC-8004 trust situations (registry operations / time-scoped occurrences)." ;
+  rdfs:subClassOf agentictrust:TrustSituation .
+
+erc8004:TrustAssertion a owl:Class ;
+  rdfs:label "ERC8004TrustAssertion" ;
+  rdfs:comment "Base class for ERC-8004 trust assertions (durable claims/evidence/artifacts)." ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+########
+# Validation (ERC-8004)
+########
+
+erc8004:ValidationRequest a owl:Class ;
+  rdfs:label "ValidationRequest" ;
+  rdfs:comment "ERC-8004 validation registry request (a TrustSituation)." ;
+  rdfs:subClassOf erc8004:TrustSituation .
+
+erc8004:ValidationResponse a owl:Class ;
+  rdfs:label "ValidationResponse" ;
+  rdfs:comment "ERC-8004 validation response/attestation (a VerificationAssertion)." ;
+  rdfs:subClassOf erc8004:TrustAssertion ;
+  rdfs:subClassOf agentictrust:VerificationAssertion .
+
+########
+# Feedback / reputation (ERC-8004)
+########
+
+erc8004:Feedback a owl:Class ;
+  rdfs:label "Feedback" ;
+  rdfs:comment "ERC-8004 reputation feedback record." ;
+  rdfs:subClassOf erc8004:TrustAssertion ;
+  rdfs:subClassOf agentictrust:ReputationAssertion .
+
+erc8004:FeedbackResponse a owl:Class ;
+  rdfs:label "FeedbackResponse" ;
+  rdfs:comment "Response to a feedback record (e.g., dispute/clarification)." ;
+  rdfs:subClassOf erc8004:TrustAssertion ;
+  rdfs:subClassOf agentictrust:ReputationAssertion .
+
+########
+# Links from agents to ERC-8004 records
+########
+
+erc8004:hasFeedback a owl:ObjectProperty ;
+  rdfs:label "hasFeedback" ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:Feedback .
+
+erc8004:hasValidation a owl:ObjectProperty ;
+  rdfs:label "hasValidation" ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:ValidationResponse .
+
+########
+# Validation / feedback object properties
+########
+
+erc8004:feedbackClient a owl:ObjectProperty ;
+  rdfs:label "feedbackClient" ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range prov:Agent .
+
+erc8004:feedbackSkill a owl:ObjectProperty ;
+  rdfs:label "feedbackSkill" ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range agentictrust:Skill .
+
+erc8004:feedbackIntentType a owl:ObjectProperty ;
+  rdfs:label "feedbackIntentType" ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range agentictrust:IntentType .
+
+erc8004:validationValidator a owl:ObjectProperty ;
+  rdfs:label "validationValidator" ;
+  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:range prov:Agent .
+
+erc8004:validatorAgent a owl:ObjectProperty ;
+  rdfs:label "validatorAgent" ;
+  rdfs:comment "Optional link when validatorAddress maps to a known AIAgent account/address." ;
+  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:range agentictrust:AIAgent .
+
+erc8004:validatorAgentForResponse a owl:ObjectProperty ;
+  rdfs:label "validatorAgentForResponse" ;
+  rdfs:comment "Optional link when validatorAddress maps to a known AIAgent account/address (response side)." ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range agentictrust:AIAgent .
+
+erc8004:validationRespondsToRequest a owl:ObjectProperty ;
+  rdfs:label "validationRespondsToRequest" ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range erc8004:ValidationRequest .
+
+erc8004:validationTagCheck a owl:ObjectProperty ;
+  rdfs:label "validationTagCheck" ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range agentictrust:IntentCheck .
+
+########
+# Core datatype properties (on-chain/registry columns)
+########
+
+erc8004:feedbackIndex a owl:DatatypeProperty ;
+  rdfs:label "feedbackIndex" ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range xsd:integer .
+
+erc8004:feedbackScore a owl:DatatypeProperty ;
+  rdfs:label "feedbackScore" ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range xsd:integer .
+
+erc8004:feedbackRatingPct a owl:DatatypeProperty ;
+  rdfs:label "feedbackRatingPct" ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range xsd:integer .
+
+erc8004:isRevoked a owl:DatatypeProperty ;
+  rdfs:label "isRevoked" ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range xsd:boolean .
+
+erc8004:requestHash a owl:DatatypeProperty ;
+  rdfs:label "requestHash" ;
+  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:range xsd:string .
+
+erc8004:validationChainId a owl:DatatypeProperty ;
+  rdfs:label "validationChainId" ;
+  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:range xsd:integer .
+
+erc8004:requestingAgentId a owl:DatatypeProperty ;
+  rdfs:label "requestingAgentId" ;
+  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:range xsd:string .
+
+erc8004:validatorAddress a owl:DatatypeProperty ;
+  rdfs:label "validatorAddress" ;
+  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:range xsd:string .
+
+erc8004:responseHash a owl:DatatypeProperty ;
+  rdfs:label "responseHash" ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range xsd:string .
+
+erc8004:validationChainIdForResponse a owl:DatatypeProperty ;
+  rdfs:label "validationChainIdForResponse" ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range xsd:integer .
+
+erc8004:requestingAgentIdForResponse a owl:DatatypeProperty ;
+  rdfs:label "requestingAgentIdForResponse" ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range xsd:string .
+
+erc8004:validatorAddressForResponse a owl:DatatypeProperty ;
+  rdfs:label "validatorAddressForResponse" ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range xsd:string .
+
+erc8004:validationResponseValue a owl:DatatypeProperty ;
+  rdfs:label "validationResponseValue" ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range xsd:integer .
+
+########
+# Offchain data profile entities (used by exporter)
+########
+
+erc8004:ValidationOffchainData a owl:Class ;
+  rdfs:label "ValidationOffchainData" ;
+  rdfs:comment "Offchain JSON referenced by requestUri/responseUri in ERC-8004 validation registries." ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:FeedbackOffchainData a owl:Class ;
+  rdfs:label "FeedbackOffchainData" ;
+  rdfs:comment "Offchain JSON referenced by feedbackUri in ERC-8004 reputation registries." ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:Attachment a owl:Class ;
+  rdfs:label "Attachment" ;
+  rdfs:comment "Generic attachment (name, uri, mimeType, size, uploadedAt, description)." ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:ValidationAttachment a owl:Class ;
+  rdfs:label "ValidationAttachment" ;
+  rdfs:subClassOf erc8004:Attachment .
+
+erc8004:FeedbackAttachment a owl:Class ;
+  rdfs:label "FeedbackAttachment" ;
+  rdfs:subClassOf erc8004:Attachment .
+
+erc8004:PaymentProof a owl:Class ;
+  rdfs:label "PaymentProof" ;
+  rdfs:comment "Payment proof object in feedback offchain JSON." ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:ValidationType a owl:Class ;
+  rdfs:label "ValidationType" ;
+  rdfs:comment "Taxonomy of validationType strings." ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:ParseStatus a owl:Class ;
+  rdfs:label "ParseStatus" ;
+  rdfs:comment "Parse status indicator for offchain JSON." ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:ProofFormat a owl:Class ;
+  rdfs:label "ProofFormat" ;
+  rdfs:comment "Known proof protocol/format taxonomy." ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:hasOffchainData a owl:ObjectProperty ;
+  rdfs:label "hasOffchainData" ;
+  rdfs:range erc8004:ValidationOffchainData .
+
+erc8004:hasFeedbackOffchainData a owl:ObjectProperty ;
+  rdfs:label "hasFeedbackOffchainData" ;
+  rdfs:range erc8004:FeedbackOffchainData .
+
+erc8004:hasAttachment a owl:ObjectProperty ;
+  rdfs:label "hasAttachment" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ValidationAttachment .
+
+erc8004:hasFeedbackAttachment a owl:ObjectProperty ;
+  rdfs:label "hasFeedbackAttachment" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range erc8004:FeedbackAttachment .
+
+erc8004:hasPaymentProof a owl:ObjectProperty ;
+  rdfs:label "hasPaymentProof" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range erc8004:PaymentProof .
+
+erc8004:hasValidationType a owl:ObjectProperty ;
+  rdfs:label "hasValidationType" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ValidationType .
+
+erc8004:hasParseStatus a owl:ObjectProperty ;
+  rdfs:label "hasParseStatus" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ParseStatus .
+
+erc8004:hasProofFormat a owl:ObjectProperty ;
+  rdfs:label "hasProofFormat" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range erc8004:ProofFormat .
+
+########
+# Offchain datatype properties used by exporter
+########
+
+erc8004:createdAt a owl:DatatypeProperty ;
+  rdfs:label "createdAt" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:dateTime .
+
+erc8004:deadline a owl:DatatypeProperty ;
+  rdfs:label "deadline" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:dateTime .
+
+erc8004:reasoning a owl:DatatypeProperty ;
+  rdfs:label "reasoning" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:result a owl:DatatypeProperty ;
+  rdfs:label "result" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:confidence a owl:DatatypeProperty ;
+  rdfs:label "confidence" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:decimal .
+
+erc8004:validationTypeValue a owl:DatatypeProperty ;
+  rdfs:label "validationTypeValue" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:parseStatusValue a owl:DatatypeProperty ;
+  rdfs:label "parseStatusValue" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:proofFormatValue a owl:DatatypeProperty ;
+  rdfs:label "proofFormatValue" ;
+  rdfs:domain erc8004:ValidationOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:attachmentName a owl:DatatypeProperty ;
+  rdfs:label "attachmentName" ;
+  rdfs:domain erc8004:Attachment ;
+  rdfs:range xsd:string .
+
+erc8004:attachmentUri a owl:DatatypeProperty ;
+  rdfs:label "attachmentUri" ;
+  rdfs:domain erc8004:Attachment ;
+  rdfs:range xsd:anyURI .
+
+erc8004:attachmentMimeType a owl:DatatypeProperty ;
+  rdfs:label "attachmentMimeType" ;
+  rdfs:domain erc8004:Attachment ;
+  rdfs:range xsd:string .
+
+erc8004:attachmentSize a owl:DatatypeProperty ;
+  rdfs:label "attachmentSize" ;
+  rdfs:domain erc8004:Attachment ;
+  rdfs:range xsd:integer .
+
+erc8004:attachmentUploadedAt a owl:DatatypeProperty ;
+  rdfs:label "attachmentUploadedAt" ;
+  rdfs:domain erc8004:Attachment ;
+  rdfs:range xsd:dateTime .
+
+erc8004:attachmentDescription a owl:DatatypeProperty ;
+  rdfs:label "attachmentDescription" ;
+  rdfs:domain erc8004:Attachment ;
+  rdfs:range xsd:string .
+
+erc8004:feedbackAuth a owl:DatatypeProperty ;
+  rdfs:label "feedbackAuth" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:score a owl:DatatypeProperty ;
+  rdfs:label "score" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:integer .
+
+erc8004:tag1 a owl:DatatypeProperty ;
+  rdfs:label "tag1" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:tag2 a owl:DatatypeProperty ;
+  rdfs:label "tag2" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:skill a owl:DatatypeProperty ;
+  rdfs:label "skill" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:context a owl:DatatypeProperty ;
+  rdfs:label "context" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:task a owl:DatatypeProperty ;
+  rdfs:label "task" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:capability a owl:DatatypeProperty ;
+  rdfs:label "capability" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:name a owl:DatatypeProperty ;
+  rdfs:label "name" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:clientAddress a owl:DatatypeProperty ;
+  rdfs:label "clientAddress" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:agentRegistry a owl:DatatypeProperty ;
+  rdfs:label "agentRegistry" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:string .
+
+erc8004:agentIdValue a owl:DatatypeProperty ;
+  rdfs:label "agentIdValue" ;
+  rdfs:domain erc8004:FeedbackOffchainData ;
+  rdfs:range xsd:integer .
+
+erc8004:paymentProtocol a owl:DatatypeProperty ;
+  rdfs:label "paymentProtocol" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:string .
+
+erc8004:paymentFromAddress a owl:DatatypeProperty ;
+  rdfs:label "paymentFromAddress" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:string .
+
+erc8004:paymentToAddress a owl:DatatypeProperty ;
+  rdfs:label "paymentToAddress" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:string .
+
+erc8004:paymentChainId a owl:DatatypeProperty ;
+  rdfs:label "paymentChainId" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:integer .
+
+erc8004:paymentTxHash a owl:DatatypeProperty ;
+  rdfs:label "paymentTxHash" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:string .
+
+erc8004:paymentAmount a owl:DatatypeProperty ;
+  rdfs:label "paymentAmount" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:string .
+
+erc8004:paymentCurrency a owl:DatatypeProperty ;
+  rdfs:label "paymentCurrency" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:string .
+
+erc8004:paymentTokenAddress a owl:DatatypeProperty ;
+  rdfs:label "paymentTokenAddress" ;
+  rdfs:domain erc8004:PaymentProof ;
+  rdfs:range xsd:string .
+
+########
+# Individuals used by exporter
+########
+
+erc8004:ParseStatus_success a erc8004:ParseStatus ; rdfs:label "success" .
+erc8004:ParseStatus_warning a erc8004:ParseStatus ; rdfs:label "warning" .
+erc8004:ParseStatus_knowncustom a erc8004:ParseStatus ; rdfs:label "knowncustom" .
+erc8004:ParseStatus_unknown a erc8004:ParseStatus ; rdfs:label "unknown" .
+erc8004:ParseStatus_error a erc8004:ParseStatus ; rdfs:label "error" .
+
+erc8004:ProofFormat_groth16 a erc8004:ProofFormat ; rdfs:label "groth16" .
+erc8004:ProofFormat_plonk a erc8004:ProofFormat ; rdfs:label "plonk" .
+erc8004:ProofFormat_stark a erc8004:ProofFormat ; rdfs:label "stark" .
+erc8004:ProofFormat_halo2 a erc8004:ProofFormat ; rdfs:label "halo2" .
+
+erc8004:ValidationType_zkmlproof a erc8004:ValidationType ; rdfs:label "zkmlproof" .
+erc8004:ValidationType_teeattestation a erc8004:ValidationType ; rdfs:label "teeattestation" .
+erc8004:ValidationType_cryptoeconomic a erc8004:ValidationType ; rdfs:label "cryptoeconomic" .
+
+
