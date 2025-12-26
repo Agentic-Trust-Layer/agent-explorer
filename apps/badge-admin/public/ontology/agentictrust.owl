@@ -328,6 +328,12 @@ agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentCard ;
   rdfs:range agentictrust:Skill .
 
+agentictrust:declaresSkill a owl:ObjectProperty ;
+  rdfs:label "declaresSkill" ;
+  rdfs:comment "Links agent metadata to skills/capabilities it declares for discovery." ;
+  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:range agentictrust:Skill .
+
 agentictrust:hasExample a owl:ObjectProperty ;
   rdfs:label "hasExample" ;
   rdfs:domain agentictrust:Skill ;
@@ -354,6 +360,24 @@ agentictrust:supportsIntentType a owl:ObjectProperty ;
   rdfs:label "supportsIntentType" ;
   rdfs:domain agentictrust:Skill ;
   rdfs:range agentictrust:IntentType .
+
+agentictrust:enablesTaskType a owl:ObjectProperty ;
+  rdfs:label "enablesTaskType" ;
+  rdfs:comment "Links a skill/tool to the task types it can realize." ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:TaskType .
+
+agentictrust:implementedBySkill a owl:ObjectProperty ;
+  rdfs:label "implementedBySkill" ;
+  rdfs:comment "Inverse-style link from task type to skills that can implement it." ;
+  rdfs:domain agentictrust:TaskType ;
+  rdfs:range agentictrust:Skill .
+
+agentictrust:mapsToTaskType a owl:ObjectProperty ;
+  rdfs:label "mapsToTaskType" ;
+  rdfs:comment "Maps an intent type to a task type for routing/planning." ;
+  rdfs:domain agentictrust:IntentType ;
+  rdfs:range agentictrust:TaskType .
 
 agentictrust:hasIntent a owl:ObjectProperty ;
   rdfs:label "hasIntent" ;
@@ -409,6 +433,18 @@ agentictrust:invocationUsedMessage a owl:ObjectProperty ;
   rdfs:label "invocationUsedMessage" ;
   rdfs:domain agentictrust:SkillInvocation ;
   rdfs:range agentictrust:Message .
+
+agentictrust:hasInvocation a owl:ObjectProperty ;
+  rdfs:label "hasInvocation" ;
+  rdfs:comment "Links a task execution to one or more skill invocations used to realize it." ;
+  rdfs:domain agentictrust:TaskExecution ;
+  rdfs:range agentictrust:SkillInvocation .
+
+agentictrust:fulfilledByInvocation a owl:ObjectProperty ;
+  rdfs:label "fulfilledByInvocation" ;
+  rdfs:comment "Links an intent to the skill invocation(s) that fulfill it." ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:SkillInvocation .
 
 agentictrust:hadPlan a owl:ObjectProperty ;
   rdfs:label "hadPlan" ;
