@@ -1,6 +1,6 @@
 ## Agent discovery (how the ontology supports it)
 
-This page explains how `agentictrust.owl` + `ERC8004.owl` + `ERC8092.owl` support **agent discovery** in `agentictrust.io`.
+This page explains how `agentictrust-core.owl` + `ERC8004.owl` + `ERC8092.owl` support **agent discovery** in `agentictrust.io`.
 
 At a high level:
 
@@ -118,7 +118,7 @@ Practical discovery behavior:
 Skills can be discovered from both:
 
 - **Agent descriptors**: `agentictrust:AgentDescriptor` → `agentictrust:Skill` via `agentictrust:hasSkill`
-  - Protocol-specific forms include `agentictrust:A2AAgentCard` and `agentictrust:MCPManifest`.
+  - Protocol-specific descriptors include `agentictrust:A2AProtocolDescriptor` and `agentictrust:MCPProtocolDescriptor` (distinct from `AgentDescriptor`).
 - **Descriptor declarations**: `agentictrust:AgentDescriptor` → `agentictrust:Skill` via `agentictrust:declaresSkill`
 
 Skills include:

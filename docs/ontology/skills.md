@@ -1,6 +1,6 @@
-## Skills / tools / intents / tasks (`agentictrust.owl`)
+## Skills / tools / intents / tasks (`agentictrust-core.owl`)
 
-Source: `apps/badge-admin/public/ontology/agentictrust.owl`
+Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 
 ### Overview
 

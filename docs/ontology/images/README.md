@@ -16,7 +16,7 @@ python3 -m venv .venv-ontogram
 . .venv-ontogram/bin/activate
 pip install -U ontogram
 
-ontogram apps/badge-admin/public/ontology/agentictrust.owl --format turtle
+ontogram apps/badge-admin/public/ontology/agentictrust-core.owl --format turtle
 ontogram apps/badge-admin/public/ontology/ERC8004.owl --format turtle
 ontogram apps/badge-admin/public/ontology/ERC8092.owl --format turtle
 ```

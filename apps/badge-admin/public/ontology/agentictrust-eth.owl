@@ -1,0 +1,204 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#> .
+
+agentictrustEth: a owl:Ontology ;
+  dcterms:title "AgenticTrustEthOntology" ;
+  dcterms:description "Ethereum-specific extensions to AgenticTrust core ontology: Account (realization of Identifier) and ENS Name (realization of Name). Maps to ERC-8004 and ERC-8092." ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:versionInfo "0.1.0" ;
+  dcterms:license <https://opensource.org/license/mit/> .
+
+########
+# Ethereum Account (realization of Identifier)
+########
+
+agentictrustEth:Account a owl:Class ;
+  rdfs:label "Account" ;
+  rdfs:comment "Ethereum account (EOA or Smart Account) identified by chainId and address. Realizes agentictrust:Identifier for Ethereum-based agents. Modeled as prov:Entity, not prov:Agent." ;
+  rdfs:subClassOf agentictrust:Identifier ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# Ethereum Account Properties
+########
+
+agentictrustEth:accountChainId a owl:DatatypeProperty ;
+  rdfs:label "accountChainId" ;
+  rdfs:comment "EVM chain ID where the account exists (e.g., 1 for mainnet, 11155111 for Sepolia)." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range xsd:integer .
+
+agentictrustEth:accountAddress a owl:DatatypeProperty ;
+  rdfs:label "accountAddress" ;
+  rdfs:comment "Ethereum account address (0x-prefixed hex string, 42 characters)." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range xsd:string .
+
+agentictrustEth:accountType a owl:DatatypeProperty ;
+  rdfs:label "accountType" ;
+  rdfs:comment "Account type: 'EOA' (Externally Owned Account) or 'SmartAccount' (contract-based account)." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range xsd:string .
+
+agentictrustEth:AccountType a owl:Class ;
+  rdfs:label "AccountType" ;
+  rdfs:comment "Ethereum account type enumeration (EOA or SmartAccount)." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrustEth:AccountType_EOA a agentictrustEth:AccountType ; rdfs:label "EOA" .
+agentictrustEth:AccountType_SmartAccount a agentictrustEth:AccountType ; rdfs:label "SmartAccount" .
+
+########
+# Account DID and Signing Authority
+########
+
+agentictrustEth:hasDID a owl:ObjectProperty ;
+  rdfs:label "hasDID" ;
+  rdfs:comment "Links an Ethereum Account to its DID (e.g., did:ethr). Each Account has one DID." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range agentictrust:DID .
+
+agentictrustEth:hasEOAOwner a owl:ObjectProperty ;
+  rdfs:label "hasEOAOwner" ;
+  rdfs:comment "Links an Ethereum Account to its EOA owner account (for signatures). The EOA is the signing authority; all messages come from the EOA. The Account validates signatures from this EOA." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range agentictrustEth:Account .
+
+agentictrustEth:validatesSignature a owl:ObjectProperty ;
+  rdfs:label "validatesSignature" ;
+  rdfs:comment "Links an Ethereum Account to signature validation capabilities. The Account validates ECDSA signatures from its EOA owner." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range agentictrust:VerificationMethod .
+
+agentictrustEth:signingAuthority a owl:ObjectProperty ;
+  rdfs:label "signingAuthority" ;
+  rdfs:comment "Links an Ethereum Account to its signing authority (EOA Account). All messages come from this EOA signing authority." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range agentictrustEth:Account .
+
+########
+# ENS Name (realization of Name)
+########
+
+agentictrustEth:ENSName a owl:Class ;
+  rdfs:label "ENSName" ;
+  rdfs:comment "Ethereum Name Service (ENS) name (e.g., alice.eth). Realizes agentictrust:Name for Ethereum-based agents. Modeled as prov:Entity." ;
+  rdfs:subClassOf agentictrust:Name ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# ENS Name Properties
+########
+
+agentictrustEth:ensName a owl:DatatypeProperty ;
+  rdfs:label "ensName" ;
+  rdfs:comment "ENS name string (e.g., 'alice.eth')." ;
+  rdfs:domain agentictrustEth:ENSName ;
+  rdfs:range xsd:string .
+
+agentictrustEth:ensChainId a owl:DatatypeProperty ;
+  rdfs:label "ensChainId" ;
+  rdfs:comment "Chain ID where the ENS name is registered (typically mainnet, chain ID 1)." ;
+  rdfs:domain agentictrustEth:ENSName ;
+  rdfs:range xsd:integer .
+
+agentictrustEth:ensResolvesTo a owl:ObjectProperty ;
+  rdfs:label "ensResolvesTo" ;
+  rdfs:comment "Links an ENS name to the Account it resolves to." ;
+  rdfs:domain agentictrustEth:ENSName ;
+  rdfs:range agentictrustEth:Account .
+
+agentictrustEth:ensController a owl:ObjectProperty ;
+  rdfs:label "ensController" ;
+  rdfs:comment "Links an ENS name to the Account that controls it (can update/resolve the name)." ;
+  rdfs:domain agentictrustEth:ENSName ;
+  rdfs:range agentictrustEth:Account .
+
+########
+# Agent to Account/ENS Name relationships
+########
+
+agentictrustEth:hasAccount a owl:ObjectProperty ;
+  rdfs:label "hasAccount" ;
+  rdfs:comment "Links an agent to its Ethereum Account (realization of agentictrust:hasIdentifier). Each Agent has one associated Account." ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range agentictrustEth:Account .
+
+agentictrustEth:hasENSName a owl:ObjectProperty ;
+  rdfs:label "hasENSName" ;
+  rdfs:comment "Links an agent to its ENS Name (realization of agentictrust:hasName). An agent may have zero or more ENS names." ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range agentictrustEth:ENSName .
+
+########
+# Account Relationship (Account-to-Account relationships)
+########
+
+agentictrustEth:AccountRelationship a owl:Class ;
+  rdfs:label "AccountRelationship" ;
+  rdfs:comment "A persistent relationship between Accounts (e.g., Ethereum accounts). ERC-8092 relationships are a specialization of AccountRelationship. Can be used to derive Agent-to-Agent relationships via Agent → Identifier (Account) mapping." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrustEth:AccountRelationshipAssertion a owl:Class ;
+  rdfs:label "AccountRelationshipAssertion" ;
+  rdfs:comment "A constitutive TrustAssertion that establishes, modifies, or terminates an AccountRelationship between Accounts. ERC-8092 relationship assertions are a specialization of AccountRelationshipAssertion." ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+agentictrustEth:AccountRelationshipAccount a owl:Class ;
+  rdfs:label "AccountRelationshipAccount" ;
+  rdfs:comment "An account identifier participating in an AccountRelationship (e.g., ERC-8092 key-id/account-id). Links to the Account entity via accountRelationshipAccountForAccount." ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# Account Relationship Properties
+########
+
+agentictrustEth:assertsAccountRelationship a owl:ObjectProperty ;
+  rdfs:label "assertsAccountRelationship" ;
+  rdfs:comment "AccountRelationshipAssertion establishes/modifies/terminates the AccountRelationship instance it is about (constitutive link)." ;
+  rdfs:domain agentictrustEth:AccountRelationshipAssertion ;
+  rdfs:range agentictrustEth:AccountRelationship .
+
+agentictrustEth:hasAccountRelationshipAccount a owl:ObjectProperty ;
+  rdfs:label "hasAccountRelationshipAccount" ;
+  rdfs:comment "Links an AccountRelationship to participating AccountRelationshipAccount identifiers (e.g., accounts referenced by a relationship assertion)." ;
+  rdfs:domain agentictrustEth:AccountRelationship ;
+  rdfs:range agentictrustEth:AccountRelationshipAccount .
+
+agentictrustEth:ownsAccountRelationshipAccount a owl:ObjectProperty ;
+  rdfs:label "ownsAccountRelationshipAccount" ;
+  rdfs:comment "Links an Account to AccountRelationshipAccount identifiers it controls/uses in AccountRelationships." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range agentictrustEth:AccountRelationshipAccount .
+
+agentictrustEth:accountRelationshipAccountForAccount a owl:ObjectProperty ;
+  rdfs:label "accountRelationshipAccountForAccount" ;
+  rdfs:comment "Links an AccountRelationshipAccount identifier (e.g., ERC-8092 key-id/account-id) to the Account entity it represents." ;
+  rdfs:domain agentictrustEth:AccountRelationshipAccount ;
+  rdfs:range agentictrustEth:Account .
+
+agentictrustEth:hasAccountRelationshipAssertion a owl:ObjectProperty ;
+  rdfs:label "hasAccountRelationshipAssertion" ;
+  rdfs:comment "Links an Account to AccountRelationshipAssertions it participates in or produces (for Account-to-Account relationships)." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range agentictrustEth:AccountRelationshipAssertion .
+
+agentictrustEth:hasAccountRelationship a owl:ObjectProperty ;
+  rdfs:label "hasAccountRelationship" ;
+  rdfs:comment "Links an Account to AccountRelationships it participates in." ;
+  rdfs:domain agentictrustEth:Account ;
+  rdfs:range agentictrustEth:AccountRelationship .
+
+agentictrustEth:participatesInAccountRelationship a owl:ObjectProperty ;
+  rdfs:label "participatesInAccountRelationship" ;
+  rdfs:comment "Links an AccountRelationship to the Accounts that participate in it (inverse of hasAccountRelationship)." ;
+  rdfs:domain agentictrustEth:AccountRelationship ;
+  rdfs:range agentictrustEth:Account .
+

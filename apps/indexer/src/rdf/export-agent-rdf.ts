@@ -14,13 +14,15 @@ function rdfPrefixes(): string {
     '@prefix prov: <http://www.w3.org/ns/prov#> .',
     '@prefix p-plan: <http://purl.org/net/p-plan#> .',
     '@prefix dcterms: <http://purl.org/dc/terms/> .',
-    '@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .',
+    '@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .',
+    '@prefix agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#> .',
     '@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .',
     '@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .',
     '',
     // Provide an ontology header so Protégé auto-loads imports instead of requiring manual import.
     '<https://www.agentictrust.io/data/agents> a owl:Ontology ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust> ;',
+    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;',
+    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-eth> ;',
     '  owl:imports <https://www.agentictrust.io/ontology/ERC8004> ;',
     '  owl:imports <https://www.agentictrust.io/ontology/ERC8092> ;',
     '  .',
@@ -92,7 +94,7 @@ function agentIri(chainId: number, agentId: string): string {
   return `<https://www.agentictrust.io/id/agent/${chainId}/${iriEncodeSegment(agentId)}>`;
 }
 
-function agentCardIri(chainId: number, agentId: string): string {
+function agentDescriptorIri(chainId: number, agentId: string): string {
   return `<https://www.agentictrust.io/id/agent-descriptor/${chainId}/${iriEncodeSegment(agentId)}>`;
 }
 
@@ -110,6 +112,31 @@ function fetchActivityIri(chainId: number, agentId: string, readAt: number): str
 
 function accountIri(chainId: number, address: string): string {
   return `<https://www.agentictrust.io/id/account/${chainId}/${iriEncodeSegment(address.toLowerCase())}>`;
+}
+
+// Track emitted accounts to avoid duplicates
+const emittedAccounts = new Set<string>();
+
+function ensureAccountNode(
+  chunks: string[],
+  chainId: number,
+  address: string,
+  accountType: 'EOA' | 'SmartAccount' = 'SmartAccount',
+): void {
+  const addr = normalizeHex(address);
+  if (!addr) return;
+  const key = `${chainId}|${addr}`;
+  if (emittedAccounts.has(key)) return;
+  emittedAccounts.add(key);
+  const acctIri = accountIri(chainId, addr);
+  // Account is prov:Entity (identifier/interface), not prov:Agent (controller)
+  // Account is Ethereum-specific, uses agentictrustEth prefix
+  chunks.push(
+    `${acctIri} a agentictrustEth:Account, agentictrust:Identifier, prov:Entity ;\n` +
+      `  agentictrustEth:accountChainId ${chainId} ;\n` +
+      `  agentictrustEth:accountAddress "${escapeTurtleString(addr.toLowerCase())}" ;\n` +
+      `  agentictrustEth:accountType "${accountType}" .\n\n`,
+  );
 }
 
 function feedbackIri(chainId: number, agentId: string, client: string, feedbackIndex: number): string {
@@ -209,7 +236,7 @@ function checkIri(tag: string): string {
 }
 
 function intentTypeIri(value: string): string {
-  return `https://www.agentictrust.io/ontology/agentictrust/intentType/${iriEncodeSegment(value)}`;
+  return `https://www.agentictrust.io/ontology/agentictrust-core/intentType/${iriEncodeSegment(value)}`;
 }
 
 async function writeFileAtomically(targetPath: string, contents: string): Promise<void> {
@@ -239,16 +266,22 @@ async function getCheckpointValue(db: AnyDb, key: string): Promise<string | null
   }
 }
 
-function renderAgentSection(row: any, agentCard: any, agentCardJsonText: string): string {
+function renderAgentSection(
+  row: any,
+  agentCard: any,
+  agentCardJsonText: string,
+  accountChunks: string[],
+): string {
   const chainId = Number(row?.chainId ?? 0) || 0;
   const agentId = String(row?.agentId ?? '');
   const readAt = Number(row?.agentCardReadAt ?? 0) || Math.floor(Date.now() / 1000);
 
   const aIri = agentIri(chainId, agentId);
-  const cIri = agentCardIri(chainId, agentId);
+  const cIri = agentDescriptorIri(chainId, agentId);
   const fetchIri = fetchActivityIri(chainId, agentId, readAt);
 
   const lines: string[] = [];
+  const afterAgent: string[] = [];
 
   // Agent
   lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
@@ -258,7 +291,44 @@ function renderAgentSection(row: any, agentCard: any, agentCardJsonText: string)
   if (row?.didIdentity) lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
   if (row?.didAccount) lines.push(`  agentictrust:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
   if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
-  if (row?.agentAccount) lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
+  if (row?.agentAccount) {
+    lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
+    // Link to Account instance (agentAccount is the primary account, typically SmartAccount)
+    const acctIri = accountIri(chainId, String(row.agentAccount));
+    // Use agentictrustEth:hasAccount for Ethereum accounts
+    lines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    // Also link via core hasIdentifier for protocol-agnostic access
+    lines.push(`  agentictrust:hasIdentifier ${acctIri} ;`);
+    // Emit Account instance with DID and EOA owner links (Ethereum-specific)
+    const accountLines: string[] = [];
+    accountLines.push(`${acctIri} a agentictrustEth:Account, agentictrust:Identifier, prov:Entity ;`);
+    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
+    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
+    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
+    // Link Account to DID if present
+    if (row?.didAccount) {
+      const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
+      accountLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
+      // Emit DID instance
+      accountChunks.push(
+        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+          `  agentictrust:identifies ${acctIri} .\n\n`,
+      );
+    }
+    // Link Account to EOA owner if present
+    if (row?.eoaOwner) {
+      const eoaAddr = normalizeHex(String(row.eoaOwner));
+      if (eoaAddr) {
+        const eoaIri = accountIri(chainId, eoaAddr);
+        accountLines.push(`  agentictrustEth:hasEOAOwner ${eoaIri} ;`);
+        accountLines.push(`  agentictrustEth:signingAuthority ${eoaIri} ;`);
+        // Emit EOA Account instance
+        ensureAccountNode(accountChunks, chainId, eoaAddr, 'EOA');
+      }
+    }
+    accountLines.push(`  .\n`);
+    accountChunks.push(accountLines.join('\n'));
+  }
   if (row?.agentOwner) lines.push(`  agentictrust:agentOwner "${escapeTurtleString(String(row.agentOwner))}" ;`);
   if (row?.eoaOwner) lines.push(`  agentictrust:eoaOwner "${escapeTurtleString(String(row.eoaOwner))}" ;`);
   if (row?.tokenUri) {
@@ -280,23 +350,37 @@ function renderAgentSection(row: any, agentCard: any, agentCardJsonText: string)
   if (row?.supportedTrust) lines.push(`  agentictrust:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
   if (row?.createdAtTime) lines.push(`  agentictrust:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
   if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
-  lines.push(`  agentictrust:agentCardReadAt ${readAt} ;`);
+  lines.push(`  agentictrust:agentDescriptorReadAt ${readAt} ;`);
   lines.push(`  agentictrust:hasAgentDescriptor ${cIri} ;`);
   if (row?.rawJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
   lines.push(`  .\n`);
 
-  // Agent descriptor (A2A agent card)
-  lines.push(`${cIri} a agentictrust:AgentDescriptor, agentictrust:A2AAgentCard, prov:Entity ;`);
+  // Agent descriptor (agent-level, protocol-agnostic)
+  lines.push(`${cIri} a agentictrust:AgentDescriptor, prov:Entity ;`);
   if (typeof agentCard?.name === 'string' && agentCard.name.trim()) lines.push(`  rdfs:label "${escapeTurtleString(agentCard.name.trim())}" ;`);
   if (typeof agentCard?.description === 'string' && agentCard.description.trim())
     lines.push(`  dcterms:description "${escapeTurtleString(agentCard.description.trim())}" ;`);
-  if (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim())
-    lines.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
-  if (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim())
-    lines.push(`  agentictrust:preferredTransport "${escapeTurtleString(agentCard.preferredTransport.trim())}" ;`);
-  if (typeof agentCard?.url === 'string' && agentCard.url.trim()) {
-    const tok = turtleIriOrLiteral(agentCard.url.trim());
-    if (tok) lines.push(`  agentictrust:serviceUrl ${tok} ;`);
+  
+  // A2A Protocol Descriptor (protocol-specific properties)
+  // Note: AgentDescriptor and ProtocolDescriptor are distinct and not related per ontology design
+  // Protocol-specific properties go on A2AProtocolDescriptor
+  const hasProtocolProps = 
+    (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim()) ||
+    (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim()) ||
+    (typeof agentCard?.url === 'string' && agentCard.url.trim());
+  
+  if (hasProtocolProps) {
+    const protocolIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${chainId}/${iriEncodeSegment(agentId)}>`;
+    afterAgent.push(`${protocolIri} a agentictrust:A2AProtocolDescriptor, agentictrust:ProtocolDescriptor, prov:Entity ;`);
+    if (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim())
+      afterAgent.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
+    if (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim())
+      afterAgent.push(`  agentictrust:preferredTransport "${escapeTurtleString(agentCard.preferredTransport.trim())}" ;`);
+    if (typeof agentCard?.url === 'string' && agentCard.url.trim()) {
+      const tok = turtleIriOrLiteral(agentCard.url.trim());
+      if (tok) afterAgent.push(`  agentictrust:serviceUrl ${tok} ;`);
+    }
+    afterAgent.push(`  .\n`);
   }
   lines.push(`  agentictrust:json ${turtleJsonLiteral(agentCardJsonText)} ;`);
 
@@ -391,6 +475,9 @@ function renderAgentSection(row: any, agentCard: any, agentCardJsonText: string)
     if (afterSkill.length) lines.push(afterSkill.join('\n'));
   }
 
+  // Append protocol descriptor after agent descriptor
+  if (afterAgent.length) lines.push(afterAgent.join('\n'));
+
   // Tag individuals (duplicates are OK in Turtle, but we de-dupe within this agent)
   for (const t of Array.from(new Set(allTags))) {
     const tagIri = `<https://www.agentictrust.io/id/tag/${iriEncodeSegment(t)}>`;
@@ -401,7 +488,7 @@ function renderAgentSection(row: any, agentCard: any, agentCardJsonText: string)
   return lines.join('\n');
 }
 
-function renderAgentNodeWithoutCard(row: any): string {
+function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   const chainId = Number(row?.chainId ?? 0) || 0;
   const agentId = String(row?.agentId ?? '');
   const aIri = agentIri(chainId, agentId);
@@ -414,7 +501,44 @@ function renderAgentNodeWithoutCard(row: any): string {
   if (row?.didIdentity) lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
   if (row?.didAccount) lines.push(`  agentictrust:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
   if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
-  if (row?.agentAccount) lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
+  if (row?.agentAccount) {
+    lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
+    // Link to Account instance (agentAccount is the primary account, typically SmartAccount)
+    const acctIri = accountIri(chainId, String(row.agentAccount));
+    // Use agentictrustEth:hasAccount for Ethereum accounts
+    lines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    // Also link via core hasIdentifier for protocol-agnostic access
+    lines.push(`  agentictrust:hasIdentifier ${acctIri} ;`);
+    // Emit Account instance with DID and EOA owner links (Ethereum-specific)
+    const accountLines: string[] = [];
+    accountLines.push(`${acctIri} a agentictrustEth:Account, agentictrust:Identifier, prov:Entity ;`);
+    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
+    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
+    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
+    // Link Account to DID if present
+    if (row?.didAccount) {
+      const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
+      accountLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
+      // Emit DID instance
+      accountChunks.push(
+        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+          `  agentictrust:identifies ${acctIri} .\n\n`,
+      );
+    }
+    // Link Account to EOA owner if present
+    if (row?.eoaOwner) {
+      const eoaAddr = normalizeHex(String(row.eoaOwner));
+      if (eoaAddr) {
+        const eoaIri = accountIri(chainId, eoaAddr);
+        accountLines.push(`  agentictrustEth:hasEOAOwner ${eoaIri} ;`);
+        accountLines.push(`  agentictrustEth:signingAuthority ${eoaIri} ;`);
+        // Emit EOA Account instance
+        ensureAccountNode(accountChunks, chainId, eoaAddr, 'EOA');
+      }
+    }
+    accountLines.push(`  .\n`);
+    accountChunks.push(accountLines.join('\n'));
+  }
   if (row?.agentOwner) lines.push(`  agentictrust:agentOwner "${escapeTurtleString(String(row.agentOwner))}" ;`);
   if (row?.eoaOwner) lines.push(`  agentictrust:eoaOwner "${escapeTurtleString(String(row.eoaOwner))}" ;`);
   if (row?.tokenUri) {
@@ -559,14 +683,14 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
       }
       if (agentCard && typeof agentCard === 'object') {
         emittedAgents.add(key);
-        chunks.push(renderAgentSection(row, agentCard, agentCardJsonText));
+        chunks.push(renderAgentSection(row, agentCard, agentCardJsonText, chunks));
         included += 1;
         continue;
       }
     }
 
     emittedAgents.add(key);
-    chunks.push(renderAgentNodeWithoutCard(row));
+    chunks.push(renderAgentNodeWithoutCard(row, chunks));
   }
 
   // ---- Trust registries (feedback/validation/associations) ----
@@ -593,7 +717,10 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const lines: string[] = [];
     lines.push(`${fi} a erc8004:Feedback, agentictrust:ReputationAssertion, prov:Entity ;`);
     lines.push(`  erc8004:feedbackIndex ${feedbackIndex} ;`);
-    if (client) lines.push(`  erc8004:feedbackClient ${accountIri(chainId, client)} ;`);
+    if (client) {
+      ensureAccountNode(chunks, chainId, client, 'EOA'); // Feedback client is typically EOA
+      lines.push(`  erc8004:feedbackClient ${accountIri(chainId, client)} ;`);
+    }
     if (f?.score != null) lines.push(`  erc8004:feedbackScore ${Number(f.score) || 0} ;`);
     if (f?.ratingPct != null) lines.push(`  erc8004:feedbackRatingPct ${Number(f.ratingPct) || 0} ;`);
     if (f?.isRevoked != null) lines.push(`  erc8004:isRevoked ${Number(f.isRevoked) ? 'true' : 'false'} ;`);
@@ -732,6 +859,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);
     if (validator) {
+      ensureAccountNode(chunks, chainId, validator, 'SmartAccount'); // Validator is typically agentAccount
       lines.push(`  erc8004:validatorAddress "${escapeTurtleString(validator)}" ;`);
       lines.push(`  erc8004:validationValidator ${accountIri(chainId, validator)} ;`);
       const mapped = agentByAccountKey.get(`${chainId}|${validator}`);
@@ -1024,17 +1152,24 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     lines.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(associationId)}" ;`);
     lines.push(`  agentictrust:assertsRelationship ${relIri} ;`);
     lines.push(`  agentictrust:aboutSubject ${relIri} ;`);
-    if (initiator)
+    if (initiator) {
+      // initiator/approver reference agentAccount, not eoaOwner
+      ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
       lines.push(`  erc8092:initiator ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
-    if (approver) lines.push(`  erc8092:approver ${approverAgent ?? accountIri(chainId, approver)} ;`);
+    }
+    if (approver) {
+      ensureAccountNode(chunks, chainId, approver, 'SmartAccount');
+      lines.push(`  erc8092:approver ${approverAgent ?? accountIri(chainId, approver)} ;`);
+    }
 
     if (assoc?.initiatorAccountId) {
       const id = String(assoc.initiatorAccountId);
       lines.push(`  erc8092:initiatorAccount ${relationshipAccountIri(chainId, id)} ;`);
       // Link RelationshipAccount -> controlling account/address node (bridge to agent account/owner)
       if (initiator) {
+        ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
         chunks.push(
-          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForAccount ${accountIri(chainId, initiator)} .\n`,
+          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForIdentifier ${accountIri(chainId, initiator)} .\n`,
         );
       }
       // Relationship -> RelationshipAccount (core-level traversal)
@@ -1051,8 +1186,9 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
       lines.push(`  erc8092:approverAccount ${relationshipAccountIri(chainId, id)} ;`);
       // Link RelationshipAccount -> controlling account/address node (bridge to agent account/owner)
       if (approver) {
+        ensureAccountNode(chunks, chainId, approver, 'SmartAccount');
         chunks.push(
-          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForAccount ${accountIri(chainId, approver)} .\n`,
+          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForIdentifier ${accountIri(chainId, approver)} .\n`,
         );
       }
       // Relationship -> RelationshipAccount (core-level traversal)
@@ -1148,7 +1284,7 @@ export async function exportAgentRdfForAgentCardUpdate(db: AnyDb, chainId: numbe
   await setCheckpointValue(db, 'agentRdfExportCursor', `${chainId}|${agentId}|${Math.floor(Date.now() / 1000)}`);
 }
 
-export async function backfillAgentRdfFromStoredAgentCards(
+export async function backfillAgentRdfFromStoredAgentDescriptors(
   db: AnyDb,
   opts?: { reset?: boolean; chunkSize?: number; max?: number },
 ): Promise<void> {

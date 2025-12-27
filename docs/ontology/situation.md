@@ -1,6 +1,6 @@
 ## Situation layer (DnS) — how trust + work happens
 
-Ontology: `agentictrust.owl`
+Ontology: `agentictrust-core.owl`
 
 “Situation” is where things **happen**: a time-scoped event/execution that realizes a description/plan and produces durable outputs (assertions, artifacts).
 

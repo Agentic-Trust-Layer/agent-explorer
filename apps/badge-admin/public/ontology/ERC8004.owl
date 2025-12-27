@@ -4,13 +4,14 @@
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
 @prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
 
 erc8004: a owl:Ontology ;
   dcterms:title "ERC8004Ontology" ;
-  dcterms:description "ERC-8004 aligned terms for agent validation and feedback registries, layered on the AgenticTrust trust model." ;
-  owl:imports <https://www.agentictrust.io/ontology/agentictrust> ;
+  dcterms:description "ERC-8004 aligned terms for agent validation and feedback registries, layered on the AgenticTrust core trust model." ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust-eth> ;
   owl:imports <http://www.w3.org/ns/prov-o#> ;
   owl:versionInfo "0.1.0" ;
   dcterms:license <https://opensource.org/license/mit/> .

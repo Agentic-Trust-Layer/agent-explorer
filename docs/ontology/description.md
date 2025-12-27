@@ -1,6 +1,6 @@
 ## Description layer (DnS) — TrustDescription + metadata
 
-Ontology: `agentictrust.owl`
+Ontology: `agentictrust-core.owl`
 
 ### Class hierarchy (key)
 
@@ -17,8 +17,10 @@ class AgentEndpoint["agentictrust:AgentEndpoint"]
 class EndpointType["agentictrust:EndpointType"]
 class OperatorIdentifier["agentictrust:OperatorIdentifier"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class A2AAgentCard["agentictrust:A2AAgentCard"]
-class MCPManifest["agentictrust:MCPManifest"]
+class Protocol["agentictrust:Protocol"]
+class ProtocolDescriptor["agentictrust:ProtocolDescriptor"]
+class A2AProtocolDescriptor["agentictrust:A2AProtocolDescriptor"]
+class MCPProtocolDescriptor["agentictrust:MCPProtocolDescriptor"]
 class Skill["agentictrust:Skill"]
 
 TrustDescription --|> provPlan
@@ -28,10 +30,12 @@ AgentEndpoint --|> provEntity
 EndpointType --|> provEntity
 OperatorIdentifier --|> provEntity
 AgentDescriptor --|> provEntity
+Protocol --|> provEntity
+ProtocolDescriptor --|> provEntity
 Skill --|> provEntity
 
-A2AAgentCard --|> AgentDescriptor
-MCPManifest --|> AgentDescriptor
+A2AProtocolDescriptor --|> ProtocolDescriptor
+MCPProtocolDescriptor --|> ProtocolDescriptor
 ```
 
 ### Relationship diagram (properties)

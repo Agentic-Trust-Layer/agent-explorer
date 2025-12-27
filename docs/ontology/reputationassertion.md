@@ -87,7 +87,7 @@ Feedback --> IntentType : feedbackIntentType (erc8004)
 
 **Query all reputation assertions for an agent:**
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 
 SELECT ?agent ?agentId ?reputationAssertion ?feedbackScore
@@ -109,7 +109,7 @@ WHERE {
 **Query feedback with context (client, skill, intent):**
 ```sparql
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?agent ?feedback ?feedbackScore ?client ?skill ?intentType
 WHERE {

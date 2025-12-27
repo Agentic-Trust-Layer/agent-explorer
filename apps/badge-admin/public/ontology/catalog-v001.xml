@@ -1,14 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog" prefer="public">
   <!-- Map ontology IRIs to local files so Protégé can resolve owl:imports offline -->
-  <uri name="https://www.agentictrust.io/ontology/agentictrust" uri="agentictrust.owl"/>
-  <uri name="https://www.agentictrust.io/ontology/agentictrust#" uri="agentictrust.owl"/>
+  <uri name="https://www.agentictrust.io/ontology/agentictrust-core" uri="agentictrust-core.owl"/>
+  <uri name="https://www.agentictrust.io/ontology/agentictrust-core#" uri="agentictrust-core.owl"/>
 
   <uri name="https://www.agentictrust.io/ontology/ERC8004" uri="ERC8004.owl"/>
   <uri name="https://www.agentictrust.io/ontology/ERC8004#" uri="ERC8004.owl"/>
 
   <uri name="https://www.agentictrust.io/ontology/ERC8092" uri="ERC8092.owl"/>
   <uri name="https://www.agentictrust.io/ontology/ERC8092#" uri="ERC8092.owl"/>
+
+  <uri name="https://www.agentictrust.io/ontology/agentictrust-eth" uri="agentictrust-eth.owl"/>
+  <uri name="https://www.agentictrust.io/ontology/agentictrust-eth#" uri="agentictrust-eth.owl"/>
 </catalog>
 
 

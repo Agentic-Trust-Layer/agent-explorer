@@ -71,7 +71,7 @@ AgenticTrust adopts these same goals, but expressed as an OWL/RDF ontology so th
 - **OASF Record**
   - **Meaning in OASF**: the primary structured data object used for content representation and metadata
   - **AgenticTrust mapping**:
-    - `agentictrust:AgentDescriptor` (protocol capability “record”; e.g., `agentictrust:A2AAgentCard`, `agentictrust:MCPManifest`)
+    - `agentictrust:AgentDescriptor` (agent-level descriptor) and `agentictrust:ProtocolDescriptor` (protocol-level descriptor; e.g., `agentictrust:A2AProtocolDescriptor`, `agentictrust:MCPProtocolDescriptor`)
 
 - **OASF Skill**
   - **Meaning in OASF**: taxonomy-anchored skill annotation for discovery

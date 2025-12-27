@@ -263,8 +263,8 @@ async function maybeBackfillRdfFromStoredAgentCards(dbInstance: any) {
     const chunkSize = chunkSizeRaw && String(chunkSizeRaw).trim() ? Number(chunkSizeRaw) : undefined;
     const max = maxRaw && String(maxRaw).trim() ? Number(maxRaw) : undefined;
     const mod = await import('./rdf/export-agent-rdf');
-    if (typeof (mod as any).backfillAgentRdfFromStoredAgentCards === 'function') {
-      await (mod as any).backfillAgentRdfFromStoredAgentCards(dbInstance, { reset, chunkSize, max });
+    if (typeof (mod as any).backfillAgentRdfFromStoredAgentDescriptors === 'function') {
+      await (mod as any).backfillAgentRdfFromStoredAgentDescriptors(dbInstance, { reset, chunkSize, max });
     }
   } catch (e) {
     console.warn('[rdf-backfill] failed', e);

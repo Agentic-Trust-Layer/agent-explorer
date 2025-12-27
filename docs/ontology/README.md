@@ -2,7 +2,7 @@
 
 This folder documents the ontologies used by Agent Explorer:
 
-- `agentictrust.owl`: core trust model (DnS + PROV-O + P-PLAN) + common agent/intent/task/skill vocabulary
+- `agentictrust-core.owl`: core trust model (DnS + PROV-O + P-PLAN) + common agent/intent/task/skill vocabulary
 - `ERC8004.owl`: ERC-8004 registration + validation + feedback layers
 - `ERC8092.owl`: ERC-8092 relationship assertions layer
 
@@ -16,7 +16,7 @@ Generated ontology-wide diagrams live in [`./images/`](./images/README.md):
 
 ## Documentation structure (smaller sections)
 
-AgenticTrust core (`agentictrust.owl`)
+AgenticTrust core (`agentictrust-core.owl`)
 
 - [`agentictrust-overview.md`](./agentictrust-overview.md): navigation + full diagram
 - [`description.md`](./description.md): TrustDescription + metadata (DnS “Description”)
@@ -34,6 +34,7 @@ ERC ontologies
 - [`relationshipassertion.md`](./relationshipassertion.md): focused pattern: relationship assertion → account → controlling agent
 - [`verificationassertion.md`](./verificationassertion.md): VerificationAssertion class hierarchy and property relationships
 - [`reputationassertion.md`](./reputationassertion.md): ReputationAssertion class hierarchy and property relationships
+- [`account-web2-mapping.md`](./account-web2-mapping.md): How Account maps to Web2 Agent Registries and Trust Models
 
 ## Ontology source files
 

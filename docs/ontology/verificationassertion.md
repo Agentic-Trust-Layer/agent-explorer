@@ -92,7 +92,7 @@ ValidationRequest --> ValidationResponse : generatedAssertion (agentictrust)
 
 **Query all verification assertions for an agent:**
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 
 SELECT ?agent ?agentId ?verificationAssertion ?validationValue

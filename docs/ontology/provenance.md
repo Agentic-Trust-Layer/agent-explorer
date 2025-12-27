@@ -1,6 +1,6 @@
 ## Provenance (PROV-O grounding)
 
-Ontology: `agentictrust.owl`
+Ontology: `agentictrust-core.owl`
 
 ### Class hierarchy (PROV grounding)
 

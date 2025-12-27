@@ -177,8 +177,8 @@ export async function upsertAgentCardForAgent(
     if (isNode) {
       // Extensionless import works in both tsx (ts) and built (js) environments.
       const mod = await import('../rdf/export-agent-rdf');
-      if (typeof (mod as any).exportAgentRdfForAgentCardUpdate === 'function') {
-        await (mod as any).exportAgentRdfForAgentCardUpdate(db, chainId, agentId);
+      if (typeof (mod as any).exportAgentRdfForAgentDescriptorUpdate === 'function') {
+        await (mod as any).exportAgentRdfForAgentDescriptorUpdate(db, chainId, agentId);
       }
     }
   } catch (err) {

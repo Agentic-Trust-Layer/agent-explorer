@@ -1,6 +1,6 @@
 ## Skills ↔ intents ↔ tasks (routing + execution)
 
-Ontology: `agentictrust.owl` (core)
+Ontology: `agentictrust-core.owl` (core)
 
 ### Class hierarchy (key)
 

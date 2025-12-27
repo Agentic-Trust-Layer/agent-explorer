@@ -1,6 +1,6 @@
-## AgenticTrust ontology overview (`agentictrust.owl`)
+## AgenticTrust ontology overview (`agentictrust-core.owl`)
 
-Source: `apps/badge-admin/public/ontology/agentictrust.owl`
+Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 
 AgenticTrust ontology uses **design patterns** inspired by well-known foundations:
 
