@@ -2,6 +2,44 @@
 
 Ontology: `agentictrust.owl`
 
+### Class hierarchy (PROV grounding)
+
+```mermaid
+classDiagram
+direction LR
+
+class provPlan["prov:Plan"]
+class provActivity["prov:Activity"]
+class provEntity["prov:Entity"]
+
+class TrustDescription["agentictrust:TrustDescription"]
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+
+TrustDescription --|> provPlan
+TrustSituation --|> provActivity
+TrustAssertion --|> provEntity
+```
+
+### Relationship diagram (alias properties)
+
+```mermaid
+classDiagram
+direction LR
+
+class provPlan["prov:Plan"]
+class provActivity["prov:Activity"]
+class provEntity["prov:Entity"]
+
+class TrustDescription["agentictrust:TrustDescription"]
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+
+TrustSituation --> TrustDescription : realizesDescription (⊑ prov:hadPlan)
+TrustSituation --> TrustAssertion : generatedAssertion (⊑ prov:generated)
+TrustAssertion --> provEntity : aboutSubject
+```
+
 ### Diagram
 
 ![Core trust model](./images/sections/core-trust.png)

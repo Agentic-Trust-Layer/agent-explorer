@@ -4,6 +4,56 @@ This page maps the AgenticTrust ontology to the **Open Agentic Schema Framework 
 
 Reference: the OASF repository ([`agntcy/oasf`](https://github.com/agntcy/oasf)) describes OASF as a standardized schema system for agent capabilities/metadata and highlights records annotated with **skills** and **domains**, plus extensibility via **modules**.
 
+### Class hierarchy (AgenticTrust side)
+
+```mermaid
+classDiagram
+direction LR
+
+class provEntity["prov:Entity"]
+
+class AgentMetadata["agentictrust:AgentMetadata"]
+class AgentDescriptor["agentictrust:AgentDescriptor"]
+class Skill["agentictrust:Skill"]
+class JsonSchema["agentictrust:JsonSchema"]
+class Tag["agentictrust:Tag"]
+class IntentType["agentictrust:IntentType"]
+class TaskType["agentictrust:TaskType"]
+
+AgentMetadata --|> provEntity
+AgentDescriptor --|> provEntity
+Skill --|> provEntity
+JsonSchema --|> provEntity
+Tag --|> provEntity
+IntentType --|> provEntity
+TaskType --|> provEntity
+```
+
+### Relationship diagram (skills “record” shape for discovery)
+
+```mermaid
+classDiagram
+direction LR
+
+class AgentMetadata["agentictrust:AgentMetadata"]
+class AgentDescriptor["agentictrust:AgentDescriptor"]
+class Skill["agentictrust:Skill"]
+class Tag["agentictrust:Tag"]
+class IntentType["agentictrust:IntentType"]
+class TaskType["agentictrust:TaskType"]
+class JsonSchema["agentictrust:JsonSchema"]
+
+AgentMetadata --> Skill : declaresSkill
+AgentDescriptor --> Skill : hasSkill
+
+Skill --> Tag : hasTag
+Skill --> IntentType : supportsIntentType
+IntentType --> TaskType : mapsToTaskType
+Skill --> TaskType : enablesTaskType
+
+Skill --> JsonSchema : hasInputSchema / hasOutputSchema
+```
+
 ### Why this matters (aligned goals)
 
 OASF’s published goals emphasize:

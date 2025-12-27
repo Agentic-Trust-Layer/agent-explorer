@@ -2,6 +2,68 @@
 
 Ontology: `agentictrust.owl`
 
+### Class hierarchy (key)
+
+```mermaid
+classDiagram
+direction LR
+
+class provPlan["prov:Plan"]
+class pplanPlan["p-plan:Plan"]
+class provEntity["prov:Entity"]
+
+class TrustDescription["agentictrust:TrustDescription"]
+class AgentMetadata["agentictrust:AgentMetadata"]
+class AgentEndpoint["agentictrust:AgentEndpoint"]
+class EndpointType["agentictrust:EndpointType"]
+class OperatorIdentifier["agentictrust:OperatorIdentifier"]
+class AgentDescriptor["agentictrust:AgentDescriptor"]
+class A2AAgentCard["agentictrust:A2AAgentCard"]
+class MCPManifest["agentictrust:MCPManifest"]
+class Skill["agentictrust:Skill"]
+
+TrustDescription --|> provPlan
+TrustDescription --|> pplanPlan
+
+AgentMetadata --|> provEntity
+AgentEndpoint --|> provEntity
+EndpointType --|> provEntity
+OperatorIdentifier --|> provEntity
+AgentDescriptor --|> provEntity
+Skill --|> provEntity
+
+A2AAgentCard --|> AgentDescriptor
+MCPManifest --|> AgentDescriptor
+```
+
+### Relationship diagram (properties)
+
+```mermaid
+classDiagram
+direction LR
+
+class AIAgent["agentictrust:AIAgent"]
+class AgentMetadata["agentictrust:AgentMetadata"]
+class AgentEndpoint["agentictrust:AgentEndpoint"]
+class EndpointType["agentictrust:EndpointType"]
+class OperatorIdentifier["agentictrust:OperatorIdentifier"]
+class AgentDescriptor["agentictrust:AgentDescriptor"]
+class Skill["agentictrust:Skill"]
+class Endpoint["agentictrust:Endpoint"]
+
+AIAgent --> AgentMetadata : hasMetadata
+AIAgent --> AgentDescriptor : hasAgentDescriptor
+AgentDescriptor --> AgentMetadata : assembledFromMetadata
+
+AgentMetadata --> AgentEndpoint : hasEndpointEntry
+AgentEndpoint --> EndpointType : endpointType
+AgentMetadata --> OperatorIdentifier : hasOperatorIdentifier
+
+AgentMetadata --> Skill : declaresSkill
+AgentDescriptor --> Skill : hasSkill
+AgentDescriptor --> Endpoint : hasEndpoint
+```
+
 ### Diagrams (how Description supports other areas)
 
 #### Description → Situation

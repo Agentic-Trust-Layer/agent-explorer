@@ -9,6 +9,72 @@ At a high level:
 - Agents advertise **how to connect** (endpoints, protocols) and (optionally) how to **authenticate / transact**
 - Trust signals (validation, feedback, relationships) provide **confidence**
 
+### Class hierarchy (key)
+
+```mermaid
+classDiagram
+direction LR
+
+class provEntity["prov:Entity"]
+
+class Message["agentictrust:Message"]
+class Intent["agentictrust:Intent"]
+class IntentType["agentictrust:IntentType"]
+class IntentSubject["agentictrust:IntentSubject"]
+class IntentCheck["agentictrust:IntentCheck"]
+
+class AgentDescriptor["agentictrust:AgentDescriptor"]
+class AgentMetadata["agentictrust:AgentMetadata"]
+class Endpoint["agentictrust:Endpoint"]
+class Skill["agentictrust:Skill"]
+class JsonSchema["agentictrust:JsonSchema"]
+class Tag["agentictrust:Tag"]
+
+Message --|> provEntity
+Intent --|> provEntity
+IntentType --|> provEntity
+IntentSubject --|> provEntity
+IntentCheck --|> provEntity
+AgentDescriptor --|> provEntity
+AgentMetadata --|> provEntity
+Endpoint --|> provEntity
+Skill --|> provEntity
+JsonSchema --|> provEntity
+Tag --|> provEntity
+```
+
+### Relationship diagram (discovery flow)
+
+```mermaid
+classDiagram
+direction LR
+
+class Message["agentictrust:Message"]
+class Intent["agentictrust:Intent"]
+class IntentType["agentictrust:IntentType"]
+class IntentSubject["agentictrust:IntentSubject"]
+class IntentCheck["agentictrust:IntentCheck"]
+
+class AgentDescriptor["agentictrust:AgentDescriptor"]
+class AgentMetadata["agentictrust:AgentMetadata"]
+class Endpoint["agentictrust:Endpoint"]
+class Skill["agentictrust:Skill"]
+class JsonSchema["agentictrust:JsonSchema"]
+class Tag["agentictrust:Tag"]
+
+Message --> Intent : hasIntent
+Intent --> IntentSubject : hasSubject
+Intent --> IntentCheck : hasCheck
+
+AgentDescriptor --> Endpoint : hasEndpoint
+AgentDescriptor --> Skill : hasSkill
+AgentMetadata --> Skill : declaresSkill
+
+Skill --> IntentType : supportsIntentType
+Skill --> Tag : hasTag
+Skill --> JsonSchema : hasInputSchema / hasOutputSchema
+```
+
 ### Diagrams
 
 #### Intent-driven matching (intent → skill → task)

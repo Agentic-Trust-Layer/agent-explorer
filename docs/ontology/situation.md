@@ -4,6 +4,58 @@ Ontology: `agentictrust.owl`
 
 “Situation” is where things **happen**: a time-scoped event/execution that realizes a description/plan and produces durable outputs (assertions, artifacts).
 
+### Class hierarchy (key)
+
+```mermaid
+classDiagram
+direction LR
+
+class provActivity["prov:Activity"]
+class provEntity["prov:Entity"]
+
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+class TrustArtifact["agentictrust:TrustArtifact"]
+
+class TaskExecution["agentictrust:TaskExecution"]
+class SkillInvocation["agentictrust:SkillInvocation"]
+class MessageSend["agentictrust:MessageSend"]
+class MessageReceive["agentictrust:MessageReceive"]
+
+TrustSituation --|> provActivity
+TaskExecution --|> provActivity
+SkillInvocation --|> provActivity
+MessageSend --|> provActivity
+MessageReceive --|> provActivity
+
+TrustAssertion --|> provEntity
+TrustArtifact --|> provEntity
+```
+
+### Relationship diagram (properties)
+
+```mermaid
+classDiagram
+direction LR
+
+class TrustDescription["agentictrust:TrustDescription"]
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+class TaskExecution["agentictrust:TaskExecution"]
+class SkillInvocation["agentictrust:SkillInvocation"]
+class Skill["agentictrust:Skill"]
+class Message["agentictrust:Message"]
+class Artifact["agentictrust:Artifact"]
+
+TrustSituation --> TrustDescription : realizesDescription
+TrustSituation --> TrustAssertion : generatedAssertion
+
+TaskExecution --> SkillInvocation : hasInvocation
+SkillInvocation --> Skill : invokesSkill
+SkillInvocation --> Message : invocationUsedMessage
+TaskExecution --> Artifact : producedArtifact
+```
+
 ### Diagrams (how Situation is used)
 
 #### Situation → Trust establishment (verification, reputation, relationships)

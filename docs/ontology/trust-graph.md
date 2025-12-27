@@ -2,6 +2,57 @@
 
 This page focuses on **trust building**: how the AgenticTrust ontology expresses the *trust graph* patterns and how ERC registries attach concrete records to those patterns.
 
+### Class hierarchy (key)
+
+```mermaid
+classDiagram
+direction LR
+
+class provPlan["prov:Plan"]
+class provActivity["prov:Activity"]
+class provEntity["prov:Entity"]
+
+class TrustDescription["agentictrust:TrustDescription"]
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+class VerificationAssertion["agentictrust:VerificationAssertion"]
+class ReputationAssertion["agentictrust:ReputationAssertion"]
+class Relationship["agentictrust:Relationship"]
+class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+
+TrustDescription --|> provPlan
+TrustSituation --|> provActivity
+TrustAssertion --|> provEntity
+
+VerificationAssertion --|> TrustAssertion
+ReputationAssertion --|> TrustAssertion
+Relationship --|> provEntity
+RelationshipAssertion --|> TrustAssertion
+```
+
+### Relationship diagram (trust graph overlay)
+
+```mermaid
+classDiagram
+direction LR
+
+class provEntity["prov:Entity"]
+class provAgent["prov:Agent"]
+
+class TrustDescription["agentictrust:TrustDescription"]
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+class Relationship["agentictrust:Relationship"]
+class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+
+TrustSituation --> TrustDescription : realizesDescription
+TrustSituation --> TrustAssertion : generatedAssertion
+TrustAssertion --> provEntity : aboutSubject
+RelationshipAssertion --> Relationship : assertsRelationship
+TrustAssertion --> Relationship : qualifiesRelationship
+provAgent --> TrustAssertion : hasTrustAssertion
+```
+
 ### Diagram: abstract trust graph overlay
 
 ![Trust building (abstract overlay)](./images/sections/trust-building-abstract.png)
