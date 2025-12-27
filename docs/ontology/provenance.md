@@ -29,7 +29,7 @@ These mirror PROV relations but are named for the trust model:
 ### Common provenance patterns in this repo
 
 - **Agent card fetch**:
-  - `agentictrust:AgentCardFetch` (Activity) `prov:generated` → `agentictrust:AgentCard`
+  - `agentictrust:AgentDescriptorFetch` (Activity) `prov:generated` → `agentictrust:AgentDescriptor`
   - timestamp via `prov:endedAtTime`
 
 - **Invocation trace**:

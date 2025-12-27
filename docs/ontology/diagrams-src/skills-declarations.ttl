@@ -7,7 +7,7 @@ agentictrust:Diagram_SkillsDeclarations a owl:Ontology .
 
 prov:Entity a owl:Class .
 
-agentictrust:AgentCard a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:AgentDescriptor a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:AgentMetadata a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:Skill a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:Tag a owl:Class ; rdfs:subClassOf prov:Entity .
@@ -16,7 +16,7 @@ agentictrust:JsonSchema a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:IntentType a owl:Class ; rdfs:subClassOf prov:Entity .
 
 agentictrust:hasSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentCard ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:declaresSkill a owl:ObjectProperty ;

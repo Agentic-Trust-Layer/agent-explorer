@@ -1,0 +1,67 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+
+agentictrust:Diagram_TrustBuildingAbstract a owl:Ontology ;
+  rdfs:label "TrustBuildingAbstract" .
+
+### Core trust graph nodes
+agentictrust:TrustDescription a owl:Class ;
+  rdfs:label "TrustPlan(TrustDescription)" ;
+  rdfs:subClassOf prov:Plan, p-plan:Plan .
+
+agentictrust:TrustSituation a owl:Class ;
+  rdfs:label "TrustSituation(TrustEvent)" ;
+  rdfs:subClassOf prov:Activity .
+
+agentictrust:TrustAssertion a owl:Class ;
+  rdfs:label "TrustAssertion(DurableClaim)" ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:VerificationAssertion a owl:Class ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+agentictrust:ReputationAssertion a owl:Class ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+agentictrust:Relationship a owl:Class ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:RelationshipAssertion a owl:Class ;
+  rdfs:subClassOf agentictrust:TrustAssertion .
+
+### Core edges (trust graph overlay)
+agentictrust:realizesDescription a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustSituation ;
+  rdfs:range agentictrust:TrustDescription .
+
+agentictrust:generatedAssertion a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustSituation ;
+  rdfs:range agentictrust:TrustAssertion .
+
+agentictrust:aboutSubject a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range prov:Entity .
+
+agentictrust:assertsRelationship a owl:ObjectProperty ;
+  rdfs:domain agentictrust:RelationshipAssertion ;
+  rdfs:range agentictrust:Relationship .
+
+agentictrust:qualifiesRelationship a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range agentictrust:Relationship .
+
+### PROV association / evidence (for “who validated” and “what evidence was used”)
+prov:Agent a owl:Class .
+
+prov:wasAssociatedWith a owl:ObjectProperty ;
+  rdfs:domain prov:Activity ;
+  rdfs:range prov:Agent .
+
+prov:used a owl:ObjectProperty ;
+  rdfs:domain prov:Activity ;
+  rdfs:range prov:Entity .
+
+

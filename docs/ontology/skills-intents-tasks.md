@@ -12,7 +12,7 @@ Ontology: `agentictrust.owl` (core)
 
 ### Discovery (cards/metadata)
 
-- `agentictrust:AgentCard` → `agentictrust:Skill`: `agentictrust:hasSkill`
+- `agentictrust:AgentDescriptor` → `agentictrust:Skill`: `agentictrust:hasSkill`
 - `agentictrust:AgentMetadata` → `agentictrust:Skill`: `agentictrust:declaresSkill`
 
 ### Skill modeling (tool/function best-practice hooks)

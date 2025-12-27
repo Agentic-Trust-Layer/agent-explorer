@@ -1,0 +1,32 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
+@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .
+
+agentictrust:Diagram_DiscoveryTrustSignals a owl:Ontology ;
+  rdfs:label "DiscoveryTrustSignals" .
+
+agentictrust:AIAgent a owl:Class .
+agentictrust:TrustAssertion a owl:Class .
+agentictrust:VerificationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:ReputationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+
+erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:VerificationAssertion .
+erc8004:Feedback a owl:Class ; rdfs:subClassOf agentictrust:ReputationAssertion .
+erc8092:ERC8092RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+
+erc8004:hasValidation a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:ValidationResponse .
+
+erc8004:hasFeedback a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:Feedback .
+
+agentictrust:hasTrustAssertion a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range agentictrust:TrustAssertion .
+
+

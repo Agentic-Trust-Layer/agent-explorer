@@ -93,7 +93,7 @@ function agentIri(chainId: number, agentId: string): string {
 }
 
 function agentCardIri(chainId: number, agentId: string): string {
-  return `<https://www.agentictrust.io/id/agent-card/${chainId}/${iriEncodeSegment(agentId)}>`;
+  return `<https://www.agentictrust.io/id/agent-descriptor/${chainId}/${iriEncodeSegment(agentId)}>`;
 }
 
 function skillIri(chainId: number, agentId: string, skillId: string): string {
@@ -105,7 +105,7 @@ function skillSchemaIri(chainId: number, agentId: string, skillId: string, kind:
 }
 
 function fetchActivityIri(chainId: number, agentId: string, readAt: number): string {
-  return `<https://www.agentictrust.io/id/activity/agent-card-fetch/${chainId}/${iriEncodeSegment(agentId)}/${readAt}>`;
+  return `<https://www.agentictrust.io/id/activity/agent-descriptor-fetch/${chainId}/${iriEncodeSegment(agentId)}/${readAt}>`;
 }
 
 function accountIri(chainId: number, address: string): string {
@@ -281,12 +281,12 @@ function renderAgentSection(row: any, agentCard: any, agentCardJsonText: string)
   if (row?.createdAtTime) lines.push(`  agentictrust:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
   if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
   lines.push(`  agentictrust:agentCardReadAt ${readAt} ;`);
-  lines.push(`  agentictrust:hasAgentCard ${cIri} ;`);
+  lines.push(`  agentictrust:hasAgentDescriptor ${cIri} ;`);
   if (row?.rawJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
   lines.push(`  .\n`);
 
-  // Agent card
-  lines.push(`${cIri} a agentictrust:AgentCard, prov:Entity ;`);
+  // Agent descriptor (A2A agent card)
+  lines.push(`${cIri} a agentictrust:AgentDescriptor, agentictrust:A2AAgentCard, prov:Entity ;`);
   if (typeof agentCard?.name === 'string' && agentCard.name.trim()) lines.push(`  rdfs:label "${escapeTurtleString(agentCard.name.trim())}" ;`);
   if (typeof agentCard?.description === 'string' && agentCard.description.trim())
     lines.push(`  dcterms:description "${escapeTurtleString(agentCard.description.trim())}" ;`);
@@ -309,7 +309,7 @@ function renderAgentSection(row: any, agentCard: any, agentCardJsonText: string)
   lines.push(`  .\n`);
 
   // Fetch provenance
-  lines.push(`${fetchIri} a agentictrust:AgentCardFetch, prov:Activity ;`);
+  lines.push(`${fetchIri} a agentictrust:AgentDescriptorFetch, prov:Activity ;`);
   lines.push(`  prov:generated ${cIri} ;`);
   lines.push(`  prov:endedAtTime "${new Date(readAt * 1000).toISOString()}"^^xsd:dateTime ;`);
   lines.push(`  .\n`);

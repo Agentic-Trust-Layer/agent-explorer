@@ -51,32 +51,5 @@ agentictrust:ANS a owl:Class ;
   rdfs:label "ANS" ;
   rdfs:subClassOf agentictrust:AgenticTrustCore .
 
-agentictrust:AgenticTrustKnowledgeBase a owl:Class ;
-  rdfs:label "AgenticTrustKnowledgeBase" .
-
-agentictrust:populatesKnowledgeBase a owl:ObjectProperty ;
-  rdfs:label "populatesKnowledgeBase" ;
-  rdfs:domain agentictrust:AgenticTrustCore ;
-  rdfs:range agentictrust:AgenticTrustKnowledgeBase .
-
-erc8004:populatesKnowledgeBase a owl:ObjectProperty ;
-  rdfs:label "populatesKnowledgeBase" ;
-  rdfs:domain agentictrust:ERC8004 ;
-  rdfs:range agentictrust:AgenticTrustKnowledgeBase .
-
-erc8092:populatesKnowledgeBase a owl:ObjectProperty ;
-  rdfs:label "populatesKnowledgeBase" ;
-  rdfs:domain agentictrust:NANDA ;
-  rdfs:range agentictrust:AgenticTrustKnowledgeBase .
-
-agentictrust:populatesKnowledgeBase2 a owl:ObjectProperty ;
-  rdfs:label "populatesKnowledgeBase" ;
-  rdfs:domain agentictrust:AGNTCY ;
-  rdfs:range agentictrust:AgenticTrustKnowledgeBase .
-
-agentictrust:populatesKnowledgeBase3 a owl:ObjectProperty ;
-  rdfs:label "populatesKnowledgeBase" ;
-  rdfs:domain agentictrust:ANS ;
-  rdfs:range agentictrust:AgenticTrustKnowledgeBase .
 
 

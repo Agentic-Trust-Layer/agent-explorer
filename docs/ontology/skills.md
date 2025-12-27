@@ -16,7 +16,7 @@ The ontology separates:
 classDiagram
 direction LR
 
-class AgentCard["agentictrust:AgentCard"]
+class AgentDescriptor["agentictrust:AgentDescriptor"]
 class AgentMetadata["agentictrust:AgentMetadata"]
 class Skill["agentictrust:Skill"]
 class Tag["agentictrust:Tag"]
@@ -24,7 +24,7 @@ class SkillExample["agentictrust:SkillExample"]
 class JsonSchema["agentictrust:JsonSchema"]
 class IntentType["agentictrust:IntentType"]
 
-AgentCard --> Skill : hasSkill
+AgentDescriptor --> Skill : hasSkill
 AgentMetadata --> Skill : declaresSkill
 
 Skill --> Tag : hasTag

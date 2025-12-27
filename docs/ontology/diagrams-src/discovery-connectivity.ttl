@@ -1,30 +1,17 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
 
-agentictrust:Diagram_CoreMetadata a owl:Ontology .
+agentictrust:Diagram_DiscoveryConnectivity a owl:Ontology ;
+  rdfs:label "DiscoveryConnectivity" .
 
-prov:SoftwareAgent a owl:Class .
-prov:Entity a owl:Class .
-
-agentictrust:AIAgent a owl:Class ;
-  rdfs:subClassOf prov:SoftwareAgent .
-
-agentictrust:AgentMetadata a owl:Class ;
-  rdfs:subClassOf prov:Entity .
-
-agentictrust:AgentEndpoint a owl:Class ;
-  rdfs:subClassOf prov:Entity .
-
-agentictrust:EndpointType a owl:Class ;
-  rdfs:subClassOf prov:Entity .
-
-agentictrust:OperatorIdentifier a owl:Class ;
-  rdfs:subClassOf prov:Entity .
-
-agentictrust:Skill a owl:Class ;
-  rdfs:subClassOf prov:Entity .
+agentictrust:AIAgent a owl:Class .
+agentictrust:AgentMetadata a owl:Class .
+agentictrust:AgentEndpoint a owl:Class .
+agentictrust:EndpointType a owl:Class .
+agentictrust:AgentDescriptor a owl:Class .
+agentictrust:Endpoint a owl:Class .
+agentictrust:OperatorIdentifier a owl:Class .
 
 agentictrust:hasMetadata a owl:ObjectProperty ;
   rdfs:domain agentictrust:AIAgent ;
@@ -38,12 +25,16 @@ agentictrust:endpointType a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentEndpoint ;
   rdfs:range agentictrust:EndpointType .
 
+agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range agentictrust:AgentDescriptor .
+
+agentictrust:hasEndpoint a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:range agentictrust:Endpoint .
+
 agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentMetadata ;
   rdfs:range agentictrust:OperatorIdentifier .
-
-agentictrust:declaresSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentMetadata ;
-  rdfs:range agentictrust:Skill .
 
 

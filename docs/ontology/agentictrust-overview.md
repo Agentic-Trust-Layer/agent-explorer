@@ -87,24 +87,23 @@ direction LR
 
 class provSoftwareAgent["prov:SoftwareAgent"]
 class provEntity["prov:Entity"]
-class provAgent["prov:Agent"]
 
 class AIAgent["agentictrust:AIAgent"]
 class AgentMetadata["agentictrust:AgentMetadata"]
 class AgentEndpoint["agentictrust:AgentEndpoint"]
-class Operator["agentictrust:Operator"]
+class OperatorIdentifier["agentictrust:OperatorIdentifier"]
 class EndpointType["agentictrust:EndpointType"]
 
 AIAgent --|> provSoftwareAgent
 AgentMetadata --|> provEntity
 AgentEndpoint --|> provEntity
-Operator --|> provAgent
+OperatorIdentifier --|> provEntity
 EndpointType --|> provEntity
 
 AIAgent --> AgentMetadata : hasMetadata
 AgentMetadata --> AgentEndpoint : hasEndpointEntry
 AgentEndpoint --> EndpointType : endpointType
-AgentMetadata --> Operator : hasOperator
+AgentMetadata --> OperatorIdentifier : hasOperatorIdentifier
 AgentMetadata --> Skill : declaresSkill
 class Skill["agentictrust:Skill"]
 ```
@@ -115,5 +114,8 @@ class Skill["agentictrust:Skill"]
 - **Situation** (DnS / activities): see [`situation.md`](./situation.md)
 - **Provenance** (PROV-O grounding): see [`provenance.md`](./provenance.md)
 - **Skills / intents / tasks**: see [`skills-intents-tasks.md`](./skills-intents-tasks.md)
+- **Discovery** (intent-driven): see [`discovery.md`](./discovery.md)
+- **Trust building** (graph overlay): see [`trust-graph.md`](./trust-graph.md)
+- **OASF mapping** (AGNTCY): see [`oasf.md`](./oasf.md)
 
 

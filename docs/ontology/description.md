@@ -33,7 +33,7 @@ These are core, protocol-agnostic metadata concepts:
 - **`agentictrust:AgentMetadata`**: generic metadata container (offchain)
 - **`agentictrust:AgentEndpoint`**: endpoint entry (name/endpoint/version)
 - **`agentictrust:EndpointType`**: endpoint taxonomy value
-- **`agentictrust:Operator`**: acting agent/operator identity
+- **`agentictrust:OperatorIdentifier`**: operator identifier artifact (address/DID/CAIP-10)
 
 ### Metadata → skills
 

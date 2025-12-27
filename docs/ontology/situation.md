@@ -1,38 +1,51 @@
-## Situation layer (DnS) — TrustSituation + activities
+## Situation layer (DnS) — how trust + work happens
 
 Ontology: `agentictrust.owl`
 
-### Diagram
+“Situation” is where things **happen**: a time-scoped event/execution that realizes a description/plan and produces durable outputs (assertions, artifacts).
 
-![Core trust model](./images/sections/core-trust.png)
+### Diagrams (how Situation is used)
 
-![Skills execution trace](./images/sections/skills-execution.png)
+#### Situation → Trust establishment (verification, reputation, relationships)
 
-### TrustSituation (DnS “Situation”)
+![Situation trust context](./images/sections/situation-trust-context.png)
+
+#### Situation → Work execution (intent → discovery → invocation → tasks → outcomes)
+
+![Situation execution context](./images/sections/situation-execution-context.png)
+
+### What a TrustSituation is (in this ontology)
 
 - **Class**: `agentictrust:TrustSituation`
-- **Meaning**: a time-scoped realization of a `TrustDescription`
-- **Grounding**: subclass of `prov:Activity`
+- **Meaning**: a time-scoped realization of a trust description/plan that can use evidence and produce durable outputs.
 
-### Key relations
+### Used to establish trust (registry-aligned)
 
-- **TrustSituation → TrustDescription**: `agentictrust:realizesDescription`
-- **TrustSituation → TrustAssertion**: `agentictrust:generatedAssertion` (alias of `prov:generated`)
+Situations generate assertions that become the durable “ledger” of trust signals:
 
-### Execution activities used in this repo
+- **Verification**: ERC-8004 validation (e.g., `erc8004:ValidationRequest` → `erc8004:ValidationResponse`)
+- **Reputation**: ERC-8004 feedback (e.g., `erc8004:Feedback`)
+- **Relationships**: ERC-8092 relationship assertions (e.g., `erc8092:ERC8092RelationshipAssertion`)
 
-`agentictrust.owl` also defines execution/activity classes (all subclasses of `prov:Activity`):
+### Used to perform agent work (protocol-aligned)
 
-- `agentictrust:TaskExecution`
-- `agentictrust:SkillInvocation`
-- `agentictrust:AgentCardFetch`
-- `agentictrust:MessageSend` / `agentictrust:MessageReceive`
+Situations also cover operational agent work:
 
-### Invocations and trace links
+- a **message** carries an **intent**
+- skills are discovered via **intent type / task type** compatibility
+- an agent performs a **SkillInvocation**
+- invocations are part of a **TaskExecution**
+- tasks produce **Artifacts** (which can include attestations, reports, or trust assertions depending on workflow)
 
+Key links (high level):
+
+- **Message → Intent**: `agentictrust:hasIntent`
+- **Skill → IntentType**: `agentictrust:supportsIntentType`
+- **IntentType → TaskType**: `agentictrust:mapsToTaskType`
+- **Skill → TaskType**: `agentictrust:enablesTaskType`
 - **TaskExecution → SkillInvocation**: `agentictrust:hasInvocation`
 - **SkillInvocation → Skill**: `agentictrust:invokesSkill`
 - **SkillInvocation → Message**: `agentictrust:invocationUsedMessage`
-- **Intent → SkillInvocation**: `agentictrust:fulfilledByInvocation`
+- **TaskExecution → Artifact**: `agentictrust:producedArtifact`
 
 

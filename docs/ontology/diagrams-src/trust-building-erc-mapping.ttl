@@ -1,0 +1,68 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
+@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .
+
+agentictrust:Diagram_TrustBuildingERCMapping a owl:Ontology ;
+  rdfs:label "TrustBuildingRegistryMapping" .
+
+### Abstract pattern nodes
+agentictrust:TrustSituation a owl:Class .
+agentictrust:TrustAssertion a owl:Class .
+agentictrust:VerificationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:ReputationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:Relationship a owl:Class .
+agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+
+agentictrust:generatedAssertion a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustSituation ;
+  rdfs:range agentictrust:TrustAssertion .
+
+agentictrust:assertsRelationship a owl:ObjectProperty ;
+  rdfs:domain agentictrust:RelationshipAssertion ;
+  rdfs:range agentictrust:Relationship .
+
+agentictrust:qualifiesRelationship a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range agentictrust:Relationship .
+
+### ERC-8004 validation registry
+erc8004:ValidationRequest a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
+erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:VerificationAssertion .
+
+erc8004:validationRespondsToRequest a owl:ObjectProperty ;
+  rdfs:domain erc8004:ValidationResponse ;
+  rdfs:range erc8004:ValidationRequest .
+
+erc8004:validationValidator a owl:ObjectProperty ;
+  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:range prov:Agent .
+
+### ERC-8004 reputation registry
+erc8004:Feedback a owl:Class ; rdfs:subClassOf agentictrust:ReputationAssertion .
+erc8004:feedbackClient a owl:ObjectProperty ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range prov:Agent .
+
+erc8004:feedbackSkill a owl:ObjectProperty ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range agentictrust:Skill .
+
+agentictrust:Skill a owl:Class .
+
+### ERC-8092 associated accounts storage (relationship assertions)
+erc8092:ERC8092Relationship a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
+erc8092:ERC8092RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipAccount a owl:Class .
+
+erc8092:initiatorAccount a owl:ObjectProperty ;
+  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:range erc8092:RelationshipAccount .
+
+erc8092:approverAccount a owl:ObjectProperty ;
+  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:range erc8092:RelationshipAccount .
+
+

@@ -1,0 +1,41 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+
+agentictrust:Diagram_DiscoveryIntentMatch a owl:Ontology ;
+  rdfs:label "DiscoveryIntentMatch" .
+
+agentictrust:Message a owl:Class .
+agentictrust:Intent a owl:Class .
+agentictrust:IntentType a owl:Class .
+agentictrust:IntentSubject a owl:Class .
+agentictrust:IntentCheck a owl:Class .
+
+agentictrust:Skill a owl:Class .
+agentictrust:TaskType a owl:Class .
+
+agentictrust:hasIntent a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Message ;
+  rdfs:range agentictrust:Intent .
+
+agentictrust:hasSubject a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:IntentSubject .
+
+agentictrust:hasCheck a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:IntentCheck .
+
+agentictrust:supportsIntentType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:IntentType .
+
+agentictrust:mapsToTaskType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:IntentType ;
+  rdfs:range agentictrust:TaskType .
+
+agentictrust:enablesTaskType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:TaskType .
+
+

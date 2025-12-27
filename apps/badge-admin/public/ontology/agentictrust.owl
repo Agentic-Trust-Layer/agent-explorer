@@ -131,15 +131,25 @@ agentictrust:EndpointType a owl:Class ;
   rdfs:comment "Recommended endpoint type taxonomy for agent metadata endpoints." ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:Operator a owl:Class ;
-  rdfs:label "Operator" ;
-  rdfs:comment "Operator identity (address or DID) that may act on behalf of an agent." ;
-  rdfs:subClassOf prov:Agent .
-
-agentictrust:AgentCard a owl:Class ;
-  rdfs:label "A2AAgentCard" ;
-  rdfs:comment "A2A protocol agent card (agent.json / agent-card.json) describing skills, transports, and capabilities." ;
+agentictrust:OperatorIdentifier a owl:Class ;
+  rdfs:label "OperatorIdentifier" ;
+  rdfs:comment "An identifier for an operator (e.g., address, DID, CAIP-10). Modeled as an Entity (identifier artifact), not a prov:Agent." ;
   rdfs:subClassOf prov:Entity .
+
+agentictrust:AgentDescriptor a owl:Class ;
+  rdfs:label "AgentDescriptor" ;
+  rdfs:comment "Protocol-agnostic, machine-readable declaration of an agent’s identity, interaction surfaces, protocol bindings, capabilities, and constraints; sufficient for discovery, trust evaluation, and runtime interaction." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:A2AAgentCard a owl:Class ;
+  rdfs:label "A2AAgentCard" ;
+  rdfs:comment "Concrete AgentDescriptor serialization for the A2A protocol (agent.json / agent-card.json)." ;
+  rdfs:subClassOf agentictrust:AgentDescriptor .
+
+agentictrust:MCPManifest a owl:Class ;
+  rdfs:label "MCPManifest" ;
+  rdfs:comment "Concrete AgentDescriptor serialization for the Model Context Protocol (MCP) tool/manifest format." ;
+  rdfs:subClassOf agentictrust:AgentDescriptor .
 
 agentictrust:Endpoint a owl:Class ;
   rdfs:label "Endpoint" ;
@@ -308,24 +318,26 @@ agentictrust:endpointType a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentEndpoint ;
   rdfs:range agentictrust:EndpointType .
 
-agentictrust:hasOperator a owl:ObjectProperty ;
-  rdfs:label "hasOperator" ;
+agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
+  rdfs:label "hasOperatorIdentifier" ;
+  rdfs:comment "Links agent metadata to operator identifiers authorized/declared for the agent (without asserting agency)." ;
   rdfs:domain agentictrust:AgentMetadata ;
-  rdfs:range agentictrust:Operator .
+  rdfs:range agentictrust:OperatorIdentifier .
 
-agentictrust:hasAgentCard a owl:ObjectProperty ;
-  rdfs:label "hasAgentCard" ;
+agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
+  rdfs:label "hasAgentDescriptor" ;
+  rdfs:comment "Links an agent identity to a protocol-specific AgentDescriptor (e.g., A2AAgentCard or MCPManifest)." ;
   rdfs:domain agentictrust:AIAgent ;
-  rdfs:range agentictrust:AgentCard .
+  rdfs:range agentictrust:AgentDescriptor .
 
 agentictrust:hasEndpoint a owl:ObjectProperty ;
   rdfs:label "hasEndpoint" ;
-  rdfs:domain agentictrust:AgentCard ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:Endpoint .
 
 agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:label "hasSkill" ;
-  rdfs:domain agentictrust:AgentCard ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:declaresSkill a owl:ObjectProperty ;
@@ -703,10 +715,10 @@ agentictrust:endpointVersion a owl:DatatypeProperty ;
   rdfs:domain agentictrust:AgentEndpoint ;
   rdfs:range xsd:string .
 
-agentictrust:operatorValue a owl:DatatypeProperty ;
-  rdfs:label "operatorValue" ;
+agentictrust:operatorIdentifierValue a owl:DatatypeProperty ;
+  rdfs:label "operatorIdentifierValue" ;
   rdfs:comment "Raw operator identifier from metadata (address/DID/CAIP-10)." ;
-  rdfs:domain agentictrust:Operator ;
+  rdfs:domain agentictrust:OperatorIdentifier ;
   rdfs:range xsd:string .
 
 agentictrust:TrustModel a owl:Class ;

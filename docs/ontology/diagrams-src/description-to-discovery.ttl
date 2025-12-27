@@ -8,7 +8,7 @@ agentictrust:Diagram_DescriptionToDiscovery a owl:Ontology ;
 agentictrust:TrustDescription a owl:Class .
 
 agentictrust:AgentCardFetch a owl:Class .
-agentictrust:AgentCard a owl:Class .
+agentictrust:AgentDescriptor a owl:Class .
 agentictrust:AgentMetadata a owl:Class .
 agentictrust:Skill a owl:Class .
 
@@ -18,10 +18,10 @@ agentictrust:hadPlan a owl:ObjectProperty ;
 
 agentictrust:generatedAssertion a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentCardFetch ;
-  rdfs:range agentictrust:AgentCard .
+  rdfs:range agentictrust:AgentDescriptor .
 
 agentictrust:hasSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentCard ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:declaresSkill a owl:ObjectProperty ;

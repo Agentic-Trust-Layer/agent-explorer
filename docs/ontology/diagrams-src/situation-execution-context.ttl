@@ -1,0 +1,50 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+
+agentictrust:Diagram_SituationExecutionContext a owl:Ontology ;
+  rdfs:label "SituationExecutionContext" .
+
+agentictrust:Message a owl:Class .
+agentictrust:Intent a owl:Class .
+agentictrust:IntentType a owl:Class .
+agentictrust:TaskType a owl:Class .
+agentictrust:Skill a owl:Class .
+
+agentictrust:SkillInvocation a owl:Class .
+agentictrust:TaskExecution a owl:Class .
+agentictrust:Artifact a owl:Class .
+
+agentictrust:hasIntent a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Message ;
+  rdfs:range agentictrust:Intent .
+
+agentictrust:supportsIntentType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:IntentType .
+
+agentictrust:mapsToTaskType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:IntentType ;
+  rdfs:range agentictrust:TaskType .
+
+agentictrust:enablesTaskType a owl:ObjectProperty ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:TaskType .
+
+agentictrust:invokesSkill a owl:ObjectProperty ;
+  rdfs:domain agentictrust:SkillInvocation ;
+  rdfs:range agentictrust:Skill .
+
+agentictrust:invocationUsedMessage a owl:ObjectProperty ;
+  rdfs:domain agentictrust:SkillInvocation ;
+  rdfs:range agentictrust:Message .
+
+agentictrust:hasInvocation a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TaskExecution ;
+  rdfs:range agentictrust:SkillInvocation .
+
+agentictrust:producedArtifact a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TaskExecution ;
+  rdfs:range agentictrust:Artifact .
+
+
