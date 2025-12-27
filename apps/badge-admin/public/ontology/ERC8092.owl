@@ -82,6 +82,13 @@ erc8092:ownsRelationshipAccount a owl:ObjectProperty ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:RelationshipAccount .
 
+erc8092:hasRelationshipAssertion a owl:ObjectProperty ;
+  rdfs:label "hasRelationshipAssertion" ;
+  rdfs:comment "ERC-8092 specific property linking agents to relationship assertions (associations) they participate in. Subproperty of agentictrust:hasRelationshipAssertion." ;
+  rdfs:subPropertyOf agentictrust:hasRelationshipAssertion ;
+  rdfs:domain prov:Agent ;
+  rdfs:range erc8092:ERC8092RelationshipAssertion .
+
 erc8092:relationshipAccountId a owl:DatatypeProperty ;
   rdfs:label "relationshipAccountId" ;
   rdfs:comment "Raw relationship account identifier string (DB id column)." ;

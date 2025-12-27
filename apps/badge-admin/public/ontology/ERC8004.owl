@@ -133,11 +133,15 @@ erc8004:FeedbackResponse a owl:Class ;
 
 erc8004:hasFeedback a owl:ObjectProperty ;
   rdfs:label "hasFeedback" ;
+  rdfs:comment "ERC-8004 specific property linking agents to feedback records. Subproperty of agentictrust:hasReputationAssertion." ;
+  rdfs:subPropertyOf agentictrust:hasReputationAssertion ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range erc8004:Feedback .
 
 erc8004:hasValidation a owl:ObjectProperty ;
   rdfs:label "hasValidation" ;
+  rdfs:comment "ERC-8004 specific property linking agents to validation responses. Subproperty of agentictrust:hasVerificationAssertion." ;
+  rdfs:subPropertyOf agentictrust:hasVerificationAssertion ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range erc8004:ValidationResponse .
 

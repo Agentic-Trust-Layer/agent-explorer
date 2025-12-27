@@ -108,6 +108,12 @@ agentictrust:ownsRelationshipAccount a owl:ObjectProperty ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:RelationshipAccount .
 
+agentictrust:relationshipAccountForAccount a owl:ObjectProperty ;
+  rdfs:label "relationshipAccountForAccount" ;
+  rdfs:comment "Links a RelationshipAccount identifier (e.g., ERC-8092 key-id/account-id) to the controlling on-chain account/address node (when known)." ;
+  rdfs:domain agentictrust:RelationshipAccount ;
+  rdfs:range prov:Agent .
+
 agentictrust:qualifiesRelationship a owl:ObjectProperty ;
   rdfs:label "qualifiesRelationship" ;
   rdfs:comment "Links any TrustAssertion (verification/reputation/etc.) to a Relationship it qualifies (e.g., strengthens, weakens, constrains, certifies)." ;
@@ -119,6 +125,27 @@ agentictrust:hasTrustAssertion a owl:ObjectProperty ;
   rdfs:comment "Links an agent to trust assertions produced by it, endorsed by it, or about it (application-dependent; consider specializing)." ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:TrustAssertion .
+
+agentictrust:hasVerificationAssertion a owl:ObjectProperty ;
+  rdfs:label "hasVerificationAssertion" ;
+  rdfs:comment "Links an agent to verification assertions (e.g., validation responses) about it or produced by it." ;
+  rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrust:VerificationAssertion .
+
+agentictrust:hasReputationAssertion a owl:ObjectProperty ;
+  rdfs:label "hasReputationAssertion" ;
+  rdfs:comment "Links an agent to reputation assertions (e.g., feedback responses) about it or produced by it." ;
+  rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrust:ReputationAssertion .
+
+agentictrust:hasRelationshipAssertion a owl:ObjectProperty ;
+  rdfs:label "hasRelationshipAssertion" ;
+  rdfs:comment "Links an agent to relationship assertions (e.g., ERC-8092 associations) it participates in or produces." ;
+  rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrust:RelationshipAssertion .
 
 ########
 # Core Agent / Agent Card concepts

@@ -1001,12 +1001,12 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const approverAgent = approver ? agentByAccountKey.get(`${chainId}|${approver}`) : undefined;
 
     if (initiatorAgent) {
-      chunks.push(`${initiatorAgent} agentictrust:hasTrustAssertion ${raIri} .\n`);
+      chunks.push(`${initiatorAgent} erc8092:hasRelationshipAssertion ${raIri} .\n`);
       const mk = initiator ? agentKeyByAccountKey.get(`${chainId}|${initiator}`) : undefined;
       if (mk) ensureAgentNode(mk.chainId, mk.agentId);
     }
     if (approverAgent) {
-      chunks.push(`${approverAgent} agentictrust:hasTrustAssertion ${raIri} .\n`);
+      chunks.push(`${approverAgent} erc8092:hasRelationshipAssertion ${raIri} .\n`);
       const mk = approver ? agentKeyByAccountKey.get(`${chainId}|${approver}`) : undefined;
       if (mk) ensureAgentNode(mk.chainId, mk.agentId);
     }
@@ -1031,6 +1031,12 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     if (assoc?.initiatorAccountId) {
       const id = String(assoc.initiatorAccountId);
       lines.push(`  erc8092:initiatorAccount ${relationshipAccountIri(chainId, id)} ;`);
+      // Link RelationshipAccount -> controlling account/address node (bridge to agent account/owner)
+      if (initiator) {
+        chunks.push(
+          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForAccount ${accountIri(chainId, initiator)} .\n`,
+        );
+      }
       // Relationship -> RelationshipAccount (core-level traversal)
       chunks.push(`${relIri} agentictrust:hasRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
       if (initiatorAgent) {
@@ -1043,6 +1049,12 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     if (assoc?.approverAccountId) {
       const id = String(assoc.approverAccountId);
       lines.push(`  erc8092:approverAccount ${relationshipAccountIri(chainId, id)} ;`);
+      // Link RelationshipAccount -> controlling account/address node (bridge to agent account/owner)
+      if (approver) {
+        chunks.push(
+          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForAccount ${accountIri(chainId, approver)} .\n`,
+        );
+      }
       // Relationship -> RelationshipAccount (core-level traversal)
       chunks.push(`${relIri} agentictrust:hasRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
       if (approverAgent) {
