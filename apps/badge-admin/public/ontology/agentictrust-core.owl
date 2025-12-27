@@ -241,15 +241,34 @@ agentictrust:assertedIn a owl:ObjectProperty ;
 
 agentictrust:hasIdentifier a owl:ObjectProperty ;
   rdfs:label "hasIdentifier" ;
-  rdfs:comment "Links an agent to its primary Identifier. Each Agent has one associated Identifier. Protocol-specific realizations: Ethereum Account (agentictrustEth:Account), Web2 identifiers, etc." ;
-  rdfs:domain agentictrust:AIAgent ;
+  rdfs:comment "Links an agent or 8004Identity to its Identifier. For agents: links to primary Identifier. For 8004Identity: links to 8004IdentityIdentifier. Protocol-specific realizations: Ethereum Account (agentictrustEth:Account), Web2 identifiers, etc." ;
+  rdfs:domain [ owl:unionOf ( agentictrust:AIAgent agentictrust:8004Identity ) ] ;
   rdfs:range agentictrust:Identifier .
+
+agentictrust:has8004Identity a owl:ObjectProperty ;
+  rdfs:label "has8004Identity" ;
+  rdfs:comment "Links an agent to its ERC-8004 identity. Each agent registered in ERC-8004 has one 8004Identity." ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range agentictrust:8004Identity .
 
 agentictrust:hasName a owl:ObjectProperty ;
   rdfs:label "hasName" ;
   rdfs:comment "Links an agent to a Name. An agent may have zero or more Names. Protocol-specific realizations: ENS Name (agentictrustEth:ENSName), DNS names, etc." ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range agentictrust:Name .
+
+agentictrust:identifierType a owl:ObjectProperty ;
+  rdfs:label "identifierType" ;
+  rdfs:comment "Links an Identifier to its type (8004, account, ens)." ;
+  rdfs:domain agentictrust:Identifier ;
+  rdfs:range agentictrust:IdentifierType .
+
+agentictrust:hasDID a owl:ObjectProperty ;
+  rdfs:label "hasDID" ;
+  rdfs:comment "Links an Identifier to its associated DID. For 8004IdentityIdentifier, this is the did:8004:... DID. For ENSNameIdentifier, this is the did:ens:... DID." ;
+  rdfs:domain agentictrust:Identifier ;
+  rdfs:range agentictrust:DID .
+
 
 ########
 # UniversalIdentifier (HCS-14)
@@ -258,6 +277,23 @@ agentictrust:hasName a owl:ObjectProperty ;
 agentictrust:UniversalIdentifier a owl:Class ;
   rdfs:label "UniversalIdentifier" ;
   rdfs:comment "A stable, protocol-agnostic agent identifier that may wrap a base DID or be derived deterministically. Covers HCS-14's UAID/AID while fitting into the core identity layer." ;
+  rdfs:subClassOf agentictrust:Identifier ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:8004IdentityIdentifier a owl:Class ;
+  rdfs:label "8004IdentityIdentifier" ;
+  rdfs:comment "ERC-8004 agent identity identifier (did:8004:chainId:agentId). A UniversalIdentifier that represents the agent's on-chain identity in the ERC-8004 registry." ;
+  rdfs:subClassOf agentictrust:UniversalIdentifier ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:8004Identity a owl:Class ;
+  rdfs:label "8004Identity" ;
+  rdfs:comment "ERC-8004 agent identity. Represents the agent's on-chain identity in the ERC-8004 registry, linked to its 8004IdentityIdentifier." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:ENSNameIdentifier a owl:Class ;
+  rdfs:label "ENSNameIdentifier" ;
+  rdfs:comment "ENS (Ethereum Name Service) name identifier. Represents a human-readable ENS name (e.g., agent.eth) that resolves to an Ethereum address. Valid ENS names end with .eth." ;
   rdfs:subClassOf agentictrust:Identifier ;
   rdfs:subClassOf prov:Entity .
 
@@ -270,6 +306,23 @@ agentictrust:ProtocolType a owl:Class ;
   rdfs:label "ProtocolType" ;
   rdfs:comment "Protocol type enumeration (e.g., erc8004, a2a, hcs-10, mcp, nanda)." ;
   rdfs:subClassOf prov:Entity .
+
+agentictrust:IdentifierType a owl:Class ;
+  rdfs:label "IdentifierType" ;
+  rdfs:comment "Identifier type enumeration: '8004' (ERC-8004 identity), 'account' (Ethereum account), 'ens' (ENS name)." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:IdentifierType_8004 a agentictrust:IdentifierType ;
+  rdfs:label "8004" ;
+  rdfs:comment "ERC-8004 identity identifier type." .
+
+agentictrust:IdentifierType_account a agentictrust:IdentifierType ;
+  rdfs:label "account" ;
+  rdfs:comment "Ethereum account identifier type." .
+
+agentictrust:IdentifierType_ens a agentictrust:IdentifierType ;
+  rdfs:label "ens" ;
+  rdfs:comment "ENS name identifier type." .
 
 ########
 # UniversalIdentifier Properties (HCS-14)
@@ -727,11 +780,6 @@ agentictrust:hadPlan a owl:ObjectProperty ;
 ########
 # Datatype properties
 ########
-
-agentictrust:chainId a owl:DatatypeProperty ;
-  rdfs:label "chainId" ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range xsd:integer .
 
 agentictrust:agentId a owl:DatatypeProperty ;
   rdfs:label "agentId" ;

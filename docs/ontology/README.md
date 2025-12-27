@@ -34,6 +34,8 @@ ERC ontologies
 - [`relationshipassertion.md`](./relationshipassertion.md): focused pattern: relationship assertion → account → controlling agent
 - [`verificationassertion.md`](./verificationassertion.md): VerificationAssertion class hierarchy and property relationships
 - [`reputationassertion.md`](./reputationassertion.md): ReputationAssertion class hierarchy and property relationships
+- [`identifiers.md`](./identifiers.md): Agent-to-identifier relationships and all identifier types across ontologies
+- [`sparql-queries.md`](./sparql-queries.md): SPARQL queries for querying agents and related data
 - [`identifier-mapping.md`](./identifier-mapping.md): How Identifier maps to Web2 and Web3 identity systems
 
 ## Ontology source files

@@ -83,6 +83,30 @@ function iriEncodeSegment(seg: string): string {
   return encodeURIComponent(seg).replace(/%2F/g, '%252F');
 }
 
+function isValidENSName(name: string): boolean {
+  if (!name || typeof name !== 'string') return false;
+  // Must end with .eth
+  if (!name.toLowerCase().endsWith('.eth')) return false;
+  // Basic validation: alphanumeric, hyphens, dots only, not starting/ending with hyphen
+  const namePart = name.slice(0, -4); // Remove .eth
+  if (namePart.length === 0) return false;
+  // ENS names can contain: a-z, 0-9, hyphens (but not at start/end), and can have subdomains
+  const ensNameRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
+  return ensNameRegex.test(namePart);
+}
+
+function identifierIri(chainId: number, agentId: string, type: '8004' | 'ens', didIdentity?: string | null, ensName?: string | null): string {
+  if (type === '8004' && didIdentity) {
+    return `<https://www.agentictrust.io/id/identifier/8004/${iriEncodeSegment(didIdentity)}>`;
+  } else if (type === 'ens' && ensName) {
+    return `<https://www.agentictrust.io/id/identifier/ens/${iriEncodeSegment(ensName)}>`;
+  } else {
+    // Fallback
+    const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+    return `<https://www.agentictrust.io/id/identifier/${type}/${identifier}>`;
+  }
+}
+
 function normalizeHex(x: unknown): string | null {
   if (typeof x !== 'string') return null;
   const s = x.trim();
@@ -90,28 +114,54 @@ function normalizeHex(x: unknown): string | null {
   return s.startsWith('0x') ? s.toLowerCase() : s;
 }
 
-function agentIri(chainId: number, agentId: string): string {
-  return `<https://www.agentictrust.io/id/agent/${chainId}/${iriEncodeSegment(agentId)}>`;
+function agentIri(chainId: number, agentId: string, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/agent/${identifier}>`;
 }
 
-function agentDescriptorIri(chainId: number, agentId: string): string {
-  return `<https://www.agentictrust.io/id/agent-descriptor/${chainId}/${iriEncodeSegment(agentId)}>`;
+function agentDescriptorIri(chainId: number, agentId: string, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/agent-descriptor/${identifier}>`;
 }
 
-function skillIri(chainId: number, agentId: string, skillId: string): string {
-  return `<https://www.agentictrust.io/id/skill/${chainId}/${iriEncodeSegment(agentId)}/${iriEncodeSegment(skillId)}>`;
+function skillIri(chainId: number, agentId: string, skillId: string, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/skill/${identifier}/${iriEncodeSegment(skillId)}>`;
 }
 
-function skillSchemaIri(chainId: number, agentId: string, skillId: string, kind: 'input' | 'output'): string {
-  return `<https://www.agentictrust.io/id/schema/skill/${chainId}/${iriEncodeSegment(agentId)}/${iriEncodeSegment(skillId)}/${kind}>`;
+function skillSchemaIri(chainId: number, agentId: string, skillId: string, kind: 'input' | 'output', didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/schema/skill/${identifier}/${iriEncodeSegment(skillId)}/${kind}>`;
 }
 
-function fetchActivityIri(chainId: number, agentId: string, readAt: number): string {
-  return `<https://www.agentictrust.io/id/activity/agent-descriptor-fetch/${chainId}/${iriEncodeSegment(agentId)}/${readAt}>`;
+function fetchActivityIri(chainId: number, agentId: string, readAt: number, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/activity/agent-descriptor-fetch/${identifier}/${readAt}>`;
 }
 
 function accountIri(chainId: number, address: string): string {
   return `<https://www.agentictrust.io/id/account/${chainId}/${iriEncodeSegment(address.toLowerCase())}>`;
+}
+
+function accountIdentifierIri(chainId: number, address: string): string {
+  const addr = normalizeHex(address);
+  if (!addr) throw new Error(`Invalid account address: ${address}`);
+  return `<https://www.agentictrust.io/id/account-identifier/${chainId}/${iriEncodeSegment(addr)}>`;
+}
+
+function ensNameIri(chainId: number, ensName: string): string {
+  return `<https://www.agentictrust.io/id/ens-name/${chainId}/${iriEncodeSegment(ensName)}>`;
+}
+
+function identity8004Iri(chainId: number, agentId: string, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/8004-identity/${identifier}>`;
 }
 
 // Track emitted accounts to avoid duplicates
@@ -276,45 +326,122 @@ function renderAgentSection(
   const agentId = String(row?.agentId ?? '');
   const readAt = Number(row?.agentCardReadAt ?? 0) || Math.floor(Date.now() / 1000);
 
-  const aIri = agentIri(chainId, agentId);
-  const cIri = agentDescriptorIri(chainId, agentId);
-  const fetchIri = fetchActivityIri(chainId, agentId, readAt);
+  const aIri = agentIri(chainId, agentId, row?.didIdentity);
+  const cIri = agentDescriptorIri(chainId, agentId, row?.didIdentity);
+  const fetchIri = fetchActivityIri(chainId, agentId, readAt, row?.didIdentity);
 
   const lines: string[] = [];
   const afterAgent: string[] = [];
 
   // Agent
   lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
-  lines.push(`  agentictrust:chainId ${chainId} ;`);
   lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
   if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
-  if (row?.didIdentity) lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
+  
+  // 8004Identity and 8004IdentityIdentifier for didIdentity
+  if (row?.didIdentity) {
+    lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
+    const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didIdentity))}>`;
+    
+    // Create 8004Identity instance
+    const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
+    lines.push(`  agentictrust:has8004Identity ${identity8004IriValue} ;`);
+    
+    // Create 8004IdentityIdentifier instance
+    const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
+    
+    // Emit 8004Identity
+    accountChunks.push(
+      `${identity8004IriValue} a agentictrust:8004Identity, prov:Entity ;\n` +
+        `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
+    );
+    
+    // Emit 8004IdentityIdentifier
+    accountChunks.push(
+      `${identityIdentifierIri} a agentictrust:8004IdentityIdentifier, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType agentictrust:IdentifierType_8004 ;\n` +
+        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
+    );
+    
+    // Emit DID instance for identifier
+    accountChunks.push(
+      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+        `  agentictrust:identifies ${identityIdentifierIri} .\n\n`,
+    );
+  }
+  
+  // ENSNameIdentifier and ENSName for agentName ending in .eth
+  if (row?.agentName && isValidENSName(String(row.agentName))) {
+    const ensName = String(row.agentName).trim();
+    const ensDid = row?.didName || `did:ens:${chainId}:${ensName}`;
+    const ensDidIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(ensDid)}>`;
+    
+    // Create ENSNameIdentifier instance
+    const ensIdentifierIri = identifierIri(chainId, agentId, 'ens', null, ensName);
+    
+    // Create ENSName instance
+    const ensNameIriValue = ensNameIri(chainId, ensName);
+    lines.push(`  agentictrust:hasName ${ensNameIriValue} ;`);
+    
+    // Emit ENSName
+    accountChunks.push(
+      `${ensNameIriValue} a agentictrustEth:ENSName, agentictrust:Name, prov:Entity ;\n` +
+        `  agentictrustEth:ensName "${escapeTurtleString(ensName)}" ;\n` +
+        `  agentictrustEth:ensChainId ${chainId} ;\n` +
+        `  agentictrustEth:hasIdentifier ${ensIdentifierIri} .\n\n`,
+    );
+    
+    // Emit ENSNameIdentifier
+    accountChunks.push(
+      `${ensIdentifierIri} a agentictrust:ENSNameIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType agentictrust:IdentifierType_ens ;\n` +
+        `  agentictrust:hasDID ${ensDidIri} ;\n` +
+        `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
+    );
+    
+    // Emit DID for ENS name
+    accountChunks.push(
+      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+        `  agentictrust:identifies ${ensIdentifierIri} .\n\n`,
+    );
+  }
+  
   if (row?.didAccount) lines.push(`  agentictrust:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
   if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
   if (row?.agentAccount) {
     lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
-    // Link to Account instance (agentAccount is the primary account, typically SmartAccount)
+    // Link to AccountIdentifier instance (agentAccount is the primary account, typically SmartAccount)
     const acctIri = accountIri(chainId, String(row.agentAccount));
-    // Use agentictrustEth:hasAccount for Ethereum accounts
-    lines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    const accountIdentifierIriValue = accountIdentifierIri(chainId, String(row.agentAccount));
+    // Link agent to AccountIdentifier via hasAccountIdentifier
+    lines.push(`  agentictrustEth:hasAccountIdentifier ${accountIdentifierIriValue} ;`);
     // Also link via core hasIdentifier for protocol-agnostic access
-    lines.push(`  agentictrust:hasIdentifier ${acctIri} ;`);
-    // Emit Account instance with DID and EOA owner links (Ethereum-specific)
-    const accountLines: string[] = [];
-    accountLines.push(`${acctIri} a agentictrustEth:Account, agentictrust:Identifier, prov:Entity ;`);
-    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
-    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
-    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
-    // Link Account to DID if present
+    lines.push(`  agentictrust:hasIdentifier ${accountIdentifierIriValue} ;`);
+    
+    // Emit AccountIdentifier instance
+    const accountIdentifierLines: string[] = [];
+    accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
+    accountIdentifierLines.push(`  agentictrust:identifierType agentictrust:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
-      accountLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
+      accountIdentifierLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
       // Emit DID instance
       accountChunks.push(
         `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
-          `  agentictrust:identifies ${acctIri} .\n\n`,
+          `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
       );
     }
+    accountChunks.push(accountIdentifierLines.join('\n') + ' .\n\n');
+    
+    // Emit Account instance with account properties
+    const accountLines: string[] = [];
+    accountLines.push(`${acctIri} a agentictrustEth:Account, prov:Entity ;`);
+    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
+    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
+    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
+    accountLines.push(`  agentictrustEth:hasIdentifier ${accountIdentifierIriValue} ;`);
     // Link Account to EOA owner if present
     if (row?.eoaOwner) {
       const eoaAddr = normalizeHex(String(row.eoaOwner));
@@ -370,7 +497,9 @@ function renderAgentSection(
     (typeof agentCard?.url === 'string' && agentCard.url.trim());
   
   if (hasProtocolProps) {
-    const protocolIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${chainId}/${iriEncodeSegment(agentId)}>`;
+    // Use DID for protocol descriptor IRI (protocol-agnostic, no chainId needed)
+    const didForProtocol = row?.didIdentity ? iriEncodeSegment(String(row.didIdentity)) : `${chainId}/${iriEncodeSegment(agentId)}`;
+    const protocolIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${didForProtocol}>`;
     afterAgent.push(`${protocolIri} a agentictrust:A2AProtocolDescriptor, agentictrust:ProtocolDescriptor, prov:Entity ;`);
     if (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim())
       afterAgent.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
@@ -388,7 +517,7 @@ function renderAgentSection(
   for (const skill of skills) {
     const id = typeof skill?.id === 'string' ? skill.id.trim() : '';
     if (!id) continue;
-    lines.push(`  agentictrust:hasSkill ${skillIri(chainId, agentId, id)} ;`);
+    lines.push(`  agentictrust:hasSkill ${skillIri(chainId, agentId, id, row?.didIdentity)} ;`);
   }
   lines.push(`  .\n`);
 
@@ -403,7 +532,7 @@ function renderAgentSection(
   for (const skill of skills) {
     const id = typeof skill?.id === 'string' ? skill.id.trim() : '';
     if (!id) continue;
-    const sIri = skillIri(chainId, agentId, id);
+    const sIri = skillIri(chainId, agentId, id, row?.didIdentity);
     const afterSkill: string[] = [];
     lines.push(`${sIri} a agentictrust:Skill, prov:Entity ;`);
     lines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
@@ -416,7 +545,7 @@ function renderAgentSection(
       skill?.input_schema && typeof skill.input_schema === 'object' ? skill.input_schema :
       null;
     if (inputSchema) {
-      const schemaIri = skillSchemaIri(chainId, agentId, id, 'input');
+      const schemaIri = skillSchemaIri(chainId, agentId, id, 'input', row?.didIdentity);
       lines.push(`  agentictrust:hasInputSchema ${schemaIri} ;`);
       try {
         afterSkill.push(`${schemaIri} a agentictrust:JsonSchema, prov:Entity ;`);
@@ -432,7 +561,7 @@ function renderAgentSection(
       skill?.output_schema && typeof skill.output_schema === 'object' ? skill.output_schema :
       null;
     if (outputSchema) {
-      const schemaIri = skillSchemaIri(chainId, agentId, id, 'output');
+      const schemaIri = skillSchemaIri(chainId, agentId, id, 'output', row?.didIdentity);
       lines.push(`  agentictrust:hasOutputSchema ${schemaIri} ;`);
       try {
         afterSkill.push(`${schemaIri} a agentictrust:JsonSchema, prov:Entity ;`);
@@ -491,40 +620,117 @@ function renderAgentSection(
 function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   const chainId = Number(row?.chainId ?? 0) || 0;
   const agentId = String(row?.agentId ?? '');
-  const aIri = agentIri(chainId, agentId);
+  const aIri = agentIri(chainId, agentId, row?.didIdentity);
 
   const lines: string[] = [];
   lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
-  lines.push(`  agentictrust:chainId ${chainId} ;`);
   lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
   if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
-  if (row?.didIdentity) lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
+  
+  // 8004Identity and 8004IdentityIdentifier for didIdentity
+  if (row?.didIdentity) {
+    lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
+    const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didIdentity))}>`;
+    
+    // Create 8004Identity instance
+    const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
+    lines.push(`  agentictrust:has8004Identity ${identity8004IriValue} ;`);
+    
+    // Create 8004IdentityIdentifier instance
+    const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
+    
+    // Emit 8004Identity
+    accountChunks.push(
+      `${identity8004IriValue} a agentictrust:8004Identity, prov:Entity ;\n` +
+        `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
+    );
+    
+    // Emit 8004IdentityIdentifier
+    accountChunks.push(
+      `${identityIdentifierIri} a agentictrust:8004IdentityIdentifier, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType agentictrust:IdentifierType_8004 ;\n` +
+        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
+    );
+    
+    // Emit DID instance for identifier
+    accountChunks.push(
+      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+        `  agentictrust:identifies ${identityIdentifierIri} .\n\n`,
+    );
+  }
+  
+  // ENSNameIdentifier and ENSName for agentName ending in .eth
+  if (row?.agentName && isValidENSName(String(row.agentName))) {
+    const ensName = String(row.agentName).trim();
+    const ensDid = row?.didName || `did:ens:${chainId}:${ensName}`;
+    const ensDidIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(ensDid)}>`;
+    
+    // Create ENSNameIdentifier instance
+    const ensIdentifierIri = identifierIri(chainId, agentId, 'ens', null, ensName);
+    
+    // Create ENSName instance
+    const ensNameIriValue = ensNameIri(chainId, ensName);
+    lines.push(`  agentictrust:hasName ${ensNameIriValue} ;`);
+    
+    // Emit ENSName
+    accountChunks.push(
+      `${ensNameIriValue} a agentictrustEth:ENSName, agentictrust:Name, prov:Entity ;\n` +
+        `  agentictrustEth:ensName "${escapeTurtleString(ensName)}" ;\n` +
+        `  agentictrustEth:ensChainId ${chainId} ;\n` +
+        `  agentictrustEth:hasIdentifier ${ensIdentifierIri} .\n\n`,
+    );
+    
+    // Emit ENSNameIdentifier
+    accountChunks.push(
+      `${ensIdentifierIri} a agentictrust:ENSNameIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType agentictrust:IdentifierType_ens ;\n` +
+        `  agentictrust:hasDID ${ensDidIri} ;\n` +
+        `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
+    );
+    
+    // Emit DID for ENS name
+    accountChunks.push(
+      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+        `  agentictrust:identifies ${ensIdentifierIri} .\n\n`,
+    );
+  }
+  
   if (row?.didAccount) lines.push(`  agentictrust:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
   if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
   if (row?.agentAccount) {
     lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
-    // Link to Account instance (agentAccount is the primary account, typically SmartAccount)
+    // Link to AccountIdentifier instance (agentAccount is the primary account, typically SmartAccount)
     const acctIri = accountIri(chainId, String(row.agentAccount));
-    // Use agentictrustEth:hasAccount for Ethereum accounts
-    lines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    const accountIdentifierIriValue = accountIdentifierIri(chainId, String(row.agentAccount));
+    // Link agent to AccountIdentifier via hasAccountIdentifier
+    lines.push(`  agentictrustEth:hasAccountIdentifier ${accountIdentifierIriValue} ;`);
     // Also link via core hasIdentifier for protocol-agnostic access
-    lines.push(`  agentictrust:hasIdentifier ${acctIri} ;`);
-    // Emit Account instance with DID and EOA owner links (Ethereum-specific)
-    const accountLines: string[] = [];
-    accountLines.push(`${acctIri} a agentictrustEth:Account, agentictrust:Identifier, prov:Entity ;`);
-    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
-    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
-    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
-    // Link Account to DID if present
+    lines.push(`  agentictrust:hasIdentifier ${accountIdentifierIriValue} ;`);
+    
+    // Emit AccountIdentifier instance
+    const accountIdentifierLines: string[] = [];
+    accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
+    accountIdentifierLines.push(`  agentictrust:identifierType agentictrust:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
-      accountLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
+      accountIdentifierLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
       // Emit DID instance
       accountChunks.push(
         `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
-          `  agentictrust:identifies ${acctIri} .\n\n`,
+          `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
       );
     }
+    accountChunks.push(accountIdentifierLines.join('\n') + ' .\n\n');
+    
+    // Emit Account instance with account properties
+    const accountLines: string[] = [];
+    accountLines.push(`${acctIri} a agentictrustEth:Account, prov:Entity ;`);
+    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
+    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
+    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
+    accountLines.push(`  agentictrustEth:hasIdentifier ${accountIdentifierIriValue} ;`);
     // Link Account to EOA owner if present
     if (row?.eoaOwner) {
       const eoaAddr = normalizeHex(String(row.eoaOwner));
@@ -577,10 +783,10 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
   };
 
   const allAgentsForMaps = await safeAll(`
-    SELECT chainId, agentId, agentName, agentAccount, agentAddress, agentOwner, eoaOwner
+    SELECT chainId, agentId, agentName, agentAccount, agentAddress, agentOwner, eoaOwner, didIdentity
     FROM agents
   `);
-  const agentMetaByKey = new Map<string, { chainId: number; agentId: string; agentName?: string | null }>();
+  const agentMetaByKey = new Map<string, { chainId: number; agentId: string; agentName?: string | null; didIdentity?: string | null }>();
   const agentByAccountKey = new Map<string, string>(); // `${chainId}|${addrLower}` -> agentIri
   const agentKeyByAccountKey = new Map<string, { chainId: number; agentId: string }>(); // `${chainId}|${addrLower}` -> {chainId, agentId}
   for (const row of allAgentsForMaps) {
@@ -588,8 +794,8 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const agentId = String(row?.agentId ?? '');
     if (!agentId) continue;
     const key = `${chainId}|${agentId}`;
-    agentMetaByKey.set(key, { chainId, agentId, agentName: row?.agentName != null ? String(row.agentName) : null });
-    const aIri = agentIri(chainId, agentId);
+    agentMetaByKey.set(key, { chainId, agentId, agentName: row?.agentName != null ? String(row.agentName) : null, didIdentity: row?.didIdentity != null ? String(row.didIdentity) : null });
+    const aIri = agentIri(chainId, agentId, row?.didIdentity);
     const acct = normalizeHex(row?.agentAccount);
     const addr = normalizeHex(row?.agentAddress);
     const owner = normalizeHex(row?.agentOwner);
@@ -654,8 +860,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     emittedAgents.add(key);
     const meta = agentMetaByKey.get(key);
     const lines: string[] = [];
-    lines.push(`${agentIri(chainId, agentId)} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
-    lines.push(`  agentictrust:chainId ${chainId} ;`);
+    lines.push(`${agentIri(chainId, agentId, meta?.didIdentity)} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
     lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
     if (meta?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(meta.agentName))}" ;`);
     lines.push(`  .\n`);
@@ -711,7 +916,8 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const client = normalizeHex(f?.clientAddress) || String(f?.clientAddress ?? '');
     const feedbackIndex = Number(f?.feedbackIndex ?? 0) || 0;
     const fi = feedbackIri(chainId, agentId, client, feedbackIndex);
-    const ai = agentIri(chainId, agentId);
+    const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
+    const ai = agentIri(chainId, agentId, meta?.didIdentity);
     chunks.push(`${ai} erc8004:hasFeedback ${fi} .\n`);
 
     const lines: string[] = [];
@@ -725,7 +931,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     if (f?.ratingPct != null) lines.push(`  erc8004:feedbackRatingPct ${Number(f.ratingPct) || 0} ;`);
     if (f?.isRevoked != null) lines.push(`  erc8004:isRevoked ${Number(f.isRevoked) ? 'true' : 'false'} ;`);
     if (typeof f?.skill === 'string' && f.skill.trim()) {
-      lines.push(`  erc8004:feedbackSkill ${skillIri(chainId, agentId, String(f.skill).trim())} ;`);
+      lines.push(`  erc8004:feedbackSkill ${skillIri(chainId, agentId, String(f.skill).trim(), meta?.didIdentity)} ;`);
     }
     const domain = typeof f?.domain === 'string' ? f.domain.trim() : '';
     if (domain) {
@@ -828,7 +1034,8 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const id = String(r?.id ?? '');
     if (!id) continue;
     const ri = feedbackResponseIri(chainId, id);
-    const ai = agentIri(chainId, agentId);
+    const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
+    const ai = agentIri(chainId, agentId, meta?.didIdentity);
     chunks.push(`${ai} erc8004:hasFeedback ${ri} .\n`);
     const lines: string[] = [];
     lines.push(`${ri} a erc8004:FeedbackResponse, agentictrust:ReputationAssertion, prov:Entity ;`);
@@ -952,7 +1159,8 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     if (!agentId) continue;
     ensureAgentNode(chainId, agentId);
     const vi = validationResponseIri(chainId, id);
-    const ai = agentIri(chainId, agentId);
+    const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
+    const ai = agentIri(chainId, agentId, meta?.didIdentity);
     chunks.push(`${ai} erc8004:hasValidation ${vi} .\n`);
     const lines: string[] = [];
     lines.push(`${vi} a erc8004:ValidationResponse, agentictrust:VerificationAssertion, prov:Entity ;`);
