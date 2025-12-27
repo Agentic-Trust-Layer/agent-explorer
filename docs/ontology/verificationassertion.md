@@ -1,0 +1,135 @@
+## VerificationAssertion
+
+This page documents the **VerificationAssertion** class hierarchy and property relationships used to represent agent validation and verification claims.
+
+### Class Hierarchy
+
+```mermaid
+classDiagram
+direction TB
+
+class provEntity["prov:Entity"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+class VerificationAssertion["agentictrust:VerificationAssertion"]
+class ValidationResponse["erc8004:ValidationResponse"]
+
+provEntity <|-- TrustAssertion
+TrustAssertion <|-- VerificationAssertion
+VerificationAssertion <|-- ValidationResponse
+```
+
+**Inheritance chain:**
+- `prov:Entity` (base PROV-O class)
+  - `agentictrust:TrustAssertion` (durable trust claim)
+    - `agentictrust:VerificationAssertion` (verification/validation claim)
+      - `erc8004:ValidationResponse` (ERC-8004 validation response)
+
+### Property Relationships
+
+```mermaid
+classDiagram
+direction LR
+
+class AIAgent["agentictrust:AIAgent"]
+class VerificationAssertion["agentictrust:VerificationAssertion"]
+class ValidationResponse["erc8004:ValidationResponse"]
+class ValidationRequest["erc8004:ValidationRequest"]
+class TrustSituation["agentictrust:TrustSituation"]
+class IntentCheck["agentictrust:IntentCheck"]
+class provAgent["prov:Agent"]
+
+AIAgent --> VerificationAssertion : hasVerificationAssertion (agentictrust)
+AIAgent --> ValidationResponse : hasValidation (erc8004)
+
+ValidationResponse --> ValidationRequest : validationRespondsToRequest (erc8004)
+ValidationResponse --> provAgent : validatorAgentForResponse (erc8004)
+ValidationResponse --> IntentCheck : validationTagCheck (erc8004)
+
+TrustSituation --> VerificationAssertion : generatedAssertion (agentictrust)
+ValidationRequest --> ValidationResponse : generatedAssertion (agentictrust)
+```
+
+### Core Properties
+
+#### Agent → Assertion Links
+
+- **`agentictrust:hasVerificationAssertion`** (domain: `prov:Agent`, range: `agentictrust:VerificationAssertion`)
+  - Links an agent to verification assertions about it or produced by it
+  - Subproperty of `agentictrust:hasTrustAssertion`
+
+- **`erc8004:hasValidation`** (domain: `agentictrust:AIAgent`, range: `erc8004:ValidationResponse`)
+  - ERC-8004 specific property linking agents to validation responses
+  - Subproperty of `agentictrust:hasVerificationAssertion`
+
+#### Assertion → Request Links
+
+- **`erc8004:validationRespondsToRequest`** (domain: `erc8004:ValidationResponse`, range: `erc8004:ValidationRequest`)
+  - Links a validation response to the request it responds to
+
+- **`agentictrust:generatedAssertion`** (domain: `agentictrust:TrustSituation`, range: `agentictrust:TrustAssertion`)
+  - Links a trust situation (validation request) to the assertion it generates
+  - Subproperty of `prov:generated`
+
+#### Validator Links
+
+- **`erc8004:validatorAgentForResponse`** (domain: `erc8004:ValidationResponse`, range: `agentictrust:AIAgent`)
+  - Optional link when validator address maps to a known AIAgent
+
+#### Validation Check Links
+
+- **`erc8004:validationTagCheck`** (domain: `erc8004:ValidationResponse`, range: `agentictrust:IntentCheck`)
+  - Links validation response to the intent check/tag being validated
+
+### Datatype Properties
+
+**ValidationResponse properties:**
+- `erc8004:validationChainIdForResponse` (xsd:integer) - Chain ID
+- `erc8004:requestingAgentIdForResponse` (xsd:string) - Agent ID being validated
+- `erc8004:validationResponseValue` (xsd:integer) - Validation score/value
+- `erc8004:responseHash` (xsd:string) - Response hash
+
+### Usage Pattern
+
+**Query all verification assertions for an agent:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT ?agent ?agentId ?verificationAssertion ?validationValue
+WHERE {
+  ?agent a agentictrust:AIAgent ;
+    agentictrust:hasVerificationAssertion ?verificationAssertion .
+  
+  ?verificationAssertion a agentictrust:VerificationAssertion .
+  
+  OPTIONAL {
+    ?agent agentictrust:agentId ?agentId .
+  }
+  OPTIONAL {
+    ?verificationAssertion erc8004:validationResponseValue ?validationValue .
+  }
+}
+```
+
+**Query validation responses with their requests:**
+```sparql
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT ?validationResponse ?validationRequest ?validatorAgent
+WHERE {
+  ?validationResponse a erc8004:ValidationResponse ;
+    erc8004:validationRespondsToRequest ?validationRequest .
+  
+  OPTIONAL {
+    ?validationResponse erc8004:validatorAgentForResponse ?validatorAgent .
+  }
+}
+```
+
+### Related Concepts
+
+- **TrustSituation**: Validation requests are `erc8004:ValidationRequest` (subclass of `agentictrust:TrustSituation`)
+- **TrustAssertion**: VerificationAssertion is a subclass of TrustAssertion
+- **IntentCheck**: Validation responses link to intent checks via `validationTagCheck`
+- See also: [ERC-8004 documentation](./erc8004.md), [Trust Graph](./trust-graph.md)
+
