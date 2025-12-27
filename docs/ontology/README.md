@@ -31,6 +31,7 @@ ERC ontologies
 
 - [`erc8004.md`](./erc8004.md): ERC-8004 registration metadata + validation + feedback (with diagram)
 - [`erc8092.md`](./erc8092.md): ERC-8092 relationships/assertions/accounts (with diagram)
+- [`relationshipassertion.md`](./relationshipassertion.md): focused pattern: relationship assertion → account → controlling agent
 
 ## Ontology source files
 
