@@ -28,7 +28,6 @@ agentictrust:recordsHasModule a owl:ObjectProperty ;
 
 ### AgenticTrust concepts (actual ontology nodes)
 agentictrust:AIAgent a owl:Class .
-agentictrust:AgentMetadata a owl:Class .
 agentictrust:AgentDescriptor a owl:Class .
 agentictrust:Skill a owl:Class .
 agentictrust:Tag a owl:Class .
@@ -36,16 +35,12 @@ agentictrust:IntentType a owl:Class .
 agentictrust:TaskType a owl:Class .
 agentictrust:JsonSchema a owl:Class .
 
-agentictrust:hasMetadata a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range agentictrust:AgentMetadata .
-
 agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range agentictrust:AgentDescriptor .
 
 agentictrust:declaresSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:hasSkill a owl:ObjectProperty ;
@@ -73,11 +68,6 @@ agentictrust:hasOutputSchema a owl:ObjectProperty ;
   rdfs:range agentictrust:JsonSchema .
 
 ### Mapping edges (diagram overlay)
-agentictrust:mapsToAgentMetadata a owl:ObjectProperty ;
-  rdfs:label "mapsTo" ;
-  rdfs:domain agentictrust:OASFRecord ;
-  rdfs:range agentictrust:AgentMetadata .
-
 agentictrust:mapsToAgentCard a owl:ObjectProperty ;
   rdfs:label "mapsTo" ;
   rdfs:domain agentictrust:OASFRecord ;

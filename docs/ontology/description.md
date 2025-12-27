@@ -13,7 +13,6 @@ class pplanPlan["p-plan:Plan"]
 class provEntity["prov:Entity"]
 
 class TrustDescription["agentictrust:TrustDescription"]
-class AgentMetadata["agentictrust:AgentMetadata"]
 class AgentEndpoint["agentictrust:AgentEndpoint"]
 class EndpointType["agentictrust:EndpointType"]
 class OperatorIdentifier["agentictrust:OperatorIdentifier"]
@@ -25,7 +24,6 @@ class Skill["agentictrust:Skill"]
 TrustDescription --|> provPlan
 TrustDescription --|> pplanPlan
 
-AgentMetadata --|> provEntity
 AgentEndpoint --|> provEntity
 EndpointType --|> provEntity
 OperatorIdentifier --|> provEntity
@@ -43,7 +41,6 @@ classDiagram
 direction LR
 
 class AIAgent["agentictrust:AIAgent"]
-class AgentMetadata["agentictrust:AgentMetadata"]
 class AgentEndpoint["agentictrust:AgentEndpoint"]
 class EndpointType["agentictrust:EndpointType"]
 class OperatorIdentifier["agentictrust:OperatorIdentifier"]
@@ -51,15 +48,13 @@ class AgentDescriptor["agentictrust:AgentDescriptor"]
 class Skill["agentictrust:Skill"]
 class Endpoint["agentictrust:Endpoint"]
 
-AIAgent --> AgentMetadata : hasMetadata
 AIAgent --> AgentDescriptor : hasAgentDescriptor
-AgentDescriptor --> AgentMetadata : assembledFromMetadata
 
-AgentMetadata --> AgentEndpoint : hasEndpointEntry
+AgentDescriptor --> AgentEndpoint : hasEndpointEntry
 AgentEndpoint --> EndpointType : endpointType
-AgentMetadata --> OperatorIdentifier : hasOperatorIdentifier
+AgentDescriptor --> OperatorIdentifier : hasOperatorIdentifier
 
-AgentMetadata --> Skill : declaresSkill
+AgentDescriptor --> Skill : declaresSkill
 AgentDescriptor --> Skill : hasSkill
 AgentDescriptor --> Endpoint : hasEndpoint
 ```
@@ -90,16 +85,16 @@ AgentDescriptor --> Endpoint : hasEndpoint
 
 ### Agent discovery metadata (core)
 
-These are core, protocol-agnostic metadata concepts:
+These are core, protocol-agnostic descriptor concepts:
 
-- **`agentictrust:AgentMetadata`**: generic metadata container (offchain)
+- **`agentictrust:AgentDescriptor`**: generic descriptor container (offchain)
 - **`agentictrust:AgentEndpoint`**: endpoint entry (name/endpoint/version)
 - **`agentictrust:EndpointType`**: endpoint taxonomy value
 - **`agentictrust:OperatorIdentifier`**: operator identifier artifact (address/DID/CAIP-10)
 
-### Metadata → skills
+### Descriptor → skills
 
-- **`agentictrust:declaresSkill`**: `AgentMetadata` → `Skill`
+- **`agentictrust:declaresSkill`**: `AgentDescriptor` → `Skill`
 
 ### Where ERC8004 registration fits
 

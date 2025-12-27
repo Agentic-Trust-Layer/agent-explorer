@@ -22,31 +22,31 @@ erc8004: a owl:Ontology ;
 erc8004:AgentRegistration a owl:Class ;
   rdfs:label "AgentRegistrationJSON" ;
   rdfs:comment "ERC-8004 registration metadata referenced by tokenUri; composed of protocol/name/skills/integration metadata." ;
-  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
 erc8004:ProtocolMetadata a owl:Class ;
   rdfs:label "ProtocolMetadata" ;
   rdfs:comment "Protocol-related registration metadata (supported protocols, endpoints, transports, versions)." ;
-  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
 erc8004:NameMetadata a owl:Class ;
   rdfs:label "NameMetadata" ;
   rdfs:comment "Naming/identity metadata (names, ENS, DIDs, identifiers)." ;
-  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
 erc8004:SkillsMetadata a owl:Class ;
   rdfs:label "SkillsMetadata" ;
   rdfs:comment "Skills/capabilities metadata (skills list, intent types, tags, categories)." ;
-  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
 erc8004:IntegrationMetadata a owl:Class ;
   rdfs:label "IntegrationMetadata" ;
   rdfs:comment "Integration metadata (SDKs, tool integrations, external services, auth/payment integration hints)." ;
-  rdfs:subClassOf agentictrust:AgentMetadata ;
+  rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
 erc8004:hasAgentRegistration a owl:ObjectProperty ;

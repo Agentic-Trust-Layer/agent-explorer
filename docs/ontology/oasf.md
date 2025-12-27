@@ -12,7 +12,6 @@ direction LR
 
 class provEntity["prov:Entity"]
 
-class AgentMetadata["agentictrust:AgentMetadata"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
 class Skill["agentictrust:Skill"]
 class JsonSchema["agentictrust:JsonSchema"]
@@ -20,7 +19,6 @@ class Tag["agentictrust:Tag"]
 class IntentType["agentictrust:IntentType"]
 class TaskType["agentictrust:TaskType"]
 
-AgentMetadata --|> provEntity
 AgentDescriptor --|> provEntity
 Skill --|> provEntity
 JsonSchema --|> provEntity
@@ -35,7 +33,6 @@ TaskType --|> provEntity
 classDiagram
 direction LR
 
-class AgentMetadata["agentictrust:AgentMetadata"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
 class Skill["agentictrust:Skill"]
 class Tag["agentictrust:Tag"]
@@ -43,8 +40,8 @@ class IntentType["agentictrust:IntentType"]
 class TaskType["agentictrust:TaskType"]
 class JsonSchema["agentictrust:JsonSchema"]
 
-AgentMetadata --> Skill : declaresSkill
 AgentDescriptor --> Skill : hasSkill
+AgentDescriptor --> Skill : declaresSkill
 
 Skill --> Tag : hasTag
 Skill --> IntentType : supportsIntentType
@@ -74,7 +71,6 @@ AgenticTrust adopts these same goals, but expressed as an OWL/RDF ontology so th
 - **OASF Record**
   - **Meaning in OASF**: the primary structured data object used for content representation and metadata
   - **AgenticTrust mapping**:
-    - `agentictrust:AgentMetadata` (offchain metadata “record”)
     - `agentictrust:AgentDescriptor` (protocol capability “record”; e.g., `agentictrust:A2AAgentCard`, `agentictrust:MCPManifest`)
 
 - **OASF Skill**
@@ -104,7 +100,7 @@ The core discovery loop is directly compatible with OASF’s “records annotate
   - `agentictrust:IntentType` is the primary routing key
 - **Agents advertise skills**:
   - `AgentCard → Skill` (`agentictrust:hasSkill`)
-  - `AgentMetadata → Skill` (`agentictrust:declaresSkill`)
+  - `AgentDescriptor → Skill` (`agentictrust:declaresSkill`)
 - **Skills advertise their I/O contract** (schema validation):
   - `Skill → JsonSchema` (`agentictrust:hasInputSchema` / `agentictrust:hasOutputSchema`)
 - **Skills advertise domains/taxonomy**:

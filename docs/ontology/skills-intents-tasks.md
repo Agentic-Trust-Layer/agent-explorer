@@ -63,6 +63,7 @@ class TaskExecution["agentictrust:TaskExecution"]
 class SkillInvocation["agentictrust:SkillInvocation"]
 
 AgentDescriptor --> Skill : hasSkill
+AgentDescriptor --> Skill : declaresSkill
 Skill --> JsonSchema : hasInputSchema / hasOutputSchema
 Skill --> Tag : hasTag
 Skill --> IntentType : supportsIntentType
@@ -88,7 +89,7 @@ SkillInvocation --> Message : invocationUsedMessage
 ### Discovery (cards/metadata)
 
 - `agentictrust:AgentDescriptor` → `agentictrust:Skill`: `agentictrust:hasSkill`
-- `agentictrust:AgentMetadata` → `agentictrust:Skill`: `agentictrust:declaresSkill`
+- `agentictrust:AgentDescriptor` → `agentictrust:Skill`: `agentictrust:declaresSkill`
 
 ### Skill modeling (tool/function best-practice hooks)
 

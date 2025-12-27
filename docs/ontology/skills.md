@@ -17,7 +17,6 @@ classDiagram
 direction LR
 
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentMetadata["agentictrust:AgentMetadata"]
 class Skill["agentictrust:Skill"]
 class Tag["agentictrust:Tag"]
 class SkillExample["agentictrust:SkillExample"]
@@ -25,7 +24,7 @@ class JsonSchema["agentictrust:JsonSchema"]
 class IntentType["agentictrust:IntentType"]
 
 AgentDescriptor --> Skill : hasSkill
-AgentMetadata --> Skill : declaresSkill
+AgentDescriptor --> Skill : declaresSkill
 
 Skill --> Tag : hasTag
 Skill --> SkillExample : hasExample

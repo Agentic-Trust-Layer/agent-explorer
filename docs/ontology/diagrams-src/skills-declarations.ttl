@@ -8,7 +8,6 @@ agentictrust:Diagram_SkillsDeclarations a owl:Ontology .
 prov:Entity a owl:Class .
 
 agentictrust:AgentDescriptor a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:AgentMetadata a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:Skill a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:Tag a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:SkillExample a owl:Class ; rdfs:subClassOf prov:Entity .
@@ -20,7 +19,7 @@ agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:declaresSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:hasTag a owl:ObjectProperty ;

@@ -24,7 +24,6 @@ class IntentSubject["agentictrust:IntentSubject"]
 class IntentCheck["agentictrust:IntentCheck"]
 
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentMetadata["agentictrust:AgentMetadata"]
 class Endpoint["agentictrust:Endpoint"]
 class Skill["agentictrust:Skill"]
 class JsonSchema["agentictrust:JsonSchema"]
@@ -36,7 +35,6 @@ IntentType --|> provEntity
 IntentSubject --|> provEntity
 IntentCheck --|> provEntity
 AgentDescriptor --|> provEntity
-AgentMetadata --|> provEntity
 Endpoint --|> provEntity
 Skill --|> provEntity
 JsonSchema --|> provEntity
@@ -56,7 +54,6 @@ class IntentSubject["agentictrust:IntentSubject"]
 class IntentCheck["agentictrust:IntentCheck"]
 
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentMetadata["agentictrust:AgentMetadata"]
 class Endpoint["agentictrust:Endpoint"]
 class Skill["agentictrust:Skill"]
 class JsonSchema["agentictrust:JsonSchema"]
@@ -68,7 +65,7 @@ Intent --> IntentCheck : hasCheck
 
 AgentDescriptor --> Endpoint : hasEndpoint
 AgentDescriptor --> Skill : hasSkill
-AgentMetadata --> Skill : declaresSkill
+AgentDescriptor --> Skill : declaresSkill
 
 Skill --> IntentType : supportsIntentType
 Skill --> Tag : hasTag
@@ -122,7 +119,7 @@ Skills can be discovered from both:
 
 - **Agent descriptors**: `agentictrust:AgentDescriptor` → `agentictrust:Skill` via `agentictrust:hasSkill`
   - Protocol-specific forms include `agentictrust:A2AAgentCard` and `agentictrust:MCPManifest`.
-- **Metadata**: `agentictrust:AgentMetadata` → `agentictrust:Skill` via `agentictrust:declaresSkill`
+- **Descriptor declarations**: `agentictrust:AgentDescriptor` → `agentictrust:Skill` via `agentictrust:declaresSkill`
 
 Skills include:
 
@@ -137,7 +134,7 @@ Skills include:
 
 For “can I talk to this agent?”, discovery uses metadata/agent-card connectivity:
 
-- `agentictrust:AgentMetadata` → `agentictrust:AgentEndpoint` via `agentictrust:hasEndpointEntry`
+- `agentictrust:AgentDescriptor` → `agentictrust:AgentEndpoint` via `agentictrust:hasEndpointEntry`
 - `agentictrust:AgentEndpoint` → `agentictrust:EndpointType` via `agentictrust:endpointType`
 - `agentictrust:AgentDescriptor` → `agentictrust:Endpoint` via `agentictrust:hasEndpoint`
 

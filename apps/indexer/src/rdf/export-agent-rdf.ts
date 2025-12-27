@@ -453,7 +453,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
   };
 
   const allAgentsForMaps = await safeAll(`
-    SELECT chainId, agentId, agentName, agentAccount, agentAddress
+    SELECT chainId, agentId, agentName, agentAccount, agentAddress, agentOwner, eoaOwner
     FROM agents
   `);
   const agentMetaByKey = new Map<string, { chainId: number; agentId: string; agentName?: string | null }>();
@@ -468,6 +468,8 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const aIri = agentIri(chainId, agentId);
     const acct = normalizeHex(row?.agentAccount);
     const addr = normalizeHex(row?.agentAddress);
+    const owner = normalizeHex(row?.agentOwner);
+    const eoa = normalizeHex(row?.eoaOwner);
     if (acct) {
       const k = `${chainId}|${acct}`;
       agentByAccountKey.set(k, aIri);
@@ -475,6 +477,18 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     }
     if (addr) {
       const k = `${chainId}|${addr}`;
+      agentByAccountKey.set(k, aIri);
+      agentKeyByAccountKey.set(k, { chainId, agentId });
+    }
+    // Bridge relationship assertions to agents even when ERC-8092 initiator/approver addresses correspond
+    // to the agent's owner EOAs (not the agent account / smart account).
+    if (owner) {
+      const k = `${chainId}|${owner}`;
+      agentByAccountKey.set(k, aIri);
+      agentKeyByAccountKey.set(k, { chainId, agentId });
+    }
+    if (eoa) {
+      const k = `${chainId}|${eoa}`;
       agentByAccountKey.set(k, aIri);
       agentKeyByAccountKey.set(k, { chainId, agentId });
     }
@@ -944,7 +958,9 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     for (const chainId of associationChainIds) {
       const iri = relationshipAccountIri(chainId, id);
       chunks.push(
-        `${iri} a erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(id)}" ; erc8092:accountAddress "${escapeTurtleString(id)}" .\n`,
+        `${iri} a agentictrust:RelationshipAccount, erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
+          id,
+        )}" ; erc8092:accountAddress "${escapeTurtleString(id)}" .\n`,
       );
     }
   }
@@ -1015,14 +1031,24 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     if (assoc?.initiatorAccountId) {
       const id = String(assoc.initiatorAccountId);
       lines.push(`  erc8092:initiatorAccount ${relationshipAccountIri(chainId, id)} ;`);
+      // Relationship -> RelationshipAccount (core-level traversal)
+      chunks.push(`${relIri} agentictrust:hasRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
       if (initiatorAgent) {
+        // Core-level bridge all the way to agent
+        chunks.push(`${initiatorAgent} agentictrust:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
+        // Also emit ERC-8092 subproperty for compatibility
         chunks.push(`${initiatorAgent} erc8092:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
       }
     }
     if (assoc?.approverAccountId) {
       const id = String(assoc.approverAccountId);
       lines.push(`  erc8092:approverAccount ${relationshipAccountIri(chainId, id)} ;`);
+      // Relationship -> RelationshipAccount (core-level traversal)
+      chunks.push(`${relIri} agentictrust:hasRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
       if (approverAgent) {
+        // Core-level bridge all the way to agent
+        chunks.push(`${approverAgent} agentictrust:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
+        // Also emit ERC-8092 subproperty for compatibility
         chunks.push(`${approverAgent} erc8092:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
       }
     }
@@ -1055,7 +1081,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     if (assoc?.initiatorAccountId) {
       const id = String(assoc.initiatorAccountId);
       chunks.push(
-        `${relationshipAccountIri(chainId, id)} a erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
+        `${relationshipAccountIri(chainId, id)} a agentictrust:RelationshipAccount, erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
           id,
         )}" ; erc8092:accountAddress "${escapeTurtleString(id)}" .\n`,
       );
@@ -1063,7 +1089,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     if (assoc?.approverAccountId) {
       const id = String(assoc.approverAccountId);
       chunks.push(
-        `${relationshipAccountIri(chainId, id)} a erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
+        `${relationshipAccountIri(chainId, id)} a agentictrust:RelationshipAccount, erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
           id,
         )}" ; erc8092:accountAddress "${escapeTurtleString(id)}" .\n`,
       );

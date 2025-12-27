@@ -6,19 +6,14 @@ agentictrust:Diagram_DiscoveryConnectivity a owl:Ontology ;
   rdfs:label "DiscoveryConnectivity" .
 
 agentictrust:AIAgent a owl:Class .
-agentictrust:AgentMetadata a owl:Class .
 agentictrust:AgentEndpoint a owl:Class .
 agentictrust:EndpointType a owl:Class .
 agentictrust:AgentDescriptor a owl:Class .
 agentictrust:Endpoint a owl:Class .
 agentictrust:OperatorIdentifier a owl:Class .
 
-agentictrust:hasMetadata a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range agentictrust:AgentMetadata .
-
 agentictrust:hasEndpointEntry a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:AgentEndpoint .
 
 agentictrust:endpointType a owl:ObjectProperty ;
@@ -34,7 +29,7 @@ agentictrust:hasEndpoint a owl:ObjectProperty ;
   rdfs:range agentictrust:Endpoint .
 
 agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:OperatorIdentifier .
 
 

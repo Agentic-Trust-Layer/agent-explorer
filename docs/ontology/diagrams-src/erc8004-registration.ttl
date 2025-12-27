@@ -10,14 +10,14 @@ prov:Entity a owl:Class .
 prov:SoftwareAgent a owl:Class .
 
 agentictrust:AIAgent a owl:Class ; rdfs:subClassOf prov:SoftwareAgent .
-agentictrust:AgentMetadata a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:AgentDescriptor a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:Skill a owl:Class ; rdfs:subClassOf prov:Entity .
 
-erc8004:AgentRegistration a owl:Class ; rdfs:subClassOf agentictrust:AgentMetadata .
-erc8004:ProtocolMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentMetadata .
-erc8004:NameMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentMetadata .
-erc8004:SkillsMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentMetadata .
-erc8004:IntegrationMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentMetadata .
+erc8004:AgentRegistration a owl:Class ; rdfs:subClassOf agentictrust:AgentDescriptor .
+erc8004:ProtocolMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentDescriptor .
+erc8004:NameMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentDescriptor .
+erc8004:SkillsMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentDescriptor .
+erc8004:IntegrationMetadata a owl:Class ; rdfs:subClassOf agentictrust:AgentDescriptor .
 
 erc8004:hasAgentRegistration a owl:ObjectProperty ;
   rdfs:domain agentictrust:AIAgent ;

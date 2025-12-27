@@ -61,6 +61,11 @@ agentictrust:RelationshipAssertion a owl:Class ;
   rdfs:comment "A constitutive TrustAssertion that establishes, modifies, or terminates a Relationship (e.g., ERC-8092 record)." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
+agentictrust:RelationshipAccount a owl:Class ;
+  rdfs:label "RelationshipAccount" ;
+  rdfs:comment "An account identifier participating in a Relationship (e.g., ERC-8092 key-id/account-id). Not necessarily an EVM address." ;
+  rdfs:subClassOf prov:Entity .
+
 ########
 # Core DnS/PROV connecting properties
 ########
@@ -91,6 +96,18 @@ agentictrust:assertsRelationship a owl:ObjectProperty ;
   rdfs:domain agentictrust:RelationshipAssertion ;
   rdfs:range agentictrust:Relationship .
 
+agentictrust:hasRelationshipAccount a owl:ObjectProperty ;
+  rdfs:label "hasRelationshipAccount" ;
+  rdfs:comment "Links a Relationship to participating RelationshipAccount identifiers (e.g., accounts referenced by a relationship assertion)." ;
+  rdfs:domain agentictrust:Relationship ;
+  rdfs:range agentictrust:RelationshipAccount .
+
+agentictrust:ownsRelationshipAccount a owl:ObjectProperty ;
+  rdfs:label "ownsRelationshipAccount" ;
+  rdfs:comment "Links an agent identity to relationship account ids it controls/uses." ;
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrust:RelationshipAccount .
+
 agentictrust:qualifiesRelationship a owl:ObjectProperty ;
   rdfs:label "qualifiesRelationship" ;
   rdfs:comment "Links any TrustAssertion (verification/reputation/etc.) to a Relationship it qualifies (e.g., strengthens, weakens, constrains, certifies)." ;
@@ -116,14 +133,9 @@ agentictrust:AIAgent a owl:Class ;
   rdfs:comment "AI agent identity." ;
   rdfs:subClassOf prov:SoftwareAgent .
 
-agentictrust:AgentMetadata a owl:Class ;
-  rdfs:label "AgentMetadata" ;
-  rdfs:comment "ERC-8004 vocabulary: offchain agent metadata referenced by tokenUri (agent metadata profile)." ;
-  rdfs:subClassOf prov:Entity .
-
 agentictrust:AgentEndpoint a owl:Class ;
   rdfs:label "AgentEndpoint" ;
-  rdfs:comment "An endpoint entry in agent metadata (name/endpoint/version)." ;
+  rdfs:comment "An endpoint entry declared by an AgentDescriptor (name/endpoint/version)." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:EndpointType a owl:Class ;
@@ -302,15 +314,9 @@ agentictrust:TrustArtifact a owl:Class ;
 # Object properties
 ########
 
-agentictrust:hasMetadata a owl:ObjectProperty ;
-  rdfs:label "hasMetadata" ;
-  rdfs:comment "Links an agent identity to its offchain metadata entity (tokenUri JSON)." ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range agentictrust:AgentMetadata .
-
 agentictrust:hasEndpointEntry a owl:ObjectProperty ;
   rdfs:label "hasEndpointEntry" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:AgentEndpoint .
 
 agentictrust:endpointType a owl:ObjectProperty ;
@@ -321,7 +327,7 @@ agentictrust:endpointType a owl:ObjectProperty ;
 agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
   rdfs:label "hasOperatorIdentifier" ;
   rdfs:comment "Links agent metadata to operator identifiers authorized/declared for the agent (without asserting agency)." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:OperatorIdentifier .
 
 agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
@@ -332,9 +338,9 @@ agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
 
 agentictrust:assembledFromMetadata a owl:ObjectProperty ;
   rdfs:label "assembledFromMetadata" ;
-  rdfs:comment "Links an AgentDescriptor to the AgentMetadata entity/entities it is assembled from (inputs used to produce the operational descriptor used for advertisement and discovery)." ;
+  rdfs:comment "Links an AgentDescriptor to other descriptor documents/components it is assembled from (inputs used to produce the operational descriptor used for advertisement and discovery)." ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentMetadata .
+  rdfs:range agentictrust:AgentDescriptor .
 
 agentictrust:hasEndpoint a owl:ObjectProperty ;
   rdfs:label "hasEndpoint" ;
@@ -349,7 +355,7 @@ agentictrust:hasSkill a owl:ObjectProperty ;
 agentictrust:declaresSkill a owl:ObjectProperty ;
   rdfs:label "declaresSkill" ;
   rdfs:comment "Links agent metadata to skills/capabilities it declares for discovery." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:hasExample a owl:ObjectProperty ;
@@ -625,85 +631,85 @@ agentictrust:json a owl:DatatypeProperty ;
 
 agentictrust:metadataType a owl:DatatypeProperty ;
   rdfs:label "metadataType" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:anyURI .
 
 agentictrust:metadataName a owl:DatatypeProperty ;
   rdfs:label "metadataName" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:string .
 
 agentictrust:metadataDescription a owl:DatatypeProperty ;
   rdfs:label "metadataDescription" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:string .
 
 agentictrust:metadataImage a owl:DatatypeProperty ;
   rdfs:label "metadataImage" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:anyURI .
 
 agentictrust:metadataTokenUri a owl:DatatypeProperty ;
   rdfs:label "metadataTokenUri" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:anyURI .
 
 agentictrust:metadataAgentAccount a owl:DatatypeProperty ;
   rdfs:label "metadataAgentAccount" ;
   rdfs:comment "Agent account/address string from metadata (may be 0x or CAIP-10)." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:string .
 
 agentictrust:metadataDid a owl:DatatypeProperty ;
   rdfs:label "metadataDid" ;
   rdfs:comment "Optional DID value from metadata (e.g., did:ens:..., did:ethr:...)." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:string .
 
 agentictrust:metadataAgentCategory a owl:DatatypeProperty ;
   rdfs:label "metadataAgentCategory" ;
   rdfs:comment "Optional category/capability label from metadata (implementation-defined taxonomy)." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:string .
 
 agentictrust:metadataActive a owl:DatatypeProperty ;
   rdfs:label "metadataActive" ;
   rdfs:comment "Whether the agent is marked active in metadata." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:boolean .
 
 agentictrust:metadataMcp a owl:DatatypeProperty ;
   rdfs:label "metadataMcp" ;
   rdfs:comment "Whether the agent advertises MCP support in metadata." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:boolean .
 
 agentictrust:metadataX402support a owl:DatatypeProperty ;
   rdfs:label "metadataX402support" ;
   rdfs:comment "Whether the agent advertises x402 payment support in metadata." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:boolean .
 
 agentictrust:metadataOperatorsJson a owl:DatatypeProperty ;
   rdfs:label "metadataOperatorsJson" ;
   rdfs:comment "Raw operators list from metadata when stored as JSON." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range rdf:JSON .
 
 agentictrust:metadataSupportedTrustJson a owl:DatatypeProperty ;
   rdfs:label "metadataSupportedTrustJson" ;
   rdfs:comment "Raw supportedTrust list from metadata when stored as JSON." ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range rdf:JSON .
 
 agentictrust:metadataCreatedAt a owl:DatatypeProperty ;
   rdfs:label "metadataCreatedAt" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:dateTime .
 
 agentictrust:metadataUpdatedAt a owl:DatatypeProperty ;
   rdfs:label "metadataUpdatedAt" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:dateTime .
 
 agentictrust:endpointName a owl:DatatypeProperty ;
@@ -734,7 +740,7 @@ agentictrust:TrustModel a owl:Class ;
 
 agentictrust:supportsTrustModel a owl:ObjectProperty ;
   rdfs:label "supportsTrustModel" ;
-  rdfs:domain agentictrust:AgentMetadata ;
+  rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:TrustModel .
 
 ########
