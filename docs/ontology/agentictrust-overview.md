@@ -90,22 +90,25 @@ class provEntity["prov:Entity"]
 
 class AIAgent["agentictrust:AIAgent"]
 class AgentMetadata["agentictrust:AgentMetadata"]
+class AgentDescriptor["agentictrust:AgentDescriptor"]
 class AgentEndpoint["agentictrust:AgentEndpoint"]
-class OperatorIdentifier["agentictrust:OperatorIdentifier"]
 class EndpointType["agentictrust:EndpointType"]
 
 AIAgent --|> provSoftwareAgent
 AgentMetadata --|> provEntity
+AgentDescriptor --|> provEntity
 AgentEndpoint --|> provEntity
-OperatorIdentifier --|> provEntity
 EndpointType --|> provEntity
 
 AIAgent --> AgentMetadata : hasMetadata
+AIAgent --> AgentDescriptor : hasAgentDescriptor
 AgentMetadata --> AgentEndpoint : hasEndpointEntry
 AgentEndpoint --> EndpointType : endpointType
-AgentMetadata --> OperatorIdentifier : hasOperatorIdentifier
 AgentMetadata --> Skill : declaresSkill
+AgentDescriptor --> Skill : hasSkill
+AgentDescriptor --> Endpoint : hasEndpoint
 class Skill["agentictrust:Skill"]
+class Endpoint["agentictrust:Endpoint"]
 ```
 
 ### Reading guide

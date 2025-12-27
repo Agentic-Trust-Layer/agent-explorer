@@ -330,6 +330,12 @@ agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range agentictrust:AgentDescriptor .
 
+agentictrust:assembledFromMetadata a owl:ObjectProperty ;
+  rdfs:label "assembledFromMetadata" ;
+  rdfs:comment "Links an AgentDescriptor to the AgentMetadata entity/entities it is assembled from (inputs used to produce the operational descriptor used for advertisement and discovery)." ;
+  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:range agentictrust:AgentMetadata .
+
 agentictrust:hasEndpoint a owl:ObjectProperty ;
   rdfs:label "hasEndpoint" ;
   rdfs:domain agentictrust:AgentDescriptor ;
