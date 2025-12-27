@@ -279,9 +279,9 @@ agentictrust:SkillInvocation a owl:Class ;
   rdfs:comment "JSON-RPC based invocation of a skill at an A2A service endpoint." ;
   rdfs:subClassOf prov:Activity .
 
-agentictrust:AgentCardFetch a owl:Class ;
-  rdfs:label "AgentCardFetch" ;
-  rdfs:comment "Indexing activity that retrieves an agent card from a registration endpoint." ;
+agentictrust:AgentDescriptorFetch a owl:Class ;
+  rdfs:label "AgentDescriptorFetch" ;
+  rdfs:comment "Indexing activity that retrieves an AgentDescriptor (e.g., A2AAgentCard or MCPManifest) from a registration endpoint." ;
   rdfs:subClassOf prov:Activity .
 
 ########
@@ -574,17 +574,17 @@ agentictrust:agentCardReadAt a owl:DatatypeProperty ;
 
 agentictrust:protocolVersion a owl:DatatypeProperty ;
   rdfs:label "protocolVersion" ;
-  rdfs:domain agentictrust:AgentCard ;
+  rdfs:domain agentictrust:A2AAgentCard ;
   rdfs:range xsd:string .
 
 agentictrust:preferredTransport a owl:DatatypeProperty ;
   rdfs:label "preferredTransport" ;
-  rdfs:domain agentictrust:AgentCard ;
+  rdfs:domain agentictrust:A2AAgentCard ;
   rdfs:range xsd:string .
 
 agentictrust:serviceUrl a owl:DatatypeProperty ;
   rdfs:label "serviceUrl" ;
-  rdfs:domain agentictrust:AgentCard ;
+  rdfs:domain agentictrust:A2AAgentCard ;
   rdfs:range xsd:anyURI .
 
 agentictrust:skillId a owl:DatatypeProperty ;
