@@ -1,0 +1,20 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+
+agentictrust:Diagram_DescriptionToSituation a owl:Ontology ;
+  rdfs:label "DescriptionToSituation" .
+
+agentictrust:TrustDescription a owl:Class .
+agentictrust:TrustSituation a owl:Class .
+agentictrust:TrustAssertion a owl:Class .
+
+agentictrust:realizesDescription a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustSituation ;
+  rdfs:range agentictrust:TrustDescription .
+
+agentictrust:generatedAssertion a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustSituation ;
+  rdfs:range agentictrust:TrustAssertion .
+
+

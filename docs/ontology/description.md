@@ -2,9 +2,19 @@
 
 Ontology: `agentictrust.owl`
 
-### Diagram
+### Diagrams (how Description supports other areas)
 
-![Core agent metadata](./images/sections/core-metadata.png)
+#### Description → Situation
+
+![Description → Situation](./images/sections/description-to-situation.png)
+
+#### Description → Discovery (agent metadata + skills)
+
+![Description → Discovery](./images/sections/description-to-discovery.png)
+
+#### Description → Execution (tasks + invocations + routing)
+
+![Description → Execution](./images/sections/description-to-execution.png)
 
 ### TrustDescription (DnS “Description”)
 

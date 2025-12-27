@@ -2,9 +2,7 @@
 
 Source: `apps/badge-admin/public/ontology/agentictrust.owl`
 
-### Upper-ontology inspiration (principles, not imports)
-
-This project **does not ship an “upper ontology” OWL**. Instead, the AgenticTrust ontology uses **design patterns** inspired by well-known foundations:
+AgenticTrust ontology uses **design patterns** inspired by well-known foundations:
 
 - **PROV-O (`prov-o`)**: a W3C provenance model for describing **Agents**, **Activities**, and **Entities**, plus relations like “used”, “generated”, and timestamps. We use it to make trust events and artifacts queryable in a standard way across tools.
 - **P-PLAN (`p-plan`)**: a lightweight planning/workflow vocabulary that complements PROV-O for describing **plans** and their realizations. We use it to align “descriptions/plans” with “situations/executions”.
@@ -36,17 +34,80 @@ By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituat
 - **Community development**: shared vocabulary to build “communities” around task types, skills, validators, relationship networks, and contribution/reputation signals
 - **Composable analytics**: one SPARQL/graph model for ranking, clustering, and trend analysis across multiple registries
 
-### Section diagrams
+## AgenticTrust core ontology (key classes + relationships)
 
-![Core trust model](./images/sections/core-trust.png)
+### Core trust model (DnS + PROV-O + P-PLAN)
 
-![Core agent metadata](./images/sections/core-metadata.png)
+- **TrustDescription**: normative “what/why” (subclass of `prov:Plan` and `p-plan:Plan`)
+- **TrustSituation**: time-scoped realization (subclass of `prov:Activity`)
+- **TrustAssertion**: durable claim (subclass of `prov:Entity`)
+- **Relationship**: persistent relationship instance (subclass of `prov:Entity`)
+- **RelationshipAssertion**: constitutive assertion about a `Relationship` (subclass of `TrustAssertion`)
 
-![Skills declarations](./images/sections/skills-declarations.png)
+```mermaid
+classDiagram
+direction LR
 
-![Skills routing](./images/sections/skills-routing.png)
+class provPlan["prov:Plan"]
+class pplanPlan["p-plan:Plan"]
+class provActivity["prov:Activity"]
+class provEntity["prov:Entity"]
+class provAgent["prov:Agent"]
 
-![Skills execution trace](./images/sections/skills-execution.png)
+class TrustDescription["agentictrust:TrustDescription"]
+class TrustSituation["agentictrust:TrustSituation"]
+class TrustAssertion["agentictrust:TrustAssertion"]
+class VerificationAssertion["agentictrust:VerificationAssertion"]
+class ReputationAssertion["agentictrust:ReputationAssertion"]
+class Relationship["agentictrust:Relationship"]
+class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+
+TrustDescription --|> provPlan
+TrustDescription --|> pplanPlan
+TrustSituation --|> provActivity
+TrustAssertion --|> provEntity
+VerificationAssertion --|> TrustAssertion
+ReputationAssertion --|> TrustAssertion
+Relationship --|> provEntity
+RelationshipAssertion --|> TrustAssertion
+
+TrustSituation --> TrustDescription : realizesDescription
+TrustSituation --> TrustAssertion : generatedAssertion
+TrustAssertion --> provEntity : aboutSubject
+RelationshipAssertion --> Relationship : assertsRelationship
+TrustAssertion --> Relationship : qualifiesRelationship
+provAgent --> TrustAssertion : hasTrustAssertion
+```
+
+### Agent identity + metadata (core)
+
+```mermaid
+classDiagram
+direction LR
+
+class provSoftwareAgent["prov:SoftwareAgent"]
+class provEntity["prov:Entity"]
+class provAgent["prov:Agent"]
+
+class AIAgent["agentictrust:AIAgent"]
+class AgentMetadata["agentictrust:AgentMetadata"]
+class AgentEndpoint["agentictrust:AgentEndpoint"]
+class Operator["agentictrust:Operator"]
+class EndpointType["agentictrust:EndpointType"]
+
+AIAgent --|> provSoftwareAgent
+AgentMetadata --|> provEntity
+AgentEndpoint --|> provEntity
+Operator --|> provAgent
+EndpointType --|> provEntity
+
+AIAgent --> AgentMetadata : hasMetadata
+AgentMetadata --> AgentEndpoint : hasEndpointEntry
+AgentEndpoint --> EndpointType : endpointType
+AgentMetadata --> Operator : hasOperator
+AgentMetadata --> Skill : declaresSkill
+class Skill["agentictrust:Skill"]
+```
 
 ### Reading guide
 
