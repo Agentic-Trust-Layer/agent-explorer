@@ -49,7 +49,7 @@ classDiagram
     }
     class OperatorIdentifier {
     }
-    class 8004IdentityIdentifier {
+    class Identity8004Identifier {
         <<erc8004>>
     }
     class ENSNameIdentifier {
@@ -67,16 +67,19 @@ classDiagram
     class ENSName {
         <<agentictrustEth>>
     }
-    class 8004Identity {
+    class Identity8004 {
     }
     
     Identifier <|-- UniversalIdentifier
     Identifier <|-- ENSNameIdentifier
     Identifier <|-- AccountIdentifier
-    UniversalIdentifier <|-- 8004IdentityIdentifier
+    UniversalIdentifier <|-- Identity8004Identifier
     DecentralizedIdentifier <|-- DID
     DecentralizedIdentifier <|-- OperatorIdentifier
     Name <|-- ENSName
+    
+    note for Identity8004Identifier "erc8004:8004IdentityIdentifier"
+    note for Identity8004 "erc8004:8004Identity"
 ```
 
 ## Complete Agent-to-Identifier Relationships
@@ -134,6 +137,161 @@ classDiagram
     note for Identity8004Identifier "erc8004:8004IdentityIdentifier"
     note for ENSName "agentictrustEth:hasENSName"
     note for AccountIdentifier "agentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount"
+```
+
+## Focused diagrams (Account, ENSName, 8004Identity)
+
+### Agent ↔ AccountIdentifier ↔ Account (eth)
+
+```mermaid
+classDiagram
+    class AIAgent
+    class AccountIdentifier
+    class Account
+    class DID
+    
+    AIAgent --> AccountIdentifier : hasAccountIdentifier
+    AccountIdentifier --> Account : hasAccount
+    AccountIdentifier --> DID : hasDID
+    
+    note for AccountIdentifier "agentictrustEth:AccountIdentifier\nagentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount\nagentictrustEth:hasDID"
+    note for Account "agentictrustEth:Account\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
+```
+
+### Agent ↔ ENSName ↔ ENSNameIdentifier ↔ DID (eth)
+
+```mermaid
+classDiagram
+    class AIAgent
+    class ENSName
+    class ENSNameIdentifier
+    class DID
+    
+    AIAgent --> ENSName : hasENSName
+    ENSName --> ENSNameIdentifier : hasIdentifier
+    ENSNameIdentifier --> DID : hasDID
+    
+    note for ENSName "agentictrustEth:ENSName\nagentictrustEth:hasENSName\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
+    note for ENSNameIdentifier "agentictrustEth:ENSNameIdentifier\nagentictrustEth:IdentifierType_ens"
+```
+
+### Agent ↔ 8004Identity ↔ 8004IdentityIdentifier ↔ DID (erc8004)
+
+```mermaid
+classDiagram
+    class AIAgent
+    class Identity8004
+    class Identity8004Identifier
+    class DID
+    
+    AIAgent --> Identity8004 : has8004Identity
+    Identity8004 --> Identity8004Identifier : hasIdentifier
+    Identity8004Identifier --> DID : hasDID
+    
+    note for Identity8004 "erc8004:8004Identity\nerc8004:has8004Identity"
+    note for Identity8004Identifier "erc8004:8004IdentityIdentifier\nerc8004:IdentifierType_8004"
+```
+
+## SPARQL script (Account, ENSName, 8004Identity → Agent)
+
+The complete script is in: `docs/ontology/sparql/identifiers-account-ens-8004.sparql`
+
+### Agent → AccountIdentifier → Account (+ DID)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+
+SELECT ?agent ?agentId ?accountIdentifier ?account ?chainId ?address ?accountType ?did
+WHERE {
+  ?agent a agentictrust:AIAgent .
+  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+
+  ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
+  OPTIONAL { ?accountIdentifier agentictrust:hasDID ?did . }
+
+  ?accountIdentifier agentictrustEth:hasAccount ?account .
+  OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
+  OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
+  OPTIONAL { ?account agentictrustEth:accountType ?accountType . }
+}
+ORDER BY ?agentId
+```
+
+### Agent → ENSName → ENSNameIdentifier (+ DID)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?agent ?agentId ?ensName ?ensNameValue ?ensIdentifier ?did
+WHERE {
+  ?agent a agentictrust:AIAgent .
+  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+
+  ?agent agentictrustEth:hasENSName ?ensName .
+  OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
+
+  ?ensName agentictrustEth:hasIdentifier ?ensIdentifier .
+  OPTIONAL { ?ensIdentifier rdfs:label ?ensNameValue . }
+  OPTIONAL { ?ensIdentifier agentictrust:hasDID ?did . }
+}
+ORDER BY ?agentId
+```
+
+### Agent → 8004Identity → 8004IdentityIdentifier (+ DID)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT ?agent ?agentId ?identity8004 ?identityIdentifier ?did
+WHERE {
+  ?agent a agentictrust:AIAgent .
+  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+
+  ?agent erc8004:has8004Identity ?identity8004 .
+  ?identity8004 agentictrust:hasIdentifier ?identityIdentifier .
+  OPTIONAL { ?identityIdentifier agentictrust:hasDID ?did . }
+}
+ORDER BY ?agentId
+```
+
+### One row per agent (Account + ENS + 8004Identity)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT ?agent ?agentId
+  ?accountIdentifier ?account ?chainId ?address
+  ?ensName ?ensNameValue ?ensIdentifier
+  ?identity8004 ?identityIdentifier
+WHERE {
+  ?agent a agentictrust:AIAgent .
+  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+
+  OPTIONAL {
+    ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
+    ?accountIdentifier agentictrustEth:hasAccount ?account .
+    OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
+    OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
+  }
+
+  OPTIONAL {
+    ?agent agentictrustEth:hasENSName ?ensName .
+    OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
+    OPTIONAL { ?ensName agentictrustEth:hasIdentifier ?ensIdentifier . }
+  }
+
+  OPTIONAL {
+    ?agent erc8004:has8004Identity ?identity8004 .
+    OPTIONAL { ?identity8004 agentictrust:hasIdentifier ?identityIdentifier . }
+  }
+}
+ORDER BY ?agentId
 ```
 
 ## Descriptor Relationships
