@@ -130,10 +130,10 @@ classDiagram
     
     note for Identifier "identifierType values:\n- erc8004:IdentifierType_8004\n- agentictrustEth:IdentifierType_account\n- agentictrustEth:IdentifierType_ens"
     note for DID "identifies points to\nIdentifier, not Agent"
-    note right of Identity8004 "erc8004:has8004Identity\nerc8004:8004Identity"
-    note right of Identity8004Identifier "erc8004:8004IdentityIdentifier"
-    note right of ENSName "agentictrustEth:hasENSName"
-    note right of AccountIdentifier "agentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount"
+    note for Identity8004 "erc8004:has8004Identity\nerc8004:8004Identity"
+    note for Identity8004Identifier "erc8004:8004IdentityIdentifier"
+    note for ENSName "agentictrustEth:hasENSName"
+    note for AccountIdentifier "agentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount"
 ```
 
 ## Descriptor Relationships
@@ -179,7 +179,7 @@ classDiagram
     note for Identity8004Descriptor "erc8004:8004IdentityDescriptor"
     note for ENSNameDescriptor "agentictrustEth:ENSNameDescriptor"
     note for AccountDescriptor "agentictrustEth:AccountDescriptor"
-    note right of AIAgent "agentictrust:hasAgentDescriptor\nagentictrust:hasDescriptor"
+    note for AIAgent "agentictrust:hasAgentDescriptor\nagentictrust:hasDescriptor"
     
     Descriptor <|-- AgentDescriptor
     Descriptor <|-- IdentifierDescriptor
