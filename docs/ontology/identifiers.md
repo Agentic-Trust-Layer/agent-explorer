@@ -88,7 +88,7 @@ classDiagram
     class Identifier {
         identifierType
     }
-    class 8004IdentityIdentifier {
+    class Identity8004Identifier {
         <<erc8004>>
     }
     class AccountIdentifier {
@@ -103,7 +103,7 @@ classDiagram
     class ENSName {
         <<agentictrustEth>>
     }
-    class 8004Identity {
+    class Identity8004 {
     }
     class DID {
         didMethod
@@ -114,14 +114,14 @@ classDiagram
     }
     
     AIAgent -->|hasIdentifier| Identifier
-    AIAgent -->|has8004Identity| 8004Identity
+    AIAgent -->|has8004Identity| Identity8004
     AIAgent -->|hasENSName| ENSName
     AIAgent -->|hasAccountIdentifier| AccountIdentifier
-    AIAgent -->|hasIdentifier| 8004IdentityIdentifier
+    AIAgent -->|hasIdentifier| Identity8004Identifier
     AIAgent -->|hasIdentifier| ENSNameIdentifier
     AIAgent -->|hasIdentifier| AccountIdentifier
     
-    8004Identity -->|hasIdentifier| 8004IdentityIdentifier
+    Identity8004 -->|hasIdentifier| Identity8004Identifier
     ENSName -->|hasIdentifier| ENSNameIdentifier
     AccountIdentifier -->|hasAccount| Account
     
@@ -130,7 +130,8 @@ classDiagram
     
     note for Identifier "identifierType values:\n- erc8004:IdentifierType_8004\n- agentictrustEth:IdentifierType_account\n- agentictrustEth:IdentifierType_ens"
     note for DID "identifies points to\nIdentifier, not Agent"
-    note right of 8004Identity "erc8004:has8004Identity"
+    note right of Identity8004 "erc8004:has8004Identity\nerc8004:8004Identity"
+    note right of Identity8004Identifier "erc8004:8004IdentityIdentifier"
     note right of ENSName "agentictrustEth:hasENSName"
     note right of AccountIdentifier "agentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount"
 ```
@@ -145,7 +146,7 @@ classDiagram
     }
     class Identifier {
     }
-    class 8004Identity {
+    class Identity8004 {
     }
     class ENSName {
         <<agentictrustEth>>
@@ -161,7 +162,7 @@ classDiagram
     class IdentifierDescriptor {
         <<abstract>>
     }
-    class 8004IdentityDescriptor {
+    class Identity8004Descriptor {
     }
     class ENSNameDescriptor {
     }
@@ -171,18 +172,18 @@ classDiagram
     AIAgent -->|hasAgentDescriptor| AgentDescriptor
     AIAgent -->|hasDescriptor| AgentDescriptor
     Identifier -->|hasDescriptor| IdentifierDescriptor
-    8004Identity -->|hasDescriptor| 8004IdentityDescriptor
+    Identity8004 -->|hasDescriptor| Identity8004Descriptor
     ENSName -->|hasDescriptor| ENSNameDescriptor
     Account -->|hasDescriptor| AccountDescriptor
     
-    note for 8004IdentityDescriptor "erc8004:8004IdentityDescriptor"
+    note for Identity8004Descriptor "erc8004:8004IdentityDescriptor"
     note for ENSNameDescriptor "agentictrustEth:ENSNameDescriptor"
     note for AccountDescriptor "agentictrustEth:AccountDescriptor"
     note right of AIAgent "agentictrust:hasAgentDescriptor\nagentictrust:hasDescriptor"
     
     Descriptor <|-- AgentDescriptor
     Descriptor <|-- IdentifierDescriptor
-    IdentifierDescriptor <|-- 8004IdentityDescriptor
+    IdentifierDescriptor <|-- Identity8004Descriptor
     IdentifierDescriptor <|-- ENSNameDescriptor
     IdentifierDescriptor <|-- AccountDescriptor
 ```
