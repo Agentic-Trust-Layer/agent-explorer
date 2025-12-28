@@ -23,9 +23,9 @@ Agent
   ├─ agentictrustEth:hasENSName → agentictrustEth:ENSName
   │   ├─ hasIdentifier → agentictrustEth:ENSNameIdentifier (via agentictrustEth:hasIdentifier)
   │   └─ hasDescriptor → agentictrustEth:ENSNameDescriptor
-  ├─ hasAccountIdentifier → AccountIdentifier (agentictrustEth)
-  │   ├─ hasAccount → Account (agentictrustEth)
-  │   └─ hasDID → DID
+  ├─ agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier
+  │   ├─ agentictrustEth:hasAccount → agentictrustEth:Account
+  │   └─ agentictrustEth:hasDID → agentictrust:DID
   └─ hasAgentDescriptor → AgentDescriptor
       └─ hasDescriptor → AgentDescriptor
 ```
@@ -114,8 +114,8 @@ classDiagram
     }
     
     AIAgent -->|hasIdentifier| Identifier
-    AIAgent -->|erc8004:has8004Identity| 8004Identity
-    AIAgent -->|agentictrustEth:hasENSName| ENSName
+    AIAgent -->|has8004Identity| 8004Identity
+    AIAgent -->|hasENSName| ENSName
     AIAgent -->|hasAccountIdentifier| AccountIdentifier
     AIAgent -->|hasIdentifier| 8004IdentityIdentifier
     AIAgent -->|hasIdentifier| ENSNameIdentifier
@@ -130,6 +130,9 @@ classDiagram
     
     note for Identifier "identifierType values:\n- erc8004:IdentifierType_8004\n- agentictrustEth:IdentifierType_account\n- agentictrustEth:IdentifierType_ens"
     note for DID "identifies points to\nIdentifier, not Agent"
+    note right of 8004Identity "erc8004:has8004Identity"
+    note right of ENSName "agentictrustEth:hasENSName"
+    note right of AccountIdentifier "agentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount"
 ```
 
 ## Descriptor Relationships
@@ -175,6 +178,7 @@ classDiagram
     note for 8004IdentityDescriptor "erc8004:8004IdentityDescriptor"
     note for ENSNameDescriptor "agentictrustEth:ENSNameDescriptor"
     note for AccountDescriptor "agentictrustEth:AccountDescriptor"
+    note right of AIAgent "agentictrust:hasAgentDescriptor\nagentictrust:hasDescriptor"
     
     Descriptor <|-- AgentDescriptor
     Descriptor <|-- IdentifierDescriptor
@@ -264,12 +268,12 @@ classDiagram
 
 **Properties**:
 - `identifierType`: `agentictrustEth:IdentifierType_account`
-- `hasAccount`: Links to `Account` entity
-- `hasDID`: Links to DID (via `agentictrustEth:hasDID`)
+- `agentictrustEth:hasAccount`: Links to `agentictrustEth:Account` entity
+- `agentictrustEth:hasDID`: Links to DID (via `agentictrustEth:hasDID`)
 
 **Access Pattern**:
-- Direct: `Agent → hasIdentifier → agentictrustEth:AccountIdentifier`
-- Via hasAccountIdentifier: `Agent → agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier → hasAccount → Account`
+- Direct: `Agent → agentictrust:hasIdentifier → agentictrustEth:AccountIdentifier`
+- Via hasAccountIdentifier: `Agent → agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier → agentictrustEth:hasAccount → agentictrustEth:Account`
 
 **Example**:
 ```turtle
