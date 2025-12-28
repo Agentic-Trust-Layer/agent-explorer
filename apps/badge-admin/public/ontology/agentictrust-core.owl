@@ -590,6 +590,11 @@ agentictrust:Tag a owl:Class ;
   rdfs:comment "A tag value used for discovery and matching (e.g., trust.validation, ens.name.valid)." ;
   rdfs:subClassOf prov:Entity .
 
+agentictrust:Domain a owl:Class ;
+  rdfs:label "Domain" ;
+  rdfs:comment "OASF Domain: A categorization/grouping mechanism for discovery and filtering. Examples: 'finance', 'healthcare', 'education', 'e-commerce'. Distinct from integration capabilities (which describe how agents integrate with external systems)." ;
+  rdfs:subClassOf prov:Entity .
+
 ########
 # Intent-driven message model
 ########
@@ -790,6 +795,12 @@ agentictrust:hasTag a owl:ObjectProperty ;
   rdfs:label "hasTag" ;
   rdfs:domain agentictrust:Skill ;
   rdfs:range agentictrust:Tag .
+
+agentictrust:hasDomain a owl:ObjectProperty ;
+  rdfs:label "hasDomain" ;
+  rdfs:comment "Links a Skill to an OASF Domain for categorization and discovery filtering. OASF Domains are high-level categories (e.g., 'finance', 'healthcare') used to group skills and agents by application area. Distinct from integration capabilities which describe technical integration mechanisms." ;
+  rdfs:domain agentictrust:Skill ;
+  rdfs:range agentictrust:Domain .
 
 agentictrust:supportsIntentType a owl:ObjectProperty ;
   rdfs:label "supportsIntentType" ;

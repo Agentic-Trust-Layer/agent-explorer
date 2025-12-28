@@ -23,10 +23,8 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`description.md`](./description.md): TrustDescription + metadata (DnS "Description")
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")
 - [`provenance.md`](./provenance.md): PROV-O grounding + how we use provenance patterns
-- [`skills-intents-tasks.md`](./skills-intents-tasks.md): skills/tools ↔ intent types ↔ task types ↔ invocations
-- [`discovery.md`](./discovery.md): how intent-driven discovery works (skills, connectivity, trust signals)
+- [`discovery.md`](./discovery.md): Skills, intents, tasks, execution traces, and OASF alignment (merged from skills.md, skills-intents-tasks.md, and oasf.md)
 - [`trust-graph.md`](./trust-graph.md): trust building overlay + mapping to ERC-8004/8092 registries
-- [`oasf.md`](./oasf.md): mapping to OASF skills/domains/modules (AGNTCY)
 
 ERC ontologies
 
