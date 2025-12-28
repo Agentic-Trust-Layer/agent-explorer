@@ -30,9 +30,8 @@ erc8092:ERC8092Relationship a owl:Class ;
 
 erc8092:ERC8092AccountRelationship a owl:Class ;
   rdfs:label "ERC8092AccountRelationship" ;
-  rdfs:comment "An ERC-8092 account relationship instance (identified by associationId). Equivalent to ERC8092Relationship, emphasizing the account-to-account nature." ;
-  rdfs:subClassOf agentictrustEth:AccountRelationship ;
-  owl:equivalentClass erc8092:ERC8092Relationship .
+  rdfs:comment "An ERC-8092 account relationship instance (identified by associationId). Alias/synonym for ERC8092Relationship, emphasizing the account-to-account nature. Instances are typed with both classes in RDF data." ;
+  rdfs:subClassOf agentictrustEth:AccountRelationship .
 
 erc8092:ERC8092RelationshipAssertion a owl:Class ;
   rdfs:label "ERC8092RelationshipAssertion" ;
@@ -41,9 +40,8 @@ erc8092:ERC8092RelationshipAssertion a owl:Class ;
 
 erc8092:ERC8092AccountRelationshipAssertion a owl:Class ;
   rdfs:label "ERC8092AccountRelationshipAssertion" ;
-  rdfs:comment "An ERC-8092 account relationship assertion. Equivalent to ERC8092RelationshipAssertion, emphasizing the account-to-account nature." ;
-  rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion ;
-  owl:equivalentClass erc8092:ERC8092RelationshipAssertion .
+  rdfs:comment "An ERC-8092 account relationship assertion. Alias/synonym for ERC8092RelationshipAssertion, emphasizing the account-to-account nature. Instances are typed with both classes in RDF data." ;
+  rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion .
 
 erc8092:RelationshipAccount a owl:Class ;
   rdfs:label "RelationshipAccount" ;

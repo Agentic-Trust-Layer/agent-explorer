@@ -73,10 +73,10 @@ function turtleIriOrLiteral(value: unknown): string | null {
 }
 
 function turtleJsonLiteral(jsonText: string): string {
-  // Use rdf:JSON datatype (supported by many RDF tools; Protege can still display as literal).
+  // Use xsd:string datatype for JSON content (rdf:JSON is not widely supported by parsers).
   // Use triple-quoted literal, but still escape backslashes/quotes to keep it robust.
   const escaped = escapeTurtleString(jsonText);
-  return `"""${escaped}"""^^rdf:JSON`;
+  return `"""${escaped}"""^^xsd:string`;
 }
 
 function iriEncodeSegment(seg: string): string {
@@ -179,10 +179,10 @@ function ensureAccountNode(
   if (emittedAccounts.has(key)) return;
   emittedAccounts.add(key);
   const acctIri = accountIri(chainId, addr);
-  // Account is prov:Entity (identifier/interface), not prov:Agent (controller)
+  // Account is prov:SoftwareAgent (enabling participation in relationships), inherits from prov:Agent
   // Account is Ethereum-specific, uses agentictrustEth prefix
   chunks.push(
-    `${acctIri} a agentictrustEth:Account, prov:Entity ;\n` +
+    `${acctIri} a agentictrustEth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;\n` +
       `  agentictrustEth:accountChainId ${chainId} ;\n` +
       `  agentictrustEth:accountAddress "${escapeTurtleString(addr.toLowerCase())}" ;\n` +
       `  agentictrustEth:accountType "${accountType}" .\n\n`,

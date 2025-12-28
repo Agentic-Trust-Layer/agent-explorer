@@ -19,8 +19,9 @@ Generated ontology-wide diagrams live in [`./images/`](./images/README.md):
 AgenticTrust core (`agentictrust-core.owl`)
 
 - [`agentictrust-overview.md`](./agentictrust-overview.md): navigation + full diagram
-- [`description.md`](./description.md): TrustDescription + metadata (DnS “Description”)
-- [`situation.md`](./situation.md): TrustSituation + activities (DnS “Situation”)
+- [`agent.md`](./agent.md): Agent class hierarchy (Person, Organization, SoftwareAgent, AIAgent, Account) and relationships to Identity, Identifier, Name, and Descriptors
+- [`description.md`](./description.md): TrustDescription + metadata (DnS "Description")
+- [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")
 - [`provenance.md`](./provenance.md): PROV-O grounding + how we use provenance patterns
 - [`skills-intents-tasks.md`](./skills-intents-tasks.md): skills/tools ↔ intent types ↔ task types ↔ invocations
 - [`discovery.md`](./discovery.md): how intent-driven discovery works (skills, connectivity, trust signals)
