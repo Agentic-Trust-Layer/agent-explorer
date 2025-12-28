@@ -14,21 +14,27 @@ The AgenticTrust ontology uses a layered identity model that separates:
 ### Core Identity Path
 
 ```
-Agent
+Agent (prov:Agent)
   ├─ hasIdentifier → Identifier (agentictrustEth:AccountIdentifier, agentictrustEth:ENSNameIdentifier, erc8004:8004IdentityIdentifier)
   │   └─ hasDID → DID
   ├─ erc8004:has8004Identity → erc8004:8004Identity
   │   ├─ hasIdentifier → erc8004:8004IdentityIdentifier
   │   └─ hasDescriptor → erc8004:8004IdentityDescriptor
   ├─ agentictrustEth:hasENSName → agentictrustEth:ENSName
-  │   ├─ hasIdentifier → agentictrustEth:ENSNameIdentifier (via agentictrustEth:hasIdentifier)
+  │   ├─ hasIdentifier → agentictrustEth:ENSNameIdentifier
   │   └─ hasDescriptor → agentictrustEth:ENSNameDescriptor
   ├─ agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier
-  │   ├─ (inverse) agentictrustEth:hasIdentifier ← agentictrustEth:Account
   │   └─ agentictrustEth:hasDID → agentictrust:DID
   └─ hasAgentDescriptor → AgentDescriptor
       └─ hasDescriptor → AgentDescriptor
+
+Account (agentictrustEth:Account, subclass of prov:SoftwareAgent)
+  ├─ hasIdentifier → AccountIdentifier (inherited from prov:Agent)
+  │   └─ hasDID → DID
+  └─ accountAddress, accountChainId, accountType
 ```
+
+**Note**: `hasIdentifier` is now defined at the `prov:Agent` level in `agentictrust-core.owl`, so all Agent subclasses (including `AIAgent` and `Account` as `SoftwareAgent`) inherit this property.
 
 ## Class Hierarchy
 
@@ -156,7 +162,7 @@ classDiagram
     
     note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience subproperty: agentictrustEth:hasAccountIdentifier"
     note for AccountIdentifier "agentictrustEth:AccountIdentifier\n(inverse) ^agentictrustEth:hasIdentifier\nagentictrustEth:hasDID"
-    note for Account "agentictrustEth:Account\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
+    note for Account "agentictrustEth:Account\nSubclass of prov:SoftwareAgent\nInherits hasIdentifier from prov:Agent\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
 ```
 
 ### Agent ↔ ENSNameIdentifier ↔ ENSName (+ DID) (eth)
@@ -214,7 +220,7 @@ WHERE {
   ?accountIdentifier a agentictrustEth:AccountIdentifier .
   OPTIONAL { ?accountIdentifier agentictrust:hasDID ?did . }
 
-  ?account agentictrustEth:hasIdentifier ?accountIdentifier .
+  ?account agentictrust:hasIdentifier ?accountIdentifier .
   OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
   OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
   OPTIONAL { ?account agentictrustEth:accountType ?accountType . }
@@ -288,7 +294,7 @@ WHERE {
 
   OPTIONAL {
     ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?account agentictrustEth:hasIdentifier ?accountIdentifier .
+    ?account agentictrust:hasIdentifier ?accountIdentifier .
     OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
     OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
   }
@@ -443,8 +449,8 @@ classDiagram
 - `agentictrustEth:hasDID`: Links to DID (via `agentictrustEth:hasDID`)
 
 **Access Pattern**:
-- Direct: `Agent → agentictrust:hasIdentifier → agentictrustEth:AccountIdentifier`
-- Via hasAccountIdentifier: `Agent → agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier` and `Account → agentictrustEth:hasIdentifier → agentictrustEth:AccountIdentifier` (inverse in SPARQL: `AccountIdentifier → ^agentictrustEth:hasIdentifier → Account`)
+- Direct: `Agent → agentictrust:hasIdentifier → agentictrustEth:AccountIdentifier` (inherited from prov:Agent)
+- Via hasAccountIdentifier: `Agent → agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier` and `Account → agentictrust:hasIdentifier → agentictrustEth:AccountIdentifier` (inherited from prov:Agent; inverse in SPARQL: `AccountIdentifier → ^agentictrust:hasIdentifier → Account`)
 
 **Example**:
 ```turtle
@@ -465,7 +471,7 @@ classDiagram
   agentictrustEth:accountChainId 84532 ;
   agentictrustEth:accountAddress "0x1234..." ;
   agentictrustEth:accountType "SmartAccount" ;
-  agentictrustEth:hasIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> .
+  agentictrust:hasIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> .
 ```
 
 ### 4. Account (agentictrust-eth.owl)
@@ -476,11 +482,11 @@ classDiagram
 - `accountChainId`: EVM chain ID (e.g., 1 for mainnet, 11155111 for Sepolia)
 - `accountAddress`: Ethereum account address (0x-prefixed hex string, 42 characters)
 - `accountType`: `"EOA"` or `"SmartAccount"`
-- `hasIdentifier`: Links to `AccountIdentifier`
+- `hasIdentifier`: Links to `AccountIdentifier` (inherited from `prov:Agent`, defined in `agentictrust-core.owl`)
 - `hasEOAOwner`: Links to EOA owner (for Smart Accounts)
 - `signingAuthority`: Links to signing authority account
 
-**Note**: `Account` is NOT a subclass of `Identifier`; it's a separate entity linked via `AccountIdentifier`.
+**Note**: `Account` is a subclass of `prov:SoftwareAgent` (not just `prov:Entity`), enabling it to participate in relationships as an Agent and inherit `hasIdentifier` from `prov:Agent`. It's NOT a subclass of `Identifier`; it's a separate entity linked via `AccountIdentifier`.
 
 ### 5. DID (Decentralized Identifier) (agentictrust-core.owl)
 
@@ -591,7 +597,7 @@ WHERE {
   }
   OPTIONAL {
     # For AccountIdentifier, get the account address
-    ?account agentictrustEth:hasIdentifier ?identifier .
+    ?account agentictrust:hasIdentifier ?identifier .
     ?account agentictrustEth:accountAddress ?identifierValue .
   }
   OPTIONAL {
@@ -623,7 +629,7 @@ WHERE {
   # Account
   OPTIONAL {
     ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?account agentictrustEth:hasIdentifier ?accountIdentifier .
+    ?account agentictrust:hasIdentifier ?accountIdentifier .
     ?account agentictrustEth:accountAddress ?accountAddress .
   }
   

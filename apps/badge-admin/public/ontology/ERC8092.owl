@@ -3,6 +3,7 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
 @prefix agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#> .
@@ -14,6 +15,7 @@ erc8092: a owl:Ontology ;
   owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;
   owl:imports <https://www.agentictrust.io/ontology/agentictrust-eth> ;
   owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:imports <http://purl.org/net/p-plan#> ;
   owl:versionInfo "0.1.0" ;
   dcterms:license <https://opensource.org/license/mit/> .
 
@@ -26,10 +28,22 @@ erc8092:ERC8092Relationship a owl:Class ;
   rdfs:comment "An ERC-8092 relationship instance (identified by associationId). Specializes AccountRelationship for ERC-8092 account-to-account relationships." ;
   rdfs:subClassOf agentictrustEth:AccountRelationship .
 
+erc8092:ERC8092AccountRelationship a owl:Class ;
+  rdfs:label "ERC8092AccountRelationship" ;
+  rdfs:comment "An ERC-8092 account relationship instance (identified by associationId). Equivalent to ERC8092Relationship, emphasizing the account-to-account nature." ;
+  rdfs:subClassOf agentictrustEth:AccountRelationship ;
+  owl:equivalentClass erc8092:ERC8092Relationship .
+
 erc8092:ERC8092RelationshipAssertion a owl:Class ;
   rdfs:label "ERC8092RelationshipAssertion" ;
   rdfs:comment "An ERC-8092 association record interpreted as an account relationship assertion that establishes or modifies an underlying AccountRelationship." ;
   rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion .
+
+erc8092:ERC8092AccountRelationshipAssertion a owl:Class ;
+  rdfs:label "ERC8092AccountRelationshipAssertion" ;
+  rdfs:comment "An ERC-8092 account relationship assertion. Equivalent to ERC8092RelationshipAssertion, emphasizing the account-to-account nature." ;
+  rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion ;
+  owl:equivalentClass erc8092:ERC8092RelationshipAssertion .
 
 erc8092:RelationshipAccount a owl:Class ;
   rdfs:label "RelationshipAccount" ;
@@ -197,5 +211,30 @@ erc8092:revocationTimestamp a owl:DatatypeProperty ;
   rdfs:label "revocationTimestamp" ;
   rdfs:domain erc8092:RelationshipRevocationAssertion ;
   rdfs:range xsd:integer .
+
+########
+# Relationship Participant and Role properties (from agentictrust-core)
+########
+
+erc8092:hasParticipant a owl:ObjectProperty ;
+  rdfs:label "hasParticipant" ;
+  rdfs:comment "ERC-8092 specific property linking a Relationship to an Agent that participates in it. Subproperty of agentictrust:hasParticipant." ;
+  rdfs:subPropertyOf agentictrust:hasParticipant ;
+  rdfs:domain erc8092:ERC8092Relationship ;
+  rdfs:range agentictrust:AIAgent .
+
+erc8092:qualifiedParticipation a owl:ObjectProperty ;
+  rdfs:label "qualifiedParticipation" ;
+  rdfs:comment "ERC-8092 specific property linking a Relationship to a QualifiedParticipation instance. Subproperty of agentictrust:qualifiedParticipation." ;
+  rdfs:subPropertyOf agentictrust:qualifiedParticipation ;
+  rdfs:domain erc8092:ERC8092Relationship ;
+  rdfs:range agentictrust:QualifiedParticipation .
+
+erc8092:hasRole a owl:ObjectProperty ;
+  rdfs:label "hasRole" ;
+  rdfs:comment "ERC-8092 specific property linking a Relationship to a Role. Subproperty of agentictrust:hasRole." ;
+  rdfs:subPropertyOf agentictrust:hasRole ;
+  rdfs:domain erc8092:ERC8092Relationship ;
+  rdfs:range p-plan:Role .
 
 

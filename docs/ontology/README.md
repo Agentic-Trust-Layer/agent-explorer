@@ -32,6 +32,7 @@ ERC ontologies
 - [`erc8004.md`](./erc8004.md): ERC-8004 registration metadata + validation + feedback (with diagram)
 - [`erc8092.md`](./erc8092.md): ERC-8092 relationships/assertions/accounts (with diagram)
 - [`relationshipassertion.md`](./relationshipassertion.md): focused pattern: relationship assertion → account → controlling agent
+- [`relationships-roles-participation.md`](./relationships-roles-participation.md): relationship model with participants, roles, and qualified participation (core, eth, and ERC-8092 levels)
 - [`verificationassertion.md`](./verificationassertion.md): VerificationAssertion class hierarchy and property relationships
 - [`reputationassertion.md`](./reputationassertion.md): ReputationAssertion class hierarchy and property relationships
 - [`identifiers.md`](./identifiers.md): Complete agent identity model: Agent relationships to identifiers (Account, ENSName, 8004Identity), DIDs, and Descriptors

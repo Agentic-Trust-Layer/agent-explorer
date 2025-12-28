@@ -21,8 +21,8 @@ agentictrustEth: a owl:Ontology ;
 
 agentictrustEth:Account a owl:Class ;
   rdfs:label "Account" ;
-  rdfs:comment "Ethereum account (EOA or Smart Account) identified by chainId and address. Contains account-specific properties (address, chainId, accountType). Modeled as prov:Entity, not prov:Agent." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:comment "Ethereum account (EOA or Smart Account) identified by chainId and address. Contains account-specific properties (address, chainId, accountType). Modeled as prov:SoftwareAgent to support participant references in relationships." ;
+  rdfs:subClassOf prov:SoftwareAgent .
 
 ########
 # Account Identifier (realization of Identifier)
@@ -68,11 +68,8 @@ agentictrustEth:AccountType_SmartAccount a agentictrustEth:AccountType ; rdfs:la
 # Account to AccountIdentifier relationship
 ########
 
-agentictrustEth:hasIdentifier a owl:ObjectProperty ;
-  rdfs:label "hasIdentifier" ;
-  rdfs:comment "Links an Ethereum Account to its AccountIdentifier. Each Account has one AccountIdentifier. The inverse can be traversed in SPARQL via ^agentictrustEth:hasIdentifier." ;
-  rdfs:domain agentictrustEth:Account ;
-  rdfs:range agentictrustEth:AccountIdentifier .
+# Note: Account inherits hasIdentifier from prov:Agent (defined in agentictrust-core.owl)
+# Account uses agentictrust:hasIdentifier to link to its AccountIdentifier
 
 ########
 # AccountIdentifier DID
@@ -126,11 +123,8 @@ agentictrustEth:ensName a owl:DatatypeProperty ;
   rdfs:domain agentictrustEth:ENSName ;
   rdfs:range xsd:string .
 
-agentictrustEth:hasIdentifier a owl:ObjectProperty ;
-  rdfs:label "hasIdentifier" ;
-  rdfs:comment "Links an ENS Name to its ENSNameIdentifier. Each ENS Name has one ENSNameIdentifier." ;
-  rdfs:domain agentictrustEth:ENSName ;
-  rdfs:range agentictrustEth:ENSNameIdentifier .
+# Note: ENSName does not inherit from Agent, so it does not have hasIdentifier.
+# ENSName is a Name entity, not an Agent.
 
 agentictrustEth:ensChainId a owl:DatatypeProperty ;
   rdfs:label "ensChainId" ;
@@ -173,7 +167,7 @@ agentictrustEth:hasENSName a owl:ObjectProperty ;
 agentictrustEth:AccountRelationship a owl:Class ;
   rdfs:label "AccountRelationship" ;
   rdfs:comment "A persistent relationship between Accounts (e.g., Ethereum accounts). ERC-8092 relationships are a specialization of AccountRelationship. Can be used to derive Agent-to-Agent relationships via Agent → Identifier (Account) mapping." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:subClassOf agentictrust:Relationship .
 
 agentictrustEth:AccountRelationshipAssertion a owl:Class ;
   rdfs:label "AccountRelationshipAssertion" ;

@@ -236,6 +236,51 @@ agentictrust:hasRelationshipAssertion a owl:ObjectProperty ;
   rdfs:range agentictrust:RelationshipAssertion .
 
 ########
+# Relationship Participant and Role properties
+########
+
+agentictrust:hasParticipant a owl:ObjectProperty ;
+  rdfs:label "hasParticipant" ;
+  rdfs:comment "Links a Relationship to an Agent that participates in it." ;
+  rdfs:domain agentictrust:Relationship ;
+  rdfs:range prov:Agent .
+
+agentictrust:QualifiedParticipation a owl:Class ;
+  rdfs:label "QualifiedParticipation" ;
+  rdfs:comment "A reified relationship that links a Relationship to an Agent, qualified by a Role (p-plan:Role). This allows modeling role-specific participation in relationships." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:qualifiedParticipation a owl:ObjectProperty ;
+  rdfs:label "qualifiedParticipation" ;
+  rdfs:comment "Links a Relationship to a QualifiedParticipation instance that qualifies an Agent's participation with a Role." ;
+  rdfs:domain agentictrust:Relationship ;
+  rdfs:range agentictrust:QualifiedParticipation .
+
+agentictrust:participant a owl:ObjectProperty ;
+  rdfs:label "participant" ;
+  rdfs:comment "Links a QualifiedParticipation to the Agent that participates." ;
+  rdfs:domain agentictrust:QualifiedParticipation ;
+  rdfs:range prov:Agent .
+
+agentictrust:participationRole a owl:ObjectProperty ;
+  rdfs:label "participationRole" ;
+  rdfs:comment "Links a QualifiedParticipation to the Role (p-plan:Role) that qualifies the participation." ;
+  rdfs:domain agentictrust:QualifiedParticipation ;
+  rdfs:range p-plan:Role .
+
+agentictrust:hasRole a owl:ObjectProperty ;
+  rdfs:label "hasRole" ;
+  rdfs:comment "Links a Relationship to a Role (p-plan:Role) that is used in the relationship." ;
+  rdfs:domain agentictrust:Relationship ;
+  rdfs:range p-plan:Role .
+
+agentictrust:playsRole a owl:ObjectProperty ;
+  rdfs:label "playsRole" ;
+  rdfs:comment "Links an Agent to a Role (p-plan:Role) that it plays." ;
+  rdfs:domain prov:Agent ;
+  rdfs:range p-plan:Role .
+
+########
 # DID and Identity Spine (3-layer: Identifier → Controller → Subject)
 ########
 
@@ -310,8 +355,8 @@ agentictrust:assertedIn a owl:ObjectProperty ;
 
 agentictrust:hasIdentifier a owl:ObjectProperty ;
   rdfs:label "hasIdentifier" ;
-  rdfs:comment "Links an agent to its Identifier. Protocol-specific realizations: Ethereum Account (agentictrustEth:Account), Web2 identifiers, etc. For ERC-8004 agents, use erc8004:has8004Identity to link to erc8004:8004Identity, which then has hasIdentifier to 8004IdentityIdentifier." ;
-  rdfs:domain agentictrust:AIAgent ;
+  rdfs:comment "Links an Agent (or any subclass of prov:Agent) to its Identifier. Protocol-specific realizations: Ethereum Account (agentictrustEth:Account), Web2 identifiers, etc. For ERC-8004 agents, use erc8004:has8004Identity to link to erc8004:8004Identity, which then has hasIdentifier to 8004IdentityIdentifier." ;
+  rdfs:domain prov:Agent ;
   rdfs:range agentictrust:Identifier .
 
 

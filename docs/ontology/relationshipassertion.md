@@ -1,6 +1,6 @@
 ## RelationshipAssertion (assertion → account → agent)
 
-This page documents the **RelationshipAssertion → RelationshipAccount → Agent** pattern used to represent ERC‑8092 “associated accounts” data in a graph-friendly way.
+This page documents the **RelationshipAssertion → RelationshipAccount → Agent** pattern used to represent ERC‑8092 "associated accounts" data in a graph-friendly way.
 
 ### Diagram
 
@@ -9,6 +9,8 @@ classDiagram
 direction LR
 
 class provAgent["prov:Agent"]
+class provSoftwareAgent["prov:SoftwareAgent"]
+class Account["agentictrustEth:Account"]
 
 class AIAgent["agentictrust:AIAgent"]
 class Relationship["agentictrust:Relationship"]
@@ -20,12 +22,15 @@ class RelationshipAccount["erc8092:RelationshipAccount"]
 
 ERC8092Relationship --|> Relationship
 ERC8092RelationshipAssertion --|> RelationshipAssertion
-AIAgent --|> provAgent
+AIAgent --|> provSoftwareAgent
+provSoftwareAgent --|> provAgent
+Account --|> provSoftwareAgent
 
 RelationshipAssertion --> Relationship : assertsRelationship (agentictrust)
+Relationship --> Account : hasParticipant (agentictrust)
 
-ERC8092RelationshipAssertion --> provAgent : initiator (erc8092)
-ERC8092RelationshipAssertion --> provAgent : approver (erc8092)
+ERC8092RelationshipAssertion --> Account : initiator (erc8092)
+ERC8092RelationshipAssertion --> Account : approver (erc8092)
 ERC8092RelationshipAssertion --> RelationshipAccount : initiatorAccount (erc8092)
 ERC8092RelationshipAssertion --> RelationshipAccount : approverAccount (erc8092)
 
@@ -91,13 +96,22 @@ ORDER BY ?agentId
 - It names the participant **relationship accounts**:
   - `erc8092:initiatorAccount`
   - `erc8092:approverAccount`
+- It also references the participant **Accounts** directly:
+  - `erc8092:initiator` → `agentictrustEth:Account`
+  - `erc8092:approver` → `agentictrustEth:Account`
 - Those accounts are connected to the controlling identity via:
   - `erc8092:ownsRelationshipAccount` (domain `prov:Agent`, typically `agentictrust:AIAgent`)
 - The assertion also **asserts** the underlying relationship instance:
   - `agentictrust:assertsRelationship` → `erc8092:ERC8092Relationship`
+- The relationship links to participant Accounts via:
+  - `agentictrust:hasParticipant` → `agentictrustEth:Account` (inherited from core Relationship)
 
-This gives you a clean query path:
+This gives you multiple query paths:
 
 - `RelationshipAssertion → RelationshipAccount ← ownsRelationshipAccount ← AIAgent`
+- `RelationshipAssertion → Account (initiator/approver)`
+- `Relationship → Account (via hasParticipant)`
+
+**Note**: `Account` is now a subclass of `prov:SoftwareAgent`, enabling it to participate in relationships as an Agent and inherit `hasIdentifier` from `prov:Agent`.
 
 

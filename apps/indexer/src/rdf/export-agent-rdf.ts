@@ -1354,15 +1354,31 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     }
 
     const lines: string[] = [];
-    // Relationship instance
-    chunks.push(
-      `${relIri} a agentictrust:Relationship, erc8092:ERC8092Relationship, prov:Entity ; erc8092:relationshipId "${escapeTurtleString(
-        relationshipId,
-      )}" .\n`,
+    // Relationship instance (ERC8092AccountRelationship)
+    const relLines: string[] = [];
+    relLines.push(
+      `${relIri} a agentictrust:Relationship, agentictrustEth:AccountRelationship, erc8092:ERC8092Relationship, erc8092:ERC8092AccountRelationship, prov:Entity ;`,
     );
+    relLines.push(`  erc8092:relationshipId "${escapeTurtleString(relationshipId)}" ;`);
+    
+    // Add hasParticipant links to initiator and approver accounts
+    if (initiator) {
+      const initiatorAccountIri = accountIri(chainId, initiator);
+      ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
+      relLines.push(`  agentictrust:hasParticipant ${initiatorAccountIri} ;`);
+    }
+    if (approver) {
+      const approverAccountIri = accountIri(chainId, approver);
+      ensureAccountNode(chunks, chainId, approver, 'SmartAccount');
+      relLines.push(`  agentictrust:hasParticipant ${approverAccountIri} ;`);
+    }
+    
+    // Remove trailing semicolon and add period
+    const relContent = relLines.join('\n').replace(/ ;$/, ' .');
+    chunks.push(`${relContent}\n`);
 
-    // Relationship assertion (ERC-8092 association row)
-    lines.push(`${raIri} a agentictrust:RelationshipAssertion, erc8092:ERC8092RelationshipAssertion, prov:Entity ;`);
+    // Relationship assertion (ERC-8092 association row) - ERC8092AccountRelationshipAssertion
+    lines.push(`${raIri} a agentictrust:RelationshipAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:ERC8092RelationshipAssertion, erc8092:ERC8092AccountRelationshipAssertion, prov:Entity ;`);
     lines.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(associationId)}" ;`);
     lines.push(`  agentictrust:assertsRelationship ${relIri} ;`);
     lines.push(`  agentictrust:aboutSubject ${relIri} ;`);
