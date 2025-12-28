@@ -113,20 +113,20 @@ classDiagram
         <<enumeration>>
     }
     
-    AIAgent -->|hasIdentifier| Identifier
-    AIAgent -->|has8004Identity| Identity8004
-    AIAgent -->|hasENSName| ENSName
-    AIAgent -->|hasAccountIdentifier| AccountIdentifier
-    AIAgent -->|hasIdentifier| Identity8004Identifier
-    AIAgent -->|hasIdentifier| ENSNameIdentifier
-    AIAgent -->|hasIdentifier| AccountIdentifier
+    AIAgent --> Identifier : hasIdentifier
+    AIAgent --> Identity8004 : has8004Identity
+    AIAgent --> ENSName : hasENSName
+    AIAgent --> AccountIdentifier : hasAccountIdentifier
+    AIAgent --> Identity8004Identifier : hasIdentifier
+    AIAgent --> ENSNameIdentifier : hasIdentifier
+    AIAgent --> AccountIdentifier : hasIdentifier
     
-    Identity8004 -->|hasIdentifier| Identity8004Identifier
-    ENSName -->|hasIdentifier| ENSNameIdentifier
-    AccountIdentifier -->|hasAccount| Account
+    Identity8004 --> Identity8004Identifier : hasIdentifier
+    ENSName --> ENSNameIdentifier : hasIdentifier
+    AccountIdentifier --> Account : hasAccount
     
-    Identifier -->|hasDID| DID
-    Identifier -->|identifierType| IdentifierType
+    Identifier --> DID : hasDID
+    Identifier --> IdentifierType : identifierType
     
     note for Identifier "identifierType values:\n- erc8004:IdentifierType_8004\n- agentictrustEth:IdentifierType_account\n- agentictrustEth:IdentifierType_ens"
     note for DID "identifies points to\nIdentifier, not Agent"
@@ -169,12 +169,12 @@ classDiagram
     class AccountDescriptor {
     }
     
-    AIAgent -->|hasAgentDescriptor| AgentDescriptor
-    AIAgent -->|hasDescriptor| AgentDescriptor
-    Identifier -->|hasDescriptor| IdentifierDescriptor
-    Identity8004 -->|hasDescriptor| Identity8004Descriptor
-    ENSName -->|hasDescriptor| ENSNameDescriptor
-    Account -->|hasDescriptor| AccountDescriptor
+    AIAgent --> AgentDescriptor : hasAgentDescriptor
+    AIAgent --> AgentDescriptor : hasDescriptor
+    Identifier --> IdentifierDescriptor : hasDescriptor
+    Identity8004 --> Identity8004Descriptor : hasDescriptor
+    ENSName --> ENSNameDescriptor : hasDescriptor
+    Account --> AccountDescriptor : hasDescriptor
     
     note for Identity8004Descriptor "erc8004:8004IdentityDescriptor"
     note for ENSNameDescriptor "agentictrustEth:ENSNameDescriptor"
