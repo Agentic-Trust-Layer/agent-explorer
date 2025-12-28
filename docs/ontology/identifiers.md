@@ -150,15 +150,16 @@ classDiagram
     class Account
     class DID
     
-    AIAgent --> AccountIdentifier : hasAccountIdentifier
+    AIAgent --> AccountIdentifier : hasIdentifier
     AccountIdentifier --> Account : hasAccount
     AccountIdentifier --> DID : hasDID
     
-    note for AccountIdentifier "agentictrustEth:AccountIdentifier\nagentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount\nagentictrustEth:hasDID"
+    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience subproperty: agentictrustEth:hasAccountIdentifier"
+    note for AccountIdentifier "agentictrustEth:AccountIdentifier\nagentictrustEth:hasAccount\nagentictrustEth:hasDID"
     note for Account "agentictrustEth:Account\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
 ```
 
-### Agent ↔ ENSName ↔ ENSNameIdentifier ↔ DID (eth)
+### Agent ↔ ENSNameIdentifier ↔ ENSName (+ DID) (eth)
 
 ```mermaid
 classDiagram
@@ -167,15 +168,16 @@ classDiagram
     class ENSNameIdentifier
     class DID
     
-    AIAgent --> ENSName : hasENSName
+    AIAgent --> ENSNameIdentifier : hasIdentifier
     ENSName --> ENSNameIdentifier : hasIdentifier
     ENSNameIdentifier --> DID : hasDID
     
-    note for ENSName "agentictrustEth:ENSName\nagentictrustEth:hasENSName\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
+    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience link to Name: agentictrustEth:hasENSName"
+    note for ENSName "agentictrustEth:ENSName\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
     note for ENSNameIdentifier "agentictrustEth:ENSNameIdentifier\nagentictrustEth:IdentifierType_ens"
 ```
 
-### Agent ↔ 8004Identity ↔ 8004IdentityIdentifier ↔ DID (erc8004)
+### Agent ↔ 8004IdentityIdentifier ↔ 8004Identity (+ DID) (erc8004)
 
 ```mermaid
 classDiagram
@@ -184,11 +186,12 @@ classDiagram
     class Identity8004Identifier
     class DID
     
-    AIAgent --> Identity8004 : has8004Identity
+    AIAgent --> Identity8004Identifier : hasIdentifier
     Identity8004 --> Identity8004Identifier : hasIdentifier
     Identity8004Identifier --> DID : hasDID
     
-    note for Identity8004 "erc8004:8004Identity\nerc8004:has8004Identity"
+    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nERC-specific identity bundle: erc8004:has8004Identity"
+    note for Identity8004 "erc8004:8004Identity"
     note for Identity8004Identifier "erc8004:8004IdentityIdentifier\nerc8004:IdentifierType_8004"
 ```
 
@@ -207,7 +210,8 @@ WHERE {
   ?agent a agentictrust:AIAgent .
   OPTIONAL { ?agent agentictrust:agentId ?agentId . }
 
-  ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
+  ?agent agentictrust:hasIdentifier ?accountIdentifier .
+  ?accountIdentifier a agentictrustEth:AccountIdentifier .
   OPTIONAL { ?accountIdentifier agentictrust:hasDID ?did . }
 
   ?accountIdentifier agentictrustEth:hasAccount ?account .
@@ -218,7 +222,7 @@ WHERE {
 ORDER BY ?agentId
 ```
 
-### Agent → ENSName → ENSNameIdentifier (+ DID)
+### Agent → ENSNameIdentifier → ENSName (+ DID)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -230,17 +234,21 @@ WHERE {
   ?agent a agentictrust:AIAgent .
   OPTIONAL { ?agent agentictrust:agentId ?agentId . }
 
-  ?agent agentictrustEth:hasENSName ?ensName .
-  OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
-
-  ?ensName agentictrustEth:hasIdentifier ?ensIdentifier .
+  ?agent agentictrust:hasIdentifier ?ensIdentifier .
+  ?ensIdentifier a agentictrustEth:ENSNameIdentifier .
   OPTIONAL { ?ensIdentifier rdfs:label ?ensNameValue . }
   OPTIONAL { ?ensIdentifier agentictrust:hasDID ?did . }
+
+  OPTIONAL {
+    ?ensName a agentictrustEth:ENSName ;
+      agentictrustEth:hasIdentifier ?ensIdentifier .
+    OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
+  }
 }
 ORDER BY ?agentId
 ```
 
-### Agent → 8004Identity → 8004IdentityIdentifier (+ DID)
+### Agent → 8004IdentityIdentifier → 8004Identity (+ DID)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -251,9 +259,14 @@ WHERE {
   ?agent a agentictrust:AIAgent .
   OPTIONAL { ?agent agentictrust:agentId ?agentId . }
 
-  ?agent erc8004:has8004Identity ?identity8004 .
-  ?identity8004 agentictrust:hasIdentifier ?identityIdentifier .
+  ?agent agentictrust:hasIdentifier ?identityIdentifier .
+  ?identityIdentifier a erc8004:8004IdentityIdentifier .
   OPTIONAL { ?identityIdentifier agentictrust:hasDID ?did . }
+
+  OPTIONAL {
+    ?identity8004 a erc8004:8004Identity ;
+      agentictrust:hasIdentifier ?identityIdentifier .
+  }
 }
 ORDER BY ?agentId
 ```
