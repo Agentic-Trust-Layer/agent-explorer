@@ -182,7 +182,7 @@ function ensureAccountNode(
   // Account is prov:Entity (identifier/interface), not prov:Agent (controller)
   // Account is Ethereum-specific, uses agentictrustEth prefix
   chunks.push(
-    `${acctIri} a agentictrustEth:Account, agentictrust:Identifier, prov:Entity ;\n` +
+    `${acctIri} a agentictrustEth:Account, prov:Entity ;\n` +
       `  agentictrustEth:accountChainId ${chainId} ;\n` +
       `  agentictrustEth:accountAddress "${escapeTurtleString(addr.toLowerCase())}" ;\n` +
       `  agentictrustEth:accountType "${accountType}" .\n\n`,
@@ -424,7 +424,8 @@ function renderAgentSection(
     const accountIdentifierLines: string[] = [];
     accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
     accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
-    accountIdentifierLines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    // Link Account -> AccountIdentifier (canonical direction in agentictrust-eth)
+    accountChunks.push(`${acctIri} agentictrustEth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
@@ -715,7 +716,8 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     const accountIdentifierLines: string[] = [];
     accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
     accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
-    accountIdentifierLines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
+    // Link Account -> AccountIdentifier (canonical direction in agentictrust-eth)
+    accountChunks.push(`${acctIri} agentictrustEth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;

@@ -24,7 +24,7 @@ Agent
   │   ├─ hasIdentifier → agentictrustEth:ENSNameIdentifier (via agentictrustEth:hasIdentifier)
   │   └─ hasDescriptor → agentictrustEth:ENSNameDescriptor
   ├─ agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier
-  │   ├─ agentictrustEth:hasAccount → agentictrustEth:Account
+  │   ├─ (inverse) agentictrustEth:hasIdentifier ← agentictrustEth:Account
   │   └─ agentictrustEth:hasDID → agentictrust:DID
   └─ hasAgentDescriptor → AgentDescriptor
       └─ hasDescriptor → AgentDescriptor
@@ -136,7 +136,7 @@ classDiagram
     note for Identity8004 "erc8004:has8004Identity\nerc8004:8004Identity"
     note for Identity8004Identifier "erc8004:8004IdentityIdentifier"
     note for ENSName "agentictrustEth:hasENSName"
-    note for AccountIdentifier "agentictrustEth:hasAccountIdentifier\nagentictrustEth:hasAccount"
+    note for AccountIdentifier "agentictrustEth:hasAccountIdentifier\n(inverse) ^agentictrustEth:hasIdentifier"
 ```
 
 ## Focused diagrams (Account, ENSName, 8004Identity)
@@ -151,11 +151,11 @@ classDiagram
     class DID
     
     AIAgent --> AccountIdentifier : hasIdentifier
-    AccountIdentifier --> Account : hasAccount
+    Account --> AccountIdentifier : hasIdentifier
     AccountIdentifier --> DID : hasDID
     
     note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience subproperty: agentictrustEth:hasAccountIdentifier"
-    note for AccountIdentifier "agentictrustEth:AccountIdentifier\nagentictrustEth:hasAccount\nagentictrustEth:hasDID"
+    note for AccountIdentifier "agentictrustEth:AccountIdentifier\n(inverse) ^agentictrustEth:hasIdentifier\nagentictrustEth:hasDID"
     note for Account "agentictrustEth:Account\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
 ```
 
@@ -214,7 +214,7 @@ WHERE {
   ?accountIdentifier a agentictrustEth:AccountIdentifier .
   OPTIONAL { ?accountIdentifier agentictrust:hasDID ?did . }
 
-  ?accountIdentifier agentictrustEth:hasAccount ?account .
+  ?account agentictrustEth:hasIdentifier ?accountIdentifier .
   OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
   OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
   OPTIONAL { ?account agentictrustEth:accountType ?accountType . }
@@ -288,7 +288,7 @@ WHERE {
 
   OPTIONAL {
     ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?accountIdentifier agentictrustEth:hasAccount ?account .
+    ?account agentictrustEth:hasIdentifier ?accountIdentifier .
     OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
     OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
   }
@@ -440,12 +440,11 @@ classDiagram
 
 **Properties**:
 - `identifierType`: `agentictrustEth:IdentifierType_account`
-- `agentictrustEth:hasAccount`: Links to `agentictrustEth:Account` entity
 - `agentictrustEth:hasDID`: Links to DID (via `agentictrustEth:hasDID`)
 
 **Access Pattern**:
 - Direct: `Agent → agentictrust:hasIdentifier → agentictrustEth:AccountIdentifier`
-- Via hasAccountIdentifier: `Agent → agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier → agentictrustEth:hasAccount → agentictrustEth:Account`
+- Via hasAccountIdentifier: `Agent → agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier` and `Account → agentictrustEth:hasIdentifier → agentictrustEth:AccountIdentifier` (inverse in SPARQL: `AccountIdentifier → ^agentictrustEth:hasIdentifier → Account`)
 
 **Example**:
 ```turtle
@@ -459,7 +458,6 @@ classDiagram
     agentictrust:Identifier,
     prov:Entity ;
   agentictrust:identifierType agentictrustEth:IdentifierType_account ;
-  agentictrustEth:hasAccount <https://www.agentictrust.io/id/account/84532/0x1234...> ;
   agentictrustEth:hasDID <https://www.agentictrust.io/id/did/did%3Aethr%3A84532%3A0x1234...> .
 
 <https://www.agentictrust.io/id/account/84532/0x1234...>
@@ -593,7 +591,7 @@ WHERE {
   }
   OPTIONAL {
     # For AccountIdentifier, get the account address
-    ?identifier agentictrustEth:hasAccount ?account .
+    ?account agentictrustEth:hasIdentifier ?identifier .
     ?account agentictrustEth:accountAddress ?identifierValue .
   }
   OPTIONAL {
@@ -625,7 +623,7 @@ WHERE {
   # Account
   OPTIONAL {
     ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?accountIdentifier agentictrustEth:hasAccount ?account .
+    ?account agentictrustEth:hasIdentifier ?accountIdentifier .
     ?account agentictrustEth:accountAddress ?accountAddress .
   }
   

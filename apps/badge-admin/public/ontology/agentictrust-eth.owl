@@ -30,7 +30,7 @@ agentictrustEth:Account a owl:Class ;
 
 agentictrustEth:AccountIdentifier a owl:Class ;
   rdfs:label "AccountIdentifier" ;
-  rdfs:comment "Identifier for an Ethereum Account. Links to the Account entity via hasAccount and to its DID via hasDID. Realizes agentictrust:Identifier for Ethereum-based agents." ;
+  rdfs:comment "Identifier for an Ethereum Account. Links to its DID via hasDID. The underlying Account entity links to this identifier via agentictrustEth:hasIdentifier (inverse traversal can be expressed in SPARQL as ^agentictrustEth:hasIdentifier)." ;
   rdfs:subClassOf agentictrust:Identifier ;
   rdfs:subClassOf prov:Entity .
 
@@ -70,15 +70,9 @@ agentictrustEth:AccountType_SmartAccount a agentictrustEth:AccountType ; rdfs:la
 
 agentictrustEth:hasIdentifier a owl:ObjectProperty ;
   rdfs:label "hasIdentifier" ;
-  rdfs:comment "Links an Ethereum Account to its AccountIdentifier. Each Account has one AccountIdentifier." ;
+  rdfs:comment "Links an Ethereum Account to its AccountIdentifier. Each Account has one AccountIdentifier. The inverse can be traversed in SPARQL via ^agentictrustEth:hasIdentifier." ;
   rdfs:domain agentictrustEth:Account ;
   rdfs:range agentictrustEth:AccountIdentifier .
-
-agentictrustEth:hasAccount a owl:ObjectProperty ;
-  rdfs:label "hasAccount" ;
-  rdfs:comment "Links an AccountIdentifier to its Account entity (inverse of hasIdentifier)." ;
-  rdfs:domain agentictrustEth:AccountIdentifier ;
-  rdfs:range agentictrustEth:Account .
 
 ########
 # AccountIdentifier DID

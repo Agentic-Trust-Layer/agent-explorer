@@ -95,7 +95,8 @@ WHERE {
   {
     # For AccountIdentifier, get the account address via hasAccount
     ?identifier a agentictrustEth:AccountIdentifier ;
-      agentictrustEth:hasAccount ?account .
+      .
+    ?account agentictrustEth:hasIdentifier ?identifier .
     ?account agentictrustEth:accountAddress ?identifierValue .
   }
   UNION
@@ -145,8 +146,10 @@ SELECT ?agent ?chainId ?agentId ?accountAddress ?accountType ?eoaOwner
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:agentId ?agentId ;
-    agentictrustEth:hasAccount ?account .
+    agentictrust:hasIdentifier ?accountIdentifier .
+  ?accountIdentifier a agentictrustEth:AccountIdentifier .
   ?account a agentictrustEth:Account ;
+    agentictrustEth:hasIdentifier ?accountIdentifier ;
     agentictrustEth:accountChainId ?chainId ;
     agentictrustEth:accountAddress ?accountAddress ;
     agentictrustEth:accountType ?accountType .
@@ -417,9 +420,11 @@ SELECT ?agent ?chainId ?agentId ?account ?accountRelationship ?relationshipId
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:agentId ?agentId ;
-    agentictrustEth:hasAccount ?account .
+    agentictrust:hasIdentifier ?accountIdentifier .
+  ?accountIdentifier a agentictrustEth:AccountIdentifier .
   ?account a agentictrustEth:Account ;
     agentictrustEth:accountChainId ?chainId ;
+    agentictrustEth:hasIdentifier ?accountIdentifier ;
     agentictrustEth:hasAccountRelationship ?accountRelationship .
   ?accountRelationship a agentictrustEth:AccountRelationship .
   OPTIONAL {
@@ -476,8 +481,11 @@ SELECT ?agent ?chainId ?agentId ?accountAddress
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:agentId ?agentId ;
-    agentictrustEth:hasAccount ?account .
-  ?account agentictrustEth:accountAddress "0x1234..." ;
+    agentictrust:hasIdentifier ?accountIdentifier .
+  ?accountIdentifier a agentictrustEth:AccountIdentifier .
+  ?account a agentictrustEth:Account ;
+    agentictrustEth:hasIdentifier ?accountIdentifier ;
+    agentictrustEth:accountAddress "0x1234..." ;
     agentictrustEth:accountChainId ?chainId .
   BIND("0x1234..." AS ?accountAddress)
 }

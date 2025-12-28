@@ -23,7 +23,7 @@ WHERE {
   ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
   OPTIONAL { ?accountIdentifier agentictrust:hasDID ?did . }
 
-  ?accountIdentifier agentictrustEth:hasAccount ?account .
+  ?account agentictrustEth:hasIdentifier ?accountIdentifier .
   OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
   OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
   OPTIONAL { ?account agentictrustEth:accountType ?accountType . }
@@ -77,7 +77,7 @@ WHERE {
 
   OPTIONAL {
     ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?accountIdentifier agentictrustEth:hasAccount ?account .
+    ?account agentictrustEth:hasIdentifier ?accountIdentifier .
     OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
     OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
   }
