@@ -72,6 +72,74 @@ Skill --> Tag : hasTag
 Skill --> JsonSchema : hasInputSchema / hasOutputSchema
 ```
 
+### SPARQL Queries (demonstrating property relationships)
+
+**Query Message with Intent and Intent Components:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?message ?intent ?intentType ?intentSubject ?intentCheck
+WHERE {
+  ?message a agentictrust:Message ;
+    agentictrust:hasIntent ?intent .
+  
+  OPTIONAL {
+    ?intent agentictrust:hasSubject ?intentSubject .
+  }
+  OPTIONAL {
+    ?intent agentictrust:hasCheck ?intentCheck .
+  }
+  OPTIONAL {
+    ?intent agentictrust:intentType ?intentType .
+  }
+}
+```
+
+**Query AgentDescriptor with Skills and Endpoints:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?agent ?agentDescriptor ?skill ?skillLabel ?endpoint
+WHERE {
+  ?agent a agentictrust:AIAgent ;
+    agentictrust:hasAgentDescriptor ?agentDescriptor .
+  
+  OPTIONAL {
+    ?agentDescriptor agentictrust:hasSkill ?skill .
+    OPTIONAL { ?skill rdfs:label ?skillLabel . }
+  }
+  OPTIONAL {
+    ?agentDescriptor agentictrust:hasEndpoint ?endpoint .
+  }
+}
+```
+
+**Query Skill with IntentType, Tag, and JsonSchema:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?skill ?skillLabel ?intentType ?tag ?inputSchema ?outputSchema
+WHERE {
+  ?skill a agentictrust:Skill .
+  
+  OPTIONAL {
+    ?skill rdfs:label ?skillLabel .
+  }
+  OPTIONAL {
+    ?skill agentictrust:supportsIntentType ?intentType .
+  }
+  OPTIONAL {
+    ?skill agentictrust:hasTag ?tag .
+  }
+  OPTIONAL {
+    ?skill agentictrust:hasInputSchema ?inputSchema .
+  }
+  OPTIONAL {
+    ?skill agentictrust:hasOutputSchema ?outputSchema .
+  }
+}
+```
+
 ### Diagrams
 
 #### Intent-driven matching (intent → skill → task)

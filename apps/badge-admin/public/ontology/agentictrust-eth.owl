@@ -136,7 +136,7 @@ agentictrustEth:hasIdentifier a owl:ObjectProperty ;
   rdfs:label "hasIdentifier" ;
   rdfs:comment "Links an ENS Name to its ENSNameIdentifier. Each ENS Name has one ENSNameIdentifier." ;
   rdfs:domain agentictrustEth:ENSName ;
-  rdfs:range agentictrust:ENSNameIdentifier .
+  rdfs:range agentictrustEth:ENSNameIdentifier .
 
 agentictrustEth:ensChainId a owl:DatatypeProperty ;
   rdfs:label "ensChainId" ;
@@ -236,4 +236,32 @@ agentictrustEth:participatesInAccountRelationship a owl:ObjectProperty ;
   rdfs:comment "Links an AccountRelationship to the Accounts that participate in it (inverse of hasAccountRelationship)." ;
   rdfs:domain agentictrustEth:AccountRelationship ;
   rdfs:range agentictrustEth:Account .
+
+########
+# Descriptors
+########
+
+agentictrustEth:AccountDescriptor a owl:Class ;
+  rdfs:label "AccountDescriptor" ;
+  rdfs:comment "Descriptor for an Ethereum Account identifier/entity (resolved chainId/address, account type, signing authority, and validation capabilities)." ;
+  rdfs:subClassOf agentictrust:IdentifierDescriptor .
+
+agentictrustEth:ENSNameIdentifier a owl:Class ;
+  rdfs:label "ENSNameIdentifier" ;
+  rdfs:comment "ENS (Ethereum Name Service) name identifier. Represents a human-readable ENS name (e.g., agent.eth) that resolves to an Ethereum address. Valid ENS names end with .eth." ;
+  rdfs:subClassOf agentictrust:Identifier ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrustEth:IdentifierType_account a agentictrust:IdentifierType ;
+  rdfs:label "account" ;
+  rdfs:comment "Ethereum account identifier type." .
+
+agentictrustEth:IdentifierType_ens a agentictrust:IdentifierType ;
+  rdfs:label "ens" ;
+  rdfs:comment "ENS name identifier type." .
+
+agentictrustEth:ENSNameDescriptor a owl:Class ;
+  rdfs:label "ENSNameDescriptor" ;
+  rdfs:comment "Descriptor for an ENS name (resolved name, chain, resolver/controller, and resolution targets)." ;
+  rdfs:subClassOf agentictrust:IdentifierDescriptor .
 

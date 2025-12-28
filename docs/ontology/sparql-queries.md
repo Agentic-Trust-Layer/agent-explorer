@@ -57,6 +57,64 @@ WHERE {
 
 ## Agents with Identifiers
 
+### Get All Identifiers for an Agent (8004IdentityIdentifier, AccountIdentifier, ENSNameIdentifier)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?agent ?identifier ?identifierType ?identifierValue ?did
+WHERE {
+  ?agent a agentictrust:AIAgent ;
+    agentictrust:agentId "4514" .
+  
+  {
+    # Direct identifiers via hasIdentifier
+    # This includes: AccountIdentifier, ENSNameIdentifier (direct link), 8004IdentityIdentifier
+    ?agent agentictrust:hasIdentifier ?identifier .
+  }
+  UNION
+  {
+    # Identifiers via 8004Identity → hasIdentifier → 8004IdentityIdentifier
+    ?agent erc8004:has8004Identity ?identity .
+    ?identity agentictrust:hasIdentifier ?identifier .
+  }
+  
+  # Get the type of the identifier
+  ?identifier a ?identifierType .
+  
+  # Extract identifier value based on type (use UNION to avoid conflicts)
+  {
+    # For ENSNameIdentifier, get the label (the ENS name, e.g., "agent.eth")
+    ?identifier a agentictrustEth:ENSNameIdentifier ;
+      rdfs:label ?identifierValue .
+  }
+  UNION
+  {
+    # For AccountIdentifier, get the account address via hasAccount
+    ?identifier a agentictrustEth:AccountIdentifier ;
+      agentictrustEth:hasAccount ?account .
+    ?account agentictrustEth:accountAddress ?identifierValue .
+  }
+  UNION
+  {
+    # For 8004IdentityIdentifier, extract the DID value from the DID IRI
+    ?identifier a erc8004:8004IdentityIdentifier ;
+      agentictrust:hasDID ?didNode .
+    # Extract the DID value from the IRI (e.g., from https://www.agentictrust.io/id/did/did%3A8004%3A84532%3A1)
+    # URL decode %3A to :
+    BIND(REPLACE(REPLACE(STR(?didNode), "^.*/([^/]+)$", "$1"), "%3A", ":") AS ?identifierValue)
+  }
+  
+  # Optional: get DID IRI if it exists
+  OPTIONAL {
+    ?identifier agentictrust:hasDID ?did .
+  }
+}
+```
+
 ### Get Agents with Their Identifiers (Accounts)
 
 ```sparql

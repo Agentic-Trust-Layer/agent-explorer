@@ -345,21 +345,21 @@ function renderAgentSection(
     
     // Create 8004Identity instance
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
-    lines.push(`  agentictrust:has8004Identity ${identity8004IriValue} ;`);
+    lines.push(`  erc8004:has8004Identity ${identity8004IriValue} ;`);
     
     // Create 8004IdentityIdentifier instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
     
     // Emit 8004Identity
     accountChunks.push(
-      `${identity8004IriValue} a agentictrust:8004Identity, prov:Entity ;\n` +
+      `${identity8004IriValue} a erc8004:8004Identity, prov:Entity ;\n` +
         `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
     // Emit 8004IdentityIdentifier
     accountChunks.push(
-      `${identityIdentifierIri} a agentictrust:8004IdentityIdentifier, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType agentictrust:IdentifierType_8004 ;\n` +
+      `${identityIdentifierIri} a erc8004:8004IdentityIdentifier, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
         `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
     );
     
@@ -378,10 +378,12 @@ function renderAgentSection(
     
     // Create ENSNameIdentifier instance
     const ensIdentifierIri = identifierIri(chainId, agentId, 'ens', null, ensName);
+    // Link agent directly to ENSNameIdentifier via hasIdentifier
+    lines.push(`  agentictrust:hasIdentifier ${ensIdentifierIri} ;`);
     
     // Create ENSName instance
     const ensNameIriValue = ensNameIri(chainId, ensName);
-    lines.push(`  agentictrust:hasName ${ensNameIriValue} ;`);
+    lines.push(`  agentictrustEth:hasENSName ${ensNameIriValue} ;`);
     
     // Emit ENSName
     accountChunks.push(
@@ -393,8 +395,8 @@ function renderAgentSection(
     
     // Emit ENSNameIdentifier
     accountChunks.push(
-      `${ensIdentifierIri} a agentictrust:ENSNameIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType agentictrust:IdentifierType_ens ;\n` +
+      `${ensIdentifierIri} a agentictrustEth:ENSNameIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
         `  agentictrust:hasDID ${ensDidIri} ;\n` +
         `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
     );
@@ -421,7 +423,7 @@ function renderAgentSection(
     // Emit AccountIdentifier instance
     const accountIdentifierLines: string[] = [];
     accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
-    accountIdentifierLines.push(`  agentictrust:identifierType agentictrust:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
     accountIdentifierLines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
@@ -468,7 +470,7 @@ function renderAgentSection(
   }
   if (row?.ensEndpoint) {
     const tok = turtleIriOrLiteral(String(row.ensEndpoint));
-    if (tok) lines.push(`  agentictrust:ensEndpoint ${tok} ;`);
+    if (tok) lines.push(`  agentictrustEth:ensEndpoint ${tok} ;`);
   }
   if (row?.agentAccountEndpoint) {
     const tok = turtleIriOrLiteral(String(row.agentAccountEndpoint));
@@ -634,21 +636,21 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     
     // Create 8004Identity instance
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
-    lines.push(`  agentictrust:has8004Identity ${identity8004IriValue} ;`);
+    lines.push(`  erc8004:has8004Identity ${identity8004IriValue} ;`);
     
     // Create 8004IdentityIdentifier instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
     
     // Emit 8004Identity
     accountChunks.push(
-      `${identity8004IriValue} a agentictrust:8004Identity, prov:Entity ;\n` +
+      `${identity8004IriValue} a erc8004:8004Identity, prov:Entity ;\n` +
         `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
     // Emit 8004IdentityIdentifier
     accountChunks.push(
-      `${identityIdentifierIri} a agentictrust:8004IdentityIdentifier, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType agentictrust:IdentifierType_8004 ;\n` +
+      `${identityIdentifierIri} a erc8004:8004IdentityIdentifier, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
         `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
     );
     
@@ -667,10 +669,12 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     
     // Create ENSNameIdentifier instance
     const ensIdentifierIri = identifierIri(chainId, agentId, 'ens', null, ensName);
+    // Link agent directly to ENSNameIdentifier via hasIdentifier
+    lines.push(`  agentictrust:hasIdentifier ${ensIdentifierIri} ;`);
     
     // Create ENSName instance
     const ensNameIriValue = ensNameIri(chainId, ensName);
-    lines.push(`  agentictrust:hasName ${ensNameIriValue} ;`);
+    lines.push(`  agentictrustEth:hasENSName ${ensNameIriValue} ;`);
     
     // Emit ENSName
     accountChunks.push(
@@ -682,8 +686,8 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     
     // Emit ENSNameIdentifier
     accountChunks.push(
-      `${ensIdentifierIri} a agentictrust:ENSNameIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType agentictrust:IdentifierType_ens ;\n` +
+      `${ensIdentifierIri} a agentictrustEth:ENSNameIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
+        `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
         `  agentictrust:hasDID ${ensDidIri} ;\n` +
         `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
     );
@@ -710,7 +714,7 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     // Emit AccountIdentifier instance
     const accountIdentifierLines: string[] = [];
     accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
-    accountIdentifierLines.push(`  agentictrust:identifierType agentictrust:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
     accountIdentifierLines.push(`  agentictrustEth:hasAccount ${acctIri} ;`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
@@ -757,7 +761,7 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   }
   if (row?.ensEndpoint) {
     const tok = turtleIriOrLiteral(String(row.ensEndpoint));
-    if (tok) lines.push(`  agentictrust:ensEndpoint ${tok} ;`);
+    if (tok) lines.push(`  agentictrustEth:ensEndpoint ${tok} ;`);
   }
   if (row?.agentAccountEndpoint) {
     const tok = turtleIriOrLiteral(String(row.agentAccountEndpoint));

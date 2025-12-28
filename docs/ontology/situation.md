@@ -56,6 +56,44 @@ SkillInvocation --> Message : invocationUsedMessage
 TaskExecution --> Artifact : producedArtifact
 ```
 
+### SPARQL Queries (demonstrating property relationships)
+
+**Query TrustSituation with TrustDescription and TrustAssertion:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?trustSituation ?trustDescription ?trustAssertion
+WHERE {
+  ?trustSituation a agentictrust:TrustSituation .
+  
+  OPTIONAL {
+    ?trustSituation agentictrust:realizesDescription ?trustDescription .
+  }
+  OPTIONAL {
+    ?trustSituation agentictrust:generatedAssertion ?trustAssertion .
+  }
+}
+```
+
+**Query TaskExecution with SkillInvocation and Skill:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?taskExecution ?skillInvocation ?skill ?message ?artifact
+WHERE {
+  ?taskExecution a agentictrust:TaskExecution .
+  
+  OPTIONAL {
+    ?taskExecution agentictrust:hasInvocation ?skillInvocation .
+    ?skillInvocation agentictrust:invokesSkill ?skill .
+    ?skillInvocation agentictrust:invocationUsedMessage ?message .
+  }
+  OPTIONAL {
+    ?taskExecution agentictrust:producedArtifact ?artifact .
+  }
+}
+```
+
 ### Diagrams (how Situation is used)
 
 #### Situation → Trust establishment (verification, reputation, relationships)

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<catalog prefer="public" xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+    <uri id="Imports Wizard Entry" name="https://www.agentictrust.io/data/agents" uri="file:////wsl.localhost/Ubuntu/home/barb/erc8004/agent-explorer/apps/badge-admin/public/rdf/agents.ttl"/>
+    <uri id="Imports Wizard Entry" name="https://www.agentictrust.io/ontology/ERC8004#" uri="https://www.agentictrust.io/ontology/erc8004"/>
+    <uri id="Imports Wizard Entry" name="https://www.agentictrust.io/ontology/agentictrust-eth#" uri="https://www.agentictrust.io/ontology/agentictrust-eth"/>
+    <uri id="Imports Wizard Entry" name="https://www.agentictrust.io/ontology/agentictrust-core#" uri="https://www.agentictrust.io/ontology/agentictrust-core"/>
+    <group id="Folder Repository, directory=file:////wsl.localhost/Ubuntu/home/barb/erc8004/agent-explorer/apps/badge-admin/public/rdf/, recursive=true, Auto-Update=true, version=2" prefer="public" xml:base=""/>
+</catalog>

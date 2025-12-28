@@ -33,9 +33,9 @@ agentictrust:Descriptor
   ├─ agentictrust:AgentDescriptor
   ├─ agentictrust:ProtocolDescriptor
   └─ agentictrust:IdentifierDescriptor
-       ├─ agentictrust:AccountDescriptor
-       ├─ agentictrust:ENSNameDescriptor
-       └─ agentictrust:8004IdentityDescriptor
+       ├─ agentictrustEth:AccountDescriptor (in agentictrust-eth.owl)
+       ├─ agentictrustEth:ENSNameDescriptor (in agentictrust-eth.owl)
+       └─ erc8004:8004IdentityDescriptor (in ERC8004.owl)
 
 Property relationships (high level)
 -----------------------------------
@@ -43,13 +43,13 @@ Things that can be described:
 
   agentictrust:AIAgent     ── agentictrust:hasDescriptor ──▶ agentictrust:AgentDescriptor
   agentictrust:Identifier  ── agentictrust:hasDescriptor ──▶ agentictrust:IdentifierDescriptor
-  agentictrust:8004Identity─── agentictrust:hasDescriptor ──▶ agentictrust:8004IdentityDescriptor
   agentictrust:Protocol    ── agentictrust:hasDescriptor ──▶ agentictrust:ProtocolDescriptor
+  # erc8004:8004Identity (defined in ERC8004.owl) ── agentictrust:hasDescriptor ──▶ erc8004:8004IdentityDescriptor
 
 Protocol specializations (in agentictrust-eth.owl):
 
-  agentictrustEth:Account  ── agentictrust:hasDescriptor ──▶ agentictrust:AccountDescriptor
-  agentictrustEth:ENSName  ── agentictrust:hasDescriptor ──▶ agentictrust:ENSNameDescriptor
+  agentictrustEth:Account  ── agentictrust:hasDescriptor ──▶ agentictrustEth:AccountDescriptor
+  agentictrustEth:ENSName  ── agentictrust:hasDescriptor ──▶ agentictrustEth:ENSNameDescriptor
 
 Resolver workflow (typical)
 ---------------------------
@@ -310,15 +310,10 @@ agentictrust:assertedIn a owl:ObjectProperty ;
 
 agentictrust:hasIdentifier a owl:ObjectProperty ;
   rdfs:label "hasIdentifier" ;
-  rdfs:comment "Links an agent or 8004Identity to its Identifier. For agents: links to primary Identifier. For 8004Identity: links to 8004IdentityIdentifier. Protocol-specific realizations: Ethereum Account (agentictrustEth:Account), Web2 identifiers, etc." ;
-  rdfs:domain [ owl:unionOf ( agentictrust:AIAgent agentictrust:8004Identity ) ] ;
+  rdfs:comment "Links an agent to its Identifier. Protocol-specific realizations: Ethereum Account (agentictrustEth:Account), Web2 identifiers, etc. For ERC-8004 agents, use erc8004:has8004Identity to link to erc8004:8004Identity, which then has hasIdentifier to 8004IdentityIdentifier." ;
+  rdfs:domain agentictrust:AIAgent ;
   rdfs:range agentictrust:Identifier .
 
-agentictrust:has8004Identity a owl:ObjectProperty ;
-  rdfs:label "has8004Identity" ;
-  rdfs:comment "Links an agent to its ERC-8004 identity. Each agent registered in ERC-8004 has one 8004Identity." ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range agentictrust:8004Identity .
 
 agentictrust:hasName a owl:ObjectProperty ;
   rdfs:label "hasName" ;
@@ -334,7 +329,7 @@ agentictrust:identifierType a owl:ObjectProperty ;
 
 agentictrust:hasDID a owl:ObjectProperty ;
   rdfs:label "hasDID" ;
-  rdfs:comment "Links an Identifier to its associated DID. For 8004IdentityIdentifier, this is the did:8004:... DID. For ENSNameIdentifier, this is the did:ens:... DID." ;
+  rdfs:comment "Links an Identifier to its associated DID. Protocol-specific identifier types (e.g., erc8004:8004IdentityIdentifier, agentictrustEth:ENSNameIdentifier) link to their respective DIDs." ;
   rdfs:domain agentictrust:Identifier ;
   rdfs:range agentictrust:DID .
 
@@ -349,27 +344,6 @@ agentictrust:UniversalIdentifier a owl:Class ;
   rdfs:subClassOf agentictrust:Identifier ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:8004IdentityIdentifier a owl:Class ;
-  rdfs:label "8004IdentityIdentifier" ;
-  rdfs:comment "ERC-8004 agent identity identifier (did:8004:chainId:agentId). A UniversalIdentifier that represents the agent's on-chain identity in the ERC-8004 registry." ;
-  rdfs:subClassOf agentictrust:UniversalIdentifier ;
-  rdfs:subClassOf prov:Entity .
-
-agentictrust:8004Identity a owl:Class ;
-  rdfs:label "8004Identity" ;
-  rdfs:comment "ERC-8004 agent identity. Represents the agent's on-chain identity in the ERC-8004 registry, linked to its 8004IdentityIdentifier." ;
-  rdfs:subClassOf prov:Entity ;
-  rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty agentictrust:hasDescriptor ;
-    owl:allValuesFrom agentictrust:8004IdentityDescriptor
-  ] .
-
-agentictrust:ENSNameIdentifier a owl:Class ;
-  rdfs:label "ENSNameIdentifier" ;
-  rdfs:comment "ENS (Ethereum Name Service) name identifier. Represents a human-readable ENS name (e.g., agent.eth) that resolves to an Ethereum address. Valid ENS names end with .eth." ;
-  rdfs:subClassOf agentictrust:Identifier ;
-  rdfs:subClassOf prov:Entity .
 
 agentictrust:IdentifierArtifact a owl:Class ;
   rdfs:label "IdentifierArtifact" ;
@@ -383,20 +357,9 @@ agentictrust:ProtocolType a owl:Class ;
 
 agentictrust:IdentifierType a owl:Class ;
   rdfs:label "IdentifierType" ;
-  rdfs:comment "Identifier type enumeration: '8004' (ERC-8004 identity), 'account' (Ethereum account), 'ens' (ENS name)." ;
+  rdfs:comment "Identifier type enumeration. Protocol-specific individuals are defined in their respective ontologies (e.g., erc8004:IdentifierType_8004, agentictrustEth:IdentifierType_account, agentictrustEth:IdentifierType_ens)." ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:IdentifierType_8004 a agentictrust:IdentifierType ;
-  rdfs:label "8004" ;
-  rdfs:comment "ERC-8004 identity identifier type." .
-
-agentictrust:IdentifierType_account a agentictrust:IdentifierType ;
-  rdfs:label "account" ;
-  rdfs:comment "Ethereum account identifier type." .
-
-agentictrust:IdentifierType_ens a agentictrust:IdentifierType ;
-  rdfs:label "ens" ;
-  rdfs:comment "ENS name identifier type." .
 
 ########
 # UniversalIdentifier Properties (HCS-14)
@@ -521,20 +484,6 @@ agentictrust:IdentifierDescriptor a owl:Class ;
   rdfs:comment "Descriptor for an Identifier (resolved metadata about an identifier and its bindings, subject/controller links, and verification methods)." ;
   rdfs:subClassOf agentictrust:Descriptor .
 
-agentictrust:AccountDescriptor a owl:Class ;
-  rdfs:label "AccountDescriptor" ;
-  rdfs:comment "Descriptor for an Ethereum Account identifier/entity (resolved chainId/address, account type, signing authority, and validation capabilities)." ;
-  rdfs:subClassOf agentictrust:IdentifierDescriptor .
-
-agentictrust:ENSNameDescriptor a owl:Class ;
-  rdfs:label "ENSNameDescriptor" ;
-  rdfs:comment "Descriptor for an ENS name (resolved name, chain, resolver/controller, and resolution targets)." ;
-  rdfs:subClassOf agentictrust:IdentifierDescriptor .
-
-agentictrust:8004IdentityDescriptor a owl:Class ;
-  rdfs:label "8004IdentityDescriptor" ;
-  rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
-  rdfs:subClassOf agentictrust:IdentifierDescriptor .
 
 agentictrust:AgentDescriptor a owl:Class ;
   rdfs:label "AgentDescriptor" ;
@@ -919,10 +868,6 @@ agentictrust:a2aEndpoint a owl:DatatypeProperty ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range xsd:anyURI .
 
-agentictrust:ensEndpoint a owl:DatatypeProperty ;
-  rdfs:label "ENSEndpoint" ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range xsd:anyURI .
 
 
 agentictrust:agentApp a owl:DatatypeProperty ;
@@ -1126,7 +1071,6 @@ agentictrust:supportsTrustModel a owl:ObjectProperty ;
 
 agentictrust:EndpointType_a2a a agentictrust:EndpointType ; rdfs:label "a2a" .
 agentictrust:EndpointType_mcp a agentictrust:EndpointType ; rdfs:label "mcp" .
-agentictrust:EndpointType_ens a agentictrust:EndpointType ; rdfs:label "ens" .
 
 # Common trust-model individuals (labels omit dashes/spaces)
 agentictrust:TrustModel_feedback a agentictrust:TrustModel ; rdfs:label "feedback" .

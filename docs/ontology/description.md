@@ -63,6 +63,62 @@ AgentDescriptor --> Skill : hasSkill
 AgentDescriptor --> Endpoint : hasEndpoint
 ```
 
+### SPARQL Queries (demonstrating property relationships)
+
+**Query Agent with AgentDescriptor and Endpoints:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?agent ?agentId ?agentDescriptor ?endpoint ?endpointType
+WHERE {
+  ?agent a agentictrust:AIAgent ;
+    agentictrust:agentId ?agentId ;
+    agentictrust:hasAgentDescriptor ?agentDescriptor .
+  
+  OPTIONAL {
+    ?agentDescriptor agentictrust:hasEndpoint ?endpoint .
+  }
+  OPTIONAL {
+    ?agentDescriptor agentictrust:hasEndpointEntry ?endpointEntry .
+    ?endpointEntry agentictrust:endpointType ?endpointType .
+  }
+}
+ORDER BY ?agentId
+```
+
+**Query AgentDescriptor with Skills:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?agent ?agentDescriptor ?skill ?skillLabel
+WHERE {
+  ?agent a agentictrust:AIAgent ;
+    agentictrust:hasAgentDescriptor ?agentDescriptor .
+  
+  ?agentDescriptor agentictrust:hasSkill ?skill .
+  
+  OPTIONAL {
+    ?skill rdfs:label ?skillLabel .
+  }
+}
+```
+
+**Query AgentDescriptor with OperatorIdentifier:**
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?agent ?agentDescriptor ?operatorIdentifier ?operatorValue
+WHERE {
+  ?agent a agentictrust:AIAgent ;
+    agentictrust:hasAgentDescriptor ?agentDescriptor .
+  
+  OPTIONAL {
+    ?agentDescriptor agentictrust:hasOperatorIdentifier ?operatorIdentifier .
+    ?operatorIdentifier agentictrust:operatorIdentifierValue ?operatorValue .
+  }
+}
+```
+
 ### Diagrams (how Description supports other areas)
 
 #### Description → Situation

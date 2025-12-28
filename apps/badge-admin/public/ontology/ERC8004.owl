@@ -50,6 +50,37 @@ erc8004:IntegrationMetadata a owl:Class ;
   rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
+erc8004:8004Identity a owl:Class ;
+  rdfs:label "8004Identity" ;
+  rdfs:comment "ERC-8004 agent identity. Represents the agent's on-chain identity in the ERC-8004 registry, linked to its 8004IdentityIdentifier." ;
+  rdfs:subClassOf prov:Entity ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty agentictrust:hasDescriptor ;
+    owl:allValuesFrom erc8004:8004IdentityDescriptor
+  ] .
+
+erc8004:has8004Identity a owl:ObjectProperty ;
+  rdfs:label "has8004Identity" ;
+  rdfs:comment "Links an agent to its ERC-8004 identity. Each agent registered in ERC-8004 has one 8004Identity." ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range erc8004:8004Identity .
+
+erc8004:8004IdentityIdentifier a owl:Class ;
+  rdfs:label "8004IdentityIdentifier" ;
+  rdfs:comment "ERC-8004 agent identity identifier (did:8004:chainId:agentId). A UniversalIdentifier that represents the agent's on-chain identity in the ERC-8004 registry." ;
+  rdfs:subClassOf agentictrust:UniversalIdentifier ;
+  rdfs:subClassOf prov:Entity .
+
+erc8004:IdentifierType_8004 a agentictrust:IdentifierType ;
+  rdfs:label "8004" ;
+  rdfs:comment "ERC-8004 identity identifier type." .
+
+erc8004:8004IdentityDescriptor a owl:Class ;
+  rdfs:label "8004IdentityDescriptor" ;
+  rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
+  rdfs:subClassOf agentictrust:IdentifierDescriptor .
+
 erc8004:hasAgentRegistration a owl:ObjectProperty ;
   rdfs:label "hasAgentRegistration" ;
   rdfs:domain agentictrust:AIAgent ;
