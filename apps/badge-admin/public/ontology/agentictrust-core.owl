@@ -10,6 +10,70 @@
 agentictrust: a owl:Ontology ;
   dcterms:title "AgenticTrustCoreOntology" ;
   dcterms:description "Core ontology for Agentic Trust concepts: ERC-8004 agents, A2A agent cards, skills, intent-driven messaging, tasks/workflows, and provenance. Aligned with DOLCE-DnS (Descriptions & Situations) and grounded in PROV-O and P-PLAN." ;
+  rdfs:comment """
+Descriptor strategy and resolver approach
+=======================================
+
+Goal
+----
+Model “resolved” metadata as first-class Entities (Descriptors) produced by resolver activities.
+Raw sources (onchain events, tokenUri JSON, DID docs, agent-card.json, ENS resolution, etc.)
+are inputs; the Descriptor is the normalized, assembled view used for discovery, validation,
+and interaction.
+
+Key idea
+--------
+Use `agentictrust:hasDescriptor` to link a thing (Agent / Identifier / Protocol) to a resolver-produced
+Descriptor Entity. Keep older, more specific properties (`hasAgentDescriptor`, `hasProtocolDescriptor`)
+as subproperties for convenience and backwards compatibility.
+
+Class hierarchy (Descriptor)
+----------------------------
+agentictrust:Descriptor
+  ├─ agentictrust:AgentDescriptor
+  ├─ agentictrust:ProtocolDescriptor
+  └─ agentictrust:IdentifierDescriptor
+       ├─ agentictrust:AccountDescriptor
+       ├─ agentictrust:ENSNameDescriptor
+       └─ agentictrust:8004IdentityDescriptor
+
+Property relationships (high level)
+-----------------------------------
+Things that can be described:
+
+  agentictrust:AIAgent     ── agentictrust:hasDescriptor ──▶ agentictrust:AgentDescriptor
+  agentictrust:Identifier  ── agentictrust:hasDescriptor ──▶ agentictrust:IdentifierDescriptor
+  agentictrust:8004Identity─── agentictrust:hasDescriptor ──▶ agentictrust:8004IdentityDescriptor
+  agentictrust:Protocol    ── agentictrust:hasDescriptor ──▶ agentictrust:ProtocolDescriptor
+
+Protocol specializations (in agentictrust-eth.owl):
+
+  agentictrustEth:Account  ── agentictrust:hasDescriptor ──▶ agentictrust:AccountDescriptor
+  agentictrustEth:ENSName  ── agentictrust:hasDescriptor ──▶ agentictrust:ENSNameDescriptor
+
+Resolver workflow (typical)
+---------------------------
+1) Fetch/observe sources:
+   - onchain (ERC-8004 registry, ERC-8092 assertions)
+   - offchain JSON (tokenUri metadata, .well-known/agent-card.json)
+   - identifier resolution (DID resolution, ENS resolution, account bytecode/type checks)
+
+2) Normalize:
+   - canonicalize identifiers (chainId/address, did:* forms)
+   - validate schemas / required fields / constraints
+   - compute derived facts (e.g., signing authority, resolution targets, supported skills)
+
+3) Assemble:
+   - create/update Descriptor Entities
+   - optionally link provenance using PROV (Activity used Entity; generated Entity)
+   - for AgentDescriptor assembly, `agentictrust:assembledFromMetadata` may link component descriptors
+
+Design notes
+------------
+- Descriptors are Entities (not Agents): they’re documents/records describing something.
+- `hasDescriptor` is intentionally broad; type constraints are expressed via OWL restrictions on classes
+  (e.g., AIAgent allValuesFrom AgentDescriptor).
+""" ;
   owl:imports <http://www.w3.org/ns/prov-o#> ;
   owl:imports <http://purl.org/net/p-plan#> ;
   owl:versionInfo "0.2.0" ;
@@ -64,7 +128,12 @@ agentictrust:RelationshipAssertion a owl:Class ;
 agentictrust:Identifier a owl:Class ;
   rdfs:label "Identifier" ;
   rdfs:comment "Abstract identifier for an agent. Protocol-specific realizations include Ethereum Account (agentictrustEth:Account), Web2 domain/email identifiers, etc. Each Agent has one primary Identifier. Modeled as prov:Entity, not prov:Agent." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:subClassOf prov:Entity ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty agentictrust:hasDescriptor ;
+    owl:allValuesFrom agentictrust:IdentifierDescriptor
+  ] .
 
 agentictrust:Name a owl:Class ;
   rdfs:label "Name" ;
@@ -289,7 +358,12 @@ agentictrust:8004IdentityIdentifier a owl:Class ;
 agentictrust:8004Identity a owl:Class ;
   rdfs:label "8004Identity" ;
   rdfs:comment "ERC-8004 agent identity. Represents the agent's on-chain identity in the ERC-8004 registry, linked to its 8004IdentityIdentifier." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:subClassOf prov:Entity ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty agentictrust:hasDescriptor ;
+    owl:allValuesFrom agentictrust:8004IdentityDescriptor
+  ] .
 
 agentictrust:ENSNameIdentifier a owl:Class ;
   rdfs:label "ENSNameIdentifier" ;
@@ -415,7 +489,12 @@ agentictrust:methodParameter a owl:DatatypeProperty ;
 agentictrust:AIAgent a owl:Class ;
   rdfs:label "AIAgent" ;
   rdfs:comment "AI agent identity." ;
-  rdfs:subClassOf prov:SoftwareAgent .
+  rdfs:subClassOf prov:SoftwareAgent ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty agentictrust:hasDescriptor ;
+    owl:allValuesFrom agentictrust:AgentDescriptor
+  ] .
 
 agentictrust:AgentEndpoint a owl:Class ;
   rdfs:label "AgentEndpoint" ;
@@ -432,20 +511,50 @@ agentictrust:OperatorIdentifier a owl:Class ;
   rdfs:comment "An identifier for an operator (e.g., address, DID, CAIP-10). Subclass of DecentralizedIdentifier (identifier artifact)." ;
   rdfs:subClassOf agentictrust:DecentralizedIdentifier .
 
+agentictrust:Descriptor a owl:Class ;
+  rdfs:label "Descriptor" ;
+  rdfs:comment "A resolver-produced description that aggregates and normalizes all metadata associated with a particular thing (AIAgent, Identifier, Protocol). Represents the resolved/operational view used for discovery, validation, and interaction." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:IdentifierDescriptor a owl:Class ;
+  rdfs:label "IdentifierDescriptor" ;
+  rdfs:comment "Descriptor for an Identifier (resolved metadata about an identifier and its bindings, subject/controller links, and verification methods)." ;
+  rdfs:subClassOf agentictrust:Descriptor .
+
+agentictrust:AccountDescriptor a owl:Class ;
+  rdfs:label "AccountDescriptor" ;
+  rdfs:comment "Descriptor for an Ethereum Account identifier/entity (resolved chainId/address, account type, signing authority, and validation capabilities)." ;
+  rdfs:subClassOf agentictrust:IdentifierDescriptor .
+
+agentictrust:ENSNameDescriptor a owl:Class ;
+  rdfs:label "ENSNameDescriptor" ;
+  rdfs:comment "Descriptor for an ENS name (resolved name, chain, resolver/controller, and resolution targets)." ;
+  rdfs:subClassOf agentictrust:IdentifierDescriptor .
+
+agentictrust:8004IdentityDescriptor a owl:Class ;
+  rdfs:label "8004IdentityDescriptor" ;
+  rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
+  rdfs:subClassOf agentictrust:IdentifierDescriptor .
+
 agentictrust:AgentDescriptor a owl:Class ;
   rdfs:label "AgentDescriptor" ;
-  rdfs:comment "Agent-level descriptor: protocol-agnostic, machine-readable declaration of an agent's identity, capabilities, and constraints. Belongs to an Agent, not a Protocol. Distinct from ProtocolDescriptor." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:comment "Agent-level descriptor: resolver-produced, protocol-agnostic declaration of an agent's identity, capabilities, and constraints. Belongs to an Agent, not a Protocol. Distinct from ProtocolDescriptor." ;
+  rdfs:subClassOf agentictrust:Descriptor .
 
 agentictrust:Protocol a owl:Class ;
   rdfs:label "Protocol" ;
   rdfs:comment "A communication protocol (e.g., A2A, MCP). Has a ProtocolDescriptor that describes the protocol-specific configuration and bindings." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:subClassOf prov:Entity ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty agentictrust:hasDescriptor ;
+    owl:allValuesFrom agentictrust:ProtocolDescriptor
+  ] .
 
 agentictrust:ProtocolDescriptor a owl:Class ;
   rdfs:label "ProtocolDescriptor" ;
-  rdfs:comment "Protocol-level descriptor: protocol-specific configuration, bindings, and metadata. Belongs to a Protocol, not an Agent. Distinct from AgentDescriptor. Can be A2AProtocolDescriptor or MCPProtocolDescriptor." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:comment "Protocol-level descriptor: resolver-produced protocol-specific configuration, bindings, and metadata. Belongs to a Protocol, not an Agent. Distinct from AgentDescriptor. Can be A2AProtocolDescriptor or MCPProtocolDescriptor." ;
+  rdfs:subClassOf agentictrust:Descriptor .
 
 agentictrust:A2AProtocolDescriptor a owl:Class ;
   rdfs:label "A2AProtocolDescriptor" ;
@@ -608,6 +717,12 @@ agentictrust:TrustArtifact a owl:Class ;
 # Object properties
 ########
 
+agentictrust:hasDescriptor a owl:ObjectProperty ;
+  rdfs:label "hasDescriptor" ;
+  rdfs:comment "Links an entity (AIAgent, Identifier, Protocol) to a resolver-produced Descriptor that aggregates and normalizes all metadata associated with that entity." ;
+  rdfs:domain prov:Entity ;
+  rdfs:range agentictrust:Descriptor .
+
 agentictrust:hasEndpointEntry a owl:ObjectProperty ;
   rdfs:label "hasEndpointEntry" ;
   rdfs:domain agentictrust:AgentDescriptor ;
@@ -627,12 +742,14 @@ agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
 agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:label "hasAgentDescriptor" ;
   rdfs:comment "Links an agent identity to its AgentDescriptor (agent-level descriptor, not protocol-specific)." ;
+  rdfs:subPropertyOf agentictrust:hasDescriptor ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range agentictrust:AgentDescriptor .
 
 agentictrust:hasProtocolDescriptor a owl:ObjectProperty ;
   rdfs:label "hasProtocolDescriptor" ;
   rdfs:comment "Links a Protocol to its ProtocolDescriptor (protocol-level descriptor, e.g., A2AProtocolDescriptor or MCPProtocolDescriptor)." ;
+  rdfs:subPropertyOf agentictrust:hasDescriptor ;
   rdfs:domain agentictrust:Protocol ;
   rdfs:range agentictrust:ProtocolDescriptor .
 
