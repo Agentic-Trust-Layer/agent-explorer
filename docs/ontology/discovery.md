@@ -1,6 +1,6 @@
-# Discovery: Skills, Intents, Tasks, and OASF Alignment
+# Discovery: Skills, Domains, Intents, Tasks, and OASF Alignment
 
-This document describes the AgenticTrust discovery model, covering skills, intents, tasks, execution traces, and alignment with the Open Agentic Schema Framework (OASF).
+This document describes the AgenticTrust discovery model, covering skills, domains, intents, tasks, execution traces, and alignment with the Open Agentic Schema Framework (OASF).
 
 Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 
@@ -162,9 +162,11 @@ LIMIT 100
 
 The ontology separates three key concerns:
 
-- **Discovery**: metadata/card declarations about skills
+- **Discovery**: metadata/card declarations about skills and domains
 - **Routing**: intent types and task types
 - **Execution trace**: skill invocations used to realize tasks/fulfill intents
+
+**Domains** play a central role in discovery by providing categorization and grouping of skills and agents. Domains enable filtering and discovery by application area (e.g., "finance", "healthcare", "education").
 
 ## OASF Alignment
 
@@ -887,13 +889,83 @@ WHERE {
 LIMIT 50
 ```
 
+## Domains: Central to Discovery
+
+**Domains** (`agentictrust:Domain`) are a core component of the discovery model, providing:
+
+1. **Categorization**: Skills and agents are organized by application domain (e.g., "finance", "healthcare", "education", "e-commerce")
+2. **Filtering**: Discovery queries can filter by domain to find relevant capabilities
+3. **OASF Alignment**: Direct mapping to OASF Domain concept for standardized categorization
+4. **Routing**: IntentTypes can be domain-aligned for more precise routing
+5. **Grouping**: Multiple skills can share a domain, enabling domain-based agent discovery
+
+### Domain Relationships
+
+- **Skills → Domain**: `agentictrust:Skill` → `agentictrust:hasDomain` → `agentictrust:Domain`
+- **AgentDescriptors → Domain**: Via skills they declare (transitive relationship)
+- **IntentTypes → Domain**: Can be aligned with domains for routing (e.g., `trust.validation` in "security" domain)
+
+### Domain Discovery Pattern
+
+```
+User searches for: "finance" domain
+    ↓
+Domain: "finance"
+    ↓
+Skills with hasDomain → "finance"
+    ↓
+AgentDescriptors with hasSkill → Skills in "finance" domain
+    ↓
+Agents with capabilities in "finance" domain
+```
+
+### SPARQL Query: Domain-Based Discovery
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?domain ?domainLabel ?skill ?skillId ?skillName ?agent ?agentId
+WHERE {
+  ?domain a agentictrust:Domain .
+  
+  OPTIONAL {
+    ?domain rdfs:label ?domainLabel .
+  }
+  
+  # Find skills in this domain
+  ?skill a agentictrust:Skill ;
+    agentictrust:hasDomain ?domain .
+  
+  OPTIONAL {
+    ?skill agentictrust:skillId ?skillId .
+  }
+  
+  OPTIONAL {
+    ?skill agentictrust:skillName ?skillName .
+  }
+  
+  # Find agents with skills in this domain
+  OPTIONAL {
+    ?agent a agentictrust:AIAgent ;
+      agentictrust:agentId ?agentId ;
+      agentictrust:hasAgentDescriptor ?descriptor .
+    
+    ?descriptor a agentictrust:AgentDescriptor ;
+      agentictrust:hasSkill ?skill .
+  }
+}
+ORDER BY ?domain ?skill ?agent
+LIMIT 100
+```
+
 ## Summary
 
 The discovery model provides:
 
-1. **Discovery Layer**: AgentDescriptor → Skills with rich metadata (schemas, tags, domains, intent types)
+1. **Discovery Layer**: AgentDescriptor → Skills with rich metadata (schemas, tags, **domains**, intent types)
 2. **Routing Layer**: IntentType → TaskType → Skill mappings for intent-driven discovery
 3. **Execution Layer**: Task → TaskExecution → SkillInvocation traces
-4. **OASF Alignment**: Direct mapping to OASF Records, Skills, Domains, and Modules
+4. **OASF Alignment**: Direct mapping to OASF Records, Skills, **Domains**, and Modules
 
-All discovery is queryable via SPARQL, enabling semantic search across agent capabilities, domains, and execution traces.
+**Domains** are central to the discovery process, enabling categorization, filtering, and grouping of skills and agents by application area. All discovery is queryable via SPARQL, enabling semantic search across agent capabilities, domains, and execution traces.
