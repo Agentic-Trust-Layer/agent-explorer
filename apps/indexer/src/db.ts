@@ -103,6 +103,91 @@ async function initializeSchema() {
 
   await tryAddColumn('agents', 'agentCardJson', 'TEXT');
   await tryAddColumn('agents', 'agentCardReadAt', 'INTEGER');
+
+  // Back-compat: some historical DBs used metadataURI instead of tokenUri.
+  // If both columns exist, backfill tokenUri from metadataURI once (best-effort).
+  try {
+    const cols = await db.prepare(`SELECT name FROM pragma_table_info('agents')`).all();
+    const names = new Set((Array.isArray(cols) ? cols : (cols as any)?.results || []).map((r: any) => String(r?.name || '')));
+    if (names.has('metadataURI') && names.has('tokenUri')) {
+      await db.prepare(`UPDATE agents SET tokenUri = metadataURI WHERE (tokenUri IS NULL OR tokenUri = '') AND metadataURI IS NOT NULL`).run();
+    }
+  } catch {
+    // best-effort
+  }
+
+  // OASF: tables/columns used by sync + RDF export (best-effort for dev; migrations should handle prod)
+  // Create auxiliary tables if missing
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS oasf_domain_categories (
+        key TEXT PRIMARY KEY,
+        uid INTEGER,
+        caption TEXT,
+        description TEXT,
+        schemaJson TEXT,
+        githubPath TEXT,
+        githubSha TEXT,
+        lastFetchedAt INTEGER NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS oasf_skill_categories (
+        key TEXT PRIMARY KEY,
+        uid INTEGER,
+        caption TEXT,
+        description TEXT,
+        schemaJson TEXT,
+        githubPath TEXT,
+        githubSha TEXT,
+        lastFetchedAt INTEGER NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS oasf_dictionary_entries (
+        key TEXT PRIMARY KEY,
+        type TEXT,
+        caption TEXT,
+        description TEXT,
+        referencesJson TEXT,
+        schemaJson TEXT,
+        githubPath TEXT,
+        githubSha TEXT,
+        lastFetchedAt INTEGER NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS oasf_dictionary_types (
+        key TEXT PRIMARY KEY,
+        schemaJson TEXT,
+        githubPath TEXT,
+        githubSha TEXT,
+        lastFetchedAt INTEGER NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+    `);
+    await db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_oasf_domain_categories_uid ON oasf_domain_categories(uid);
+      CREATE INDEX IF NOT EXISTS idx_oasf_skill_categories_uid ON oasf_skill_categories(uid);
+    `);
+  } catch (e: any) {
+    console.warn('⚠️  Could not create OASF auxiliary tables (run migrations manually if needed).', String(e?.message || e));
+  }
+
+  // Add new columns to existing oasf tables (if they already exist from older migration)
+  // NOTE: "category" is retained for backwards compatibility with earlier schema and for easier ad-hoc inspection.
+  await tryAddColumn('oasf_domains', 'nameKey', 'TEXT');
+  await tryAddColumn('oasf_domains', 'uid', 'INTEGER');
+  await tryAddColumn('oasf_domains', 'caption', 'TEXT');
+  await tryAddColumn('oasf_domains', 'extendsKey', 'TEXT');
+  await tryAddColumn('oasf_domains', 'category', 'TEXT');
+
+  await tryAddColumn('oasf_skills', 'nameKey', 'TEXT');
+  await tryAddColumn('oasf_skills', 'uid', 'INTEGER');
+  await tryAddColumn('oasf_skills', 'caption', 'TEXT');
+  await tryAddColumn('oasf_skills', 'extendsKey', 'TEXT');
+  await tryAddColumn('oasf_skills', 'category', 'TEXT');
 }
 
 initializeSchema();

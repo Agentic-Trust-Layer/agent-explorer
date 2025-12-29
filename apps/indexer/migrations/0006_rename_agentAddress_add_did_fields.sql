@@ -5,10 +5,10 @@
 -- Note: SQLite doesn't support DROP COLUMN, so agentAddress remains for backward compatibility
 
 -- Step 1: Add new columns
-ALTER TABLE agents ADD COLUMN agentAccount TEXT;
-ALTER TABLE agents ADD COLUMN didIdentity TEXT;
-ALTER TABLE agents ADD COLUMN didAccount TEXT;
-ALTER TABLE agents ADD COLUMN didName TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS agentAccount TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS didIdentity TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS didAccount TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS didName TEXT;
 
 -- Step 2: Populate agentAccount from agentAddress for existing records
 UPDATE agents SET agentAccount = agentAddress WHERE agentAccount IS NULL AND agentAddress IS NOT NULL;

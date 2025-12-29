@@ -1,4 +1,4 @@
-ALTER TABLE agents ADD COLUMN eoaOwner TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS eoaOwner TEXT;
 
 UPDATE agents
 SET eoaOwner = agentOwner

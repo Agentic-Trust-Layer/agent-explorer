@@ -1,8 +1,8 @@
 -- Add new columns to agents for common filters
-ALTER TABLE agents ADD COLUMN did TEXT;
-ALTER TABLE agents ADD COLUMN mcp INTEGER;           -- 0/1
-ALTER TABLE agents ADD COLUMN x402support INTEGER;   -- 0/1
-ALTER TABLE agents ADD COLUMN active INTEGER;        -- 0/1
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS did TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS mcp INTEGER;           -- 0/1
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS x402support INTEGER;   -- 0/1
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS active INTEGER;        -- 0/1
 
 -- Normalize arrays/sets for efficient filtering
 CREATE TABLE IF NOT EXISTS agent_operators (

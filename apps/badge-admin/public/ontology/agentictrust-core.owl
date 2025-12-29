@@ -845,6 +845,12 @@ agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:domain agentictrust:Skill ;
   rdfs:range agentictrust:Domain .
 
+agentictrust:declaresDomain a owl:ObjectProperty ;
+  rdfs:label "declaresDomain" ;
+  rdfs:comment "Links an AgentDescriptor to one or more OASF Domains for discovery and filtering. This allows agent descriptions to be categorized by application area independently of individual skills." ;
+  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:range agentictrust:Domain .
+
 agentictrust:oasfDomainId a owl:DatatypeProperty ;
   rdfs:label "oasfDomainId" ;
   rdfs:comment "OASF domain identifier (e.g., 'finance', 'healthcare') synced from GitHub." ;
@@ -855,6 +861,31 @@ agentictrust:oasfSchemaJson a owl:DatatypeProperty ;
   rdfs:label "oasfSchemaJson" ;
   rdfs:comment "Full OASF schema JSON for a domain or skill, synced from GitHub." ;
   rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfUid a owl:DatatypeProperty ;
+  rdfs:label "oasfUid" ;
+  rdfs:comment "Numeric uid from OASF schema JSON (used by OASF categories/records)." ;
+  rdfs:range xsd:integer .
+
+agentictrust:oasfExtendsKey a owl:DatatypeProperty ;
+  rdfs:label "oasfExtendsKey" ;
+  rdfs:comment "The OASF 'extends' field, used to point at the category key for a domain or skill." ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfCategory a owl:ObjectProperty ;
+  rdfs:label "oasfCategory" ;
+  rdfs:comment "Links an OASF domain/skill record to its category entity (derived from the OASF 'extends' key)." ;
+  rdfs:range prov:Entity .
+
+agentictrust:oasfType a owl:DatatypeProperty ;
+  rdfs:label "oasfType" ;
+  rdfs:comment "Dictionary entry type from OASF dictionary.json." ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfReferencesJson a owl:DatatypeProperty ;
+  rdfs:label "oasfReferencesJson" ;
+  rdfs:comment "References array from OASF dictionary.json encoded as JSON text." ;
   rdfs:range xsd:string .
 
 agentictrust:oasfSkillId a owl:DatatypeProperty ;

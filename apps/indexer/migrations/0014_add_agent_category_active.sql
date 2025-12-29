@@ -1,5 +1,5 @@
 -- Add agentCategory (from NFT metadata "Category")
-ALTER TABLE agents ADD COLUMN agentCategory TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS agentCategory TEXT;
 
 -- Backfill agentCategory from token_metadata when present
 -- NOTE: token_metadata.valueText is decoded UTF-8 from valueHex, and is preferred.

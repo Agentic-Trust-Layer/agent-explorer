@@ -126,6 +126,12 @@ function identity8004DescriptorIri(chainId: number, agentId: string, didIdentity
   return `<https://www.agentictrust.io/id/8004-identity-descriptor/${identifier}>`;
 }
 
+function agentDescriptorIri(chainId: number, agentId: string, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/agent-descriptor/${identifier}>`;
+}
+
 function situationIri(chainId: number, agentId: string, situationType: string, situationId: string, didIdentity?: string | null): string {
   const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
   return `<https://www.agentictrust.io/id/situation/${situationType}/${identifier}/${iriEncodeSegment(situationId)}>`;
@@ -137,6 +143,30 @@ function intentTypeIri(intentTypeName: string): string {
 
 function domainIri(domainName: string): string {
   return `<https://www.agentictrust.io/id/domain/${iriEncodeSegment(domainName)}>`;
+}
+
+function iriEncodePath(pathValue: string): string {
+  return String(pathValue)
+    .split('/')
+    .filter((s) => s.length > 0)
+    .map((s) => iriEncodeSegment(s))
+    .join('/');
+}
+
+function oasfDomainIri(domainId: string): string {
+  return `<https://www.agentictrust.io/id/oasf/domain/${iriEncodePath(domainId)}>`;
+}
+
+function oasfSkillIri(skillId: string): string {
+  return `<https://www.agentictrust.io/id/oasf/skill/${iriEncodePath(skillId)}>`;
+}
+
+function oasfCategoryIri(kind: 'domain' | 'skill', key: string): string {
+  return `<https://www.agentictrust.io/id/oasf/${kind}-category/${iriEncodeSegment(key)}>`;
+}
+
+function oasfDictionaryEntryIri(key: string): string {
+  return `<https://www.agentictrust.io/id/oasf/dictionary/${iriEncodeSegment(key)}>`;
 }
 
 function skillIri(chainId: number, agentId: string, skillId: string, didIdentity?: string | null): string {
@@ -344,6 +374,10 @@ function renderAgentSection(
   lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
   lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
   if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
+
+  // AgentDescriptor (resolver-produced description used for discovery)
+  const adIri = agentDescriptorIri(chainId, agentId, row?.didIdentity);
+  lines.push(`  agentictrust:hasAgentDescriptor ${adIri} ;`);
   
   // 8004Identity and 8004IdentityIdentifier for didIdentity
   if (row?.didIdentity) {
@@ -499,6 +533,42 @@ function renderAgentSection(
       // ignore parse errors
     }
   }
+
+  // Populate AgentDescriptor with OASF skills/domains from agent card + tokenUri metadata (if present)
+  // Agent card fields frequently look like:
+  // - oasf_skills: ["natural_language_processing/summarization", ...]
+  // - oasf_domains: ["finance_and_business/accounting", ...]
+  const declaredOasfSkills = new Set<string>();
+  const declaredOasfDomains = new Set<string>();
+  const takeStrings = (value: any): string[] => (Array.isArray(value) ? value : []).filter((x) => typeof x === 'string').map((x) => x.trim()).filter(Boolean);
+
+  for (const s of takeStrings((agentCard as any)?.oasf_skills)) declaredOasfSkills.add(s);
+  for (const d of takeStrings((agentCard as any)?.oasf_domains)) declaredOasfDomains.add(d);
+  for (const s of takeStrings((tokenUriData as any)?.oasf_skills)) declaredOasfSkills.add(s);
+  for (const d of takeStrings((tokenUriData as any)?.oasf_domains)) declaredOasfDomains.add(d);
+
+  // Emit AgentDescriptor node and links
+  const adLines: string[] = [];
+  adLines.push(`${adIri} a agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+  if (row?.agentName) adLines.push(`  rdfs:label "${escapeTurtleString(String(row.agentName))}" ;`);
+  if (declaredOasfDomains.size) {
+    for (const dom of declaredOasfDomains) {
+      const domIri = oasfDomainIri(dom);
+      adLines.push(`  agentictrust:declaresDomain ${domIri} ;`);
+      // Emit a minimal OASFDomain node (full node also emitted from DB if present)
+      accountChunks.push(`${domIri} a agentictrust:OASFDomain, agentictrust:Domain, prov:Entity ; agentictrust:oasfDomainId "${escapeTurtleString(dom)}" .\n\n`);
+    }
+  }
+  if (declaredOasfSkills.size) {
+    for (const sk of declaredOasfSkills) {
+      const skIri = oasfSkillIri(sk);
+      adLines.push(`  agentictrust:declaresSkill ${skIri} ;`);
+      // Emit a minimal OASFSkill node (full node also emitted from DB if present)
+      accountChunks.push(`${skIri} a agentictrust:OASFSkill, agentictrust:Skill, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(sk)}" .\n\n`);
+    }
+  }
+  adLines.push(`  .\n`);
+  afterAgent.push(adLines.join('\n'));
 
   // Create 8004IdentityDescriptor from tokenUri (rawJson) if we have 8004Identity
   if (row?.didIdentity) {
@@ -983,6 +1053,130 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
 
     emittedAgents.add(key);
     chunks.push(renderAgentNodeWithoutCard(row, chunks));
+  }
+
+  // ---- OASF vocabulary (domains, skills, categories, dictionary) ----
+  // Best-effort: if tables do not exist, skip without failing export.
+  const oasfDomainCats = await safeAll('SELECT * FROM oasf_domain_categories');
+  const oasfSkillCats = await safeAll('SELECT * FROM oasf_skill_categories');
+  const oasfDomains = await safeAll('SELECT * FROM oasf_domains');
+  const oasfSkills = await safeAll('SELECT * FROM oasf_skills');
+  const oasfDictEntries = await safeAll('SELECT * FROM oasf_dictionary_entries');
+
+  if (oasfDomainCats.length || oasfSkillCats.length || oasfDomains.length || oasfSkills.length || oasfDictEntries.length) {
+    chunks.push('\n# ---- OASF vocabulary (synced from GitHub) ----\n');
+  }
+
+  for (const c of oasfDomainCats) {
+    const key = String(c?.key ?? '').trim();
+    if (!key) continue;
+    const iri = oasfCategoryIri('domain', key);
+    const caption = c?.caption != null ? String(c.caption) : key;
+    const description = c?.description != null ? String(c.description) : '';
+    const uid = c?.uid != null ? Number(c.uid) : null;
+    const schemaJson = c?.schemaJson != null ? String(c.schemaJson) : '';
+    const lines: string[] = [];
+    lines.push(`${iri} a prov:Entity ;`);
+    lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
+    if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    lines.push(`  .\n`);
+    chunks.push(lines.join('\n'));
+  }
+
+  for (const c of oasfSkillCats) {
+    const key = String(c?.key ?? '').trim();
+    if (!key) continue;
+    const iri = oasfCategoryIri('skill', key);
+    const caption = c?.caption != null ? String(c.caption) : key;
+    const description = c?.description != null ? String(c.description) : '';
+    const uid = c?.uid != null ? Number(c.uid) : null;
+    const schemaJson = c?.schemaJson != null ? String(c.schemaJson) : '';
+    const lines: string[] = [];
+    lines.push(`${iri} a prov:Entity ;`);
+    lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
+    if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    lines.push(`  .\n`);
+    chunks.push(lines.join('\n'));
+  }
+
+  for (const d of oasfDomains) {
+    const domainId = String(d?.domainId ?? '').trim();
+    if (!domainId) continue;
+    const iri = oasfDomainIri(domainId);
+    const caption = d?.caption != null ? String(d.caption) : domainId;
+    const description = d?.description != null ? String(d.description) : '';
+    const uid = d?.uid != null ? Number(d.uid) : null;
+    const extendsKey = d?.extendsKey != null ? String(d.extendsKey) : '';
+    const schemaJson = d?.schemaJson != null ? String(d.schemaJson) : '';
+    const githubPath = d?.githubPath != null ? String(d.githubPath) : '';
+    const githubSha = d?.githubSha != null ? String(d.githubSha) : '';
+    const lines: string[] = [];
+    lines.push(`${iri} a agentictrust:OASFDomain, prov:Entity ;`);
+    lines.push(`  agentictrust:oasfDomainId "${escapeTurtleString(domainId)}" ;`);
+    lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
+    if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (extendsKey.trim()) {
+      lines.push(`  agentictrust:oasfExtendsKey "${escapeTurtleString(extendsKey)}" ;`);
+      lines.push(`  agentictrust:oasfCategory ${oasfCategoryIri('domain', extendsKey)} ;`);
+    }
+    if (githubPath.trim()) lines.push(`  agentictrust:githubPath "${escapeTurtleString(githubPath)}" ;`);
+    if (githubSha.trim()) lines.push(`  agentictrust:githubSha "${escapeTurtleString(githubSha)}" ;`);
+    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    lines.push(`  .\n`);
+    chunks.push(lines.join('\n'));
+  }
+
+  for (const s of oasfSkills) {
+    const skillId = String(s?.skillId ?? '').trim();
+    if (!skillId) continue;
+    const iri = oasfSkillIri(skillId);
+    const caption = s?.caption != null ? String(s.caption) : skillId;
+    const description = s?.description != null ? String(s.description) : '';
+    const uid = s?.uid != null ? Number(s.uid) : null;
+    const extendsKey = s?.extendsKey != null ? String(s.extendsKey) : '';
+    const schemaJson = s?.schemaJson != null ? String(s.schemaJson) : '';
+    const githubPath = s?.githubPath != null ? String(s.githubPath) : '';
+    const githubSha = s?.githubSha != null ? String(s.githubSha) : '';
+    const lines: string[] = [];
+    lines.push(`${iri} a agentictrust:OASFSkill, prov:Entity ;`);
+    lines.push(`  agentictrust:oasfSkillId "${escapeTurtleString(skillId)}" ;`);
+    lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
+    if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (extendsKey.trim()) {
+      lines.push(`  agentictrust:oasfExtendsKey "${escapeTurtleString(extendsKey)}" ;`);
+      lines.push(`  agentictrust:oasfCategory ${oasfCategoryIri('skill', extendsKey)} ;`);
+    }
+    if (githubPath.trim()) lines.push(`  agentictrust:githubPath "${escapeTurtleString(githubPath)}" ;`);
+    if (githubSha.trim()) lines.push(`  agentictrust:githubSha "${escapeTurtleString(githubSha)}" ;`);
+    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    lines.push(`  .\n`);
+    chunks.push(lines.join('\n'));
+  }
+
+  for (const e of oasfDictEntries) {
+    const key = String(e?.key ?? '').trim();
+    if (!key) continue;
+    const iri = oasfDictionaryEntryIri(key);
+    const caption = e?.caption != null ? String(e.caption) : key;
+    const description = e?.description != null ? String(e.description) : '';
+    const type = e?.type != null ? String(e.type) : '';
+    const referencesJson = e?.referencesJson != null ? String(e.referencesJson) : '';
+    const schemaJson = e?.schemaJson != null ? String(e.schemaJson) : '';
+    const lines: string[] = [];
+    lines.push(`${iri} a prov:Entity ;`);
+    lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
+    if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
+    if (type.trim()) lines.push(`  agentictrust:oasfType "${escapeTurtleString(type)}" ;`);
+    if (referencesJson.trim()) lines.push(`  agentictrust:oasfReferencesJson """${escapeTurtleString(referencesJson)}"""^^xsd:string ;`);
+    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    lines.push(`  .\n`);
+    chunks.push(lines.join('\n'));
   }
 
   // ---- Trust registries (feedback/validation/associations) ----
