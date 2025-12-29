@@ -225,6 +225,25 @@ The ontology separates three key concerns:
 
 The AgenticTrust ontology aligns with the **Open Agentic Schema Framework (OASF)** ([`agntcy/oasf`](https://github.com/agntcy/oasf)), which provides a standardized schema system for agent capabilities/metadata. OASF emphasizes records annotated with **skills** and **domains**, plus extensibility via **modules**.
 
+### OASF Schema Synchronization
+
+The indexer automatically synchronizes OASF domains and skills from GitHub:
+- **Domains**: Synced from [`schema/domains`](https://github.com/agntcy/oasf/tree/main/schema/domains)
+- **Skills**: Synced from [`schema/skills`](https://github.com/agntcy/oasf/tree/main/schema/skills)
+
+The synchronization:
+- Uses GitHub API to fetch schema files
+- Tracks changes via GitHub commit SHAs (checkpoints: `oasf_domains_tree_sha`, `oasf_skills_tree_sha`)
+- Stores full schema JSON for reference
+- Updates only when tree SHA changes (efficient change detection)
+- Creates `agentictrust:OASFDomain` and `agentictrust:OASFSkill` instances
+
+**Checkpoints**:
+- `oasf_domains_tree_sha`: GitHub tree SHA for domains directory
+- `oasf_domains_last_sync`: Last sync timestamp for domains
+- `oasf_skills_tree_sha`: GitHub tree SHA for skills directory
+- `oasf_skills_last_sync`: Last sync timestamp for skills
+
 ### OASF Goals
 
 OASF's published goals emphasize:

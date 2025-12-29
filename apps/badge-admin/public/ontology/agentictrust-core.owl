@@ -616,7 +616,19 @@ agentictrust:Tag a owl:Class ;
 
 agentictrust:Domain a owl:Class ;
   rdfs:label "Domain" ;
-  rdfs:comment "OASF Domain: A categorization/grouping mechanism for discovery and filtering. Examples: 'finance', 'healthcare', 'education', 'e-commerce'. Distinct from integration capabilities (which describe how agents integrate with external systems)." ;
+  rdfs:comment "OASF Domain: A categorization/grouping mechanism for discovery and filtering. Examples: 'finance', 'healthcare', 'education', 'e-commerce'. Distinct from integration capabilities (which describe how agents integrate with external systems). Synced from https://github.com/agntcy/oasf/tree/main/schema/domains" ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:OASFDomain a owl:Class ;
+  rdfs:label "OASFDomain" ;
+  rdfs:comment "OASF Domain instance synced from GitHub. Contains OASF schema metadata including name, description, category, and full schema JSON." ;
+  rdfs:subClassOf agentictrust:Domain ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:OASFSkill a owl:Class ;
+  rdfs:label "OASFSkill" ;
+  rdfs:comment "OASF Skill instance synced from GitHub. Contains OASF schema metadata including name, description, domain, category, and full schema JSON. Synced from https://github.com/agntcy/oasf/tree/main/schema/skills" ;
+  rdfs:subClassOf agentictrust:Skill ;
   rdfs:subClassOf prov:Entity .
 
 ########
@@ -833,6 +845,36 @@ agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:domain agentictrust:Skill ;
   rdfs:range agentictrust:Domain .
 
+agentictrust:oasfDomainId a owl:DatatypeProperty ;
+  rdfs:label "oasfDomainId" ;
+  rdfs:comment "OASF domain identifier (e.g., 'finance', 'healthcare') synced from GitHub." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfSchemaJson a owl:DatatypeProperty ;
+  rdfs:label "oasfSchemaJson" ;
+  rdfs:comment "Full OASF schema JSON for a domain or skill, synced from GitHub." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfSkillId a owl:DatatypeProperty ;
+  rdfs:label "oasfSkillId" ;
+  rdfs:comment "OASF skill identifier (e.g., 'validation_attestation') synced from GitHub." ;
+  rdfs:domain agentictrust:OASFSkill ;
+  rdfs:range xsd:string .
+
+agentictrust:githubPath a owl:DatatypeProperty ;
+  rdfs:label "githubPath" ;
+  rdfs:comment "GitHub repository path to the OASF schema file (e.g., 'schema/domains/finance.json')." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:githubSha a owl:DatatypeProperty ;
+  rdfs:label "githubSha" ;
+  rdfs:comment "GitHub commit SHA of the OASF schema file, used for change tracking." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
 agentictrust:supportsIntentType a owl:ObjectProperty ;
   rdfs:label "supportsIntentType" ;
   rdfs:comment "Links a Skill to an IntentType that it can support. This is the inverse direction from targetsSkill." ;
@@ -1046,6 +1088,54 @@ agentictrust:schemaJson a owl:DatatypeProperty ;
   rdfs:comment "JSON Schema payload (as rdf:JSON)." ;
   rdfs:domain agentictrust:JsonSchema ;
   rdfs:range rdf:JSON .
+
+agentictrust:oasfDomainId a owl:DatatypeProperty ;
+  rdfs:label "oasfDomainId" ;
+  rdfs:comment "OASF domain identifier (e.g., 'finance', 'healthcare') synced from GitHub." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfSkillId a owl:DatatypeProperty ;
+  rdfs:label "oasfSkillId" ;
+  rdfs:comment "OASF skill identifier (e.g., 'validation_attestation') synced from GitHub." ;
+  rdfs:domain agentictrust:OASFSkill ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfSchemaJson a owl:DatatypeProperty ;
+  rdfs:label "oasfSchemaJson" ;
+  rdfs:comment "Full OASF schema JSON for a domain or skill, synced from GitHub." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfSkillSchemaJson a owl:DatatypeProperty ;
+  rdfs:label "oasfSkillSchemaJson" ;
+  rdfs:comment "Full OASF schema JSON for a skill, synced from GitHub." ;
+  rdfs:domain agentictrust:OASFSkill ;
+  rdfs:range xsd:string .
+
+agentictrust:githubPath a owl:DatatypeProperty ;
+  rdfs:label "githubPath" ;
+  rdfs:comment "GitHub repository path to the OASF schema file (e.g., 'schema/domains/finance.json')." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfSkillGithubPath a owl:DatatypeProperty ;
+  rdfs:label "oasfSkillGithubPath" ;
+  rdfs:comment "GitHub repository path to the OASF skill schema file (e.g., 'schema/skills/validation_attestation.json')." ;
+  rdfs:domain agentictrust:OASFSkill ;
+  rdfs:range xsd:string .
+
+agentictrust:githubSha a owl:DatatypeProperty ;
+  rdfs:label "githubSha" ;
+  rdfs:comment "GitHub commit SHA of the OASF schema file, used for change tracking." ;
+  rdfs:domain agentictrust:OASFDomain ;
+  rdfs:range xsd:string .
+
+agentictrust:oasfSkillGithubSha a owl:DatatypeProperty ;
+  rdfs:label "oasfSkillGithubSha" ;
+  rdfs:comment "GitHub commit SHA of the OASF skill schema file, used for change tracking." ;
+  rdfs:domain agentictrust:OASFSkill ;
+  rdfs:range xsd:string .
 
 agentictrust:intentTypeValue a owl:DatatypeProperty ;
   rdfs:label "intentTypeString" ;
