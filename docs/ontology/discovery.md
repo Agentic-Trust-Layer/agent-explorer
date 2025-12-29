@@ -25,6 +25,8 @@ Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
    - `agentictrust:AgentDescriptor` - Resolved metadata about an AI Agent (skills, endpoints, capabilities)
    - `agentictrust:ProtocolDescriptor` - Resolved metadata about a Protocol (A2A, MCP configurations)
    - `agentictrust:IdentifierDescriptor` - Resolved metadata about an Identifier (bindings, verification methods)
+   - `agentictrust:IdentityDescriptor` - Resolved metadata about an Identity (core, not protocol-specific)
+   - `agentictrust:NameDescriptor` - Resolved metadata about a Name (core, not protocol-specific)
    - Protocol-specific descriptors: `agentictrustEth:AccountDescriptor`, `agentictrustEth:ENSNameDescriptor`, `erc8004:8004IdentityDescriptor`
 
 4. **Descriptors Enable Discovery**:
@@ -99,23 +101,35 @@ note for Skill "Discovery metadata\nin Descriptor"
 
 The `agentictrust:hasDescriptor` property links entities to their resolved Descriptors:
 
-**Core Descriptors:**
+**Core (protocol-agnostic) descriptors:**
 - `agentictrust:AIAgent` → `hasDescriptor` → `agentictrust:AgentDescriptor`
-- `agentictrustEth:Account` → `hasDescriptor` → `agentictrustEth:AccountDescriptor`
 - `agentictrust:Protocol` → `hasDescriptor` → `agentictrust:ProtocolDescriptor`
 - `agentictrust:Identifier` → `hasDescriptor` → `agentictrust:IdentifierDescriptor`
-- `agentictrust:Identity` → `hasDescriptor` → `agentictrust:IdentityDescriptor`
-- `agentictrust:Name` → `hasDescriptor` → `agentictrust:NameDescriptor`
+- `agentictrust:Identity` → `hasDescriptor` → `agentictrust:IdentityDescriptor` (core, NOT protocol-specific)
+- `agentictrust:Name` → `hasDescriptor` → `agentictrust:NameDescriptor` (core, NOT protocol-specific)
 
-**Concrete Implementations:**
+**Protocol-specific descriptors:**
+- `agentictrustEth:Account` → `hasDescriptor` → `agentictrustEth:AccountDescriptor`
+- `agentictrustEth:ENSName` → `hasDescriptor` → `agentictrustEth:ENSNameDescriptor` (inherits from `NameDescriptor`)
+- `erc8004:8004Identity` → `hasDescriptor` → `erc8004:8004IdentityDescriptor` (inherits from `IdentityDescriptor`)
+- `NANDAIdentity` → `hasDescriptor` → `NANDAIdentityDescriptor` (inherits from `IdentityDescriptor`)
+- `DNSName` → `hasDescriptor` → `DNSNameDescriptor` (inherits from `NameDescriptor`)
 
-**Identity Descriptors:**
-- `erc8004:8004Identity` → `hasDescriptor` → `erc8004:8004IdentityDescriptor` (ERC-8004 identity)
-- `NANDAIdentity` → `hasDescriptor` → `NANDAIdentityDescriptor` (NANDA identity)
+**Descriptor Hierarchy**:
+```
+agentictrust:Descriptor (core)
+  ├─ agentictrust:AgentDescriptor (core)
+  ├─ agentictrust:ProtocolDescriptor (core)
+  ├─ agentictrust:IdentifierDescriptor (core)
+  ├─ agentictrust:IdentityDescriptor (core, NOT protocol-specific)
+  │    ├─ erc8004:8004IdentityDescriptor (protocol-specific)
+  │    └─ NANDAIdentityDescriptor (protocol-specific)
+  └─ agentictrust:NameDescriptor (core, NOT protocol-specific)
+       ├─ agentictrustEth:ENSNameDescriptor (protocol-specific)
+       └─ DNSNameDescriptor (protocol-specific)
+```
 
-**Name Descriptors:**
-- `agentictrustEth:ENSName` → `hasDescriptor` → `agentictrustEth:ENSNameDescriptor` (Ethereum ENS name)
-- `DNSName` → `hasDescriptor` → `DNSNameDescriptor` (DNS name)
+**Note**: `IdentityDescriptor` and `NameDescriptor` are **core, protocol-agnostic** classes. Protocol-specific descriptors (like `8004IdentityDescriptor`, `ENSNameDescriptor`) inherit from these core classes, not from protocol-specific parent classes.
 
 ### Concrete Implementations
 
