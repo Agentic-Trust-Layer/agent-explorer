@@ -70,6 +70,18 @@ The Agentic Trust information architecture integrates four complementary layers:
 - **Taxonomies / categories / KB-like concept sets**: *knowledge artifacts* (data) that you can reference from instance data for classification and discovery (e.g., OASF Skill/Domain, trust-model labels, UI categories).
 - **Knowledge base**: concrete instances that conform to the ontology and can be annotated using those vocabularies (e.g., `agents.ttl` + SQL tables).
 
+### Identifiers and DIDs
+
+- **Identifier** (`agentictrust:Identifier` / `agentictrust:UniversalIdentifier`): the stable *identity anchor* you use in graphs and assertions (e.g., account identifier, ERC-8004 identifier, ENS name identifier).
+- **DID** (`agentictrust:DID`): a particular identifier format with an associated **DID method** (`did:...`) and resolution rules. DIDs are useful because different registries/ecosystems can standardize on different methods while still mapping into a shared ontology model.
+
+Examples of DID anchoring by ecosystem/registry:
+- **Ethereum accounts**: commonly anchored in `did:ethr` (e.g., an `agentictrustEth:AccountIdentifier` may have `agentictrustEth:hasDID` → a `agentictrust:DID` like `did:ethr:...`).
+- **ERC-8004 identities**: anchored in `did:8004:chainId:agentId` (represented as `erc8004:8004IdentityIdentifier`, and also linkable via `agentictrust:hasIdentifier`).
+- **DNS / web-based identities**: commonly anchored in `did:web` (and other web/DNS-adjacent DID methods), aligning with name resolution and web PKI.
+
+Key idea: **Identifier** is the abstract model; **DID** is one concrete identifier family whose methods let you align different agent registries with different resolution/verification assumptions, without changing the core trust graph semantics.
+
 ## Ontology Hierarchy
 
 The AgenticTrust ontologies are layered, and the actual module dependencies are captured by `owl:imports`. Conceptually we also align with DOLCE-DnS (Descriptions & Situations) as a modeling *pattern* (not necessarily a hard import dependency).

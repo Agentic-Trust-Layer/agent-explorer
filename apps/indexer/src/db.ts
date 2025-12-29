@@ -93,7 +93,11 @@ async function initializeSchema() {
         return;
       }
       // Some D1 API errors wrap SQLITE_ERROR in JSON; still just warn.
-      console.warn(`⚠️  Could not add column ${table}.${column} (run migration manually if needed).`, msg);
+      console.warn(
+        `⚠️  Could not add column ${table}.${column} (run migration manually if needed). ` +
+          `Expected migration: apps/indexer/migrations/0020_add_agent_card_fields.sql. ` +
+          `Error: ${msg}`,
+      );
     }
   };
 

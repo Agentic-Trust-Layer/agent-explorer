@@ -2,6 +2,73 @@
 
 This document describes the Agent class hierarchy and how Agents relate to Identity, Identifier, and Name entities, all of which have Descriptors.
 
+## AI Agents
+
+In this ontology, an **AI agent** is an instance of `agentictrust:AIAgent` (a `prov:SoftwareAgent`).
+
+### SPARQL: list all AI Agents
+
+```sparql
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT DISTINCT ?agent ?agentType
+WHERE {
+  ?agent a ?agentType .
+  ?agentType rdfs:subClassOf* agentictrust:AIAgent .
+}
+ORDER BY ?agentType ?agent
+```
+
+### SPARQL: AI Agents with Identity, Name, and Identifier
+
+This returns each `agentictrust:AIAgent` along with (when present) its:
+- ERC-8004 identity (`erc8004:has8004Identity`) and its identity identifier (`agentictrust:hasIdentifier`)
+- ENS name (`agentictrustEth:hasENSName`) and its ENS name identifier (`agentictrustEth:hasIdentifier`)
+- Account identifier (`agentictrustEth:hasAccountIdentifier`) and its DID (`agentictrustEth:hasDID`)
+- Any direct identifiers attached at the `prov:Agent` level (`agentictrust:hasIdentifier`)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT DISTINCT
+  ?agent
+  ?agentId
+  ?directIdentifier
+  ?accountIdentifier
+  ?accountDid
+  ?ensName
+  ?ensNameValue
+  ?ensNameIdentifier
+  ?identity8004
+  ?identity8004Identifier
+WHERE {
+  ?agent a agentictrust:AIAgent .
+
+  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  OPTIONAL { ?agent agentictrust:hasIdentifier ?directIdentifier . }
+
+  OPTIONAL {
+    ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
+    OPTIONAL { ?accountIdentifier agentictrustEth:hasDID ?accountDid . }
+  }
+
+  OPTIONAL {
+    ?agent agentictrustEth:hasENSName ?ensName .
+    OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
+    OPTIONAL { ?ensName agentictrustEth:hasIdentifier ?ensNameIdentifier . }
+  }
+
+  OPTIONAL {
+    ?agent erc8004:has8004Identity ?identity8004 .
+    OPTIONAL { ?identity8004 agentictrust:hasIdentifier ?identity8004Identifier . }
+  }
+}
+ORDER BY ?agent
+```
+
 ## Agent Class Hierarchy
 
 The AgenticTrust ontology builds on PROV-O's Agent hierarchy:

@@ -3,6 +3,8 @@
  * Provides a D1-compatible async interface for both Node.js and Cloudflare Workers
  */
 
+import { fetchWithRetry } from './net/fetch-with-retry';
+
 interface D1Config {
   accountId: string;
   databaseId: string;
@@ -38,7 +40,10 @@ class D1Database {
     // D1 API expects positional parameters (? placeholders) with params as an array
     const paramsArray = Array.isArray(params) ? params : [];
 
-    const response = await fetch(`${this.baseUrl}/query`, {
+    const timeoutMs = Number(process.env.D1_HTTP_TIMEOUT_MS ?? 30_000);
+    const retries = Number(process.env.D1_HTTP_RETRIES ?? 6);
+
+    const response = await fetchWithRetry(`${this.baseUrl}/query`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.config.apiToken}`,
@@ -48,6 +53,13 @@ class D1Database {
         sql: query,
         params: paramsArray,
       }),
+    }, {
+      timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30_000,
+      retries: Number.isFinite(retries) && retries >= 0 ? retries : 6,
+      // Cloudflare can intermittently 524/5xx; retry those too.
+      retryOnStatuses: [429, 500, 502, 503, 504, 522, 524],
+      minBackoffMs: 750,
+      maxBackoffMs: 20_000,
     });
 
     if (!response.ok) {
@@ -121,7 +133,10 @@ class D1Database {
   async exec(sql: string): Promise<void> {
     // For exec, we might have multiple statements
     const statements = sql.split(';').filter(s => s.trim());
-    await Promise.all(statements.map(stmt => this.execute(stmt.trim())));
+    // Run sequentially to reduce request bursts (helps avoid transient network/rate-limit issues).
+    for (const stmt of statements) {
+      await this.execute(stmt.trim());
+    }
   }
 
   pragma(sql: string) {

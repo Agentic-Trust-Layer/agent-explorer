@@ -20,11 +20,16 @@ import {
     BASE_SEPOLIA_RPC_HTTP_URL,
     OP_SEPOLIA_RPC_HTTP_URL } from './env';
 
+function makeRpcProvider(rpcUrl: string): ethers.JsonRpcProvider {
+  // ethers v6 request timeouts default relatively low; make this configurable for slower RPCs.
+  const timeoutMsRaw = process.env.RPC_HTTP_TIMEOUT_MS;
+  const timeoutMs = timeoutMsRaw && String(timeoutMsRaw).trim() ? Number(timeoutMsRaw) : 60_000;
+  const req = new ethers.FetchRequest(rpcUrl);
+  (req as any).timeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 60_000;
+  return new ethers.JsonRpcProvider(req);
+}
 
-
-
-
-const ethSepliaEthersProvider = new ethers.JsonRpcProvider(ETH_SEPOLIA_RPC_HTTP_URL);
+const ethSepliaEthersProvider = makeRpcProvider(ETH_SEPOLIA_RPC_HTTP_URL);
 const ethSepoliathersAdapter = new EthersAdapter(ethSepliaEthersProvider); // No signer needed for reads
 
 
@@ -273,7 +278,7 @@ async function maybeBackfillRdfFromStoredAgentCards(dbInstance: any) {
 }
 
 
-const baseSepliaEthersProvider = new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_HTTP_URL);
+const baseSepliaEthersProvider = makeRpcProvider(BASE_SEPOLIA_RPC_HTTP_URL);
 const baseSepoliathersAdapter = new EthersAdapter(baseSepliaEthersProvider); // No signer needed for reads
 
 const erc8004BaseSepoliaClient = new ERC8004Client({
@@ -286,7 +291,7 @@ const erc8004BaseSepoliaClient = new ERC8004Client({
   }
 });
 
-const opSepliaEthersProvider = OP_SEPOLIA_RPC_HTTP_URL ? new ethers.JsonRpcProvider(OP_SEPOLIA_RPC_HTTP_URL) : null;
+const opSepliaEthersProvider = OP_SEPOLIA_RPC_HTTP_URL ? makeRpcProvider(OP_SEPOLIA_RPC_HTTP_URL) : null;
 const opSepoliathersAdapter = opSepliaEthersProvider ? new EthersAdapter(opSepliaEthersProvider) : null;
 
 const erc8004OpSepoliaClient = opSepoliathersAdapter && OP_SEPOLIA_IDENTITY_REGISTRY ? new ERC8004Client({

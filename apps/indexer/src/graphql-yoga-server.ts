@@ -22,6 +22,14 @@ import {
 import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 import { ethers } from 'ethers';
 
+function makeRpcProvider(rpcUrl: string): ethers.JsonRpcProvider {
+  const timeoutMsRaw = process.env.RPC_HTTP_TIMEOUT_MS;
+  const timeoutMs = timeoutMsRaw && String(timeoutMsRaw).trim() ? Number(timeoutMsRaw) : 60_000;
+  const req = new ethers.FetchRequest(rpcUrl);
+  (req as any).timeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 60_000;
+  return new ethers.JsonRpcProvider(req);
+}
+
 async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL_SERVER_PORT ?? 4000)) {
   // Configure chains (same as express server)
   const chains: ChainConfig[] = [
@@ -51,7 +59,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
   // Backfill clients for optional full indexing trigger
   const backfillClients: ERC8004Client[] = [
     new ERC8004Client({
-      adapter: new EthersAdapter(new ethers.JsonRpcProvider(ETH_SEPOLIA_RPC_HTTP_URL)),
+      adapter: new EthersAdapter(makeRpcProvider(ETH_SEPOLIA_RPC_HTTP_URL)),
       addresses: {
         identityRegistry: ETH_SEPOLIA_IDENTITY_REGISTRY!,
         reputationRegistry: '0x0000000000000000000000000000000000000000',
@@ -60,7 +68,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
       }
     }),
     new ERC8004Client({
-      adapter: new EthersAdapter(new ethers.JsonRpcProvider(BASE_SEPOLIA_RPC_HTTP_URL)),
+      adapter: new EthersAdapter(makeRpcProvider(BASE_SEPOLIA_RPC_HTTP_URL)),
       addresses: {
         identityRegistry: BASE_SEPOLIA_IDENTITY_REGISTRY!,
         reputationRegistry: '0x0000000000000000000000000000000000000000',
@@ -73,7 +81,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
   if (OP_SEPOLIA_RPC_HTTP_URL && OP_SEPOLIA_IDENTITY_REGISTRY) {
     backfillClients.push(
       new ERC8004Client({
-        adapter: new EthersAdapter(new ethers.JsonRpcProvider(OP_SEPOLIA_RPC_HTTP_URL)),
+        adapter: new EthersAdapter(makeRpcProvider(OP_SEPOLIA_RPC_HTTP_URL)),
         addresses: {
           identityRegistry: OP_SEPOLIA_IDENTITY_REGISTRY,
           reputationRegistry: '0x0000000000000000000000000000000000000000',

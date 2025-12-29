@@ -3,6 +3,7 @@
  * Fetches domains and skills from https://github.com/agntcy/oasf
  */
 
+import { fetchWithRetry } from './net/fetch-with-retry';
 type AnyDb = any;
 
 interface GitHubTreeItem {
@@ -56,33 +57,40 @@ async function fetchGitHubApi(endpoint: string, retries = 3): Promise<any> {
   if (githubToken) {
     headers['Authorization'] = `token ${githubToken}`;
   }
-  
-  for (let attempt = 0; attempt < retries; attempt++) {
-    const response = await fetch(url, { headers });
-    
-    if (response.status === 429) {
-      // Rate limited - check Retry-After header or wait exponential backoff
-      const retryAfter = response.headers.get('Retry-After');
-      const waitSeconds = retryAfter ? parseInt(retryAfter, 10) : Math.pow(2, attempt) * 60;
-      console.warn(`[oasf-sync] Rate limited, waiting ${waitSeconds} seconds before retry ${attempt + 1}/${retries}`);
-      await sleep(waitSeconds * 1000);
-      continue;
+
+  const timeoutMs = Number(process.env.GITHUB_HTTP_TIMEOUT_MS ?? 20_000);
+  const response = await fetchWithRetry(url, { headers }, {
+    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 20_000,
+    retries,
+    retryOnStatuses: [429, 500, 502, 503, 504],
+    minBackoffMs: 750,
+    maxBackoffMs: 60_000,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    const remaining = response.headers.get('x-ratelimit-remaining');
+    const reset = response.headers.get('x-ratelimit-reset');
+    const lower = text.toLowerCase();
+    const isRateLimit =
+      response.status === 403 &&
+      ((remaining && remaining.trim() === '0') || lower.includes('rate limit exceeded'));
+    if (isRateLimit) {
+      const resetEpoch = reset ? Number.parseInt(reset, 10) : NaN;
+      const err: any = new Error(
+        `GitHub API rate limit exceeded (set GITHUB_TOKEN to increase limit).` +
+          (Number.isFinite(resetEpoch) ? ` Reset at epoch ${resetEpoch}.` : ''),
+      );
+      err.name = 'GitHubRateLimitError';
+      err.resetEpoch = resetEpoch;
+      err.status = response.status;
+      throw err;
     }
-    
-    if (!response.ok) {
-      const text = await response.text();
-      if (attempt < retries - 1 && response.status >= 500) {
-        // Server error, retry with backoff
-        await sleep(Math.pow(2, attempt) * 1000);
-        continue;
-      }
-      throw new Error(`GitHub API error ${response.status}: ${text}`);
-    }
-    
-    return response.json();
+
+    throw new Error(`GitHub API error ${response.status}: ${text || response.statusText}`);
   }
-  
-  throw new Error(`GitHub API request failed after ${retries} retries`);
+
+  return response.json();
 }
 
 async function fetchGitHubTree(path: string): Promise<GitHubTreeResponse> {
@@ -140,6 +148,7 @@ export async function syncOASFDomains(db: AnyDb): Promise<{ synced: number; upda
   let synced = 0;
   let updated = 0;
   let errors = 0;
+  let completed = true;
   
   try {
     console.log('[oasf-sync] Fetching OASF domains from GitHub...');
@@ -232,14 +241,27 @@ export async function syncOASFDomains(db: AnyDb): Promise<{ synced: number; upda
           synced++;
         }
       } catch (error) {
+        if ((error as any)?.name === 'GitHubRateLimitError') {
+          completed = false;
+          const resetEpoch = Number((error as any)?.resetEpoch ?? NaN);
+          console.warn(
+            `[oasf-sync] GitHub rate limit hit while syncing domains; stopping early (set GITHUB_TOKEN).` +
+              (Number.isFinite(resetEpoch) ? ` Reset at epoch ${resetEpoch}.` : ''),
+          );
+          break;
+        }
         console.error(`[oasf-sync] Error processing domain file ${item.path}:`, error);
         errors++;
       }
     }
     
-    // Update checkpoint with tree SHA
-    await setCheckpointValue(db, 'oasf_domains_tree_sha', tree.sha);
-    await setCheckpointValue(db, 'oasf_domains_last_sync', String(now));
+    // Only advance checkpoints if we completed the pass (avoid skipping remaining files after rate-limit).
+    if (completed) {
+      await setCheckpointValue(db, 'oasf_domains_tree_sha', tree.sha);
+      await setCheckpointValue(db, 'oasf_domains_last_sync', String(now));
+    } else {
+      console.warn('[oasf-sync] Domains sync incomplete; checkpoints not advanced');
+    }
     
     console.log(`[oasf-sync] Domains sync complete: ${synced} new, ${updated} updated, ${errors} errors`);
   } catch (error) {
@@ -255,6 +277,7 @@ export async function syncOASFSkills(db: AnyDb): Promise<{ synced: number; updat
   let synced = 0;
   let updated = 0;
   let errors = 0;
+  let completed = true;
   
   try {
     console.log('[oasf-sync] Fetching OASF skills from GitHub...');
@@ -351,14 +374,26 @@ export async function syncOASFSkills(db: AnyDb): Promise<{ synced: number; updat
           synced++;
         }
       } catch (error) {
+        if ((error as any)?.name === 'GitHubRateLimitError') {
+          completed = false;
+          const resetEpoch = Number((error as any)?.resetEpoch ?? NaN);
+          console.warn(
+            `[oasf-sync] GitHub rate limit hit while syncing skills; stopping early (set GITHUB_TOKEN).` +
+              (Number.isFinite(resetEpoch) ? ` Reset at epoch ${resetEpoch}.` : ''),
+          );
+          break;
+        }
         console.error(`[oasf-sync] Error processing skill file ${item.path}:`, error);
         errors++;
       }
     }
     
-    // Update checkpoint with tree SHA
-    await setCheckpointValue(db, 'oasf_skills_tree_sha', tree.sha);
-    await setCheckpointValue(db, 'oasf_skills_last_sync', String(now));
+    if (completed) {
+      await setCheckpointValue(db, 'oasf_skills_tree_sha', tree.sha);
+      await setCheckpointValue(db, 'oasf_skills_last_sync', String(now));
+    } else {
+      console.warn('[oasf-sync] Skills sync incomplete; checkpoints not advanced');
+    }
     
     console.log(`[oasf-sync] Skills sync complete: ${synced} new, ${updated} updated, ${errors} errors`);
   } catch (error) {
