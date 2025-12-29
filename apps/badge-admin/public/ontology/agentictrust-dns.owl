@@ -1,0 +1,74 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix agentictrustDns: <https://www.agentictrust.io/ontology/agentictrust-dns#> .
+
+agentictrustDns: a owl:Ontology ;
+  dcterms:title "AgenticTrustDnsOntology" ;
+  dcterms:description "DNS-specific extensions to AgenticTrust core ontology: DNS Name (realization of Name)." ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:versionInfo "0.1.0" ;
+  dcterms:license <https://opensource.org/license/mit/> .
+
+########
+# DNS Name (realization of Name)
+########
+
+agentictrustDns:DNSName a owl:Class ;
+  rdfs:label "DNSName" ;
+  rdfs:comment "DNS name (e.g., example.com, subdomain.example.com). A protocol-specific realization of agentictrust:Name." ;
+  rdfs:subClassOf agentictrust:Name ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# DNS Name Identifier (realization of Identifier)
+########
+
+agentictrustDns:DNSNameIdentifier a owl:Class ;
+  rdfs:label "DNSNameIdentifier" ;
+  rdfs:comment "Identifier for a DNS name. Links DNS name to its identifier and DID if present." ;
+  rdfs:subClassOf agentictrust:Identifier ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# DNS Name Descriptor
+########
+
+agentictrustDns:DNSNameDescriptor a owl:Class ;
+  rdfs:label "DNSNameDescriptor" ;
+  rdfs:comment "Descriptor for a DNS Name (resolved metadata from DNS records, resolver, and associated metadata)." ;
+  rdfs:subClassOf agentictrust:NameDescriptor .
+
+########
+# Properties
+########
+
+agentictrustDns:hasDNSName a owl:ObjectProperty ;
+  rdfs:label "hasDNSName" ;
+  rdfs:comment "Links an agent to a DNS Name." ;
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrustDns:DNSName .
+
+agentictrustDns:dnsName a owl:DatatypeProperty ;
+  rdfs:label "dnsName" ;
+  rdfs:comment "The DNS name string (e.g., 'example.com')." ;
+  rdfs:domain agentictrustDns:DNSName ;
+  rdfs:range xsd:string .
+
+agentictrustDns:hasDNSNameIdentifier a owl:ObjectProperty ;
+  rdfs:label "hasDNSNameIdentifier" ;
+  rdfs:comment "Links a DNS Name to its DNSNameIdentifier." ;
+  rdfs:domain agentictrustDns:DNSName ;
+  rdfs:range agentictrustDns:DNSNameIdentifier .
+
+agentictrustDns:hasIdentifier a owl:ObjectProperty ;
+  rdfs:label "hasIdentifier" ;
+  rdfs:comment "Links a DNSNameIdentifier to the DNS Name it identifies." ;
+  rdfs:domain agentictrustDns:DNSNameIdentifier ;
+  rdfs:range agentictrustDns:DNSName .
+

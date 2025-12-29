@@ -33,10 +33,14 @@ Class hierarchy (Descriptor)
 agentictrust:Descriptor
   ├─ agentictrust:AgentDescriptor
   ├─ agentictrust:ProtocolDescriptor
-  └─ agentictrust:IdentifierDescriptor
-       ├─ agentictrustEth:AccountDescriptor (in agentictrust-eth.owl)
+  ├─ agentictrust:IdentifierDescriptor
+  │    └─ agentictrustEth:AccountDescriptor (in agentictrust-eth.owl)
+  ├─ agentictrust:IdentityDescriptor
+  │    ├─ erc8004:8004IdentityDescriptor (in ERC8004.owl)
+  │    └─ NANDAIdentityDescriptor (in NANDA.owl)
+  └─ agentictrust:NameDescriptor
        ├─ agentictrustEth:ENSNameDescriptor (in agentictrust-eth.owl)
-       └─ erc8004:8004IdentityDescriptor (in ERC8004.owl)
+       └─ DNSNameDescriptor (in agentictrust-dns.owl)
 
 Property relationships (high level)
 -----------------------------------
@@ -45,13 +49,16 @@ Things that can be described:
   agentictrust:AIAgent     ── agentictrust:hasDescriptor ──▶ agentictrust:AgentDescriptor
   agentictrust:Identifier  ── agentictrust:hasDescriptor ──▶ agentictrust:IdentifierDescriptor
   agentictrust:Protocol    ── agentictrust:hasDescriptor ──▶ agentictrust:ProtocolDescriptor
-  agentictrust:Identity    ── agentictrust:hasDescriptor ──▶ agentictrust:IdentifierDescriptor
-  # erc8004:8004Identity (defined in ERC8004.owl, subClassOf agentictrust:Identity) ── agentictrust:hasDescriptor ──▶ erc8004:8004IdentityDescriptor
+  agentictrust:Identity    ── agentictrust:hasDescriptor ──▶ agentictrust:IdentityDescriptor
+  agentictrust:Name        ── agentictrust:hasDescriptor ──▶ agentictrust:NameDescriptor
 
-Protocol specializations (in agentictrust-eth.owl):
+Protocol specializations:
 
-  agentictrustEth:Account  ── agentictrust:hasDescriptor ──▶ agentictrustEth:AccountDescriptor
-  agentictrustEth:ENSName  ── agentictrust:hasDescriptor ──▶ agentictrustEth:ENSNameDescriptor
+  agentictrustEth:Account      ── agentictrust:hasDescriptor ──▶ agentictrustEth:AccountDescriptor (in agentictrust-eth.owl)
+  erc8004:8004Identity         ── agentictrust:hasDescriptor ──▶ erc8004:8004IdentityDescriptor (in ERC8004.owl)
+  NANDAIdentity                ── agentictrust:hasDescriptor ──▶ NANDAIdentityDescriptor (in NANDA.owl)
+  agentictrustEth:ENSName      ── agentictrust:hasDescriptor ──▶ agentictrustEth:ENSNameDescriptor (in agentictrust-eth.owl)
+  DNSName                       ── agentictrust:hasDescriptor ──▶ DNSNameDescriptor (in agentictrust-dns.owl)
 
 Resolver workflow (typical)
 ---------------------------
@@ -534,6 +541,16 @@ agentictrust:Descriptor a owl:Class ;
 agentictrust:IdentifierDescriptor a owl:Class ;
   rdfs:label "IdentifierDescriptor" ;
   rdfs:comment "Descriptor for an Identifier (resolved metadata about an identifier and its bindings, subject/controller links, and verification methods)." ;
+  rdfs:subClassOf agentictrust:Descriptor .
+
+agentictrust:IdentityDescriptor a owl:Class ;
+  rdfs:label "IdentityDescriptor" ;
+  rdfs:comment "Descriptor for an Identity (resolved metadata about an identity, its identifiers, and associated metadata). Protocol-specific realizations include erc8004:8004IdentityDescriptor, NANDAIdentityDescriptor, etc." ;
+  rdfs:subClassOf agentictrust:Descriptor .
+
+agentictrust:NameDescriptor a owl:Class ;
+  rdfs:label "NameDescriptor" ;
+  rdfs:comment "Descriptor for a Name (resolved metadata about a name, its identifiers, and associated metadata). Protocol-specific realizations include agentictrustEth:ENSNameDescriptor, DNSNameDescriptor, etc." ;
   rdfs:subClassOf agentictrust:Descriptor .
 
 

@@ -251,5 +251,5 @@ agentictrustEth:IdentifierType_ens a agentictrust:IdentifierType ;
 agentictrustEth:ENSNameDescriptor a owl:Class ;
   rdfs:label "ENSNameDescriptor" ;
   rdfs:comment "Descriptor for an ENS name (resolved name, chain, resolver/controller, and resolution targets)." ;
-  rdfs:subClassOf agentictrust:IdentifierDescriptor .
+  rdfs:subClassOf agentictrust:NameDescriptor .
 

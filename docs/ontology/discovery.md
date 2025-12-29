@@ -52,15 +52,23 @@ class AIAgent["agentictrust:AIAgent"]
 class Account["agentictrustEth:Account"]
 class Protocol["agentictrust:Protocol"]
 class Identifier["agentictrust:Identifier"]
+class Identity["agentictrust:Identity"]
+class Name["agentictrust:Name"]
 class Identity8004["erc8004:8004Identity"]
+class NANDAIdentity["NANDAIdentity"]
 class ENSName["agentictrustEth:ENSName"]
+class DNSName["DNSName"]
 
 class AgentDescriptor["agentictrust:AgentDescriptor"]
 class AccountDescriptor["agentictrustEth:AccountDescriptor"]
 class ProtocolDescriptor["agentictrust:ProtocolDescriptor"]
 class IdentifierDescriptor["agentictrust:IdentifierDescriptor"]
-class IdentityDescriptor["erc8004:8004IdentityDescriptor"]
+class IdentityDescriptor["agentictrust:IdentityDescriptor"]
+class NameDescriptor["agentictrust:NameDescriptor"]
+class Identity8004Descriptor["erc8004:8004IdentityDescriptor"]
+class NANDAIdentityDescriptor["NANDAIdentityDescriptor"]
 class ENSNameDescriptor["agentictrustEth:ENSNameDescriptor"]
+class DNSNameDescriptor["DNSNameDescriptor"]
 
 class Skill["agentictrust:Skill"]
 class Domain["agentictrust:Domain"]
@@ -71,8 +79,12 @@ AIAgent --> AgentDescriptor : hasDescriptor
 Account --> AccountDescriptor : hasDescriptor
 Protocol --> ProtocolDescriptor : hasDescriptor
 Identifier --> IdentifierDescriptor : hasDescriptor
-Identity8004 --> IdentityDescriptor : hasDescriptor
+Identity --> IdentityDescriptor : hasDescriptor
+Name --> NameDescriptor : hasDescriptor
+Identity8004 --> Identity8004Descriptor : hasDescriptor
+NANDAIdentity --> NANDAIdentityDescriptor : hasDescriptor
 ENSName --> ENSNameDescriptor : hasDescriptor
+DNSName --> DNSNameDescriptor : hasDescriptor
 
 AgentDescriptor --> Skill : hasSkill / declaresSkill
 AgentDescriptor --> Domain : (via Skill)
@@ -87,12 +99,53 @@ note for Skill "Discovery metadata\nin Descriptor"
 
 The `agentictrust:hasDescriptor` property links entities to their resolved Descriptors:
 
+**Core Descriptors:**
 - `agentictrust:AIAgent` → `hasDescriptor` → `agentictrust:AgentDescriptor`
 - `agentictrustEth:Account` → `hasDescriptor` → `agentictrustEth:AccountDescriptor`
 - `agentictrust:Protocol` → `hasDescriptor` → `agentictrust:ProtocolDescriptor`
 - `agentictrust:Identifier` → `hasDescriptor` → `agentictrust:IdentifierDescriptor`
-- `erc8004:8004Identity` → `hasDescriptor` → `erc8004:8004IdentityDescriptor`
-- `agentictrustEth:ENSName` → `hasDescriptor` → `agentictrustEth:ENSNameDescriptor`
+- `agentictrust:Identity` → `hasDescriptor` → `agentictrust:IdentityDescriptor`
+- `agentictrust:Name` → `hasDescriptor` → `agentictrust:NameDescriptor`
+
+**Concrete Implementations:**
+
+**Identity Descriptors:**
+- `erc8004:8004Identity` → `hasDescriptor` → `erc8004:8004IdentityDescriptor` (ERC-8004 identity)
+- `NANDAIdentity` → `hasDescriptor` → `NANDAIdentityDescriptor` (NANDA identity)
+
+**Name Descriptors:**
+- `agentictrustEth:ENSName` → `hasDescriptor` → `agentictrustEth:ENSNameDescriptor` (Ethereum ENS name)
+- `DNSName` → `hasDescriptor` → `DNSNameDescriptor` (DNS name)
+
+### Concrete Implementations
+
+#### Identity Implementations
+
+**ERC-8004 Identity** (`erc8004:8004Identity`):
+- Protocol: ERC-8004 (Ethereum-based agent identity registry)
+- Descriptor: `erc8004:8004IdentityDescriptor`
+- Source: ERC-8004 tokenUri registration JSON
+- Metadata: Registry metadata, agentId, chainId, tokenUri content, skills, domains
+
+**NANDA Identity** (`NANDAIdentity`):
+- Protocol: NANDA (Name and Address)
+- Descriptor: `NANDAIdentityDescriptor`
+- Source: NANDA registry and resolver
+- Metadata: NANDA identity identifier, resolver metadata, associated identifiers
+
+#### Name Implementations
+
+**ENS Name** (`agentictrustEth:ENSName`):
+- Protocol: Ethereum Name Service (ENS)
+- Descriptor: `agentictrustEth:ENSNameDescriptor`
+- Source: ENS registry and resolver
+- Metadata: ENS name string, chainId, resolver address, resolution targets
+
+**DNS Name** (`DNSName`):
+- Protocol: Domain Name System (DNS)
+- Descriptor: `DNSNameDescriptor`
+- Source: DNS records and resolver
+- Metadata: DNS name string, DNS records, resolver metadata
 
 ### Why This Pattern Matters
 

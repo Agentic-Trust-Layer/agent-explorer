@@ -80,7 +80,7 @@ erc8004:IdentifierType_8004 a agentictrust:IdentifierType ;
 erc8004:8004IdentityDescriptor a owl:Class ;
   rdfs:label "8004IdentityDescriptor" ;
   rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
-  rdfs:subClassOf agentictrust:IdentifierDescriptor .
+  rdfs:subClassOf agentictrust:IdentityDescriptor .
 
 erc8004:hasAgentRegistration a owl:ObjectProperty ;
   rdfs:label "hasAgentRegistration" ;

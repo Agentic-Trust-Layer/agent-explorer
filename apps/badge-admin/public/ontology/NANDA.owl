@@ -1,0 +1,74 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix nanda: <https://www.agentictrust.io/ontology/NANDA#> .
+
+nanda: a owl:Ontology ;
+  dcterms:title "NANDAOntology" ;
+  dcterms:description "NANDA-specific extensions to AgenticTrust core ontology: NANDA Identity (realization of Identity)." ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:versionInfo "0.1.0" ;
+  dcterms:license <https://opensource.org/license/mit/> .
+
+########
+# NANDA Identity (realization of Identity)
+########
+
+nanda:NANDAIdentity a owl:Class ;
+  rdfs:label "NANDAIdentity" ;
+  rdfs:comment "NANDA (Name and Address) identity. A protocol-specific realization of agentictrust:Identity." ;
+  rdfs:subClassOf agentictrust:Identity ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# NANDA Identity Identifier (realization of Identifier)
+########
+
+nanda:NANDAIdentityIdentifier a owl:Class ;
+  rdfs:label "NANDAIdentityIdentifier" ;
+  rdfs:comment "Identifier for a NANDA Identity. Links NANDA identity to its identifier and DID if present." ;
+  rdfs:subClassOf agentictrust:Identifier ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# NANDA Identity Descriptor
+########
+
+nanda:NANDAIdentityDescriptor a owl:Class ;
+  rdfs:label "NANDAIdentityDescriptor" ;
+  rdfs:comment "Descriptor for a NANDA Identity (resolved metadata from NANDA registry and resolver)." ;
+  rdfs:subClassOf agentictrust:IdentityDescriptor .
+
+########
+# Properties
+########
+
+nanda:hasNANDAIdentity a owl:ObjectProperty ;
+  rdfs:label "hasNANDAIdentity" ;
+  rdfs:comment "Links an agent to a NANDA Identity." ;
+  rdfs:domain prov:Agent ;
+  rdfs:range nanda:NANDAIdentity .
+
+nanda:nandaIdentityId a owl:DatatypeProperty ;
+  rdfs:label "nandaIdentityId" ;
+  rdfs:comment "The NANDA identity identifier string." ;
+  rdfs:domain nanda:NANDAIdentity ;
+  rdfs:range xsd:string .
+
+nanda:hasNANDAIdentityIdentifier a owl:ObjectProperty ;
+  rdfs:label "hasNANDAIdentityIdentifier" ;
+  rdfs:comment "Links a NANDA Identity to its NANDAIdentityIdentifier." ;
+  rdfs:domain nanda:NANDAIdentity ;
+  rdfs:range nanda:NANDAIdentityIdentifier .
+
+nanda:hasIdentifier a owl:ObjectProperty ;
+  rdfs:label "hasIdentifier" ;
+  rdfs:comment "Links a NANDAIdentityIdentifier to the NANDA Identity it identifies." ;
+  rdfs:domain nanda:NANDAIdentityIdentifier ;
+  rdfs:range nanda:NANDAIdentity .
+
