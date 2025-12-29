@@ -46,78 +46,67 @@ The Agentic Trust information architecture integrates four complementary layers:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Knowledge Base                           │
-│  (Concrete instances: agents, relationships, assertions)      │
-│  Example: agents.ttl RDF data                               │
+│                    Ontology (schema)                        │
+│  (Formal semantics: classes, properties, axioms)             │
+│  Example: agentictrust-core.owl                              │
 └─────────────────────────────────────────────────────────────┘
-                            ↑
-                            │ populated by
-                            │
+                            ↓ defines meaning for
 ┌─────────────────────────────────────────────────────────────┐
-│                    Ontology                                 │
-│  (Formal model: classes, properties, axioms)                │
-│  Example: agentictrust-core.owl                            │
+│          Vocabularies / Knowledge Artifacts (data)           │
+│  - Taxonomies (e.g., OASF domains + skills)                  │
+│  - Categories (tags/labels; may be controlled vocab)         │
+│  - KB-style curated concept sets (optional)                  │
 └─────────────────────────────────────────────────────────────┘
-                            ↑
-                            │ organizes
-                            │
+                            ↓ used to annotate / classify
 ┌─────────────────────────────────────────────────────────────┐
-│                    Taxonomy (OASF)                          │
-│  (Standardized classification: domains, skills)               │
-│  Example: OASF skills taxonomy                              │
-└─────────────────────────────────────────────────────────────┘
-                            ↑
-                            │ categorized by
-                            │
-┌─────────────────────────────────────────────────────────────┐
-│                    Categories                               │
-│  (Flexible groupings: tags, labels, metadata)               │
-│  Example: agent categories, trust model types              │
+│                    Knowledge Base (instances)                │
+│  (Concrete facts: agents, identities, situations, assertions)│
+│  Example: agents.ttl RDF data                                │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **Integration Flow**:
-1. **Ontology** defines the formal structure (what is an Agent? what is a Trust Assertion?)
-2. **Taxonomy** (OASF) provides standardized classification (which skills exist? which domains?)
-3. **Categories** add flexible organization (how do users want to group things?)
-4. **Knowledge Base** stores concrete instances following the ontology, using taxonomy classifications, and organized by categories
+- **Ontology**: the most abstract layer; defines *what exists* and *how it relates* (e.g., Agent ↔ Situation ↔ Assertion).
+- **Taxonomies / categories / KB-like concept sets**: *knowledge artifacts* (data) that you can reference from instance data for classification and discovery (e.g., OASF Skill/Domain, trust-model labels, UI categories).
+- **Knowledge base**: concrete instances that conform to the ontology and can be annotated using those vocabularies (e.g., `agents.ttl` + SQL tables).
 
 ## Ontology Hierarchy
 
-The AgenticTrust ontology is built on foundational upper ontologies that provide proven patterns for modeling agents, activities, situations, and social constructs:
+The AgenticTrust ontologies are layered, and the actual module dependencies are captured by `owl:imports`. Conceptually we also align with DOLCE-DnS (Descriptions & Situations) as a modeling *pattern* (not necessarily a hard import dependency).
 
 ```mermaid
 graph TB
     subgraph "Upper Ontologies"
         PROV["PROV-O<br/>Provenance Ontology<br/>Activities, Agents, Entities"]
         PPLAN["p-plan<br/>Process Plan Ontology<br/>Plans, Steps, Variables"]
-        DOLCE["DOLCE-DnS<br/>Descriptions & Situations<br/>Situations, Descriptions, Roles"]
+        DOLCE["DOLCE-DnS<br/>Descriptions & Situations<br/>Situations, Descriptions, Roles<br/>(alignment/pattern)"]
     end
     
     subgraph "AgenticTrust Core"
         CORE["agentictrust-core<br/>Core Trust Model<br/>Agent, Identity, Trust Assertion"]
     end
     
-    subgraph "Protocol Extensions"
-        ETH["agentictrust-eth<br/>Ethereum Extensions<br/>Account, ENSName"]
-        DNS["agentictrust-dns<br/>DNS Extensions<br/>DNSName"]
-        NANDA["NANDA<br/>NANDA Extensions<br/>NANDAIdentity"]
-        ERC8004["ERC8004<br/>ERC-8004 Extensions<br/>8004Identity, Trust Assertions"]
-        ERC8092["ERC8092<br/>ERC-8092 Extensions<br/>Relationship Assertions"]
+    subgraph "AgenticTrust Modules (owl:imports)"
+        ETH["agentictrust-eth<br/>Ethereum extensions"]
+        DNS["agentictrust-dns<br/>DNS extensions"]
+        NANDA["NANDA<br/>NANDA extensions"]
+        ERC8004["ERC8004<br/>ERC-8004 extensions"]
+        ERC8092["ERC8092<br/>ERC-8092 extensions"]
     end
     
     PROV --> CORE
     PPLAN --> CORE
-    DOLCE --> CORE
-    
+    DOLCE -. "conceptual alignment" .-> CORE
+
     CORE --> ETH
     CORE --> DNS
     CORE --> NANDA
+
+    ETH --> ERC8004
+    ETH --> ERC8092
     CORE --> ERC8004
     CORE --> ERC8092
-    
-    ERC8004 --> ETH
-    ERC8092 --> ETH
+    PPLAN --> ERC8092
 ```
 
 ### Upper Ontologies
