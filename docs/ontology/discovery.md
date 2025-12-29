@@ -4,6 +4,160 @@ This document describes the AgenticTrust discovery model, covering skills, inten
 
 Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 
+## The Descriptor Pattern: Foundation of Discovery
+
+**Important Pattern**: AI Agent, Account, Protocol, and Identifier entities need to be described and discoverable. They are described via a **resolver** associated with them. The resolver processes raw metadata from various sources (on-chain registries, agent cards, protocol configurations, identifier bindings) and resolves them to **Descriptors**. These Descriptors hold normalized, aggregated information about the thing and are used in the discovery process.
+
+### How It Works
+
+1. **Entities Need Description**: 
+   - `agentictrust:AIAgent` - AI agents that need to be discovered
+   - `agentictrustEth:Account` - Ethereum accounts that need to be discovered
+   - `agentictrust:Protocol` - Communication protocols (A2A, MCP) that need to be discovered
+   - `agentictrust:Identifier` - Identifiers (AccountIdentifier, ENSNameIdentifier, etc.) that need to be discovered
+
+2. **Resolvers Process Raw Data**:
+   - Resolvers fetch and aggregate metadata from multiple sources (on-chain registries, IPFS, agent cards, protocol endpoints)
+   - They normalize and validate the data
+   - They produce Descriptors as first-class entities
+
+3. **Descriptors Hold Discovery Information**:
+   - `agentictrust:AgentDescriptor` - Resolved metadata about an AI Agent (skills, endpoints, capabilities)
+   - `agentictrust:ProtocolDescriptor` - Resolved metadata about a Protocol (A2A, MCP configurations)
+   - `agentictrust:IdentifierDescriptor` - Resolved metadata about an Identifier (bindings, verification methods)
+   - Protocol-specific descriptors: `agentictrustEth:AccountDescriptor`, `agentictrustEth:ENSNameDescriptor`, `erc8004:8004IdentityDescriptor`
+
+4. **Descriptors Enable Discovery**:
+   - Descriptors contain the normalized, assembled view used for discovery, validation, and interaction
+   - Discovery queries operate on Descriptors, not raw source data
+   - Descriptors link to Skills, Domains, Tags, and other discovery metadata
+
+### Relationship Pattern
+
+```
+Entity (AIAgent, Account, Protocol, Identifier)
+    ↓ (resolved by resolver)
+Descriptor (AgentDescriptor, ProtocolDescriptor, IdentifierDescriptor)
+    ↓ (contains)
+Discovery Metadata (Skills, Domains, Tags, Endpoints, Schemas)
+```
+
+### Descriptor Pattern Diagram
+
+```mermaid
+classDiagram
+direction TB
+
+class AIAgent["agentictrust:AIAgent"]
+class Account["agentictrustEth:Account"]
+class Protocol["agentictrust:Protocol"]
+class Identifier["agentictrust:Identifier"]
+class Identity8004["erc8004:8004Identity"]
+class ENSName["agentictrustEth:ENSName"]
+
+class AgentDescriptor["agentictrust:AgentDescriptor"]
+class AccountDescriptor["agentictrustEth:AccountDescriptor"]
+class ProtocolDescriptor["agentictrust:ProtocolDescriptor"]
+class IdentifierDescriptor["agentictrust:IdentifierDescriptor"]
+class IdentityDescriptor["erc8004:8004IdentityDescriptor"]
+class ENSNameDescriptor["agentictrustEth:ENSNameDescriptor"]
+
+class Skill["agentictrust:Skill"]
+class Domain["agentictrust:Domain"]
+class Tag["agentictrust:Tag"]
+class Endpoint["agentictrust:AgentEndpoint"]
+
+AIAgent --> AgentDescriptor : hasDescriptor
+Account --> AccountDescriptor : hasDescriptor
+Protocol --> ProtocolDescriptor : hasDescriptor
+Identifier --> IdentifierDescriptor : hasDescriptor
+Identity8004 --> IdentityDescriptor : hasDescriptor
+ENSName --> ENSNameDescriptor : hasDescriptor
+
+AgentDescriptor --> Skill : hasSkill / declaresSkill
+AgentDescriptor --> Domain : (via Skill)
+AgentDescriptor --> Tag : (via Skill)
+AgentDescriptor --> Endpoint : hasEndpoint
+
+note for AgentDescriptor "Resolver-produced\nNormalized metadata\nUsed for discovery"
+note for Skill "Discovery metadata\nin Descriptor"
+```
+
+### Property: `hasDescriptor`
+
+The `agentictrust:hasDescriptor` property links entities to their resolved Descriptors:
+
+- `agentictrust:AIAgent` → `hasDescriptor` → `agentictrust:AgentDescriptor`
+- `agentictrustEth:Account` → `hasDescriptor` → `agentictrustEth:AccountDescriptor`
+- `agentictrust:Protocol` → `hasDescriptor` → `agentictrust:ProtocolDescriptor`
+- `agentictrust:Identifier` → `hasDescriptor` → `agentictrust:IdentifierDescriptor`
+- `erc8004:8004Identity` → `hasDescriptor` → `erc8004:8004IdentityDescriptor`
+- `agentictrustEth:ENSName` → `hasDescriptor` → `agentictrustEth:ENSNameDescriptor`
+
+### Why This Pattern Matters
+
+- **Separation of Concerns**: Raw source data (on-chain, IPFS, agent cards) is separate from the normalized discovery view
+- **Consistency**: All discovery operates on the same Descriptor structure regardless of source
+- **Flexibility**: Resolvers can aggregate from multiple sources and apply validation/normalization
+- **Performance**: Descriptors can be cached and indexed for fast discovery queries
+- **Evolution**: Source formats can change without breaking discovery (resolvers adapt)
+
+### SPARQL Query: Entity Discovery via Descriptor
+
+This query demonstrates how to discover entities through their Descriptors:
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?entity ?entityType ?descriptor ?descriptorType ?skill ?domain
+WHERE {
+  # Entities that can be described
+  {
+    ?entity a agentictrust:AIAgent .
+    BIND("AIAgent" AS ?entityType)
+  }
+  UNION
+  {
+    ?entity a agentictrustEth:Account .
+    BIND("Account" AS ?entityType)
+  }
+  UNION
+  {
+    ?entity a agentictrust:Protocol .
+    BIND("Protocol" AS ?entityType)
+  }
+  UNION
+  {
+    ?entity a agentictrust:Identifier .
+    BIND("Identifier" AS ?entityType)
+  }
+  
+  # Get Descriptor (resolver-produced)
+  ?entity agentictrust:hasDescriptor ?descriptor .
+  ?descriptor a ?descriptorType .
+  
+  # For AgentDescriptor, get discovery metadata
+  OPTIONAL {
+    ?descriptor a agentictrust:AgentDescriptor .
+    {
+      ?descriptor agentictrust:hasSkill ?skill .
+    }
+    UNION
+    {
+      ?descriptor agentictrust:declaresSkill ?skill .
+    }
+    
+    OPTIONAL {
+      ?skill agentictrust:hasDomain ?domain .
+      ?domain a agentictrust:Domain .
+    }
+  }
+}
+LIMIT 100
+```
+
 ## Overview
 
 The ontology separates three key concerns:

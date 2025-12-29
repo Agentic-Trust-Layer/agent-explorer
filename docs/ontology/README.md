@@ -24,6 +24,7 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")
 - [`provenance.md`](./provenance.md): PROV-O grounding + how we use provenance patterns
 - [`discovery.md`](./discovery.md): Skills, intents, tasks, execution traces, and OASF alignment (merged from skills.md, skills-intents-tasks.md, and oasf.md)
+- [`intent.md`](./intent.md): IntentType and IntentSituation model - wraps OASF skills, aligned with DOLCE-DnS, explains why skills are invoked
 - [`trust-graph.md`](./trust-graph.md): trust building overlay + mapping to ERC-8004/8092 registries
 
 ERC ontologies

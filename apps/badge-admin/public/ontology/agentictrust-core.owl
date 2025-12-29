@@ -5,6 +5,7 @@
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix p-plan: <http://purl.org/net/p-plan#> .
 @prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix dolce: <http://www.loa-cnr.it/ontologies/DOLCE-Lite.owl#> .
 @prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
 
 agentictrust: a owl:Ontology ;
@@ -44,7 +45,8 @@ Things that can be described:
   agentictrust:AIAgent     ── agentictrust:hasDescriptor ──▶ agentictrust:AgentDescriptor
   agentictrust:Identifier  ── agentictrust:hasDescriptor ──▶ agentictrust:IdentifierDescriptor
   agentictrust:Protocol    ── agentictrust:hasDescriptor ──▶ agentictrust:ProtocolDescriptor
-  # erc8004:8004Identity (defined in ERC8004.owl) ── agentictrust:hasDescriptor ──▶ erc8004:8004IdentityDescriptor
+  agentictrust:Identity    ── agentictrust:hasDescriptor ──▶ agentictrust:IdentifierDescriptor
+  # erc8004:8004Identity (defined in ERC8004.owl, subClassOf agentictrust:Identity) ── agentictrust:hasDescriptor ──▶ erc8004:8004IdentityDescriptor
 
 Protocol specializations (in agentictrust-eth.owl):
 
@@ -134,6 +136,11 @@ agentictrust:Identifier a owl:Class ;
     owl:onProperty agentictrust:hasDescriptor ;
     owl:allValuesFrom agentictrust:IdentifierDescriptor
   ] .
+
+agentictrust:Identity a owl:Class ;
+  rdfs:label "Identity" ;
+  rdfs:comment "Abstract identity for an agent. Protocol-specific realizations include ERC-8004 Identity (erc8004:8004Identity), Web2 identities, etc. An agent may have one or more Identities. Modeled as prov:Entity. Protocol-specific identities inherit from this class." ;
+  rdfs:subClassOf prov:Entity .
 
 agentictrust:Name a owl:Class ;
   rdfs:label "Name" ;
@@ -625,8 +632,15 @@ agentictrust:Intent a owl:Class ;
 
 agentictrust:IntentType a owl:Class ;
   rdfs:label "IntentType" ;
-  rdfs:comment "Taxonomy value used to scope discovery and select compatible skills." ;
+  rdfs:comment "A description of why an agent capability is being invoked. Aligned with DOLCE-DnS Description. Intent explains why a skill is invoked, not how it is executed. Intent is about purpose or goal, and is contextual and ephemeral (exists at request time, not permanently). Taxonomy value used to scope discovery and select compatible skills." ;
+  rdfs:subClassOf dolce:Description ;
   rdfs:subClassOf prov:Entity .
+
+agentictrust:IntentSituation a owl:Class ;
+  rdfs:label "IntentSituation" ;
+  rdfs:comment "A concrete situation in which an agent expresses or acts under a given intent. Aligned with DOLCE-DnS Situation. Useful for logging intents, validating intent fulfillment, and reasoning over outcomes vs goals." ;
+  rdfs:subClassOf dolce:Situation ;
+  rdfs:subClassOf prov:Activity .
 
 agentictrust:IntentAction a owl:Class ;
   rdfs:label "IntentAction" ;
@@ -804,8 +818,15 @@ agentictrust:hasDomain a owl:ObjectProperty ;
 
 agentictrust:supportsIntentType a owl:ObjectProperty ;
   rdfs:label "supportsIntentType" ;
+  rdfs:comment "Links a Skill to an IntentType that it can support. This is the inverse direction from targetsSkill." ;
   rdfs:domain agentictrust:Skill ;
   rdfs:range agentictrust:IntentType .
+
+agentictrust:targetsSkill a owl:ObjectProperty ;
+  rdfs:label "targetsSkill" ;
+  rdfs:comment "Links an IntentType to an OASF Skill that can satisfy this intent. This intent can be satisfied by invoking this skill. Allows many intents to target the same skill, and one intent to target many skills. Keeps OASF skills untouched - only references them." ;
+  rdfs:domain agentictrust:IntentType ;
+  rdfs:range agentictrust:Skill .
 
 agentictrust:enablesTaskType a owl:ObjectProperty ;
   rdfs:label "enablesTaskType" ;
@@ -891,6 +912,18 @@ agentictrust:fulfilledByInvocation a owl:ObjectProperty ;
   rdfs:comment "Links an intent to the skill invocation(s) that fulfill it." ;
   rdfs:domain agentictrust:Intent ;
   rdfs:range agentictrust:SkillInvocation .
+
+agentictrust:satisfiesIntent a owl:ObjectProperty ;
+  rdfs:label "satisfiesIntent" ;
+  rdfs:comment "Links a Situation (DOLCE-DnS) to an IntentType that it fulfills. This situation fulfills the intent. Aligned with DOLCE-DnS satisfaction pattern." ;
+  rdfs:domain dolce:Situation ;
+  rdfs:range agentictrust:IntentType .
+
+agentictrust:isRealizedBy a owl:ObjectProperty ;
+  rdfs:label "isRealizedBy" ;
+  rdfs:comment "Links an IntentSituation to a PROV Activity that realizes it. The intent was realized through this concrete activity." ;
+  rdfs:domain agentictrust:IntentSituation ;
+  rdfs:range prov:Activity .
 
 agentictrust:hadPlan a owl:ObjectProperty ;
   rdfs:label "hadPlan" ;

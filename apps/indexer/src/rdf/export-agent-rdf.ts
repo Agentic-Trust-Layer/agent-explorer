@@ -120,10 +120,23 @@ function agentIri(chainId: number, agentId: string, didIdentity?: string | null)
   return `<https://www.agentictrust.io/id/agent/${identifier}>`;
 }
 
-function agentDescriptorIri(chainId: number, agentId: string, didIdentity?: string | null): string {
+function identity8004DescriptorIri(chainId: number, agentId: string, didIdentity?: string | null): string {
   // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
   const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
-  return `<https://www.agentictrust.io/id/agent-descriptor/${identifier}>`;
+  return `<https://www.agentictrust.io/id/8004-identity-descriptor/${identifier}>`;
+}
+
+function situationIri(chainId: number, agentId: string, situationType: string, situationId: string, didIdentity?: string | null): string {
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/situation/${situationType}/${identifier}/${iriEncodeSegment(situationId)}>`;
+}
+
+function intentTypeIri(intentTypeName: string): string {
+  return `https://www.agentictrust.io/ontology/agentictrust-core/intentType/${iriEncodeSegment(intentTypeName)}`;
+}
+
+function domainIri(domainName: string): string {
+  return `<https://www.agentictrust.io/id/domain/${iriEncodeSegment(domainName)}>`;
 }
 
 function skillIri(chainId: number, agentId: string, skillId: string, didIdentity?: string | null): string {
@@ -285,10 +298,6 @@ function checkIri(tag: string): string {
   return `https://www.agentictrust.io/id/check/${iriEncodeSegment(tag)}`;
 }
 
-function intentTypeIri(value: string): string {
-  return `https://www.agentictrust.io/ontology/agentictrust-core/intentType/${iriEncodeSegment(value)}`;
-}
-
 async function writeFileAtomically(targetPath: string, contents: string): Promise<void> {
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
@@ -327,8 +336,6 @@ function renderAgentSection(
   const readAt = Number(row?.agentCardReadAt ?? 0) || Math.floor(Date.now() / 1000);
 
   const aIri = agentIri(chainId, agentId, row?.didIdentity);
-  const cIri = agentDescriptorIri(chainId, agentId, row?.didIdentity);
-  const fetchIri = fetchActivityIri(chainId, agentId, readAt, row?.didIdentity);
 
   const lines: string[] = [];
   const afterAgent: string[] = [];
@@ -480,20 +487,105 @@ function renderAgentSection(
   if (row?.supportedTrust) lines.push(`  agentictrust:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
   if (row?.createdAtTime) lines.push(`  agentictrust:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
   if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
-  lines.push(`  agentictrust:agentDescriptorReadAt ${readAt} ;`);
-  lines.push(`  agentictrust:hasAgentDescriptor ${cIri} ;`);
   if (row?.rawJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
   lines.push(`  .\n`);
 
-  // Agent descriptor (agent-level, protocol-agnostic)
-  lines.push(`${cIri} a agentictrust:AgentDescriptor, prov:Entity ;`);
-  if (typeof agentCard?.name === 'string' && agentCard.name.trim()) lines.push(`  rdfs:label "${escapeTurtleString(agentCard.name.trim())}" ;`);
-  if (typeof agentCard?.description === 'string' && agentCard.description.trim())
-    lines.push(`  dcterms:description "${escapeTurtleString(agentCard.description.trim())}" ;`);
+  // Parse rawJson (tokenUri metadata) for ERC8004 Identity Descriptor
+  let tokenUriData: any = null;
+  if (row?.rawJson) {
+    try {
+      tokenUriData = JSON.parse(String(row.rawJson));
+    } catch {
+      // ignore parse errors
+    }
+  }
+
+  // Create 8004IdentityDescriptor from tokenUri (rawJson) if we have 8004Identity
+  if (row?.didIdentity) {
+    const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
+    const identityDescriptorIri = identity8004DescriptorIri(chainId, agentId, row.didIdentity);
+    
+    // Link 8004Identity to its Descriptor
+    accountChunks.push(
+      `${identity8004IriValue} agentictrust:hasDescriptor ${identityDescriptorIri} .\n\n`,
+    );
+    
+    // Create 8004IdentityDescriptor
+    const descriptorLines: string[] = [];
+    descriptorLines.push(`${identityDescriptorIri} a erc8004:8004IdentityDescriptor, agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+    
+    if (tokenUriData) {
+      if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
+        descriptorLines.push(`  rdfs:label "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+      }
+      if (typeof tokenUriData?.description === 'string' && tokenUriData.description.trim()) {
+        descriptorLines.push(`  dcterms:description "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
+      }
+      
+      // Extract Skills from tokenUri
+      const tokenSkills: any[] = Array.isArray(tokenUriData?.skills) ? tokenUriData.skills : [];
+      for (const skill of tokenSkills) {
+        const id = typeof skill?.id === 'string' ? skill.id.trim() : typeof skill === 'string' ? skill.trim() : '';
+        if (!id) continue;
+        const sIri = skillIri(chainId, agentId, id, row.didIdentity);
+        descriptorLines.push(`  agentictrust:hasSkill ${sIri} ;`);
+        
+        // Create Skill instance
+        const skillLines: string[] = [];
+        skillLines.push(`${sIri} a agentictrust:Skill, prov:Entity ;`);
+        skillLines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
+        if (typeof skill?.name === 'string' && skill.name.trim()) {
+          skillLines.push(`  agentictrust:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
+        }
+        if (typeof skill?.description === 'string' && skill.description.trim()) {
+          skillLines.push(`  agentictrust:skillDescription "${escapeTurtleString(skill.description.trim())}" ;`);
+        }
+        
+        // Extract Domain from skill
+        if (typeof skill?.domain === 'string' && skill.domain.trim()) {
+          const domainName = skill.domain.trim();
+          const domainIriValue = domainIri(domainName);
+          skillLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
+          // Emit Domain
+          accountChunks.push(`${domainIriValue} a agentictrust:Domain, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+        }
+        
+        // Link IntentType to Skill via targetsSkill
+        // Map skill domain to intent type (e.g., "validation" -> trust.validation)
+        const skillDomain = typeof skill?.domain === 'string' ? skill.domain.trim() : '';
+        if (skillDomain) {
+          const intentTypeName = `trust.${skillDomain}`;
+          accountChunks.push(`<${intentTypeIri(intentTypeName)}> agentictrust:targetsSkill ${sIri} .\n\n`);
+        }
+        
+        // Extract tags
+        const tags: any[] = Array.isArray(skill?.tags) ? skill.tags : [];
+        for (const t of tags) {
+          if (typeof t === 'string' && t.trim()) {
+            const tagIri = `<https://www.agentictrust.io/id/tag/${iriEncodeSegment(t.trim())}>`;
+            skillLines.push(`  agentictrust:hasTag ${tagIri} ;`);
+            accountChunks.push(`${tagIri} a agentictrust:Tag, prov:Entity ; rdfs:label "${escapeTurtleString(t.trim())}" .\n\n`);
+          }
+        }
+        
+        skillLines.push(`  .\n`);
+        accountChunks.push(skillLines.join('\n'));
+      }
+      
+      // Extract Domain from top-level tokenUri data
+      if (typeof tokenUriData?.domain === 'string' && tokenUriData.domain.trim()) {
+        const domainName = tokenUriData.domain.trim();
+        const domainIriValue = domainIri(domainName);
+        descriptorLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
+        accountChunks.push(`${domainIriValue} a agentictrust:Domain, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+      }
+    }
+    
+    descriptorLines.push(`  .\n`);
+    accountChunks.push(descriptorLines.join('\n'));
+  }
   
-  // A2A Protocol Descriptor (protocol-specific properties)
-  // Note: AgentDescriptor and ProtocolDescriptor are distinct and not related per ontology design
-  // Protocol-specific properties go on A2AProtocolDescriptor
+  // A2A Protocol Descriptor (from agentCardJson)
   const hasProtocolProps = 
     (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim()) ||
     (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim()) ||
@@ -514,23 +606,12 @@ function renderAgentSection(
     }
     afterAgent.push(`  .\n`);
   }
-  lines.push(`  agentictrust:json ${turtleJsonLiteral(agentCardJsonText)} ;`);
 
+  // Skills from agentCard (A2A protocol) - these are protocol-specific, not identity-level
+  // Note: Skills from tokenUri are handled in 8004IdentityDescriptor section above
   const skills: any[] = Array.isArray(agentCard?.skills) ? agentCard.skills : [];
-  for (const skill of skills) {
-    const id = typeof skill?.id === 'string' ? skill.id.trim() : '';
-    if (!id) continue;
-    lines.push(`  agentictrust:hasSkill ${skillIri(chainId, agentId, id, row?.didIdentity)} ;`);
-  }
-  lines.push(`  .\n`);
-
-  // Fetch provenance
-  lines.push(`${fetchIri} a agentictrust:AgentDescriptorFetch, prov:Activity ;`);
-  lines.push(`  prov:generated ${cIri} ;`);
-  lines.push(`  prov:endedAtTime "${new Date(readAt * 1000).toISOString()}"^^xsd:dateTime ;`);
-  lines.push(`  .\n`);
-
-  // Skills + examples + tags
+  
+  // Skills + examples + tags from agentCard (for A2A protocol)
   const allTags: string[] = [];
   for (const skill of skills) {
     const id = typeof skill?.id === 'string' ? skill.id.trim() : '';
@@ -929,6 +1010,13 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const lines: string[] = [];
     lines.push(`${fi} a erc8004:Feedback, agentictrust:ReputationAssertion, prov:Entity ;`);
     lines.push(`  erc8004:feedbackIndex ${feedbackIndex} ;`);
+    
+    // Create ReputationSituation and link to Feedback
+    const repSituationIri = situationIri(chainId, agentId, 'reputation', `${client}:${feedbackIndex}`, meta?.didIdentity);
+    chunks.push(`${repSituationIri} a agentictrust:ReputationSituation, agentictrust:TrustSituation, prov:Activity ;`);
+    chunks.push(`  agentictrust:generatedAssertion ${fi} ;`);
+    chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
+    chunks.push(`  .\n`);
     if (client) {
       ensureAccountNode(chunks, chainId, client, 'EOA'); // Feedback client is typically EOA
       lines.push(`  erc8004:feedbackClient ${accountIri(chainId, client)} ;`);
@@ -1067,10 +1155,12 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const vi = validationRequestIri(chainId, id);
     // No direct agent link for requests; link agent via ValidationResponse using agentictrust:hasValidation.
     const lines: string[] = [];
-    lines.push(`${vi} a erc8004:ValidationRequest, agentictrust:TrustSituation, prov:Activity ;`);
+    lines.push(`${vi} a erc8004:ValidationRequest, agentictrust:TrustSituation, agentictrust:VerificationSituation, prov:Activity ;`);
     const validator = normalizeHex(v?.validatorAddress);
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);
+    // Link VerificationSituation to IntentType via satisfiesIntent
+    lines.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.validation')}> ;`);
     if (validator) {
       ensureAccountNode(chunks, chainId, validator, 'SmartAccount'); // Validator is typically agentAccount
       lines.push(`  erc8004:validatorAddress "${escapeTurtleString(validator)}" ;`);
@@ -1354,6 +1444,13 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     }
 
     const lines: string[] = [];
+    // Create RelationshipSituation and link to Relationship
+    const relSituationIri = situationIri(chainId, associationId, 'relationship', relationshipId, undefined);
+    chunks.push(`${relSituationIri} a agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Activity ;`);
+    chunks.push(`  agentictrust:aboutSubject ${relIri} ;`);
+    chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);
+    chunks.push(`  .\n`);
+    
     // Relationship instance (ERC8092AccountRelationship)
     const relLines: string[] = [];
     relLines.push(
