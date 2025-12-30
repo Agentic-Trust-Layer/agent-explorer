@@ -4,7 +4,7 @@ import { createYoga, createSchema } from 'graphql-yoga';
 import { graphQLSchemaString } from './graphql-schema';
 import { createDBQueries } from './create-resolvers';
 import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
-import { db } from './db';
+import { db, ensureSchemaInitialized } from './db';
 import {
   needsAuthentication,
   extractAccessCode,
@@ -31,6 +31,7 @@ function makeRpcProvider(rpcUrl: string): ethers.JsonRpcProvider {
 }
 
 async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL_SERVER_PORT ?? 4000)) {
+  await ensureSchemaInitialized();
   // Configure chains (same as express server)
   const chains: ChainConfig[] = [
     {

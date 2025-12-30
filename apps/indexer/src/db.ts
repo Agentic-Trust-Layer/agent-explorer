@@ -190,15 +190,22 @@ async function initializeSchema() {
   await tryAddColumn('oasf_skills', 'category', 'TEXT');
 }
 
-initializeSchema();
+let schemaInitialized = false;
+export async function ensureSchemaInitialized(): Promise<void> {
+  if (schemaInitialized) return;
+  schemaInitialized = true;
+  await initializeSchema();
+}
 
 export async function getCheckpoint(chainId?: number): Promise<bigint> {
+  await ensureSchemaInitialized();
   const key = chainId ? `lastProcessed_${chainId}` : 'lastProcessed';
   const row = await db.prepare("SELECT value FROM checkpoints WHERE key=?").get(key) as { value?: string } | undefined;
   return row?.value ? BigInt(row.value) : 0n;
 }
 
 export async function setCheckpoint(bn: bigint, chainId?: number): Promise<void> {
+  await ensureSchemaInitialized();
   const key = chainId ? `lastProcessed_${chainId}` : 'lastProcessed';
   await db.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(key, String(bn));
 }

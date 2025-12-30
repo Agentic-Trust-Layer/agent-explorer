@@ -4,6 +4,8 @@
 
 Agentic Trust requires a robust information architecture to model, discover, and reason about AI agents, their capabilities, relationships, and trust assertions across decentralized networks. This architecture combines **ontologies** (formal knowledge models), **taxonomies** (classification systems like OASF), **categories** (domain-specific groupings), and **knowledge bases** (structured data repositories) into a cohesive system.
 
+See also: [`philosophy.md`](./philosophy.md) (modeling principles and how we align ERC-8004/8092, DnS, PROV-O, p-plan, DIDs, OASF, and discovery).
+
 ### Why Ontology Matters for Agentic Trust
 
 Ontologies provide the **formal semantic foundation** for agentic trust by:
@@ -13,6 +15,11 @@ Ontologies provide the **formal semantic foundation** for agentic trust by:
 3. **Providing Conceptual Clarity**: Explicit modeling of concepts (Agent, Identity, Trust Assertion, Situation) clarifies what we mean and how things relate
 4. **Enabling Trust Verification**: Formal models allow verification of trust claims, validation of relationships, and detection of inconsistencies
 5. **Facilitating Discovery**: Structured knowledge enables sophisticated queries to find agents by capabilities, relationships, or trust characteristics
+
+## Registry sources and aggregators
+
+- **HOL (Hashgraph Online)**: a universal registry/index that aggregates multiple registries into one searchable dataset. See [`hashgraph-online.md`](./hashgraph-online.md) for the list of underlying sources it includes.
+- **Fetch.ai Agentverse**: execution/runtime-oriented directory and developer platform (uAgents + Agentverse). See [`fetchai-agentverse.md`](./fetchai-agentverse.md) for a registry concepts summary and how it maps into AgenticTrust.
 
 ### Information Architecture Components
 

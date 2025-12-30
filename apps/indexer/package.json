@@ -9,6 +9,8 @@
     "dev:agent": "tsx src/indexer.ts",
     "dev:graphql": "tsx src/graphql-server.ts",
     "dev:yoga": "tsx src/graphql-yoga-server.ts",
+    "import:nanda": "tsx src/nanda/import-cli.ts",
+    "import:hol": "tsx src/hol/import-cli.ts",
     "start:graphql": "tsx src/graphql-server.ts",
     "deploy": "wrangler deploy",
     "deploy:dev": "wrangler deploy --env development",

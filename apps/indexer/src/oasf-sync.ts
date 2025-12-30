@@ -119,12 +119,52 @@ function oasfCategoryKeyFromGithubPath(githubPath: string, kind: 'domains' | 'sk
   return categoryKey && categoryKey.trim() ? categoryKey.trim() : null;
 }
 
+async function backfillCategoryFromGithubPath(db: AnyDb, kind: 'domains' | 'skills'): Promise<void> {
+  const table = kind === 'domains' ? 'oasf_domains' : 'oasf_skills';
+  const prefix = kind === 'domains' ? 'schema/domains/' : 'schema/skills/';
+  try {
+    const rows = await db
+      .prepare(
+        `
+        SELECT id, githubPath
+        FROM ${table}
+        WHERE
+          (category IS NULL OR category = '' OR extendsKey IS NULL OR extendsKey = '')
+          AND githubPath IS NOT NULL
+          AND githubPath LIKE ?
+        `,
+      )
+      .all(`${prefix}%`);
+    const list: any[] = Array.isArray(rows) ? rows : Array.isArray((rows as any)?.results) ? (rows as any).results : [];
+    if (!list.length) return;
+
+    for (const r of list) {
+      const id = r?.id != null ? String(r.id) : '';
+      const githubPath = r?.githubPath != null ? String(r.githubPath) : '';
+      if (!id || !githubPath) continue;
+      const categoryKey = oasfCategoryKeyFromGithubPath(githubPath, kind);
+      if (!categoryKey) continue;
+      // Best-effort: set both category and extendsKey (extendsKey is our normalized field)
+      try {
+        await db.prepare(`UPDATE ${table} SET category = ?, extendsKey = ? WHERE id = ?`).run(categoryKey, categoryKey, id);
+      } catch {
+        // If one of the columns doesn't exist in an older schema, try setting category only.
+        try {
+          await db.prepare(`UPDATE ${table} SET category = ? WHERE id = ?`).run(categoryKey, id);
+        } catch {}
+      }
+    }
+  } catch {
+    // best-effort (schema/table might not exist yet)
+  }
+}
+
 async function fetchOasfRawJson<T = any>(path: string): Promise<T> {
   const url = `${GITHUB_RAW_BASE}/${OASF_REPO}/main/${path}`;
-  const timeoutMs = Number(process.env.GITHUB_RAW_TIMEOUT_MS ?? 30_000);
+  const timeoutMs = Number(process.env.GITHUB_RAW_TIMEOUT_MS ?? 45_000);
   const res = await fetchWithRetry(url, undefined as any, {
     timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30_000,
-    retries: 4,
+    retries: 6,
     retryOnStatuses: [429, 500, 502, 503, 504],
     minBackoffMs: 750,
     maxBackoffMs: 30_000,
@@ -190,6 +230,9 @@ export async function syncOASFDomains(db: AnyDb): Promise<{ synced: number; upda
     // Check if tree has changed
     if (lastSha === tree.sha) {
       console.log('[oasf-sync] Domains tree unchanged, skipping sync');
+      // Even if the tree is unchanged, we may need to populate derived fields (category/extendsKey)
+      // from githubPath for older rows or after code changes.
+      await backfillCategoryFromGithubPath(db, 'domains');
       return { synced: 0, updated: 0, errors: 0 };
     }
     
@@ -398,6 +441,9 @@ export async function syncOASFSkills(db: AnyDb): Promise<{ synced: number; updat
     // Check if tree has changed
     if (lastSha === tree.sha) {
       console.log('[oasf-sync] Skills tree unchanged, skipping sync');
+      // Even if the tree is unchanged, we may need to populate derived fields (category/extendsKey)
+      // from githubPath for older rows or after code changes.
+      await backfillCategoryFromGithubPath(db, 'skills');
       return { synced: 0, updated: 0, errors: 0 };
     }
     

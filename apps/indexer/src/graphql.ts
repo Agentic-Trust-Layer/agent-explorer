@@ -2,7 +2,7 @@ import { createHandler } from 'graphql-http/lib/use/express';
 import { GraphQLSchema } from 'graphql';
 import { buildGraphQLSchema } from './graphql-schema';
 import express from 'express';
-import { db, formatSQLTimestamp, getCheckpoint, setCheckpoint } from './db';
+import { db, formatSQLTimestamp, getCheckpoint, setCheckpoint, ensureSchemaInitialized } from './db';
 import crypto from 'crypto';
 import { ethers } from 'ethers';
 import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
@@ -52,6 +52,9 @@ const cors = (req: express.Request, res: express.Response, next: express.NextFun
 
 // Use shared schema
 const schema = buildGraphQLSchema();
+
+// Ensure schema checks have run in local Node mode (no-op in Workers).
+await ensureSchemaInitialized();
 
 // Helper function to parse JSON fields (if still needed for indexAgent)
 function parseJsonField<T>(value: string | null | undefined): T | null {

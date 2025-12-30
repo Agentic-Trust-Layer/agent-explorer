@@ -172,6 +172,33 @@ LIMIT 200
 
 ## SPARQL: Domains (with related info)
 
+### Query: Domains only (no joins)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+
+SELECT DISTINCT
+  ?domain ?domainType ?domainId ?label ?description
+  ?extendsKey ?categoryNode
+  ?githubPath ?githubSha
+WHERE {
+  ?domain a agentictrust:Domain .
+  OPTIONAL { ?domain a ?domainType . }
+  OPTIONAL { ?domain agentictrust:oasfDomainId ?domainId . }
+  OPTIONAL { ?domain rdfs:label ?label . }
+  OPTIONAL { ?domain dcterms:description ?description . }
+  OPTIONAL { ?domain rdfs:comment ?description . }
+  OPTIONAL { ?domain agentictrust:oasfExtendsKey ?extendsKey . }
+  OPTIONAL { ?domain agentictrust:oasfCategory ?categoryNode . }
+  OPTIONAL { ?domain agentictrust:githubPath ?githubPath . }
+  OPTIONAL { ?domain agentictrust:githubSha ?githubSha . }
+}
+ORDER BY ?domainId ?domain
+LIMIT 200
+```
+
 ### Query: Domains declared on AgentDescriptors (and linked skills)
 
 ```sparql

@@ -1,0 +1,271 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix hol: <https://www.agentictrust.io/ontology/agentictrust-hol#> .
+
+hol: a owl:Ontology ;
+  dcterms:title "AgenticTrustHOLOntology" ;
+  dcterms:description "HOL (Hashgraph Online) registry extensions to AgenticTrust core ontology. Models HOL /api/v1/search registry entries as Descriptor-style entities with availability, provenance, and source registry fields." ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:versionInfo "0.1.0" ;
+  dcterms:license <https://opensource.org/license/mit/> .
+
+########
+# Classes
+########
+
+hol:HOLAgentDescriptor a owl:Class ;
+  rdfs:label "HOLAgentDescriptor" ;
+  rdfs:comment "Descriptor produced from HOL registry search results (hol.org/api/v1/search). Treat the HOL registry entry as a resolver-produced descriptor view over an agent, including source registry/protocol, endpoints, and availability signals." ;
+  rdfs:subClassOf agentictrust:AgentDescriptor ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# Linking properties (Descriptor pattern)
+########
+
+hol:hasHOLAgentDescriptor a owl:ObjectProperty ;
+  rdfs:label "hasHOLAgentDescriptor" ;
+  rdfs:comment "Convenience property linking an agentictrust:AIAgent to a hol:HOLAgentDescriptor. This is a specialization of agentictrust:hasDescriptor." ;
+  rdfs:subPropertyOf agentictrust:hasDescriptor ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range hol:HOLAgentDescriptor .
+
+########
+# HOL identifier + provenance fields
+########
+
+hol:holId a owl:DatatypeProperty ;
+  rdfs:label "holId" ;
+  rdfs:comment "HOL entry id (often the same as originalId/nativeId for some sources)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:holOriginalId a owl:DatatypeProperty ;
+  rdfs:label "holOriginalId" ;
+  rdfs:comment "HOL originalId field (the upstream id before HOL normalization)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:uaidString a owl:DatatypeProperty ;
+  rdfs:label "uaidString" ;
+  rdfs:comment "UAID-like composite identifier string emitted by HOL; typically includes registry/proto/nativeId components." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:sourceRegistry a owl:DatatypeProperty ;
+  rdfs:label "sourceRegistry" ;
+  rdfs:comment "Source registry key for the entry (e.g., agentverse, erc-8004, hol)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:sourceProtocol a owl:DatatypeProperty ;
+  rdfs:label "sourceProtocol" ;
+  rdfs:comment "Source protocol key (e.g., uagent, a2a, mcp, x402), as emitted by HOL in fields like protocols/metadataFacet/proto segments." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:nativeId a owl:DatatypeProperty ;
+  rdfs:label "nativeId" ;
+  rdfs:comment "Native id in the source registry (often embedded inside uaidString)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+########
+# Capability + protocol signals
+########
+
+hol:capabilityId a owl:DatatypeProperty ;
+  rdfs:label "capabilityId" ;
+  rdfs:comment "Capability numeric identifiers as emitted by HOL (when present). Multiple values may exist." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:integer .
+
+hol:capabilityLabel a owl:DatatypeProperty ;
+  rdfs:label "capabilityLabel" ;
+  rdfs:comment "Capability labels (e.g., text_generation) when present. Multiple values may exist." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:communicationSupported a owl:DatatypeProperty ;
+  rdfs:label "communicationSupported" ;
+  rdfs:comment "Whether HOL reports that communication is supported for the entry." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:boolean .
+
+hol:routingSupported a owl:DatatypeProperty ;
+  rdfs:label "routingSupported" ;
+  rdfs:comment "Whether HOL reports that routing is supported for the entry." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:boolean .
+
+########
+# Endpoints + raw JSON capture
+########
+
+hol:endpointsJson a owl:DatatypeProperty ;
+  rdfs:label "endpointsJson" ;
+  rdfs:comment "Raw endpoints object/array serialized as JSON (lossless capture from HOL response)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:metadataJson a owl:DatatypeProperty ;
+  rdfs:label "metadataJson" ;
+  rdfs:comment "Raw metadata object serialized as JSON (lossless capture from HOL response)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:profileJson a owl:DatatypeProperty ;
+  rdfs:label "profileJson" ;
+  rdfs:comment "Raw profile object serialized as JSON (lossless capture from HOL response)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+########
+# Common metadata fields (selected)
+########
+
+hol:adapterKey a owl:DatatypeProperty ;
+  rdfs:label "adapterKey" ;
+  rdfs:comment "Adapter identifier (e.g., agentverse-adapter) used by HOL to ingest/probe a source." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:rating a owl:DatatypeProperty ;
+  rdfs:label "rating" ;
+  rdfs:comment "Rating score if provided by HOL metadata." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:decimal .
+
+hol:totalInteractions a owl:DatatypeProperty ;
+  rdfs:label "totalInteractions" ;
+  rdfs:comment "Total interaction count if provided by HOL metadata." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:integer .
+
+hol:status a owl:DatatypeProperty ;
+  rdfs:label "status" ;
+  rdfs:comment "Status string (e.g., active/inactive/offline) as emitted by HOL metadata/probes." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:category a owl:DatatypeProperty ;
+  rdfs:label "category" ;
+  rdfs:comment "Category string as emitted by HOL metadata." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:avatarUrl a owl:DatatypeProperty ;
+  rdfs:label "avatarUrl" ;
+  rdfs:comment "Avatar/image URL (e.g., agentverse avatar) when present." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:anyURI .
+
+hol:readmeText a owl:DatatypeProperty ;
+  rdfs:label "readmeText" ;
+  rdfs:comment "Long-form README/description markdown if present in HOL metadata." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+########
+# Availability / probe signals
+########
+
+hol:availabilityStatus a owl:DatatypeProperty ;
+  rdfs:label "availabilityStatus" ;
+  rdfs:comment "Availability status emitted by HOL probe (e.g., online/offline)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:availabilityCheckedAt a owl:DatatypeProperty ;
+  rdfs:label "availabilityCheckedAt" ;
+  rdfs:comment "ISO timestamp when availability was checked." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:dateTime .
+
+hol:availabilityReason a owl:DatatypeProperty ;
+  rdfs:label "availabilityReason" ;
+  rdfs:comment "Human-readable reason for the availability classification." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:availabilitySource a owl:DatatypeProperty ;
+  rdfs:label "availabilitySource" ;
+  rdfs:comment "Probe source label (e.g., probe)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:availabilityLatencyMs a owl:DatatypeProperty ;
+  rdfs:label "availabilityLatencyMs" ;
+  rdfs:comment "Latency in milliseconds observed during availability probe." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:integer .
+
+hol:availabilityScore a owl:DatatypeProperty ;
+  rdfs:label "availabilityScore" ;
+  rdfs:comment "Availability score emitted by HOL (often 0..1 or 0..100 depending on source)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:decimal .
+
+hol:available a owl:DatatypeProperty ;
+  rdfs:label "available" ;
+  rdfs:comment "Whether HOL marks the agent as available." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:boolean .
+
+########
+# Indexing timestamps + language detection
+########
+
+hol:lastIndexed a owl:DatatypeProperty ;
+  rdfs:label "lastIndexed" ;
+  rdfs:comment "When HOL last indexed the entry." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:dateTime .
+
+hol:lastSeen a owl:DatatypeProperty ;
+  rdfs:label "lastSeen" ;
+  rdfs:comment "When HOL last observed the entry." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:dateTime .
+
+hol:detectedLanguage a owl:DatatypeProperty ;
+  rdfs:label "detectedLanguage" ;
+  rdfs:comment "Detected language label (e.g., English)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:detectedLanguageCode a owl:DatatypeProperty ;
+  rdfs:label "detectedLanguageCode" ;
+  rdfs:comment "Detected language code (e.g., en)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+hol:detectedLanguageConfidence a owl:DatatypeProperty ;
+  rdfs:label "detectedLanguageConfidence" ;
+  rdfs:comment "Confidence score for detected language (0..1)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:decimal .
+
+########
+# Trust scoring signals
+########
+
+hol:trustScore a owl:DatatypeProperty ;
+  rdfs:label "trustScore" ;
+  rdfs:comment "HOL trustScore numeric summary when present." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:decimal .
+
+hol:trustScoresJson a owl:DatatypeProperty ;
+  rdfs:label "trustScoresJson" ;
+  rdfs:comment "Raw trustScores object serialized as JSON (lossless capture from HOL response)." ;
+  rdfs:domain hol:HOLAgentDescriptor ;
+  rdfs:range xsd:string .
+
+

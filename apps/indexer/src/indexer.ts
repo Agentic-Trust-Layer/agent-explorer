@@ -1,5 +1,5 @@
 import { createPublicClient, http, webSocket, type Address, decodeEventLog } from "viem";
-import { db, getCheckpoint, setCheckpoint } from "./db";
+import { db, getCheckpoint, setCheckpoint, ensureSchemaInitialized } from "./db";
 import { RPC_WS_URL, CONFIRMATIONS, START_BLOCK, LOGS_CHUNK_SIZE, BACKFILL_MODE, ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY, GRAPHQL_POLL_MS } from "./env";
 import { ethers } from 'ethers';
 import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
@@ -10,6 +10,8 @@ import { computeAndUpsertATI } from './ati.js';
 import { trustLedgerProcessAgent } from './trust-ledger/processor.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 import { syncOASF } from './oasf-sync.js';
+import { importNandaAgentsFromEnv } from './nanda/nanda-import.js';
+import { importHolAgentsFromEnv } from './hol/hol-import.js';
 
 
 import { 
@@ -3373,6 +3375,68 @@ async function processSingleAgentId(agentId: string) {
   }
   
   // Normal indexing mode
+  // Optional: Import HOL Registry entries into the hol-indexer D1 database.
+  // Must run BEFORE ERC-8004 GraphQL backfill (transfers/tokens/etc).
+  // Disabled by default unless env vars are present; force-disable with HOL_IMPORT=0.
+  try {
+    const enabled = process.env.HOL_IMPORT !== '0';
+    const hasDbEnv =
+      !!process.env.HOL_CLOUDFLARE_ACCOUNT_ID &&
+      !!process.env.HOL_CLOUDFLARE_D1_DATABASE_ID &&
+      !!process.env.HOL_CLOUDFLARE_API_TOKEN;
+    console.info('[hol-import] preflight', { enabled, hasDbEnv });
+    if (enabled && hasDbEnv) {
+      console.info('[hol-import] starting');
+      await importHolAgentsFromEnv({
+        holBaseUrl: process.env.HOL_BASE_URL,
+        pageSize: process.env.HOL_PAGE_SIZE ? Number(process.env.HOL_PAGE_SIZE) : undefined,
+        maxPages: process.env.HOL_MAX_PAGES ? Number(process.env.HOL_MAX_PAGES) : undefined,
+        chainId: process.env.HOL_CHAIN_ID ? Number(process.env.HOL_CHAIN_ID) : undefined,
+      });
+      console.info('[hol-import] complete');
+    } else if (!enabled) {
+      console.info('[hol-import] disabled (HOL_IMPORT=0)');
+    } else {
+      console.warn('[hol-import] skipped (missing HOL_CLOUDFLARE_* env vars)');
+    }
+  } catch (e) {
+    console.warn('[hol-import] failed', e);
+  }
+
+  // Optional: Import NANDA Registry "servers" into the nanda-indexer D1 database.
+  // Must run BEFORE ERC-8004 GraphQL backfill (transfers/tokens/etc).
+  // Disabled by default unless env vars are present; force-disable with NANDA_IMPORT=0.
+  try {
+    const enabled = process.env.NANDA_IMPORT !== '0';
+    const hasDbEnv =
+      !!process.env.NANDA_CLOUDFLARE_ACCOUNT_ID &&
+      !!process.env.NANDA_CLOUDFLARE_D1_DATABASE_ID &&
+      !!process.env.NANDA_CLOUDFLARE_API_TOKEN;
+
+    console.info('[nanda-import] preflight', { enabled, hasDbEnv });
+    if (enabled && hasDbEnv) {
+      console.info('[nanda-import] starting');
+      await importNandaAgentsFromEnv({
+        nandaBaseUrl: process.env.NANDA_BASE_URL,
+        pageSize: process.env.NANDA_PAGE_SIZE ? Number(process.env.NANDA_PAGE_SIZE) : undefined,
+        maxPages: process.env.NANDA_MAX_PAGES ? Number(process.env.NANDA_MAX_PAGES) : undefined,
+        search: process.env.NANDA_SEARCH,
+        includeDetails: process.env.NANDA_INCLUDE_DETAILS === '1',
+        chainId: process.env.NANDA_CHAIN_ID ? Number(process.env.NANDA_CHAIN_ID) : undefined,
+      });
+      console.info('[nanda-import] complete abcd');
+    } else if (!enabled) {
+      console.info('[nanda-import] disabled (NANDA_IMPORT=0)');
+    } else {
+      console.warn('[nanda-import] skipped (missing NANDA_CLOUDFLARE_* env vars)');
+    }
+  } catch (e) {
+    console.warn('[nanda-import] failed', e);
+  }
+
+  // Ensure our primary D1 schema is initialized (development safety checks)
+  await ensureSchemaInitialized();
+
   // Check if database has any data - if not, reset checkpoint to 0
   try {
     const agentCount = await db.prepare('SELECT COUNT(*) as count FROM agents').get() as { count: number };
