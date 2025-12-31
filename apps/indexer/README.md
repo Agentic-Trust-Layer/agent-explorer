@@ -104,6 +104,7 @@ Optional:
 - `HOL_LOG_EACH` (`1` logs each successful upsert)
 - `HOL_REGISTRY` (optional; import only a single HOL registry source, e.g. `agentverse`)
 - `HOL_REGISTRIES` (optional; comma-separated list; if unset we default to known sources like `agentverse`, `erc-8004`, etc.)
+- `HOL_AVAILABLE_ONLY` (default enabled; set `0` to also import unavailable entries)
 - `HOL_RESUME` (default enabled; set `0` to disable resuming from the last saved page)
 - `HOL_RESET` (`1` to reset the cursor to page 1 before importing)
 - `HOL_PAGE_RETRIES` (default `6`; additional page-level retries on transient errors like 503)
@@ -118,6 +119,38 @@ From repo root:
 
 ```bash
 pnpm --filter erc8004-indexer import:hol
+```
+
+## Import Agentverse agents (direct Agentverse API)
+
+Agentverse’s UI is behind Cloudflare, but the backend API we can reach is:
+
+- `GET https://agentverse.ai/v1/agents?page=<n>&limit=<n>`
+
+**Important**: this endpoint requires authentication.
+
+Required:
+
+- `AGENTVERSE_CLOUDFLARE_ACCOUNT_ID`
+- `AGENTVERSE_CLOUDFLARE_D1_DATABASE_ID`
+- `AGENTVERSE_CLOUDFLARE_API_TOKEN`
+- `AGENTVERSE_JWT` (Bearer token accepted by Agentverse `/v1/agents`)
+
+Optional:
+
+- `AGENTVERSE_BASE_URL` (default `https://agentverse.ai`)
+- `AGENTVERSE_PAGE_SIZE` (default `100`)
+- `AGENTVERSE_MAX_PAGES` (default unlimited)
+- `AGENTVERSE_CHAIN_ID` (default `0`)
+- `AGENTVERSE_LOG_EACH` (`1` logs each successful upsert)
+- `AGENTVERSE_RESUME` (default enabled; set `0` to disable resuming)
+- `AGENTVERSE_RESET` (`1` to reset cursor to page 1)
+- `AGENTVERSE_PAGE_DELAY_MS` (default `200`)
+
+Run:
+
+```bash
+pnpm --filter erc8004-indexer import:agentverse
 ```
 
 ### Run Local GraphQL Server

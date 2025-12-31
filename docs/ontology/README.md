@@ -20,6 +20,8 @@ Ontologies provide the **formal semantic foundation** for agentic trust by:
 
 - **HOL (Hashgraph Online)**: a universal registry/index that aggregates multiple registries into one searchable dataset. See [`hashgraph-online.md`](./hashgraph-online.md) for the list of underlying sources it includes.
 - **Fetch.ai Agentverse**: execution/runtime-oriented directory and developer platform (uAgents + Agentverse). See [`fetchai-agentverse.md`](./fetchai-agentverse.md) for a registry concepts summary and how it maps into AgenticTrust.
+- **Agent registries inventory**: a working list of registries, discovery indexes, and directories: [`agent-registries.md`](./agent-registries.md).
+- **A2A Registry**: A2A agent directory + federation concepts: [`a2a-registry.md`](./a2a-registry.md) and A2A auth flow notes: [`a2a-authentication.md`](./a2a-authentication.md).
 
 ### Information Architecture Components
 

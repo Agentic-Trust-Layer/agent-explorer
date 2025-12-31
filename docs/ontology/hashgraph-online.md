@@ -19,6 +19,8 @@ HOL’s indexed agent dataset includes entries drawn from these sources:
 - `hashgraph-online`
 - `hol`
 
+Note: as of recent HOL queries, the `agentverse` slice is ~14.9k agents (e.g., 14,891–14,892 depending on filters/time).
+
 ### How this maps into AgenticTrust
 
 - **HOL entry** → imported/stored as an `agents` row (lossless raw JSON kept in `rawJson`)

@@ -65,6 +65,8 @@ async function hydrateHolEnvFromDotenvFiles(): Promise<void> {
 async function ensureHolSchema(db: AnyDb): Promise<void> {
   // Best-effort schema bootstrap for the target hol-indexer D1 database.
   // Mirrors the "erc8004-indexer" style enough for shared tooling.
+  // 1) Create base tables (do not assume we can alter existing schemas via CREATE TABLE IF NOT EXISTS).
+  // Keep this free of indexes referencing newly-added columns to avoid "no such column" errors.
   try {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS agents (
@@ -104,14 +106,47 @@ async function ensureHolSchema(db: AnyDb): Promise<void> {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
-
-      CREATE INDEX IF NOT EXISTS idx_agents_chainId ON agents(chainId);
-      CREATE INDEX IF NOT EXISTS idx_agents_agentOwner ON agents(agentOwner);
-      CREATE INDEX IF NOT EXISTS idx_agents_createdAtTime ON agents(createdAtTime);
-      CREATE INDEX IF NOT EXISTS idx_agents_agentName ON agents(agentName);
     `);
   } catch (e) {
-    console.warn('[hol-import] schema bootstrap failed', e);
+    console.warn('[hol-import] schema bootstrap failed (base tables)', e);
+  }
+
+  // 2) Best-effort forward schema upgrades for existing hol-indexer DBs.
+  // Cloudflare D1 doesn't support ADD COLUMN IF NOT EXISTS, so we attempt and ignore duplicates.
+  for (const stmt of [
+    `ALTER TABLE agents ADD COLUMN holAvailable INTEGER`,
+    `ALTER TABLE agents ADD COLUMN holRating REAL`,
+    `ALTER TABLE agents ADD COLUMN holTrustScore REAL`,
+  ]) {
+    try {
+      await db.exec(stmt);
+    } catch (e: any) {
+      const msg = String(e?.message || e).toLowerCase();
+      if (!msg.includes('duplicate') && !msg.includes('already exists')) {
+        if (process.env.DEBUG_HOL_SCHEMA === '1') {
+          console.warn('[hol-import] schema alter failed', { stmt, err: msg });
+        }
+      }
+    }
+  }
+
+  // 3) Best-effort indexes (separate statements so one failure doesn't block others).
+  for (const stmt of [
+    `CREATE INDEX IF NOT EXISTS idx_agents_chainId ON agents(chainId)`,
+    `CREATE INDEX IF NOT EXISTS idx_agents_agentOwner ON agents(agentOwner)`,
+    `CREATE INDEX IF NOT EXISTS idx_agents_createdAtTime ON agents(createdAtTime)`,
+    `CREATE INDEX IF NOT EXISTS idx_agents_agentName ON agents(agentName)`,
+    `CREATE INDEX IF NOT EXISTS idx_agents_holAvailable ON agents(holAvailable)`,
+    `CREATE INDEX IF NOT EXISTS idx_agents_holRating ON agents(holRating)`,
+  ]) {
+    try {
+      await db.exec(stmt);
+    } catch (e: any) {
+      const msg = String(e?.message || e).toLowerCase();
+      if (process.env.DEBUG_HOL_SCHEMA === '1') {
+        console.warn('[hol-import] schema index failed', { stmt, err: msg });
+      }
+    }
   }
 }
 
@@ -161,6 +196,17 @@ async function setCheckpoint(db: AnyDb, key: string, value: string): Promise<voi
   }
 }
 
+function parseHolRating(hit: HolSearchHit): number | null {
+  const md: any = hit?.metadata && typeof hit.metadata === 'object' ? hit.metadata : null;
+  const mf: any = (hit as any)?.metadataFacet && typeof (hit as any).metadataFacet === 'object' ? (hit as any).metadataFacet : null;
+
+  const raw =
+    (md && md.rating != null ? md.rating : null) ??
+    (mf && Array.isArray(mf.rating) && mf.rating.length ? mf.rating[0] : null);
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : null;
+}
+
 async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit): Promise<void> {
   const agentId = String(hit.id);
   const agentName = typeof hit.name === 'string' && hit.name.trim() ? hit.name.trim() : agentId;
@@ -168,6 +214,10 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
   // These are required by our legacy schema; use stable placeholders.
   const agentAddress = (typeof hit.uaid === 'string' && hit.uaid.trim() ? hit.uaid.trim() : `hol:${agentId}`);
   const agentOwner = (typeof hit.registry === 'string' && hit.registry.trim() ? hit.registry.trim() : 'HOL');
+
+  const holAvailable = hit.available === true ? 1 : 0;
+  const holRating = parseHolRating(hit);
+  const holTrustScore = typeof hit.trustScore === 'number' && Number.isFinite(hit.trustScore) ? hit.trustScore : null;
 
   const createdAtTime = toUnixSeconds(hit.createdAt) ?? Math.floor(Date.now() / 1000);
   const updatedAtTime = toUnixSeconds(hit.updatedAt) ?? createdAtTime;
@@ -183,6 +233,7 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
       INSERT INTO agents (
         chainId, agentId,
         agentAddress, agentOwner, agentName,
+        holAvailable, holRating, holTrustScore,
         tokenUri,
         createdAtBlock, createdAtTime,
         type, description, image,
@@ -190,11 +241,14 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
         supportedTrust, rawJson,
         updatedAtTime
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         agentAddress=excluded.agentAddress,
         agentOwner=excluded.agentOwner,
         agentName=excluded.agentName,
+        holAvailable=excluded.holAvailable,
+        holRating=excluded.holRating,
+        holTrustScore=excluded.holTrustScore,
         type=excluded.type,
         description=excluded.description,
         agentAccountEndpoint=excluded.agentAccountEndpoint,
@@ -208,6 +262,9 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
       agentAddress,
       agentOwner,
       agentName,
+      holAvailable,
+      holRating,
+      holTrustScore,
       null, // tokenUri
       0, // createdAtBlock (non-chain)
       createdAtTime,
@@ -263,6 +320,7 @@ export async function importHolAgentsIntoD1(db: AnyDb, opts?: HolImportOptions):
   const resumeEnabled = process.env.HOL_RESUME !== '0';
   const reset = process.env.HOL_RESET === '1';
   const pageRetries = Number(process.env.HOL_PAGE_RETRIES ?? 6) || 6;
+  const availableOnly = process.env.HOL_AVAILABLE_ONLY !== '0';
 
   const capability = opts?.capability || process.env.HOL_CAPABILITY;
   const trust = opts?.trust || process.env.HOL_TRUST;
@@ -342,10 +400,25 @@ export async function importHolAgentsIntoD1(db: AnyDb, opts?: HolImportOptions):
       }
 
       const hits = Array.isArray(resp.hits) ? resp.hits : [];
-      console.log('[hol-import] page', { registry, page, hits: hits.length, total: resp.total, limited: resp.limited === true });
+      const filteredHits = availableOnly ? hits.filter((h: any) => h?.available === true) : hits;
+      // Sort within the page by rating desc (best-effort). HOL API doesn't currently sort by rating server-side.
+      filteredHits.sort((a: any, b: any) => {
+        const ra = parseHolRating(a) ?? -Infinity;
+        const rb = parseHolRating(b) ?? -Infinity;
+        return rb - ra;
+      });
+      console.log('[hol-import] page', {
+        registry,
+        page,
+        hits: hits.length,
+        filtered: filteredHits.length,
+        availableOnly,
+        total: resp.total,
+        limited: resp.limited === true,
+      });
       if (!hits.length) break;
 
-      for (const hit of hits) {
+      for (const hit of filteredHits) {
         const agentId = String(hit?.id ?? '');
         const agentName = typeof hit?.name === 'string' ? hit.name : '';
         try {
