@@ -9,12 +9,12 @@ agentictrust:TrustDescription a owl:Class .
 agentictrust:TrustSituation a owl:Class .
 agentictrust:TrustAssertion a owl:Class .
 
-agentictrust:realizesDescription a owl:ObjectProperty ;
+agentictrust:hasSituationDescription a owl:ObjectProperty ;
   rdfs:domain agentictrust:TrustSituation ;
   rdfs:range agentictrust:TrustDescription .
 
-agentictrust:generatedAssertion a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustSituation ;
-  rdfs:range agentictrust:TrustAssertion .
+agentictrust:generatedSituation a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range agentictrust:TrustSituation .
 
 

@@ -42,9 +42,8 @@ This maps perfectly to DOLCE-DnS (Descriptions & Situations):
 ```owl
 agentictrust:IntentType a owl:Class ;
   rdfs:label "IntentType" ;
-  rdfs:comment "A description of why an agent capability is being invoked. Aligned with DOLCE-DnS Description. Intent explains why a skill is invoked, not how it is executed. Intent is about purpose or goal, and is contextual and ephemeral (exists at request time, not permanently). Taxonomy value used to scope discovery and select compatible skills." ;
-  rdfs:subClassOf dolce:Description ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:comment "A description of why an agent capability is being invoked. Intent explains why a skill is invoked, not how it is executed. Taxonomy value used to scope discovery and select compatible skills." ;
+  rdfs:subClassOf agentictrust:SituationDescription .
 ```
 
 **Meaning**: A description of why an agent capability is being invoked.
@@ -59,9 +58,8 @@ agentictrust:IntentType a owl:Class ;
 ```owl
 agentictrust:IntentSituation a owl:Class ;
   rdfs:label "IntentSituation" ;
-  rdfs:comment "A concrete situation in which an agent expresses or acts under a given intent. Aligned with DOLCE-DnS Situation. Useful for logging intents, validating intent fulfillment, and reasoning over outcomes vs goals." ;
-  rdfs:subClassOf dolce:Situation ;
-  rdfs:subClassOf prov:Activity .
+  rdfs:comment "A concrete epistemic situation in which an agent expresses or acts under a given intent. Modeled as a Situation (prov:Entity) and realized by Activities via agentictrust:isRealizedBy." ;
+  rdfs:subClassOf agentictrust:Situation .
 ```
 
 **Meaning**: A concrete situation in which an agent expresses or acts under a given intent.
@@ -107,8 +105,8 @@ agentictrust:isRealizedBy a owl:ObjectProperty ;
 ```owl
 agentictrust:satisfiesIntent a owl:ObjectProperty ;
   rdfs:label "satisfiesIntent" ;
-  rdfs:comment "Links a Situation (DOLCE-DnS) to an IntentType that it fulfills. This situation fulfills the intent. Aligned with DOLCE-DnS satisfaction pattern." ;
-  rdfs:domain dolce:Situation ;
+  rdfs:comment "Links a Situation to an IntentType that it fulfills (satisfaction pattern)." ;
+  rdfs:domain agentictrust:Situation ;
   rdfs:range agentictrust:IntentType .
 ```
 
@@ -140,7 +138,7 @@ class IntentType["agentictrust:IntentType"]
 class Skill["agentictrust:Skill (OASF)"]
 class IntentSituation["agentictrust:IntentSituation"]
 class Activity["prov:Activity"]
-class Situation["dolce:Situation"]
+class Situation["agentictrust:Situation"]
 
 IntentType --> Skill : targetsSkill
 Skill --> IntentType : supportsIntentType (inverse)
@@ -148,8 +146,8 @@ IntentSituation --> IntentType : satisfiesIntent
 IntentSituation --> Activity : isRealizedBy
 Situation --> IntentType : satisfiesIntent
 
-note for IntentType "DOLCE Description\nWhy a skill is invoked"
-note for IntentSituation "DOLCE Situation\nConcrete realization"
+note for IntentType "SituationDescription\nWhy a skill is invoked"
+note for IntentSituation "Situation (prov:Entity)\nEpistemic context"
 note for Skill "OASF Skill\nWhat can be done"
 ```
 
@@ -176,7 +174,7 @@ agentictrust:ValidateAgentCapabilityIntent a agentictrust:IntentType ;
 :IntentSituation123 a agentictrust:IntentSituation ;
   agentictrust:satisfiesIntent agentictrust:ValidateAgentCapabilityIntent ;
   prov:wasAssociatedWith :RequestingAgent ;
-  prov:startedAtTime "2025-03-01T10:00:00Z"^^xsd:dateTime .
+  prov:generatedAtTime "2025-03-01T10:00:00Z"^^xsd:dateTime .
 ```
 
 ### Activity that Realizes It
@@ -285,7 +283,7 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?situation ?intentType ?intentTypeLabel
 WHERE {
-  ?situation a dolce:Situation .
+  ?situation a agentictrust:Situation .
   
   OPTIONAL {
     ?situation agentictrust:satisfiesIntent ?intentType .
@@ -371,7 +369,7 @@ WHERE {
   }
   
   OPTIONAL {
-    ?reputationSituation agentictrust:generatedAssertion ?assertion .
+    ?assertion agentictrust:generatedSituation ?reputationSituation .
     ?assertion a erc8004:Feedback .
   }
 }
@@ -443,7 +441,7 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?situation ?situationType ?intentType ?intentTypeLabel ?skill ?skillId
 WHERE {
-  ?situation a dolce:Situation ;
+  ?situation a agentictrust:Situation ;
     agentictrust:satisfiesIntent ?intentType .
   
   OPTIONAL {

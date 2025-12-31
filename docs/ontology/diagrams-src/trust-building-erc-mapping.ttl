@@ -16,9 +16,9 @@ agentictrust:ReputationAssertion a owl:Class ; rdfs:subClassOf agentictrust:Trus
 agentictrust:Relationship a owl:Class .
 agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
-agentictrust:generatedAssertion a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustSituation ;
-  rdfs:range agentictrust:TrustAssertion .
+agentictrust:generatedSituation a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range agentictrust:TrustSituation .
 
 agentictrust:assertsRelationship a owl:ObjectProperty ;
   rdfs:domain agentictrust:RelationshipAssertion ;

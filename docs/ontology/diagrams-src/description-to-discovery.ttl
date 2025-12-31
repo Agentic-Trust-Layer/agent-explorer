@@ -1,5 +1,6 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
 
 agentictrust:Diagram_DescriptionToDiscovery a owl:Ontology ;
@@ -15,7 +16,7 @@ agentictrust:hadPlan a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentCardFetch ;
   rdfs:range agentictrust:TrustDescription .
 
-agentictrust:generatedAssertion a owl:ObjectProperty ;
+prov:generated a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentCardFetch ;
   rdfs:range agentictrust:AgentDescriptor .
 

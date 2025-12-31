@@ -17,8 +17,8 @@ class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 
 TrustDescription --|> provPlan
-TrustSituation --|> provActivity
-TrustAssertion --|> provEntity
+TrustSituation --|> provEntity
+TrustAssertion --|> provActivity
 ```
 
 ### Relationship diagram (alias properties)
@@ -35,8 +35,8 @@ class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 
-TrustSituation --> TrustDescription : realizesDescription (⊑ prov:hadPlan)
-TrustSituation --> TrustAssertion : generatedAssertion (⊑ prov:generated)
+TrustSituation --> TrustDescription : hasSituationDescription
+TrustAssertion --> TrustSituation : generatedSituation (⊑ prov:generated)
 TrustAssertion --> provEntity : aboutSubject
 ```
 
@@ -54,15 +54,8 @@ We ground trust and execution in PROV so:
 ### Core correspondences
 
 - **`agentictrust:TrustDescription`** ⊑ `prov:Plan` and `p-plan:Plan`
-- **`agentictrust:TrustSituation`** ⊑ `prov:Activity`
-- **`agentictrust:TrustAssertion`** ⊑ `prov:Entity`
-
-### Convenience properties (AgenticTrust)
-
-These mirror PROV relations but are named for the trust model:
-
-- `agentictrust:realizesDescription` ⊑ `prov:hadPlan`
-- `agentictrust:generatedAssertion` ⊑ `prov:generated`
+- **`agentictrust:TrustSituation`** ⊑ `prov:Entity`
+- **`agentictrust:TrustAssertion`** ⊑ `prov:Activity`
 
 ### Common provenance patterns in this repo
 

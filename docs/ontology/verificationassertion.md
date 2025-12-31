@@ -45,8 +45,8 @@ ValidationResponse --> ValidationRequest : validationRespondsToRequest (erc8004)
 ValidationResponse --> provAgent : validatorAgentForResponse (erc8004)
 ValidationResponse --> IntentCheck : validationTagCheck (erc8004)
 
-TrustSituation --> VerificationAssertion : generatedAssertion (agentictrust)
-ValidationRequest --> ValidationResponse : generatedAssertion (agentictrust)
+VerificationAssertion --> TrustSituation : generatedSituation (agentictrust)
+ValidationResponse --> ValidationRequest : assertsSituation (agentictrust)
 ```
 
 ### Core Properties
@@ -66,8 +66,8 @@ ValidationRequest --> ValidationResponse : generatedAssertion (agentictrust)
 - **`erc8004:validationRespondsToRequest`** (domain: `erc8004:ValidationResponse`, range: `erc8004:ValidationRequest`)
   - Links a validation response to the request it responds to
 
-- **`agentictrust:generatedAssertion`** (domain: `agentictrust:TrustSituation`, range: `agentictrust:TrustAssertion`)
-  - Links a trust situation (validation request) to the assertion it generates
+- **`agentictrust:generatedSituation`** (domain: `agentictrust:SituationAssertion`, range: `agentictrust:Situation`)
+  - Links an asserting act (validation response) to the situation entity it records/produces
   - Subproperty of `prov:generated`
 
 #### Validator Links

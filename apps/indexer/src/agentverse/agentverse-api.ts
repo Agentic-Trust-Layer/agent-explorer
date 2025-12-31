@@ -9,6 +9,7 @@ export type AgentversePage<T> = {
   agents?: T[];
   count?: number;
   total?: number;
+  offset?: number;
   next?: string | null;
   previous?: string | null;
   page?: number;
@@ -66,6 +67,55 @@ export async function fetchAgentverseAgentsPage(opts: {
   if (process.env.DEBUG_AGENTVERSE_API === '1') {
     const keys = Object.keys(json).slice(0, 50);
     console.info('[agentverse-api] /v1/agents keys', { page: opts.page, limit: opts.limit, keys });
+  }
+  return json as AgentversePage<AgentverseAgent>;
+}
+
+export async function fetchAgentverseSearchAgentsPage(opts: {
+  baseUrl?: string; // default https://agentverse.ai
+  offset: number;
+  limit: number;
+  sort?: string;
+  direction?: 'asc' | 'desc';
+}): Promise<AgentversePage<AgentverseAgent>> {
+  const baseUrl = (opts.baseUrl || process.env.AGENTVERSE_BASE_URL || 'https://agentverse.ai').trim();
+  const url = joinUrl(baseUrl, '/v1/search/agents');
+  const body = {
+    filters: {},
+    sort: opts.sort,
+    direction: opts.direction,
+    offset: opts.offset,
+    limit: opts.limit,
+  };
+
+  const res = await fetchWithRetry(
+    url,
+    {
+      method: 'POST',
+      headers: { ...buildHeaders(), 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    {
+      timeoutMs: Number(process.env.AGENTVERSE_HTTP_TIMEOUT_MS ?? 45_000) || 45_000,
+      retries: Number(process.env.AGENTVERSE_HTTP_RETRIES ?? 6) || 6,
+      retryOnStatuses: [429, 500, 502, 503, 504],
+      minBackoffMs: 750,
+      maxBackoffMs: 30_000,
+    },
+  );
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Agentverse API error ${res.status}: ${text || res.statusText}`);
+  }
+
+  const json: any = await res.json();
+  if (!json || typeof json !== 'object') {
+    throw new Error('Agentverse API returned unexpected shape for /v1/search/agents');
+  }
+  if (process.env.DEBUG_AGENTVERSE_API === '1') {
+    const keys = Object.keys(json).slice(0, 50);
+    console.info('[agentverse-api] /v1/search/agents keys', { offset: opts.offset, limit: opts.limit, keys });
   }
   return json as AgentversePage<AgentverseAgent>;
 }

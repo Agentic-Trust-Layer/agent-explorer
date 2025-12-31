@@ -33,13 +33,13 @@ agentictrust:RelationshipAssertion a owl:Class ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
 ### Core edges (trust graph overlay)
-agentictrust:realizesDescription a owl:ObjectProperty ;
+agentictrust:hasSituationDescription a owl:ObjectProperty ;
   rdfs:domain agentictrust:TrustSituation ;
   rdfs:range agentictrust:TrustDescription .
 
-agentictrust:generatedAssertion a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustSituation ;
-  rdfs:range agentictrust:TrustAssertion .
+agentictrust:generatedSituation a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertion ;
+  rdfs:range agentictrust:TrustSituation .
 
 agentictrust:aboutSubject a owl:ObjectProperty ;
   rdfs:domain agentictrust:TrustAssertion ;

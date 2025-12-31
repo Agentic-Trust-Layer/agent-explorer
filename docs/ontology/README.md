@@ -30,7 +30,7 @@ The Agentic Trust information architecture integrates four complementary layers:
 #### 1. **Ontology** (Formal Knowledge Model)
 - **Purpose**: Defines classes, properties, and logical relationships with formal semantics
 - **Technology**: OWL 2, RDFS, SPARQL
-- **Example**: `agentictrust:TrustAssertion` is a class with properties `assertsRelationship`, `aboutSubject`, `generatedAssertion`
+- **Example**: `agentictrust:TrustAssertion` is a class with properties `assertsRelationship`, `aboutSubject`, `generatedSituation`
 - **Characteristics**: Machine-interpretable, supports reasoning, enables inference
 
 #### 2. **Taxonomy** (Classification System)

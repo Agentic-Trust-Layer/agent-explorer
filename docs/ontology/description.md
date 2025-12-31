@@ -141,7 +141,7 @@ WHERE {
 
 ### Key relation
 
-- **TrustSituation → TrustDescription**: `agentictrust:realizesDescription`
+- **TrustSituation → TrustDescription**: `agentictrust:hasSituationDescription`
 
 ### Agent discovery metadata (core)
 

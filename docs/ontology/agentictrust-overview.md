@@ -39,8 +39,8 @@ By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituat
 ### Core trust model (DnS + PROV-O + P-PLAN)
 
 - **TrustDescription**: normative “what/why” (subclass of `prov:Plan` and `p-plan:Plan`)
-- **TrustSituation**: time-scoped realization (subclass of `prov:Activity`)
-- **TrustAssertion**: durable claim (subclass of `prov:Entity`)
+- **TrustSituation**: epistemic/social object (“what is being claimed to hold”) (subclass of `prov:Entity`)
+- **TrustAssertion**: asserting act (“who asserted what, when”) (subclass of `prov:Activity`)
 - **Relationship**: persistent relationship instance (subclass of `prov:Entity`)
 - **RelationshipAssertion**: constitutive assertion about a `Relationship` (subclass of `TrustAssertion`)
 
@@ -64,15 +64,15 @@ class RelationshipAssertion["agentictrust:RelationshipAssertion"]
 
 TrustDescription --|> provPlan
 TrustDescription --|> pplanPlan
-TrustSituation --|> provActivity
-TrustAssertion --|> provEntity
+TrustSituation --|> provEntity
+TrustAssertion --|> provActivity
 VerificationAssertion --|> TrustAssertion
 ReputationAssertion --|> TrustAssertion
 Relationship --|> provEntity
 RelationshipAssertion --|> TrustAssertion
 
-TrustSituation --> TrustDescription : realizesDescription
-TrustSituation --> TrustAssertion : generatedAssertion
+TrustSituation --> TrustDescription : hasSituationDescription
+TrustAssertion --> TrustSituation : generatedSituation
 TrustAssertion --> provEntity : aboutSubject
 RelationshipAssertion --> Relationship : assertsRelationship
 TrustAssertion --> Relationship : qualifiesRelationship

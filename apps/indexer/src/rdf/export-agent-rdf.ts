@@ -1202,14 +1202,18 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     chunks.push(`${ai} erc8004:hasFeedback ${fi} .\n`);
 
     const lines: string[] = [];
-    lines.push(`${fi} a erc8004:Feedback, agentictrust:ReputationAssertion, prov:Entity ;`);
+    // Feedback is a trust assertion act (Activity) in the Situation/SituationAssertion model.
+    lines.push(`${fi} a erc8004:Feedback, agentictrust:ReputationAssertion, prov:Activity ;`);
     lines.push(`  erc8004:feedbackIndex ${feedbackIndex} ;`);
     
     // Create ReputationSituation and link to Feedback
     const repSituationIri = situationIri(chainId, agentId, 'reputation', `${client}:${feedbackIndex}`, meta?.didIdentity);
-    chunks.push(`${repSituationIri} a agentictrust:ReputationSituation, agentictrust:TrustSituation, prov:Activity ;`);
-    chunks.push(`  agentictrust:generatedAssertion ${fi} ;`);
+    // Situation is an epistemic object (prov:Entity); the Feedback itself is the asserting activity.
+    chunks.push(`${repSituationIri} a agentictrust:ReputationSituation, agentictrust:TrustSituation, prov:Entity ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
+    chunks.push(`  .\n`);
+    chunks.push(`${fi} agentictrust:assertsSituation ${repSituationIri} ;`);
+    chunks.push(`  agentictrust:generatedSituation ${repSituationIri} ;`);
     chunks.push(`  .\n`);
     if (client) {
       ensureAccountNode(chunks, chainId, client, 'EOA'); // Feedback client is typically EOA
@@ -1326,7 +1330,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const ai = agentIri(chainId, agentId, meta?.didIdentity);
     chunks.push(`${ai} erc8004:hasFeedback ${ri} .\n`);
     const lines: string[] = [];
-    lines.push(`${ri} a erc8004:FeedbackResponse, agentictrust:ReputationAssertion, prov:Entity ;`);
+    lines.push(`${ri} a erc8004:FeedbackResponse, agentictrust:ReputationAssertion, prov:Activity ;`);
     if (r?.responseJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(r.responseJson))} ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
@@ -1349,7 +1353,8 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const vi = validationRequestIri(chainId, id);
     // No direct agent link for requests; link agent via ValidationResponse using agentictrust:hasValidation.
     const lines: string[] = [];
-    lines.push(`${vi} a erc8004:ValidationRequest, agentictrust:TrustSituation, agentictrust:VerificationSituation, prov:Activity ;`);
+    // ValidationRequest is the situation object (Entity) being asserted/answered by later responses.
+    lines.push(`${vi} a erc8004:ValidationRequest, agentictrust:TrustSituation, agentictrust:VerificationSituation, prov:Entity ;`);
     const validator = normalizeHex(v?.validatorAddress);
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);
@@ -1453,7 +1458,8 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     const ai = agentIri(chainId, agentId, meta?.didIdentity);
     chunks.push(`${ai} erc8004:hasValidation ${vi} .\n`);
     const lines: string[] = [];
-    lines.push(`${vi} a erc8004:ValidationResponse, agentictrust:VerificationAssertion, prov:Entity ;`);
+    // ValidationResponse is the trust assertion act (Activity).
+    lines.push(`${vi} a erc8004:ValidationResponse, agentictrust:VerificationAssertion, prov:Activity ;`);
     lines.push(`  erc8004:validationChainIdForResponse ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentIdForResponse "${escapeTurtleString(agentId)}" ;`);
     if (typeof v?.response === 'number' || typeof v?.response === 'string') lines.push(`  erc8004:validationResponseValue ${Number(v.response) || 0} ;`);
@@ -1465,7 +1471,10 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
       const reqIri = requestByHash.get(`${chainId}|${reqHash}`);
       if (reqIri) {
         lines.push(`  erc8004:validationRespondsToRequest ${reqIri} ;`);
-        chunks.push(`${reqIri} agentictrust:generatedAssertion ${vi} .\n`);
+        // ValidationResponse (assertion act) asserts the VerificationSituation (the request record),
+        // and may be treated as generating the recorded situation in our PROV-native DnS pattern.
+        chunks.push(`${vi} agentictrust:assertsSituation ${reqIri} .\n`);
+        chunks.push(`${vi} agentictrust:generatedSituation ${reqIri} .\n`);
       }
     }
     const validator = normalizeHex(v?.validatorAddress);

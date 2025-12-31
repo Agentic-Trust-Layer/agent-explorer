@@ -19,6 +19,8 @@ function parseNum(value: string | undefined): number | undefined {
     hasDatabaseId: Boolean(process.env.AGENTVERSE_CLOUDFLARE_D1_DATABASE_ID),
     hasApiToken: Boolean(process.env.AGENTVERSE_CLOUDFLARE_API_TOKEN),
     hasJwt: Boolean(process.env.AGENTVERSE_JWT),
+    sort: process.env.AGENTVERSE_SORT,
+    direction: process.env.AGENTVERSE_DIRECTION,
   });
   const result = await importAgentverseAgentsFromEnv({
     holBaseUrl: process.env.HOL_BASE_URL,
@@ -29,6 +31,8 @@ function parseNum(value: string | undefined): number | undefined {
     reset: parseBool(process.env.AGENTVERSE_RESET),
     availableOnly: process.env.AGENTVERSE_AVAILABLE_ONLY !== '0',
     logEach: parseBool(process.env.AGENTVERSE_LOG_EACH),
+    sort: (process.env.AGENTVERSE_SORT || undefined) as any,
+    direction: (process.env.AGENTVERSE_DIRECTION || undefined) as any,
   });
   console.log('[agentverse-import] complete', result);
 })().catch((e) => {

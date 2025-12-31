@@ -2,7 +2,11 @@
 
 Ontology: `agentictrust-core.owl`
 
-“Situation” is where things **happen**: a time-scoped event/execution that realizes a description/plan and produces durable outputs (assertions, artifacts).
+In this ontology, **Situation is not an event**.
+
+- `agentictrust:Situation` (and `agentictrust:TrustSituation`) is a **prov:Entity**: an epistemic/social object (“what is being claimed to hold”).
+- `agentictrust:SituationAssertion` (and `agentictrust:TrustAssertion`) is a **prov:Activity**: the time-scoped act of asserting a situation.
+- Execution/work still “happens” in PROV Activities like `TaskExecution`, `SkillInvocation`, `MessageSend`, etc.
 
 ### Class hierarchy (key)
 
@@ -13,6 +17,8 @@ direction LR
 class provActivity["prov:Activity"]
 class provEntity["prov:Entity"]
 
+class Situation["agentictrust:Situation"]
+class SituationAssertion["agentictrust:SituationAssertion"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 class TrustArtifact["agentictrust:TrustArtifact"]
@@ -22,13 +28,15 @@ class SkillInvocation["agentictrust:SkillInvocation"]
 class MessageSend["agentictrust:MessageSend"]
 class MessageReceive["agentictrust:MessageReceive"]
 
-TrustSituation --|> provActivity
+Situation --|> provEntity
+SituationAssertion --|> provActivity
+TrustSituation --|> Situation
+TrustAssertion --|> SituationAssertion
 TaskExecution --|> provActivity
 SkillInvocation --|> provActivity
 MessageSend --|> provActivity
 MessageReceive --|> provActivity
 
-TrustAssertion --|> provEntity
 TrustArtifact --|> provEntity
 ```
 
@@ -47,8 +55,8 @@ class Skill["agentictrust:Skill"]
 class Message["agentictrust:Message"]
 class Artifact["agentictrust:Artifact"]
 
-TrustSituation --> TrustDescription : realizesDescription
-TrustSituation --> TrustAssertion : generatedAssertion
+TrustSituation --> TrustDescription : hasSituationDescription
+TrustAssertion --> TrustSituation : generatedSituation
 
 TaskExecution --> SkillInvocation : hasInvocation
 SkillInvocation --> Skill : invokesSkill
@@ -58,19 +66,19 @@ TaskExecution --> Artifact : producedArtifact
 
 ### SPARQL Queries (demonstrating property relationships)
 
-**Query TrustSituation with TrustDescription and TrustAssertion:**
+**Query TrustAssertion (activity) with TrustDescription and asserted TrustSituation (entity):**
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
-SELECT ?trustSituation ?trustDescription ?trustAssertion
+SELECT ?trustAssertion ?trustSituation ?trustDescription
 WHERE {
-  ?trustSituation a agentictrust:TrustSituation .
+  ?trustAssertion a agentictrust:TrustAssertion .
   
   OPTIONAL {
-    ?trustSituation agentictrust:realizesDescription ?trustDescription .
+    ?trustAssertion agentictrust:generatedSituation ?trustSituation .
   }
   OPTIONAL {
-    ?trustSituation agentictrust:generatedAssertion ?trustAssertion .
+    ?trustSituation agentictrust:hasSituationDescription ?trustDescription .
   }
 }
 ```

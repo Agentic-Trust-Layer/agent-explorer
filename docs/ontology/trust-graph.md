@@ -21,8 +21,8 @@ class Relationship["agentictrust:Relationship"]
 class RelationshipAssertion["agentictrust:RelationshipAssertion"]
 
 TrustDescription --|> provPlan
-TrustSituation --|> provActivity
-TrustAssertion --|> provEntity
+TrustSituation --|> provEntity
+TrustAssertion --|> provActivity
 
 VerificationAssertion --|> TrustAssertion
 ReputationAssertion --|> TrustAssertion
@@ -45,8 +45,9 @@ class TrustAssertion["agentictrust:TrustAssertion"]
 class Relationship["agentictrust:Relationship"]
 class RelationshipAssertion["agentictrust:RelationshipAssertion"]
 
-TrustSituation --> TrustDescription : realizesDescription
-TrustSituation --> TrustAssertion : generatedAssertion
+TrustSituation --> TrustDescription : hasSituationDescription
+TrustSituation --> TrustDescription : hasSituationDescription
+TrustAssertion --> TrustSituation : generatedSituation
 TrustAssertion --> provEntity : aboutSubject
 RelationshipAssertion --> Relationship : assertsRelationship
 TrustAssertion --> Relationship : qualifiesRelationship
