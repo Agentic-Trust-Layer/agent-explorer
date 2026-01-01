@@ -1646,7 +1646,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const lines: string[] = [];
     // Create RelationshipSituation and link to Relationship
     const relSituationIri = situationIri(chainId, associationId, 'relationship', relationshipId, undefined);
-    chunks.push(`${relSituationIri} a agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Activity ;`);
+    chunks.push(`${relSituationIri} a agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Entity ;`);
     chunks.push(`  agentictrust:aboutSubject ${relIri} ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);
     chunks.push(`  .\n`);
@@ -1675,9 +1675,11 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     chunks.push(`${relContent}\n`);
 
     // Relationship assertion (ERC-8092 association row) - ERC8092AccountRelationshipAssertion
-    lines.push(`${raIri} a agentictrust:RelationshipAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:RelationshipAssertionERC8092, erc8092:AccountRelationshipAssertionERC8092, prov:Entity ;`);
+    lines.push(`${raIri} a agentictrust:RelationshipAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:RelationshipAssertionERC8092, erc8092:AccountRelationshipAssertionERC8092, prov:Activity ;`);
     lines.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(associationId)}" ;`);
     lines.push(`  agentictrust:assertsRelationship ${relIri} ;`);
+    // The relationship situation exists independently as an epistemic object; this assertion asserts it.
+    lines.push(`  agentictrust:assertsSituation ${relSituationIri} ;`);
     lines.push(`  agentictrust:aboutSubject ${relIri} ;`);
     if (initiator) {
       // initiator/approver reference agentAccount, not eoaOwner
@@ -1776,7 +1778,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
       if (!rid) continue;
       const rr: string[] = [];
       const rIri = relationshipRevocationAssertionIri(chainId, rid);
-      rr.push(`${rIri} a erc8092:RelationshipRevocationAssertion, prov:Entity ;`);
+      rr.push(`${rIri} a erc8092:RelationshipRevocationAssertion, prov:Activity ;`);
       rr.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(rid)}" ;`);
       rr.push(`  agentictrust:assertsRelationship ${relIri} ;`);
       rr.push(`  agentictrust:aboutSubject ${relIri} ;`);

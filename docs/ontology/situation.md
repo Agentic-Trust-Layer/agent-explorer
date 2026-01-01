@@ -7,7 +7,7 @@ In this ontology, **Situation is not an event**.
 - `agentictrust:TrustSituation` is a **prov:Entity**: “what is being claimed to hold”.
 - `agentictrust:TrustAssertion` is a **prov:Activity**: the time-scoped act of asserting that situation.
 
-### TrustSituation hierarchy (prov:Entity)
+### Situation hierarchy (prov:Entity)
 
 ```mermaid
 classDiagram
@@ -27,9 +27,9 @@ ReputationSituation --|> TrustSituation
 VerificationSituation --|> TrustSituation
 ```
 
-### SPARQL: TrustSituation hierarchy + instances
+### SPARQL: Situation hierarchy + instances
 
-**List subclasses of `agentictrust:TrustSituation`:**
+**List subclasses of `agentictrust:Situation`:**
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -37,12 +37,12 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?cls
 WHERE {
-  ?cls rdfs:subClassOf* agentictrust:TrustSituation .
+  ?cls rdfs:subClassOf* agentictrust:Situation .
 }
 ORDER BY ?cls
 ```
 
-**List instances (any subtype of TrustSituation):**
+**List instances (any subtype of Situation):**
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
@@ -51,13 +51,13 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 SELECT ?situation ?type
 WHERE {
   ?situation a ?type .
-  ?type rdfs:subClassOf* agentictrust:TrustSituation .
+  ?type rdfs:subClassOf* agentictrust:Situation .
 }
 ORDER BY ?type ?situation
 LIMIT 200
 ```
 
-### TrustAssertion hierarchy (prov:Activity)
+### SituationAssertion hierarchy (prov:Activity)
 
 ```mermaid
 classDiagram
@@ -103,7 +103,7 @@ WHERE {
   ?assertion a ?assertionType .
   ?assertionType rdfs:subClassOf* agentictrust:TrustAssertion .
   OPTIONAL {
-    ?assertion agentictrust:generatedSituation ?situation .
+    ?assertion agentictrust:assertsSituation ?situation .
     OPTIONAL { ?situation a ?situationType . }
   }
 }
@@ -156,7 +156,7 @@ class provAgent["prov:Agent"]
 
 AIAgent --> ValidationResponse : hasValidation
 ValidationResponse --> ValidationRequest : validationRespondsToRequest
-ValidationResponse --> ValidationRequest : generatedSituation
+ValidationResponse --> ValidationRequest : assertsSituation
 ValidationResponse --> provAgent : validatorAgentForResponse
 ```
 
@@ -170,10 +170,68 @@ SELECT ?agent ?response ?request ?validator
 WHERE {
   ?agent erc8004:hasValidation ?response .
   OPTIONAL { ?response erc8004:validationRespondsToRequest ?request . }
-  OPTIONAL { ?response agentictrust:generatedSituation ?request . }
+  OPTIONAL { ?response agentictrust:assertsSituation ?request . }
   OPTIONAL { ?response erc8004:validatorAgentForResponse ?validator . }
 }
 ORDER BY ?agent ?response
+LIMIT 200
+```
+
+### ERC-8092 relationship flow
+
+Ontology: `ERC8092.owl`
+
+```mermaid
+classDiagram
+direction LR
+
+class Account["agentictrustEth:Account"]
+class Relationship["erc8092:RelationshipERC8092"]
+class RelationshipAssertion["erc8092:RelationshipAssertionERC8092"]
+class RelationshipAccount["erc8092:RelationshipAccount"]
+class RelationshipSituation["agentictrust:RelationshipSituation"]
+class RelationshipRevocation["erc8092:RelationshipRevocationAssertion"]
+
+Account --> RelationshipAssertion : erc8092:hasRelationshipAssertion
+RelationshipAssertion --> Relationship : agentictrust:assertsRelationship
+RelationshipAssertion --> RelationshipSituation : agentictrust:assertsSituation
+RelationshipSituation --> Relationship : agentictrust:aboutSubject
+
+Relationship --> RelationshipAccount : agentictrust:hasRelationshipAccount
+Account --> RelationshipAccount : erc8092:ownsRelationshipAccount
+
+RelationshipRevocation --> RelationshipAssertion : erc8092:revocationOfRelationshipAssertion
+```
+
+**SPARQL: relationship assertions → relationship + participants**
+
+```sparql
+PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?rel ?assertion ?initiator ?approver
+WHERE {
+  ?assertion a erc8092:RelationshipAssertionERC8092 .
+  OPTIONAL { ?assertion agentictrust:assertsRelationship ?rel . }
+  OPTIONAL { ?assertion erc8092:initiator ?initiator . }
+  OPTIONAL { ?assertion erc8092:approver ?approver . }
+}
+ORDER BY ?rel ?assertion
+LIMIT 200
+```
+
+**SPARQL: relationship revocations**
+
+```sparql
+PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+
+SELECT ?revocation ?ofAssertion ?revokedAt
+WHERE {
+  ?revocation a erc8092:RelationshipRevocationAssertion .
+  OPTIONAL { ?revocation erc8092:revocationOfRelationshipAssertion ?ofAssertion . }
+  OPTIONAL { ?ofAssertion erc8092:revokedAt ?revokedAt . }
+}
+ORDER BY DESC(?revokedAt)
 LIMIT 200
 ```
 
