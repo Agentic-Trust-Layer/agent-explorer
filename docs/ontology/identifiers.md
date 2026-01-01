@@ -1,13 +1,13 @@
 # Agent Identifiers and Identity Relationships
 
-This document describes the complete agent identity model: how agents relate to identifiers (Account, ENSName, 8004Identity), identifiers to DIDs, and how Descriptors provide resolved metadata views.
+This document describes the complete agent identity model: how agents relate to identifiers (Account, NameENS, 8004Identity), identifiers to DIDs, and how Descriptors provide resolved metadata views.
 
 ## Overview
 
 The AgenticTrust ontology uses a layered identity model that separates:
 - **Agents** (the software agent entities)
-- **Identifiers** (stable identity anchors: Account, ENSName, 8004IdentityIdentifier)
-- **Names** (human-readable names: ENSName)
+- **Identifiers** (stable identity anchors: Account, NameIdentifierENS, IdentityIdentifier8004)
+- **Names** (human-readable names: NameENS)
 - **DIDs** (decentralized identifiers for each identifier)
 - **Descriptors** (resolver-produced, normalized metadata views)
 
@@ -15,17 +15,17 @@ The AgenticTrust ontology uses a layered identity model that separates:
 
 ```
 Agent (prov:Agent)
-  ├─ hasIdentifier → Identifier (agentictrustEth:AccountIdentifier, agentictrustEth:ENSNameIdentifier, erc8004:8004IdentityIdentifier)
+  ├─ hasIdentifier → Identifier (agentictrustEth:AccountIdentifier, agentictrustEth:NameIdentifierENS, erc8004:IdentityIdentifier8004)
   │   └─ hasDID → DID
-  ├─ erc8004:has8004Identity → erc8004:8004Identity
-  │   ├─ hasIdentifier → erc8004:8004IdentityIdentifier
-  │   └─ hasDescriptor → erc8004:8004IdentityDescriptor
-  ├─ agentictrustEth:hasENSName → agentictrustEth:ENSName
-  │   ├─ hasIdentifier → agentictrustEth:ENSNameIdentifier
-  │   └─ hasDescriptor → agentictrustEth:ENSNameDescriptor
+  ├─ agentictrust:hasIdentity → erc8004:8004Identity
+  │   ├─ hasIdentifier → erc8004:IdentityIdentifier8004
+  │   └─ hasDescriptor → erc8004:IdentityDescriptor8004
+  ├─ agentictrust:hasName → agentictrustEth:NameENS
+  │   ├─ hasIdentifier → agentictrustEth:NameIdentifierENS
+  │   └─ hasDescriptor → agentictrustEth:NameDescriptorENS
   ├─ agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier
   │   └─ agentictrustEth:hasDID → agentictrust:DID
-  └─ hasAgentDescriptor → AgentDescriptor
+  └─ hasDescription / hasAgentDescriptor → AgentDescriptor
       └─ hasDescriptor → AgentDescriptor
 
 Account (agentictrustEth:Account, subclass of prov:SoftwareAgent)
@@ -55,10 +55,10 @@ classDiagram
     }
     class OperatorIdentifier {
     }
-    class Identity8004Identifier {
+    class IdentityIdentifier8004 {
         <<erc8004>>
     }
-    class ENSNameIdentifier {
+    class NameIdentifierENS {
         <<agentictrustEth>>
     }
     class AccountIdentifier {
@@ -70,21 +70,21 @@ classDiagram
     class Name {
         <<abstract>>
     }
-    class ENSName {
+    class NameENS {
         <<agentictrustEth>>
     }
     class Identity8004 {
     }
     
     Identifier <|-- UniversalIdentifier
-    Identifier <|-- ENSNameIdentifier
+    Identifier <|-- NameIdentifierENS
     Identifier <|-- AccountIdentifier
-    UniversalIdentifier <|-- Identity8004Identifier
+    UniversalIdentifier <|-- IdentityIdentifier8004
     DecentralizedIdentifier <|-- DID
     DecentralizedIdentifier <|-- OperatorIdentifier
-    Name <|-- ENSName
+    Name <|-- NameENS
     
-    note for Identity8004Identifier "erc8004:8004IdentityIdentifier"
+    note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004"
     note for Identity8004 "erc8004:8004Identity"
 ```
 
@@ -97,19 +97,19 @@ classDiagram
     class Identifier {
         identifierType
     }
-    class Identity8004Identifier {
+    class IdentityIdentifier8004 {
         <<erc8004>>
     }
     class AccountIdentifier {
         <<agentictrustEth>>
     }
-    class ENSNameIdentifier {
+    class NameIdentifierENS {
         <<agentictrustEth>>
     }
     class Account {
         <<agentictrustEth>>
     }
-    class ENSName {
+    class NameENS {
         <<agentictrustEth>>
     }
     class Identity8004 {
@@ -123,15 +123,15 @@ classDiagram
     }
     
     AIAgent --> Identifier : hasIdentifier
-    AIAgent --> Identity8004 : has8004Identity
-    AIAgent --> ENSName : hasENSName
+    AIAgent --> Identity8004 : hasIdentity
+    AIAgent --> NameENS : hasName
     AIAgent --> AccountIdentifier : hasAccountIdentifier
-    AIAgent --> Identity8004Identifier : hasIdentifier
-    AIAgent --> ENSNameIdentifier : hasIdentifier
+    AIAgent --> IdentityIdentifier8004 : hasIdentifier
+    AIAgent --> NameIdentifierENS : hasIdentifier
     AIAgent --> AccountIdentifier : hasIdentifier
     
-    Identity8004 --> Identity8004Identifier : hasIdentifier
-    ENSName --> ENSNameIdentifier : hasIdentifier
+    Identity8004 --> IdentityIdentifier8004 : hasIdentifier
+    NameENS --> NameIdentifierENS : hasIdentifier
     AccountIdentifier --> Account : hasAccount
     
     Identifier --> DID : hasDID
@@ -139,13 +139,13 @@ classDiagram
     
     note for Identifier "identifierType values:\n- erc8004:IdentifierType_8004\n- agentictrustEth:IdentifierType_account\n- agentictrustEth:IdentifierType_ens"
     note for DID "identifies points to\nIdentifier, not Agent"
-    note for Identity8004 "erc8004:has8004Identity\nerc8004:8004Identity"
-    note for Identity8004Identifier "erc8004:8004IdentityIdentifier"
-    note for ENSName "agentictrustEth:hasENSName"
+    note for Identity8004 "agentictrust:hasIdentity\nerc8004:8004Identity"
+    note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004"
+    note for NameENS "agentictrust:hasName"
     note for AccountIdentifier "agentictrustEth:hasAccountIdentifier\n(inverse) ^agentictrustEth:hasIdentifier"
 ```
 
-## Focused diagrams (Account, ENSName, 8004Identity)
+## Focused diagrams (Account, NameENS, 8004Identity)
 
 ### Agent ↔ AccountIdentifier ↔ Account (eth)
 
@@ -165,43 +165,43 @@ classDiagram
     note for Account "agentictrustEth:Account\nSubclass of prov:SoftwareAgent\nInherits hasIdentifier from prov:Agent\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
 ```
 
-### Agent ↔ ENSNameIdentifier ↔ ENSName (+ DID) (eth)
+### Agent ↔ NameIdentifierENS ↔ NameENS (+ DID) (eth)
 
 ```mermaid
 classDiagram
     class AIAgent
-    class ENSName
-    class ENSNameIdentifier
+    class NameENS
+    class NameIdentifierENS
     class DID
     
-    AIAgent --> ENSNameIdentifier : hasIdentifier
-    ENSName --> ENSNameIdentifier : hasIdentifier
-    ENSNameIdentifier --> DID : hasDID
+    AIAgent --> NameIdentifierENS : hasIdentifier
+    NameENS --> NameIdentifierENS : hasIdentifier
+    NameIdentifierENS --> DID : hasDID
     
-    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience link to Name: agentictrustEth:hasENSName"
-    note for ENSName "agentictrustEth:ENSName\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
-    note for ENSNameIdentifier "agentictrustEth:ENSNameIdentifier\nagentictrustEth:IdentifierType_ens"
+    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience link to Name: agentictrust:hasName"
+    note for NameENS "agentictrustEth:NameENS\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
+    note for NameIdentifierENS "agentictrustEth:NameIdentifierENS\nagentictrustEth:IdentifierType_ens"
 ```
 
-### Agent ↔ 8004IdentityIdentifier ↔ 8004Identity (+ DID) (erc8004)
+### Agent ↔ IdentityIdentifier8004 ↔ 8004Identity (+ DID) (erc8004)
 
 ```mermaid
 classDiagram
     class AIAgent
     class Identity8004
-    class Identity8004Identifier
+    class IdentityIdentifier8004
     class DID
     
-    AIAgent --> Identity8004Identifier : hasIdentifier
-    Identity8004 --> Identity8004Identifier : hasIdentifier
-    Identity8004Identifier --> DID : hasDID
+    AIAgent --> IdentityIdentifier8004 : hasIdentifier
+    Identity8004 --> IdentityIdentifier8004 : hasIdentifier
+    IdentityIdentifier8004 --> DID : hasDID
     
-    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nERC-specific identity bundle: erc8004:has8004Identity"
+    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nERC identity bundle: agentictrust:hasIdentity"
     note for Identity8004 "erc8004:8004Identity"
-    note for Identity8004Identifier "erc8004:8004IdentityIdentifier\nerc8004:IdentifierType_8004"
+    note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004\nerc8004:IdentifierType_8004"
 ```
 
-## SPARQL script (Account, ENSName, 8004Identity → Agent)
+## SPARQL script (Account, NameENS, 8004Identity → Agent)
 
 The complete script is in: `docs/ontology/sparql/identifiers-account-ens-8004.sparql`
 
@@ -228,7 +228,7 @@ WHERE {
 ORDER BY ?agentId
 ```
 
-### Agent → ENSNameIdentifier → ENSName (+ DID)
+### Agent → NameIdentifierENS → NameENS (+ DID)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -241,12 +241,12 @@ WHERE {
   OPTIONAL { ?agent agentictrust:agentId ?agentId . }
 
   ?agent agentictrust:hasIdentifier ?ensIdentifier .
-  ?ensIdentifier a agentictrustEth:ENSNameIdentifier .
+  ?ensIdentifier a agentictrustEth:NameIdentifierENS .
   OPTIONAL { ?ensIdentifier rdfs:label ?ensNameValue . }
   OPTIONAL { ?ensIdentifier agentictrust:hasDID ?did . }
 
   OPTIONAL {
-    ?ensName a agentictrustEth:ENSName ;
+    ?ensName a agentictrustEth:NameENS ;
       agentictrustEth:hasIdentifier ?ensIdentifier .
     OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
   }
@@ -254,7 +254,7 @@ WHERE {
 ORDER BY ?agentId
 ```
 
-### Agent → 8004IdentityIdentifier → 8004Identity (+ DID)
+### Agent → IdentityIdentifier8004 → 8004Identity (+ DID)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -266,7 +266,7 @@ WHERE {
   OPTIONAL { ?agent agentictrust:agentId ?agentId . }
 
   ?agent agentictrust:hasIdentifier ?identityIdentifier .
-  ?identityIdentifier a erc8004:8004IdentityIdentifier .
+  ?identityIdentifier a erc8004:IdentityIdentifier8004 .
   OPTIONAL { ?identityIdentifier agentictrust:hasDID ?did . }
 
   OPTIONAL {
@@ -300,13 +300,13 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent agentictrustEth:hasENSName ?ensName .
+    ?agent agentictrust:hasName ?ensName .
     OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
     OPTIONAL { ?ensName agentictrustEth:hasIdentifier ?ensIdentifier . }
   }
 
   OPTIONAL {
-    ?agent erc8004:has8004Identity ?identity8004 .
+    ?agent agentictrust:hasIdentity ?identity8004 .
     OPTIONAL { ?identity8004 agentictrust:hasIdentifier ?identityIdentifier . }
   }
 }
@@ -325,7 +325,7 @@ classDiagram
     }
     class Identity8004 {
     }
-    class ENSName {
+    class NameENS {
         <<agentictrustEth>>
     }
     class Account {
@@ -339,35 +339,35 @@ classDiagram
     class IdentifierDescriptor {
         <<abstract>>
     }
-    class Identity8004Descriptor {
+    class IdentityDescriptor8004 {
     }
-    class ENSNameDescriptor {
+    class NameDescriptorENS {
     }
     class AccountDescriptor {
     }
     
     AIAgent --> AgentDescriptor : hasAgentDescriptor
-    AIAgent --> AgentDescriptor : hasDescriptor
+    AIAgent --> AgentDescriptor : hasDescription
     Identifier --> IdentifierDescriptor : hasDescriptor
-    Identity8004 --> Identity8004Descriptor : hasDescriptor
-    ENSName --> ENSNameDescriptor : hasDescriptor
+    Identity8004 --> IdentityDescriptor8004 : hasDescriptor
+    NameENS --> NameDescriptorENS : hasDescriptor
     Account --> AccountDescriptor : hasDescriptor
     
-    note for Identity8004Descriptor "erc8004:8004IdentityDescriptor"
-    note for ENSNameDescriptor "agentictrustEth:ENSNameDescriptor"
+    note for IdentityDescriptor8004 "erc8004:IdentityDescriptor8004"
+    note for NameDescriptorENS "agentictrustEth:NameDescriptorENS"
     note for AccountDescriptor "agentictrustEth:AccountDescriptor"
     note for AIAgent "agentictrust:hasAgentDescriptor\nagentictrust:hasDescriptor"
     
     Descriptor <|-- AgentDescriptor
     Descriptor <|-- IdentifierDescriptor
-    IdentifierDescriptor <|-- Identity8004Descriptor
-    IdentifierDescriptor <|-- ENSNameDescriptor
+    IdentifierDescriptor <|-- IdentityDescriptor8004
+    IdentifierDescriptor <|-- NameDescriptorENS
     IdentifierDescriptor <|-- AccountDescriptor
 ```
 
 ## Identifier Types
 
-### 1. 8004IdentityIdentifier (agentictrust-core.owl)
+### 1. IdentityIdentifier8004 (ERC8004.owl)
 
 **Purpose**: ERC-8004 agent identity identifier representing the agent's on-chain identity in the ERC-8004 registry.
 
@@ -378,14 +378,14 @@ classDiagram
 - `hasDID`: Links to `did:8004:...` DID
 
 **Access Pattern**:
-- Direct: `Agent → hasIdentifier → 8004IdentityIdentifier`
-- Via 8004Identity: `Agent → has8004Identity → 8004Identity → hasIdentifier → 8004IdentityIdentifier`
+- Direct: `Agent → hasIdentifier → IdentityIdentifier8004`
+- Via 8004Identity: `Agent → hasIdentity → 8004Identity → hasIdentifier → IdentityIdentifier8004`
 
 **Example**:
 ```turtle
 <https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1>
   a agentictrust:AIAgent ;
-  erc8004:has8004Identity <https://www.agentictrust.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1> ;
+  agentictrust:hasIdentity <https://www.agentictrust.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1> ;
   agentictrust:hasIdentifier <https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
 
 <https://www.agentictrust.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1>
@@ -393,7 +393,7 @@ classDiagram
   agentictrust:hasIdentifier <https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
 
 <https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1>
-  a erc8004:8004IdentityIdentifier,
+  a erc8004:IdentityIdentifier8004,
     agentictrust:UniversalIdentifier,
     agentictrust:Identifier,
     prov:Entity ;
@@ -401,7 +401,7 @@ classDiagram
   agentictrust:hasDID <https://www.agentictrust.io/id/did/did%3A8004%3A84532%3A1> .
 ```
 
-### 2. ENSNameIdentifier (agentictrust-eth.owl)
+### 2. NameIdentifierENS (agentictrust-eth.owl)
 
 **Purpose**: ENS (Ethereum Name Service) name identifier. Represents a human-readable ENS name (e.g., `agent.eth`) that resolves to an Ethereum address.
 
@@ -415,24 +415,24 @@ classDiagram
 - `rdfs:label`: The ENS name (e.g., `agent.eth`)
 
 **Access Pattern**:
-- Direct: `Agent → hasIdentifier → agentictrustEth:ENSNameIdentifier`
-- Via ENSName: `Agent → agentictrustEth:hasENSName → agentictrustEth:ENSName → agentictrustEth:hasIdentifier → agentictrustEth:ENSNameIdentifier`
+- Direct: `Agent → hasIdentifier → agentictrustEth:NameIdentifierENS`
+- Via NameENS: `Agent → hasName → agentictrustEth:NameENS → agentictrustEth:hasIdentifier → agentictrustEth:NameIdentifierENS`
 
 **Example**:
 ```turtle
 <https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1811>
   a agentictrust:AIAgent ;
-  agentictrustEth:hasENSName <https://www.agentictrust.io/id/ens-name/84532/levi.agnt.eth> ;
+  agentictrust:hasName <https://www.agentictrust.io/id/ens-name/84532/levi.agnt.eth> ;
   agentictrust:hasIdentifier <https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth> .
 
 <https://www.agentictrust.io/id/ens-name/84532/levi.agnt.eth>
-  a agentictrustEth:ENSName, agentictrust:Name, prov:Entity ;
+  a agentictrustEth:NameENS, agentictrust:Name, prov:Entity ;
   agentictrustEth:ensName "levi.agnt.eth" ;
   agentictrustEth:ensChainId 84532 ;
   agentictrustEth:hasIdentifier <https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth> .
 
 <https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth>
-  a agentictrustEth:ENSNameIdentifier,
+  a agentictrustEth:NameIdentifierENS,
     agentictrust:Identifier,
     prov:Entity ;
   agentictrust:identifierType agentictrustEth:IdentifierType_ens ;
@@ -577,13 +577,13 @@ WHERE {
     agentictrust:agentId ?agentId .
   
   {
-    # Direct identifiers via hasIdentifier (AccountIdentifier, ENSNameIdentifier, 8004IdentityIdentifier)
+    # Direct identifiers via hasIdentifier (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004)
     ?agent agentictrust:hasIdentifier ?identifier .
   }
   UNION
   {
     # Identifiers via 8004Identity
-    ?agent erc8004:has8004Identity ?identity .
+    ?agent agentictrust:hasIdentity ?identity .
     ?identity agentictrust:hasIdentifier ?identifier .
   }
   
@@ -591,8 +591,8 @@ WHERE {
   
   # Extract identifier value based on type
   OPTIONAL {
-    # For ENSNameIdentifier, get the label (the ENS name)
-    ?identifier a agentictrustEth:ENSNameIdentifier ;
+    # For NameIdentifierENS, get the label (the ENS name)
+    ?identifier a agentictrustEth:NameIdentifierENS ;
       rdfs:label ?identifierValue .
   }
   OPTIONAL {
@@ -601,7 +601,7 @@ WHERE {
     ?account agentictrustEth:accountAddress ?identifierValue .
   }
   OPTIONAL {
-    # For 8004IdentityIdentifier, get the DID string
+    # For IdentityIdentifier8004, get the DID string
     ?identifier agentictrust:hasDID ?didNode .
     BIND(STR(?didNode) AS ?identifierValue)
   }
@@ -614,7 +614,7 @@ WHERE {
 ORDER BY ?agentId ?identifierType
 ```
 
-### Get Agent with Account, ENSName, and 8004Identity
+### Get Agent with Account, NameENS, and 8004Identity
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -633,18 +633,18 @@ WHERE {
     ?account agentictrustEth:accountAddress ?accountAddress .
   }
   
-  # ENSName
+  # NameENS
   OPTIONAL {
-    ?agent agentictrustEth:hasENSName ?ensName .
-    ?ensName a agentictrustEth:ENSName ;
+    ?agent agentictrust:hasName ?ensName .
+    ?ensName a agentictrustEth:NameENS ;
       agentictrustEth:ensName ?ensNameValue .
   }
   
   # 8004Identity
   OPTIONAL {
-    ?agent erc8004:has8004Identity ?identity .
+    ?agent agentictrust:hasIdentity ?identity .
     ?identity agentictrust:hasIdentifier ?identityIdentifier .
-    ?identityIdentifier a erc8004:8004IdentityIdentifier .
+    ?identityIdentifier a erc8004:IdentityIdentifier8004 .
   }
 }
 ```
@@ -673,18 +673,18 @@ WHERE {
     ?accountDescriptor a agentictrustEth:AccountDescriptor .
   }
   
-  # ENSNameDescriptor
+  # NameDescriptorENS
   OPTIONAL {
-    ?agent agentictrustEth:hasENSName ?ensName .
+    ?agent agentictrust:hasName ?ensName .
     ?ensName agentictrust:hasDescriptor ?ensNameDescriptor .
-    ?ensNameDescriptor a agentictrustEth:ENSNameDescriptor .
+    ?ensNameDescriptor a agentictrustEth:NameDescriptorENS .
   }
   
-  # 8004IdentityDescriptor
+  # IdentityDescriptor8004
   OPTIONAL {
-    ?agent erc8004:has8004Identity ?identity .
+    ?agent agentictrust:hasIdentity ?identity .
     ?identity agentictrust:hasDescriptor ?identityDescriptor .
-    ?identityDescriptor a erc8004:8004IdentityDescriptor .
+    ?identityDescriptor a erc8004:IdentityDescriptor8004 .
   }
 }
 ```
@@ -716,15 +716,15 @@ ORDER BY DESC(?count)
 
 5. **No Direct Agent-DID Link**: Agents never link directly to DIDs. All DID access goes through the identifier relationship: `Agent → hasIdentifier → Identifier → hasDID → DID`.
 
-6. **Descriptor Pattern**: All entities (Agent, Identifier, 8004Identity, Account, ENSName) can have Descriptors that provide normalized, resolver-produced metadata views.
+6. **Descriptor Pattern**: All entities (Agent, Identifier, 8004Identity, Account, NameENS) can have Descriptors that provide normalized, resolver-produced metadata views.
 
 7. **Separation of Identity Layers**: 
    - `Account` is an entity (the actual on-chain account)
    - `AccountIdentifier` is an identifier (the identity anchor)
-   - `ENSName` is an entity (the name resource)
-   - `ENSNameIdentifier` is an identifier (the identity anchor)
+   - `NameENS` is an entity (the name resource)
+   - `NameIdentifierENS` is an identifier (the identity anchor)
    - `8004Identity` is an entity (the ERC-8004 identity)
-   - `8004IdentityIdentifier` is an identifier (the identity anchor)
+   - `IdentityIdentifier8004` is an identifier (the identity anchor)
 
 ## Related Documentation
 

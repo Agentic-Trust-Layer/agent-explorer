@@ -14,7 +14,7 @@ Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
    - `agentictrust:AIAgent` - AI agents that need to be discovered
    - `agentictrustEth:Account` - Ethereum accounts that need to be discovered
    - `agentictrust:Protocol` - Communication protocols (A2A, MCP) that need to be discovered
-   - `agentictrust:Identifier` - Identifiers (AccountIdentifier, ENSNameIdentifier, etc.) that need to be discovered
+   - `agentictrust:Identifier` - Identifiers (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004, etc.) that need to be discovered
 
 2. **Resolvers Process Raw Data**
    - Resolvers fetch and aggregate metadata from multiple sources (on-chain registries, IPFS, agent cards, protocol endpoints)
@@ -27,7 +27,7 @@ Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
    - `agentictrust:IdentifierDescriptor` - Resolved metadata about an Identifier (bindings, verification methods)
    - `agentictrust:IdentityDescriptor` - Resolved metadata about an Identity (core, not protocol-specific)
    - `agentictrust:NameDescriptor` - Resolved metadata about a Name (core, not protocol-specific)
-   - Protocol-specific descriptors: `agentictrustEth:AccountDescriptor`, `agentictrustEth:ENSNameDescriptor`, `erc8004:8004IdentityDescriptor`
+   - Protocol-specific descriptors: `agentictrustEth:AccountDescriptor`, `agentictrustEth:NameDescriptorENS`, `erc8004:IdentityDescriptor8004`
 
 4. **Descriptors Enable Discovery**
    - Descriptors contain the normalized, assembled view used for discovery, validation, and interaction
@@ -67,9 +67,9 @@ class ProtocolDescriptor["agentictrust:ProtocolDescriptor"]
 class IdentifierDescriptor["agentictrust:IdentifierDescriptor"]
 class IdentityDescriptor["agentictrust:IdentityDescriptor"]
 class NameDescriptor["agentictrust:NameDescriptor"]
-class Identity8004Descriptor["erc8004:8004IdentityDescriptor"]
+class Identity8004Descriptor["erc8004:IdentityDescriptor8004"]
 class NANDAIdentityDescriptor["NANDAIdentityDescriptor"]
-class ENSNameDescriptor["agentictrustEth:ENSNameDescriptor"]
+class NameDescriptorENS["agentictrustEth:NameDescriptorENS"]
 class DNSNameDescriptor["DNSNameDescriptor"]
 
 class Skill["agentictrust:Skill"]
@@ -85,7 +85,7 @@ Identity --> IdentityDescriptor : hasDescriptor
 Name --> NameDescriptor : hasDescriptor
 Identity8004 --> Identity8004Descriptor : hasDescriptor
 NANDAIdentity --> NANDAIdentityDescriptor : hasDescriptor
-ENSName --> ENSNameDescriptor : hasDescriptor
+NameENS --> NameDescriptorENS : hasDescriptor
 DNSName --> DNSNameDescriptor : hasDescriptor
 
 AgentDescriptor --> Skill : hasSkill / declaresSkill

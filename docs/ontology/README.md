@@ -86,7 +86,7 @@ The Agentic Trust information architecture integrates four complementary layers:
 
 Examples of DID anchoring by ecosystem/registry:
 - **Ethereum accounts**: commonly anchored in `did:ethr` (e.g., an `agentictrustEth:AccountIdentifier` may have `agentictrustEth:hasDID` → a `agentictrust:DID` like `did:ethr:...`).
-- **ERC-8004 identities**: anchored in `did:8004:chainId:agentId` (represented as `erc8004:8004IdentityIdentifier`, and also linkable via `agentictrust:hasIdentifier`).
+- **ERC-8004 identities**: anchored in `did:8004:chainId:agentId` (represented as `erc8004:IdentityIdentifier8004`, and also linkable via `agentictrust:hasIdentifier`).
 - **DNS / web-based identities**: commonly anchored in `did:web` (and other web/DNS-adjacent DID methods), aligning with name resolution and web PKI.
 
 Key idea: **Identifier** is the abstract model; **DID** is one concrete identifier family whose methods let you align different agent registries with different resolution/verification assumptions, without changing the core trust graph semantics.

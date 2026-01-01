@@ -11,24 +11,81 @@ async function tryExec(db: AnyDb, sql: string): Promise<void> {
   }
 }
 
-async function ensureAgentverseSchema(db: AnyDb): Promise<void> {
+function normalizeNameKey(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const s = value.trim().toLowerCase();
+  if (!s) return null;
+  return s.replace(/\s+/g, ' ');
+}
+
+async function backfillInternalIds(db: AnyDb): Promise<void> {
+  try {
+    const maxRow = await db.prepare('SELECT COALESCE(MAX(internalId), 0) AS maxId FROM agents').get();
+    let next = Number((maxRow as any)?.maxId ?? 0) || 0;
+    const res = await db
+      .prepare('SELECT chainId, agentId FROM agents WHERE internalId IS NULL ORDER BY createdAtTime ASC, agentId ASC')
+      .all();
+    const rows = (res as any)?.results || (res as any)?.rows || [];
+    for (const r of rows) {
+      const chainId = Number((r as any)?.chainId ?? 0) || 0;
+      const agentId = String((r as any)?.agentId ?? '');
+      if (!agentId) continue;
+      next += 1;
+      await db.prepare('UPDATE agents SET internalId = ? WHERE chainId = ? AND agentId = ? AND internalId IS NULL').run(next, chainId, agentId);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export async function ensureAgentverseSchema(db: AnyDb): Promise<void> {
   try {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS agents (
+        internalId INTEGER,
         chainId INTEGER NOT NULL,
         agentId TEXT NOT NULL,
         agentAddress TEXT NOT NULL,
         agentOwner TEXT NOT NULL,
         agentName TEXT NOT NULL,
+        nameNorm TEXT,
+        isDuplicate INTEGER,
+        duplicateOfInternalId INTEGER,
+        duplicateReason TEXT,
+        crossrefHolInternalId INTEGER,
         tokenUri TEXT,
         createdAtBlock INTEGER NOT NULL,
         createdAtTime INTEGER NOT NULL,
+        agentCreatedAtTime INTEGER,
         type TEXT,
         description TEXT,
         image TEXT,
         a2aEndpoint TEXT,
         ensEndpoint TEXT,
         agentAccountEndpoint TEXT,
+        primaryEndpoint TEXT,
+        customEndpoint TEXT,
+        prefix TEXT,
+        detectedLanguage TEXT,
+        version TEXT,
+        alias TEXT,
+        displayName TEXT,
+        bio TEXT,
+        rating REAL,
+        totalInteractions INTEGER,
+        availabilityScore REAL,
+        availabilityLatencyMs INTEGER,
+        availabilityStatus TEXT,
+        availabilityCheckedAt INTEGER,
+        availabilityReason TEXT,
+        availabilitySource TEXT,
+        available INTEGER,
+        trustScore REAL,
+        aiagentCreator TEXT,
+        aiagentModel TEXT,
+        oasfSkillsJson TEXT,
+        capabilityLabelsJson TEXT,
+        protocolsJson TEXT,
         agentCardJson TEXT,
         agentCardReadAt INTEGER,
         supportedTrust TEXT,
@@ -59,10 +116,47 @@ async function ensureAgentverseSchema(db: AnyDb): Promise<void> {
   }
 
   // Best-effort schema upgrades for existing DBs.
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN internalId INTEGER;`);
   await tryExec(db, `ALTER TABLE agents ADD COLUMN agentverseRating REAL;`);
   await tryExec(db, `ALTER TABLE agents ADD COLUMN agentverseInteractions INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN nameNorm TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN isDuplicate INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN duplicateOfInternalId INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN duplicateReason TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN crossrefHolInternalId INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN agentCreatedAtTime INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN primaryEndpoint TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN customEndpoint TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN prefix TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN detectedLanguage TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN version TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN alias TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN displayName TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN bio TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN rating REAL;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN totalInteractions INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN availabilityScore REAL;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN availabilityLatencyMs INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN availabilityStatus TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN availabilityCheckedAt INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN availabilityReason TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN availabilitySource TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN available INTEGER;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN trustScore REAL;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN aiagentCreator TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN aiagentModel TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN oasfSkillsJson TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN capabilityLabelsJson TEXT;`);
+  await tryExec(db, `ALTER TABLE agents ADD COLUMN protocolsJson TEXT;`);
+
+  await tryExec(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_agents_internalId ON agents(internalId);`);
+  await tryExec(db, `CREATE INDEX IF NOT EXISTS idx_agents_nameNorm ON agents(nameNorm);`);
+  await tryExec(db, `CREATE INDEX IF NOT EXISTS idx_agents_isDuplicate ON agents(isDuplicate);`);
+  await tryExec(db, `CREATE INDEX IF NOT EXISTS idx_agents_crossrefHolInternalId ON agents(crossrefHolInternalId);`);
   await tryExec(db, `CREATE INDEX IF NOT EXISTS idx_agents_agentverseRating ON agents(agentverseRating);`);
   await tryExec(db, `CREATE INDEX IF NOT EXISTS idx_agents_agentverseInteractions ON agents(agentverseInteractions);`);
+
+  await backfillInternalIds(db);
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -142,6 +236,33 @@ async function upsertAgentFromAgentverse(db: AnyDb, chainId: number, row: Agentv
   const agentverseRating = extractNumber(a, ['rating', 'average_rating', 'avg_rating']);
   const agentverseInteractions = extractNumber(a, ['total_interactions', 'interactions', 'interaction_count']);
 
+  const available = a?.available === true ? 1 : a?.available === false ? 0 : null;
+  const trustScore = extractNumber(a, ['trust_score', 'trustScore']);
+  const prefix = extractString(a, ['prefix']) || extractString(a?.profile, ['prefix']);
+  const detectedLanguage = extractString(a, ['language', 'detected_language']) || extractString(a?.profile, ['language']);
+  const version = extractString(a, ['version']) || extractString(a?.profile, ['version']);
+  const alias = extractString(a, ['alias']) || extractString(a?.profile, ['alias']) || agentId;
+  const displayName = extractString(a, ['display_name', 'name']) || extractString(a?.profile, ['display_name', 'name']) || agentName;
+  const bio = extractString(a, ['bio', 'description']) || extractString(a?.profile, ['bio', 'description']) || description;
+  const rating = extractNumber(a, ['rating']) ?? agentverseRating;
+  const totalInteractions = extractNumber(a, ['total_interactions']) ?? agentverseInteractions;
+  const availabilityScore = extractNumber(a, ['availability_score']);
+  const availabilityLatencyMs = extractNumber(a, ['availability_latency_ms', 'availabilityLatencyMs']);
+  const availabilityStatus = extractString(a, ['availability_status', 'availabilityStatus']);
+  const availabilityCheckedAt = parseTimeSeconds(extractString(a, ['availability_checked_at', 'availabilityCheckedAt']));
+  const availabilityReason = extractString(a, ['availability_reason', 'availabilityReason']);
+  const availabilitySource = extractString(a, ['availability_source', 'availabilitySource']);
+  const primaryEndpoint =
+    extractString(a, ['primary_endpoint', 'endpoint', 'url']) || extractString(a?.profile, ['primary_endpoint', 'endpoint', 'url']);
+  const customEndpoint = extractString(a, ['custom_endpoint']) || extractString(a?.profile, ['custom_endpoint']);
+  const aiagentCreator = extractString(a, ['creator']) || extractString(a?.profile, ['creator']);
+  const aiagentModel = extractString(a, ['model']) || extractString(a?.profile, ['model']);
+  const oasfSkillsJson = Array.isArray(a?.oasfSkills || a?.oasf_skills) ? JSON.stringify(a.oasfSkills || a.oasf_skills) : null;
+  const capabilityLabelsJson = Array.isArray(a?.capabilityLabels || a?.capability_labels)
+    ? JSON.stringify(a.capabilityLabels || a.capability_labels)
+    : null;
+  const protocolsJson = Array.isArray(a?.protocols) ? JSON.stringify(a.protocols) : null;
+
   const createdAtTime =
     parseTimeSeconds(a?.created_at) ??
     parseTimeSeconds(a?.createdAt) ??
@@ -159,29 +280,90 @@ async function upsertAgentFromAgentverse(db: AnyDb, chainId: number, row: Agentv
     createdAtTime;
 
   const rawJson = JSON.stringify(row);
+  const nameNorm = normalizeNameKey(displayName || agentName || agentId);
 
   await db
     .prepare(
       `
       INSERT INTO agents (
+        internalId,
         chainId, agentId,
+        nameNorm, isDuplicate, duplicateOfInternalId, duplicateReason,
+        crossrefHolInternalId,
         agentAddress, agentOwner, agentName,
         tokenUri,
         createdAtBlock, createdAtTime,
+        agentCreatedAtTime,
         type, description, image,
         a2aEndpoint, ensEndpoint, agentAccountEndpoint,
+        primaryEndpoint, customEndpoint,
+        prefix, detectedLanguage, version,
+        alias, displayName, bio,
+        rating, totalInteractions,
+        availabilityScore, availabilityLatencyMs, availabilityStatus,
+        availabilityCheckedAt, availabilityReason, availabilitySource,
+        available, trustScore,
+        aiagentCreator, aiagentModel,
+        oasfSkillsJson, capabilityLabelsJson, protocolsJson,
         supportedTrust, rawJson,
         agentverseRating, agentverseInteractions,
         updatedAtTime
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (
+        (SELECT COALESCE(MAX(internalId), 0) + 1 FROM agents),
+        ?, ?,
+        ?, 0, NULL, NULL,
+        NULL,
+        ?, ?, ?,
+        ?,
+        ?, ?,
+        ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?,
+        ?, ?, ?,
+        ?, ?, ?,
+        ?, ?,
+        ?, ?,
+        ?, ?, ?,
+        ?, ?,
+        ?, ?,
+        ?
+      )
       ON CONFLICT(chainId, agentId) DO UPDATE SET
+        nameNorm=excluded.nameNorm,
         agentAddress=excluded.agentAddress,
         agentOwner=excluded.agentOwner,
         agentName=excluded.agentName,
+        agentCreatedAtTime=excluded.agentCreatedAtTime,
         type=excluded.type,
         description=excluded.description,
         image=excluded.image,
+        primaryEndpoint=excluded.primaryEndpoint,
+        customEndpoint=excluded.customEndpoint,
+        prefix=excluded.prefix,
+        detectedLanguage=excluded.detectedLanguage,
+        version=excluded.version,
+        alias=excluded.alias,
+        displayName=excluded.displayName,
+        bio=excluded.bio,
+        rating=excluded.rating,
+        totalInteractions=excluded.totalInteractions,
+        availabilityScore=excluded.availabilityScore,
+        availabilityLatencyMs=excluded.availabilityLatencyMs,
+        availabilityStatus=excluded.availabilityStatus,
+        availabilityCheckedAt=excluded.availabilityCheckedAt,
+        availabilityReason=excluded.availabilityReason,
+        availabilitySource=excluded.availabilitySource,
+        available=excluded.available,
+        trustScore=excluded.trustScore,
+        aiagentCreator=excluded.aiagentCreator,
+        aiagentModel=excluded.aiagentModel,
+        oasfSkillsJson=excluded.oasfSkillsJson,
+        capabilityLabelsJson=excluded.capabilityLabelsJson,
+        protocolsJson=excluded.protocolsJson,
         agentverseRating=excluded.agentverseRating,
         agentverseInteractions=excluded.agentverseInteractions,
         rawJson=excluded.rawJson,
@@ -191,11 +373,13 @@ async function upsertAgentFromAgentverse(db: AnyDb, chainId: number, row: Agentv
     .run(
       chainId,
       agentId,
+      nameNorm,
       agentId, // agentAddress placeholder
       'agentverse',
       agentName,
       null,
       0,
+      createdAtTime,
       createdAtTime,
       'AGENTVERSE',
       description || null,
@@ -203,6 +387,29 @@ async function upsertAgentFromAgentverse(db: AnyDb, chainId: number, row: Agentv
       null,
       null,
       null,
+      primaryEndpoint || null,
+      customEndpoint || null,
+      prefix || null,
+      detectedLanguage || null,
+      version || null,
+      alias || null,
+      displayName || null,
+      bio || null,
+      rating ?? null,
+      totalInteractions ?? null,
+      availabilityScore ?? null,
+      availabilityLatencyMs ?? null,
+      availabilityStatus || null,
+      availabilityCheckedAt ?? null,
+      availabilityReason || null,
+      availabilitySource || null,
+      available ?? null,
+      trustScore ?? null,
+      aiagentCreator || null,
+      aiagentModel || null,
+      oasfSkillsJson,
+      capabilityLabelsJson,
+      protocolsJson,
       null,
       rawJson,
       agentverseRating ?? null,

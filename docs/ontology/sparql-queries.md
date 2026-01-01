@@ -57,7 +57,7 @@ WHERE {
 
 ## Agents with Identifiers
 
-### Get All Identifiers for an Agent (8004IdentityIdentifier, AccountIdentifier, ENSNameIdentifier)
+### Get All Identifiers for an Agent (IdentityIdentifier8004, AccountIdentifier, NameIdentifierENS)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -72,13 +72,13 @@ WHERE {
   
   {
     # Direct identifiers via hasIdentifier
-    # This includes: AccountIdentifier, ENSNameIdentifier (direct link), 8004IdentityIdentifier
+    # This includes: AccountIdentifier, NameIdentifierENS (direct link), IdentityIdentifier8004
     ?agent agentictrust:hasIdentifier ?identifier .
   }
   UNION
   {
-    # Identifiers via 8004Identity → hasIdentifier → 8004IdentityIdentifier
-    ?agent erc8004:has8004Identity ?identity .
+    # Identifiers via 8004Identity → hasIdentifier → IdentityIdentifier8004
+    ?agent agentictrust:hasIdentity ?identity .
     ?identity agentictrust:hasIdentifier ?identifier .
   }
   
@@ -87,8 +87,8 @@ WHERE {
   
   # Extract identifier value based on type (use UNION to avoid conflicts)
   {
-    # For ENSNameIdentifier, get the label (the ENS name, e.g., "agent.eth")
-    ?identifier a agentictrustEth:ENSNameIdentifier ;
+    # For NameIdentifierENS, get the label (the ENS name, e.g., "agent.eth")
+    ?identifier a agentictrustEth:NameIdentifierENS ;
       rdfs:label ?identifierValue .
   }
   UNION
@@ -101,8 +101,8 @@ WHERE {
   }
   UNION
   {
-    # For 8004IdentityIdentifier, extract the DID value from the DID IRI
-    ?identifier a erc8004:8004IdentityIdentifier ;
+    # For IdentityIdentifier8004, extract the DID value from the DID IRI
+    ?identifier a erc8004:IdentityIdentifier8004 ;
       agentictrust:hasDID ?didNode .
     # Extract the DID value from the IRI (e.g., from https://www.agentictrust.io/id/did/did%3A8004%3A84532%3A1)
     # URL decode %3A to :

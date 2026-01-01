@@ -35,10 +35,10 @@ agentictrust:Descriptor
   ├─ agentictrust:IdentifierDescriptor
   │    └─ agentictrustEth:AccountDescriptor (in agentictrust-eth.owl)
   ├─ agentictrust:IdentityDescriptor
-  │    ├─ erc8004:8004IdentityDescriptor (in ERC8004.owl)
+  │    ├─ erc8004:IdentityDescriptor8004 (in ERC8004.owl)
   │    └─ NANDAIdentityDescriptor (in NANDA.owl)
   └─ agentictrust:NameDescriptor
-       ├─ agentictrustEth:ENSNameDescriptor (in agentictrust-eth.owl)
+       ├─ agentictrustEth:NameDescriptorENS (in agentictrust-eth.owl)
        └─ DNSNameDescriptor (in agentictrust-dns.owl)
 
 Property relationships (high level)
@@ -54,9 +54,9 @@ Things that can be described:
 Protocol specializations:
 
   agentictrustEth:Account      ── agentictrust:hasDescriptor ──▶ agentictrustEth:AccountDescriptor (in agentictrust-eth.owl)
-  erc8004:8004Identity         ── agentictrust:hasDescriptor ──▶ erc8004:8004IdentityDescriptor (in ERC8004.owl)
+  erc8004:8004Identity         ── agentictrust:hasDescriptor ──▶ erc8004:IdentityDescriptor8004 (in ERC8004.owl)
   NANDAIdentity                ── agentictrust:hasDescriptor ──▶ NANDAIdentityDescriptor (in NANDA.owl)
-  agentictrustEth:ENSName      ── agentictrust:hasDescriptor ──▶ agentictrustEth:ENSNameDescriptor (in agentictrust-eth.owl)
+  agentictrustEth:NameENS      ── agentictrust:hasDescriptor ──▶ agentictrustEth:NameDescriptorENS (in agentictrust-eth.owl)
   DNSName                       ── agentictrust:hasDescriptor ──▶ DNSNameDescriptor (in agentictrust-dns.owl)
 
 Resolver workflow (typical)
@@ -196,7 +196,7 @@ agentictrust:Identity a owl:Class ;
 
 agentictrust:Name a owl:Class ;
   rdfs:label "Name" ;
-  rdfs:comment "Abstract name for an agent. Protocol-specific realizations include ENS Name (agentictrustEth:ENSName), DNS names, etc. An agent may have zero or more Names. Modeled as prov:Entity. For Ethereum ENS details, see agentictrust-eth.owl." ;
+  rdfs:comment "Abstract name for an agent. Protocol-specific realizations include ENS Name (agentictrustEth:NameENS), DNS names, etc. An agent may have zero or more Names. Modeled as prov:Entity. For Ethereum ENS details, see agentictrust-eth.owl." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:Commitment a owl:Class ;
@@ -398,8 +398,8 @@ agentictrust:VerificationMethod a owl:Class ;
 agentictrust:hasIdentifier a owl:ObjectProperty ;
   rdfs:label "hasIdentifier" ;
   rdfs:comment "Links a Subject (Entity) to its Identifier (DecentralizedIdentifier)." ;
-  rdfs:domain prov:Entity ;
-  rdfs:range agentictrust:DecentralizedIdentifier .
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrust:Identifier .
 
 agentictrust:controlledBy a owl:ObjectProperty ;
   rdfs:label "controlledBy" ;
@@ -435,17 +435,19 @@ agentictrust:assertedIn a owl:ObjectProperty ;
 # Identifier and Name Properties
 ########
 
-agentictrust:hasIdentifier a owl:ObjectProperty ;
-  rdfs:label "hasIdentifier" ;
-  rdfs:comment "Links an Agent (or any subclass of prov:Agent) to its Identifier. Protocol-specific realizations: Ethereum Account (agentictrustEth:Account), Web2 identifiers, etc. For ERC-8004 agents, use erc8004:has8004Identity to link to erc8004:8004Identity, which then has hasIdentifier to 8004IdentityIdentifier." ;
+## (removed duplicate hasIdentifier definition; use the DID/Identity spine section's hasIdentifier)
+
+agentictrust:hasIdentity a owl:ObjectProperty ;
+  rdfs:label "hasIdentity" ;
+  rdfs:comment "Links an Agent (or any subclass of prov:Agent) to an Identity (e.g., erc8004:8004Identity). An agent may have one or more identities." ;
   rdfs:domain prov:Agent ;
-  rdfs:range agentictrust:Identifier .
+  rdfs:range agentictrust:Identity .
 
 
 agentictrust:hasName a owl:ObjectProperty ;
   rdfs:label "hasName" ;
-  rdfs:comment "Links an agent to a Name. An agent may have zero or more Names. Protocol-specific realizations: ENS Name (agentictrustEth:ENSName), DNS names, etc." ;
-  rdfs:domain agentictrust:AIAgent ;
+  rdfs:comment "Links an agent to a Name. An agent may have zero or more Names. Protocol-specific realizations: ENS Name (agentictrustEth:NameENS), DNS names, etc." ;
+  rdfs:domain prov:Agent ;
   rdfs:range agentictrust:Name .
 
 agentictrust:identifierType a owl:ObjectProperty ;
@@ -456,7 +458,7 @@ agentictrust:identifierType a owl:ObjectProperty ;
 
 agentictrust:hasDID a owl:ObjectProperty ;
   rdfs:label "hasDID" ;
-  rdfs:comment "Links an Identifier to its associated DID. Protocol-specific identifier types (e.g., erc8004:8004IdentityIdentifier, agentictrustEth:ENSNameIdentifier) link to their respective DIDs." ;
+  rdfs:comment "Links an Identifier to its associated DID. Protocol-specific identifier types (e.g., erc8004:IdentityIdentifier8004, agentictrustEth:NameIdentifierENS) link to their respective DIDs." ;
   rdfs:domain agentictrust:Identifier ;
   rdfs:range agentictrust:DID .
 
@@ -613,12 +615,12 @@ agentictrust:IdentifierDescriptor a owl:Class ;
 
 agentictrust:IdentityDescriptor a owl:Class ;
   rdfs:label "IdentityDescriptor" ;
-  rdfs:comment "Descriptor for an Identity (resolved metadata about an identity, its identifiers, and associated metadata). Protocol-specific realizations include erc8004:8004IdentityDescriptor, NANDAIdentityDescriptor, etc." ;
+  rdfs:comment "Descriptor for an Identity (resolved metadata about an identity, its identifiers, and associated metadata). Protocol-specific realizations include erc8004:IdentityDescriptor8004, NANDAIdentityDescriptor, etc." ;
   rdfs:subClassOf agentictrust:Descriptor .
 
 agentictrust:NameDescriptor a owl:Class ;
   rdfs:label "NameDescriptor" ;
-  rdfs:comment "Descriptor for a Name (resolved metadata about a name, its identifiers, and associated metadata). Protocol-specific realizations include agentictrustEth:ENSNameDescriptor, DNSNameDescriptor, etc." ;
+  rdfs:comment "Descriptor for a Name (resolved metadata about a name, its identifiers, and associated metadata). Protocol-specific realizations include agentictrustEth:NameDescriptorENS, DNSNameDescriptor, etc." ;
   rdfs:subClassOf agentictrust:Descriptor .
 
 
@@ -831,6 +833,13 @@ agentictrust:hasDescriptor a owl:ObjectProperty ;
   rdfs:domain prov:Entity ;
   rdfs:range agentictrust:Descriptor .
 
+agentictrust:hasDescription a owl:ObjectProperty ;
+  rdfs:label "hasDescription" ;
+  rdfs:comment "Links an Agent (prov:Agent) to a resolver-produced Descriptor (agent-level description). This is the canonical Agent→Descriptor relation; see also agentictrust:hasAgentDescriptor." ;
+  rdfs:subPropertyOf agentictrust:hasDescriptor ;
+  rdfs:domain prov:Agent ;
+  rdfs:range agentictrust:Descriptor .
+
 agentictrust:hasEndpointEntry a owl:ObjectProperty ;
   rdfs:label "hasEndpointEntry" ;
   rdfs:domain agentictrust:AgentDescriptor ;
@@ -850,8 +859,8 @@ agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
 agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:label "hasAgentDescriptor" ;
   rdfs:comment "Links an agent identity to its AgentDescriptor (agent-level descriptor, not protocol-specific)." ;
-  rdfs:subPropertyOf agentictrust:hasDescriptor ;
-  rdfs:domain agentictrust:AIAgent ;
+  rdfs:subPropertyOf agentictrust:hasDescription ;
+  rdfs:domain prov:Agent ;
   rdfs:range agentictrust:AgentDescriptor .
 
 agentictrust:hasProtocolDescriptor a owl:ObjectProperty ;

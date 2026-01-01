@@ -1,4 +1,4 @@
-# Identifier-centric queries: Account, ENSName, 8004Identity (→ Agent)
+# Identifier-centric queries: Account, NameENS, 8004Identity (→ Agent)
 #
 # Ontology prefixes:
 # - agentictrust-core: https://www.agentictrust.io/ontology/agentictrust-core#
@@ -31,7 +31,7 @@ WHERE {
 ORDER BY ?agentId
 
 ################################################################################
-# 2) Agent → ENSName → ENSNameIdentifier (+ DID)
+# 2) Agent → NameENS → NameIdentifierENS (+ DID)
 ################################################################################
 
 SELECT ?agent ?agentId ?ensName ?ensNameValue ?ensIdentifier ?did
@@ -39,7 +39,7 @@ WHERE {
   ?agent a agentictrust:AIAgent .
   OPTIONAL { ?agent agentictrust:agentId ?agentId . }
 
-  ?agent agentictrustEth:hasENSName ?ensName .
+  ?agent agentictrust:hasName ?ensName .
   OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
 
   ?ensName agentictrustEth:hasIdentifier ?ensIdentifier .
@@ -49,7 +49,7 @@ WHERE {
 ORDER BY ?agentId
 
 ################################################################################
-# 3) Agent → 8004Identity → 8004IdentityIdentifier (+ DID)
+# 3) Agent → 8004Identity → IdentityIdentifier8004 (+ DID)
 ################################################################################
 
 SELECT ?agent ?agentId ?identity8004 ?identityIdentifier ?did
@@ -57,7 +57,7 @@ WHERE {
   ?agent a agentictrust:AIAgent .
   OPTIONAL { ?agent agentictrust:agentId ?agentId . }
 
-  ?agent erc8004:has8004Identity ?identity8004 .
+  ?agent agentictrust:hasIdentity ?identity8004 .
   ?identity8004 agentictrust:hasIdentifier ?identityIdentifier .
   OPTIONAL { ?identityIdentifier agentictrust:hasDID ?did . }
 }
@@ -83,13 +83,13 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent agentictrustEth:hasENSName ?ensName .
+    ?agent agentictrust:hasName ?ensName .
     OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
     OPTIONAL { ?ensName agentictrustEth:hasIdentifier ?ensIdentifier . }
   }
 
   OPTIONAL {
-    ?agent erc8004:has8004Identity ?identity8004 .
+    ?agent agentictrust:hasIdentity ?identity8004 .
     OPTIONAL { ?identity8004 agentictrust:hasIdentifier ?identityIdentifier . }
   }
 }
