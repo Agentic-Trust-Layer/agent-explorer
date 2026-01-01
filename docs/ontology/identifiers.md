@@ -730,4 +730,4 @@ ORDER BY DESC(?count)
 
 - [`agentictrust-overview.md`](./agentictrust-overview.md): Overview of the AgenticTrust ontology
 - [`sparql-queries.md`](./sparql-queries.md): Additional SPARQL queries for agent data
-- [`description.md`](./description.md): Descriptor pattern and metadata assembly
+- [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly

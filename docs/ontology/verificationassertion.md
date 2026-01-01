@@ -130,5 +130,5 @@ WHERE {
 - **TrustSituation**: Validation requests are `erc8004:ValidationRequest` (subclass of `agentictrust:TrustSituation`)
 - **TrustAssertion**: VerificationAssertion is a subclass of TrustAssertion
 - **IntentCheck**: Validation responses link to intent checks via `validationTagCheck`
-- See also: [ERC-8004 documentation](./erc8004.md), [Trust Graph](./trust-graph.md)
+- See also: [ERC-8004 documentation](./erc8004.md), [Situation](./situation.md)
 

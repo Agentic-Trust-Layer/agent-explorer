@@ -192,15 +192,17 @@ class RelationshipAccount["erc8092:RelationshipAccount"]
 class RelationshipSituation["agentictrust:RelationshipSituation"]
 class RelationshipRevocation["erc8092:RelationshipRevocationAssertion"]
 
-Account --> RelationshipAssertion : erc8092:hasRelationshipAssertion
-RelationshipAssertion --> Relationship : agentictrust:assertsRelationship
-RelationshipAssertion --> RelationshipSituation : agentictrust:assertsSituation
-RelationshipSituation --> Relationship : agentictrust:aboutSubject
+Account --> RelationshipAssertion : hasRelationshipAssertion
+RelationshipAssertion --> Relationship : assertsRelationship
+RelationshipAssertion --> RelationshipSituation : assertsSituation
+RelationshipSituation --> Relationship : aboutSubject
 
-Relationship --> RelationshipAccount : agentictrust:hasRelationshipAccount
-Account --> RelationshipAccount : erc8092:ownsRelationshipAccount
+Relationship --> RelationshipAccount : hasRelationshipAccount
+Account --> RelationshipAccount : ownsRelationshipAccount
 
-RelationshipRevocation --> RelationshipAssertion : erc8092:revocationOfRelationshipAssertion
+RelationshipRevocation --> RelationshipAssertion : revocationOfRelationshipAssertion
+
+note for RelationshipAssertion "Edge labels omit CURIE prefixes for Mermaid parsing. Mappings:\n- hasRelationshipAssertion = erc8092:hasRelationshipAssertion\n- assertsRelationship = agentictrust:assertsRelationship\n- assertsSituation = agentictrust:assertsSituation\n- aboutSubject = agentictrust:aboutSubject\n- hasRelationshipAccount = agentictrust:hasRelationshipAccount\n- ownsRelationshipAccount = erc8092:ownsRelationshipAccount\n- revocationOfRelationshipAssertion = erc8092:revocationOfRelationshipAssertion"
 ```
 
 **SPARQL: relationship assertions → relationship + participants**
@@ -232,6 +234,69 @@ WHERE {
   OPTIONAL { ?ofAssertion erc8092:revokedAt ?revokedAt . }
 }
 ORDER BY DESC(?revokedAt)
+LIMIT 200
+```
+
+### Trust graph overlay (relationships + subjects)
+
+This section shows the **registry-agnostic overlay** used to connect different trust signals into a single query shape.
+
+```mermaid
+classDiagram
+direction LR
+
+class provAgent["prov:Agent"]
+class provEntity["prov:Entity"]
+
+class TrustAssertion["agentictrust:TrustAssertion"]
+class Relationship["agentictrust:Relationship"]
+class RelationshipTrustAssertion["agentictrust:RelationshipTrustAssertion"]
+
+provAgent --> TrustAssertion : hasTrustAssertion
+
+TrustAssertion --> provEntity : aboutSubject
+TrustAssertion --> Relationship : qualifiesRelationship
+RelationshipTrustAssertion --> Relationship : assertsRelationship
+
+note for TrustAssertion "Edge labels omit CURIE prefixes for Mermaid parsing. Mappings:\n- hasTrustAssertion = agentictrust:hasTrustAssertion\n- aboutSubject = agentictrust:aboutSubject\n- qualifiesRelationship = agentictrust:qualifiesRelationship\n- assertsRelationship = agentictrust:assertsRelationship"
+```
+
+**SPARQL: assertions about a subject (generic)**
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?assertion ?subject
+WHERE {
+  ?assertion a agentictrust:TrustAssertion .
+  ?assertion agentictrust:aboutSubject ?subject .
+}
+LIMIT 200
+```
+
+**SPARQL: relationship-qualified assertions**
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?assertion ?relationship
+WHERE {
+  ?assertion a agentictrust:TrustAssertion ;
+    agentictrust:qualifiesRelationship ?relationship .
+}
+LIMIT 200
+```
+
+**SPARQL: relationship-constitutive assertions**
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?assertion ?relationship
+WHERE {
+  ?assertion a agentictrust:RelationshipTrustAssertion ;
+    agentictrust:assertsRelationship ?relationship .
+}
 LIMIT 200
 ```
 

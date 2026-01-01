@@ -222,12 +222,13 @@ AgenticTrust core (`agentictrust-core.owl`)
 
 - [`agentictrust-overview.md`](./agentictrust-overview.md): navigation + full diagram
 - [`agent.md`](./agent.md): Agent class hierarchy (Person, Organization, SoftwareAgent, AIAgent, Account) and relationships to Identity, Identifier, Name, and Descriptors
-- [`description.md`](./description.md): TrustDescription + metadata (DnS "Description")
+- [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly
+- [`description.md`](./description.md): Plans (PROV-O + P-PLAN) and SituationDescription / TrustDescription
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")
 - [`provenance.md`](./provenance.md): PROV-O grounding + how we use provenance patterns
 - [`discovery.md`](./discovery.md): Skills, intents, tasks, execution traces, and OASF alignment (merged from skills.md, skills-intents-tasks.md, and oasf.md)
 - [`intent.md`](./intent.md): IntentType and IntentSituation model - wraps OASF skills, aligned with DOLCE-DnS, explains why skills are invoked
-- [`trust-graph.md`](./trust-graph.md): trust building overlay + mapping to ERC-8004/8092 registries
+- Trust building overlay: see the **Trust graph overlay** section in [`situation.md`](./situation.md)
 
 ### Protocol-Specific Documentation
 

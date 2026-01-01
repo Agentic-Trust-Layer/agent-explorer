@@ -109,12 +109,13 @@ class Endpoint["agentictrust:Endpoint"]
 
 ### Reading guide
 
-- **Description** (DnS): see [`description.md`](./description.md)
+- **Descriptor** (resolver-produced metadata): see [`descriptor.md`](./descriptor.md)
+- **Description / Plan** (PROV-O + P-PLAN): see [`description.md`](./description.md)
 - **Situation** (DnS / activities): see [`situation.md`](./situation.md)
 - **Provenance** (PROV-O grounding): see [`provenance.md`](./provenance.md)
 - **Skills / intents / tasks**: see [`skills-intents-tasks.md`](./skills-intents-tasks.md)
 - **Discovery** (intent-driven): see [`discovery.md`](./discovery.md)
-- **Trust building** (graph overlay): see [`trust-graph.md`](./trust-graph.md)
+- **Trust building** (graph overlay): see the **Trust graph overlay** section in [`situation.md`](./situation.md)
 - **OASF mapping** (AGNTCY): see [`oasf.md`](./oasf.md)
 
 
