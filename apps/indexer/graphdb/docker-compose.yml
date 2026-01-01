@@ -1,0 +1,17 @@
+services:
+  graphdb:
+    image: ontotext/graphdb:10.6.2
+    container_name: agentictrust-graphdb
+    ports:
+      - "7200:7200"
+    volumes:
+      - graphdb-data:/opt/graphdb/home
+    environment:
+      # GraphDB uses Java; cap if your machine is small.
+      - GDB_HEAP_SIZE=2g
+    restart: unless-stopped
+
+volumes:
+  graphdb-data:
+
+

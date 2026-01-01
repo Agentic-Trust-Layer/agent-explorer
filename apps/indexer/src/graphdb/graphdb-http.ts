@@ -1,0 +1,217 @@
+import fs from 'node:fs';
+
+type GraphdbAuth = { username: string; password: string } | null;
+
+function envString(key: string): string | null {
+  const v = process.env[key];
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+export function getGraphdbConfigFromEnv(): {
+  baseUrl: string;
+  repository: string;
+  auth: GraphdbAuth;
+} {
+  const baseUrl = envString('GRAPHDB_BASE_URL') ?? 'http://localhost:7200';
+  const repository = envString('GRAPHDB_REPOSITORY') ?? 'agentictrust';
+  const user = envString('GRAPHDB_USERNAME');
+  const pass = envString('GRAPHDB_PASSWORD');
+  const auth = user && pass ? { username: user, password: pass } : null;
+  return { baseUrl, repository, auth };
+}
+
+function basicAuthHeader(auth: GraphdbAuth): string | null {
+  if (!auth) return null;
+  const token = Buffer.from(`${auth.username}:${auth.password}`, 'utf8').toString('base64');
+  return `Basic ${token}`;
+}
+
+function joinUrl(baseUrl: string, path: string): string {
+  const b = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${b}${p}`;
+}
+
+async function graphdbFetch(
+  url: string,
+  init: RequestInit & { timeoutMs?: number; auth?: GraphdbAuth } = {},
+): Promise<Response> {
+  const timeoutMs = Number.isFinite(Number(init.timeoutMs)) && Number(init.timeoutMs) > 0 ? Number(init.timeoutMs) : 60_000;
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const headers = new Headers(init.headers || {});
+    const authHeader = basicAuthHeader(init.auth ?? null);
+    if (authHeader) headers.set('Authorization', authHeader);
+    return await fetch(url, { ...init, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+export async function listRepositories(baseUrl: string, auth: GraphdbAuth): Promise<string[]> {
+  const url = joinUrl(baseUrl, '/rest/repositories');
+  const res = await graphdbFetch(url, { method: 'GET', auth, timeoutMs: 30_000 });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GraphDB list repositories failed: HTTP ${res.status}${text ? `: ${text.slice(0, 300)}` : ''}`);
+  }
+  const json = await res.json().catch(() => null);
+  if (!Array.isArray(json)) return [];
+  return json
+    .map((r: any) => (r && typeof r.id === 'string' ? r.id : null))
+    .filter((x: any) => typeof x === 'string' && x.trim());
+}
+
+export async function ensureRepositoryExistsOrThrow(baseUrl: string, repository: string, auth: GraphdbAuth): Promise<void> {
+  const repos = await listRepositories(baseUrl, auth);
+  if (repos.includes(repository)) return;
+  throw new Error(
+    `GraphDB repository not found: ${repository}\n` +
+      `Create it in the Workbench: ${joinUrl(baseUrl, '/')} (Setup → Repositories)\n` +
+      `Or set GRAPHDB_REPOSITORY to an existing repository id.`,
+  );
+}
+
+function envRuleset(): string {
+  const v = process.env.GRAPHDB_RULESET;
+  return typeof v === 'string' && v.trim() ? v.trim() : 'owl-horst-optimized';
+}
+
+function repoConfigTtl(repositoryId: string): string {
+  // Best-effort GraphDB repository config (RDF4J-style).
+  // Users can always create via Workbench if their GraphDB distribution differs.
+  const ruleset = envRuleset();
+  return [
+    '@prefix rep: <http://www.openrdf.org/config/repository#> .',
+    '@prefix sr: <http://www.openrdf.org/config/repository/sail#> .',
+    '@prefix sail: <http://www.openrdf.org/config/sail#> .',
+    '@prefix graphdb: <http://www.ontotext.com/config/graphdb#> .',
+    '@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .',
+    '',
+    '[] a rep:Repository ;',
+    `  rep:repositoryID "${repositoryId}" ;`,
+    '  rep:repositoryImpl [',
+    // For GraphDB 10.x (RDF4J server), the accepted type is graphdb:SailRepository.
+    '    rep:repositoryType "graphdb:SailRepository" ;',
+    '    sr:sailImpl [',
+    '      sail:sailType "graphdb:Sail" ;',
+    `      graphdb:ruleset "${ruleset}" ;`,
+    '      graphdb:checkForInconsistencies "false"^^xsd:boolean ;',
+    '      graphdb:enableContextIndex "true"^^xsd:boolean ;',
+    '    ]',
+    '  ] .',
+    '',
+  ].join('\n');
+}
+
+async function postCreateRepo(baseUrl: string, auth: GraphdbAuth, formField: string, ttl: string): Promise<Response> {
+  const url = joinUrl(baseUrl, '/rest/repositories');
+  const fd = new FormData();
+  // GraphDB expects multipart with a file part; use application/x-turtle.
+  fd.set(formField, new Blob([ttl], { type: 'application/x-turtle' }), 'repository-config.ttl');
+  return await graphdbFetch(url, { method: 'POST', auth, timeoutMs: 60_000, body: fd as any });
+}
+
+export async function createRepository(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  opts?: { force?: boolean },
+): Promise<void> {
+  const repos = await listRepositories(baseUrl, auth);
+  const exists = repos.includes(repository);
+  if (exists && !opts?.force) return;
+
+  // If force: delete first
+  if (exists && opts?.force) {
+    const delUrl = joinUrl(baseUrl, `/rest/repositories/${encodeURIComponent(repository)}`);
+    const del = await graphdbFetch(delUrl, { method: 'DELETE', auth, timeoutMs: 60_000 });
+    if (!del.ok) {
+      const text = await del.text().catch(() => '');
+      throw new Error(`GraphDB delete repository failed: HTTP ${del.status}${text ? `: ${text.slice(0, 300)}` : ''}`);
+    }
+  }
+
+  const ttl = repoConfigTtl(repository);
+
+  // Try common form field names used by GraphDB/RDF4J workbench APIs.
+  const attempts: Array<{ field: string }> = [{ field: 'config' }, { field: 'repositoryConfig' }];
+  const errs: string[] = [];
+  for (const a of attempts) {
+    const res = await postCreateRepo(baseUrl, auth, a.field, ttl);
+    if (res.ok) return;
+    const text = await res.text().catch(() => '');
+    errs.push(`field=${a.field} HTTP ${res.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+  }
+
+  throw new Error(
+    `GraphDB repository creation failed for "${repository}".\n` +
+      `Errors:\n- ${errs.length ? errs.join('\n- ') : 'unknown'}\n` +
+      `If your GraphDB build expects a different repository config, create the repo in the Workbench instead: ${joinUrl(baseUrl, '/')}`,
+  );
+}
+
+export async function clearStatements(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  opts?: { context?: string | null },
+): Promise<void> {
+  const context = opts?.context && opts.context.trim() ? opts.context.trim() : null;
+  const qs = context ? `?context=${encodeURIComponent(`<${context}>`)}` : '';
+  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}/statements${qs}`);
+  const res = await graphdbFetch(url, { method: 'DELETE', auth, timeoutMs: 120_000 });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GraphDB clear failed: HTTP ${res.status}${text ? `: ${text.slice(0, 300)}` : ''}`);
+  }
+}
+
+function contentTypeForPath(filePath: string): string {
+  const lower = filePath.toLowerCase();
+  if (lower.endsWith('.ttl')) return 'text/turtle';
+  if (lower.endsWith('.nq') || lower.endsWith('.nquads')) return 'application/n-quads';
+  if (lower.endsWith('.nt')) return 'application/n-triples';
+  // In this repo, our ".owl" files are Turtle, not RDF/XML.
+  if (lower.endsWith('.owl')) return 'text/turtle';
+  if (lower.endsWith('.rdf') || lower.endsWith('.xml')) return 'application/rdf+xml';
+  // Safe fallback
+  return 'application/octet-stream';
+}
+
+export async function uploadFileToRepository(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  params: { filePath: string; context?: string | null },
+): Promise<{ bytes: number }> {
+  const filePath = params.filePath;
+  const context = params.context && params.context.trim() ? params.context.trim() : null;
+  const qs = context ? `?context=${encodeURIComponent(`<${context}>`)}` : '';
+  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}/statements${qs}`);
+  const stat = fs.statSync(filePath);
+  const stream = fs.createReadStream(filePath);
+  const contentType = contentTypeForPath(filePath);
+
+  const res = await graphdbFetch(url, {
+    method: 'POST',
+    auth,
+    timeoutMs: 10 * 60_000,
+    headers: {
+      'Content-Type': contentType,
+      'Content-Length': String(stat.size),
+    },
+    // Node.js fetch needs duplex for streaming bodies
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    duplex: 'half' as any,
+    body: stream as any,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GraphDB upload failed (${filePath}): HTTP ${res.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+  }
+  return { bytes: stat.size };
+}
+
+

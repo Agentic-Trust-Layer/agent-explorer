@@ -929,7 +929,7 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   return lines.join('\n');
 }
 
-async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: number; agentCount: number }> {
+export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: number; agentCount: number }> {
   const safeAll = async (sql: string, ...params: any[]) => {
     try {
       const res = await db.prepare(sql).all(...params);
