@@ -108,7 +108,52 @@ Agents have relationships to three types of identity entities:
 2. **Identifier**: Stable identity anchors (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004)
 3. **Name**: Human-readable names (NameENS)
 
-### Complete Relationship Diagram
+### Core Relationship Diagram (AgenticTrust core only)
+
+```mermaid
+classDiagram
+    class provAgent["prov:Agent"]
+    class provSoftwareAgent["prov:SoftwareAgent"]
+    class AIAgent {
+        <<agentictrust>>
+    }
+
+    class Identity {
+        <<agentictrust>>
+    }
+    class Identifier {
+        <<agentictrust>>
+    }
+    class Name {
+        <<agentictrust>>
+    }
+
+    class Descriptor {
+        <<agentictrust>>
+    }
+    class AgentDescriptor {
+        <<agentictrust>>
+    }
+
+    provAgent <|-- provSoftwareAgent
+    provSoftwareAgent <|-- AIAgent
+
+    provAgent --> Identity : hasIdentity
+    provAgent --> Identifier : hasIdentifier
+    provAgent --> Name : hasName
+
+    provAgent --> AgentDescriptor : hasAgentDescriptor
+
+    provAgent --> Descriptor : hasDescriptor
+    Identity --> Descriptor : hasDescriptor
+    Identifier --> Descriptor : hasDescriptor
+    Name --> Descriptor : hasDescriptor
+
+    note for AgentDescriptor "Agent-level descriptor relation"
+    note for Descriptor "Entity-level descriptor relation"
+```
+
+### Complete Relationship Diagram (ERC-8004 + ENS)
 
 ```mermaid
 classDiagram
