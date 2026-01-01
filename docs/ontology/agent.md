@@ -120,6 +120,9 @@ classDiagram
     class Account {
         <<agentictrustEth>>
     }
+    class Identity {
+        <<agentictrust>>
+    }
     class Identity8004 {
         <<erc8004>>
     }
@@ -137,6 +140,9 @@ classDiagram
     }
     class Name {
         <<abstract>>
+    }
+    class NameCore {
+        <<agentictrust>>
     }
     class NameENS {
         <<agentictrustEth>>
@@ -161,9 +167,12 @@ classDiagram
     provSoftwareAgent <|-- AIAgent
     provSoftwareAgent <|-- Account
     
-    provAgent --> Identity8004 : hasIdentity
     provAgent --> Identifier : hasIdentifier
-    provAgent --> NameENS : hasName
+    provAgent --> Identity : hasIdentity
+    provAgent --> NameCore : hasName
+
+    Identity <|-- Identity8004
+    NameCore <|-- NameENS
     
     Identity8004 --> IdentityIdentifier8004 : hasIdentifier
     NameENS --> NameIdentifierENS : hasIdentifier
