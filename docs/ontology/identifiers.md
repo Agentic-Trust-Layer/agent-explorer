@@ -25,7 +25,7 @@ Agent (prov:Agent)
   │   └─ hasDescriptor → agentictrustEth:NameDescriptorENS
   ├─ agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier
   │   └─ agentictrustEth:hasDID → agentictrust:DID
-  └─ hasDescription / hasAgentDescriptor → AgentDescriptor
+  └─ hasAgentDescriptor → AgentDescriptor
       └─ hasDescriptor → AgentDescriptor
 
 Account (agentictrustEth:Account, subclass of prov:SoftwareAgent)
@@ -347,7 +347,7 @@ classDiagram
     }
     
     AIAgent --> AgentDescriptor : hasAgentDescriptor
-    AIAgent --> AgentDescriptor : hasDescription
+    AIAgent --> AgentDescriptor : hasAgentDescriptor
     Identifier --> IdentifierDescriptor : hasDescriptor
     Identity8004 --> IdentityDescriptor8004 : hasDescriptor
     NameENS --> NameDescriptorENS : hasDescriptor

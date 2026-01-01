@@ -139,9 +139,6 @@ classDiagram
         <<erc8004>>
     }
     class Name {
-        <<abstract>>
-    }
-    class NameCore {
         <<agentictrust>>
     }
     class NameENS {
@@ -169,15 +166,14 @@ classDiagram
     
     provAgent --> Identifier : hasIdentifier
     provAgent --> Identity : hasIdentity
-    provAgent --> NameCore : hasName
+    provAgent --> Name : hasName
 
     Identity <|-- Identity8004
-    NameCore <|-- NameENS
+    Name <|-- NameENS
     
     Identity8004 --> IdentityIdentifier8004 : hasIdentifier
     NameENS --> NameIdentifierENS : hasIdentifier
     
-    provAgent --> AgentDescriptor : hasDescription
     provAgent --> AgentDescriptor : hasAgentDescriptor
     Identity8004 --> IdentityDescriptor8004 : hasDescriptor
     Identifier --> IdentifierDescriptor : hasDescriptor
@@ -189,7 +185,7 @@ classDiagram
     note for AccountIdentifier "agentictrustEth:AccountIdentifier\nEthereum account identifier"
     note for NameIdentifierENS "agentictrustEth:NameIdentifierENS\nENS name identifier"
     note for NameENS "agentictrustEth:NameENS\nHuman-readable ENS name"
-    note for AgentDescriptor "Agent→Descriptor uses hasDescription/hasAgentDescriptor\nEntity→Descriptor uses hasDescriptor"
+    note for AgentDescriptor "Agent→Descriptor uses hasAgentDescriptor\nEntity→Descriptor uses hasDescriptor"
 ```
 
 ## Agent Properties
@@ -203,8 +199,6 @@ classDiagram
   - Range: `agentictrust:Identity`
 - `agentictrust:hasName`: Links an Agent to a Name (e.g., `agentictrustEth:NameENS`)
   - Range: `agentictrust:Name`
-- `agentictrust:hasDescription`: Links an Agent to a resolver-produced `Descriptor` (agent-level description)
-  - Range: `agentictrust:Descriptor`
 
 ### AIAgent-Specific Properties
 
@@ -214,7 +208,7 @@ classDiagram
   - Range: `agentictrustEth:AccountIdentifier`
 - `agentictrust:hasName`: Links an Agent to a Name (e.g., `agentictrustEth:NameENS`)
   - Range: `agentictrust:Name`
-- `agentictrust:hasAgentDescriptor`: Links an Agent to its AgentDescriptor (subPropertyOf `agentictrust:hasDescription`)
+- `agentictrust:hasAgentDescriptor`: Links an Agent to its AgentDescriptor (subPropertyOf `agentictrust:hasDescriptor`)
   - Range: `agentictrust:AgentDescriptor`
 
 ### Account Properties (as SoftwareAgent)
@@ -508,7 +502,7 @@ The Agent model provides a layered identity approach:
 2. **Identity Layer**: Agent → `Identity8004` → `IdentityIdentifier8004`
 3. **Identifier Layer**: Agent → `Identifier` (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004)
 4. **Name Layer**: Agent → `NameENS` → `NameIdentifierENS`
-5. **Descriptor Layer**: Entities (Identity/Identifier/Name) → `hasDescriptor` → `Descriptor` (resolved metadata); Agents additionally use `hasDescription` / `hasAgentDescriptor`
+5. **Descriptor Layer**: Entities (Identity/Identifier/Name) → `hasDescriptor` → `Descriptor` (resolved metadata); Agents additionally use `hasAgentDescriptor`
 
 All Agents inherit `hasIdentifier` from `prov:Agent`, enabling consistent identity management across all agent types.
 

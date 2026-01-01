@@ -833,13 +833,6 @@ agentictrust:hasDescriptor a owl:ObjectProperty ;
   rdfs:domain prov:Entity ;
   rdfs:range agentictrust:Descriptor .
 
-agentictrust:hasDescription a owl:ObjectProperty ;
-  rdfs:label "hasDescription" ;
-  rdfs:comment "Links an Agent (prov:Agent) to a resolver-produced Descriptor (agent-level description). This is the canonical Agent→Descriptor relation; see also agentictrust:hasAgentDescriptor." ;
-  rdfs:subPropertyOf agentictrust:hasDescriptor ;
-  rdfs:domain prov:Agent ;
-  rdfs:range agentictrust:Descriptor .
-
 agentictrust:hasEndpointEntry a owl:ObjectProperty ;
   rdfs:label "hasEndpointEntry" ;
   rdfs:domain agentictrust:AgentDescriptor ;
@@ -859,7 +852,7 @@ agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
 agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:label "hasAgentDescriptor" ;
   rdfs:comment "Links an agent identity to its AgentDescriptor (agent-level descriptor, not protocol-specific)." ;
-  rdfs:subPropertyOf agentictrust:hasDescription ;
+  rdfs:subPropertyOf agentictrust:hasDescriptor ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:AgentDescriptor .
 
