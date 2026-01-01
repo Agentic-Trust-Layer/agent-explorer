@@ -1,4 +1,3 @@
-import '../env';
 import { ensureAgentverseSchema, createAgentverseDbFromEnv } from '../agentverse/import';
 import { ensureHolSchema, createHolDbFromEnv } from '../hol/hol-import';
 
@@ -151,7 +150,7 @@ async function crossrefByName(holDb: AnyDb, avDb: AnyDb): Promise<number> {
   return linked;
 }
 
-(async () => {
+export async function runHolAgentverseCrossref(): Promise<{ linkedById: number; linkedByName: number }> {
   const holDb = await createHolDbFromEnv();
   const avDb = await createAgentverseDbFromEnv();
 
@@ -170,9 +169,7 @@ async function crossrefByName(holDb: AnyDb, avDb: AnyDb): Promise<number> {
   const linkedByName = await crossrefByName(holDb, avDb);
 
   console.log('[crossref] complete', { linkedById, linkedByName });
-})().catch((e) => {
-  console.error('[crossref] failed', e);
-  process.exitCode = 1;
-});
+  return { linkedById, linkedByName };
+}
 
 

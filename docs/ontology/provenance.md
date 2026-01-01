@@ -36,8 +36,10 @@ class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
-TrustAssertion --> TrustSituation : generatedSituation (⊑ prov:generated)
+TrustAssertion --> TrustSituation : generatedSituation
 TrustAssertion --> provEntity : aboutSubject
+
+note for TrustAssertion "generatedSituation is an alias/subProperty aligned with prov:generated"
 ```
 
 ### Diagram
