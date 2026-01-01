@@ -165,20 +165,22 @@ classDiagram
     provAgent --> Identifier : hasIdentifier
     provAgent --> NameENS : hasName
     
-    Identity8004 --> IdentityIdentifier8004 : hasIdentifier (agentictrust)
-    NameENS --> NameIdentifierENS : hasIdentifier (agentictrustEth)
+    Identity8004 --> IdentityIdentifier8004 : hasIdentifier
+    NameENS --> NameIdentifierENS : hasIdentifier
     
-    provAgent --> AgentDescriptor : hasDescription / hasAgentDescriptor
-    Identity8004 --> IdentityDescriptor8004 : hasDescriptor (prov:Entity)
-    Identifier --> IdentifierDescriptor : hasDescriptor (agentictrust)
-    AccountIdentifier --> AccountDescriptor : hasDescriptor (agentictrust)
-    NameENS --> NameDescriptorENS : hasDescriptor (agentictrust)
+    provAgent --> AgentDescriptor : hasDescription
+    provAgent --> AgentDescriptor : hasAgentDescriptor
+    Identity8004 --> IdentityDescriptor8004 : hasDescriptor
+    Identifier --> IdentifierDescriptor : hasDescriptor
+    AccountIdentifier --> AccountDescriptor : hasDescriptor
+    NameENS --> NameDescriptorENS : hasDescriptor
     
     note for Identity8004 "erc8004:Identity8004\nERC-8004 on-chain identity"
     note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004\ndid:8004:chainId:agentId"
     note for AccountIdentifier "agentictrustEth:AccountIdentifier\nEthereum account identifier"
     note for NameIdentifierENS "agentictrustEth:NameIdentifierENS\nENS name identifier"
     note for NameENS "agentictrustEth:NameENS\nHuman-readable ENS name"
+    note for AgentDescriptor "Agent→Descriptor uses hasDescription/hasAgentDescriptor\nEntity→Descriptor uses hasDescriptor"
 ```
 
 ## Agent Properties
