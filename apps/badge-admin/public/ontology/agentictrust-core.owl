@@ -138,13 +138,13 @@ agentictrust:TrustSituation a owl:Class ;
   rdfs:comment "Trust Situation (epistemic object): the context/claim that certain trust-relevant relations hold. This is what assertion activities assert." ;
   rdfs:subClassOf agentictrust:Situation .
 
-agentictrust:VerificationSituation a owl:Class ;
-  rdfs:label "VerificationSituation" ;
+agentictrust:VerificationTrustSituation a owl:Class ;
+  rdfs:label "VerificationTrustSituation" ;
   rdfs:comment "A TrustSituation about verification/validation of an agent, endpoint, identifier, or credential." ;
   rdfs:subClassOf agentictrust:TrustSituation .
 
-agentictrust:ReputationSituation a owl:Class ;
-  rdfs:label "ReputationSituation" ;
+agentictrust:ReputationTrustSituation a owl:Class ;
+  rdfs:label "ReputationTrustSituation" ;
   rdfs:comment "A TrustSituation about reputation/feedback outcomes." ;
   rdfs:subClassOf agentictrust:TrustSituation .
 
@@ -152,6 +152,16 @@ agentictrust:RelationshipSituation a owl:Class ;
   rdfs:label "RelationshipSituation" ;
   rdfs:comment "A Situation about the status/constraints/qualification of a Relationship. This can exist independently of trust, and can be asserted/qualified by TrustAssertions." ;
   rdfs:subClassOf agentictrust:Situation .
+
+agentictrust:RelationshipTrustSituation a owl:Class ;
+  rdfs:label "RelationshipTrustSituation" ;
+  rdfs:comment "A TrustSituation about the status/constraints/qualification of a Relationship (trust-qualified relationship state)." ;
+  rdfs:subClassOf agentictrust:TrustSituation .
+
+agentictrust:ValidationRequestSituation8004 a owl:Class ;
+  rdfs:label "ValidationRequestSituation8004" ;
+  rdfs:comment "ERC-8004 validation request record modeled as a Situation (not defined in ERC8004.owl, which is assertion-only). Used as the asserted situation for validation responses." ;
+  rdfs:subClassOf agentictrust:VerificationTrustSituation .
 
 ### TrustAssertion (assertion act / activity)
 agentictrust:TrustAssertion a owl:Class ;

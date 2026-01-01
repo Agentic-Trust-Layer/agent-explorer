@@ -76,7 +76,7 @@ Treat the following as *situations about claims* (epistemic), not permanent fact
 
 These map naturally to:
 
-- **VerificationSituation** (identity proof verified)
+- **VerificationTrustSituation** (identity proof verified)
 - **RelationshipSituation** (caller/callee in a permitted interaction relationship)
 - **AuthorizationSituation** (policy evaluation resulting in allow/deny)
 

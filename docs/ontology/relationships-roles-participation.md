@@ -173,149 +173,58 @@ WHERE {
 }
 ```
 
-## ERC-8092 Relationship Model
+## ERC-8092 Association Model (assertion-side only)
 
-### Class Hierarchy
+ERC-8092 intentionally defines only **assertion-side** terms. The relationship/situation modeling stays in `agentictrust-core.owl` + `agentictrust-eth.owl`.
 
 ```mermaid
 classDiagram
-    class Relationship {
-        <<agentictrust>>
-    }
-    class AccountRelationship {
-        <<agentictrustEth>>
-    }
-    class ERC8092Relationship {
-        <<erc8092>>
-    }
-    class ERC8092AccountRelationship {
-        <<erc8092>>
-    }
-    class ERC8092RelationshipAssertion {
-        <<erc8092>>
-    }
-    class ERC8092AccountRelationshipAssertion {
-        <<erc8092>>
-    }
-    class Account {
-        <<agentictrustEth>>
-    }
-    class RelationshipAccount {
-        <<erc8092>>
-    }
-    
-    Relationship <|-- AccountRelationship
-    AccountRelationship <|-- ERC8092Relationship
-    AccountRelationship <|-- ERC8092AccountRelationship
-    ERC8092Relationship <|-- ERC8092AccountRelationship : equivalentClass
-    
-    ERC8092RelationshipAssertion --> Account : initiator
-    ERC8092RelationshipAssertion --> Account : approver
-    ERC8092RelationshipAssertion --> RelationshipAccount : initiatorAccount
-    ERC8092RelationshipAssertion --> RelationshipAccount : approverAccount
-    ERC8092RelationshipAssertion --> ERC8092Relationship : assertsRelationship
-    
-    ERC8092Relationship --> Account : hasParticipant (agentictrust)
-    
-    note for RelationshipERC8092 "erc8092:RelationshipERC8092\nERC-8092 relationship instance\n(identified by associationId)"
-    note for AccountRelationshipERC8092 "erc8092:AccountRelationshipERC8092\nEquivalent to RelationshipERC8092\nEmphasizes account-to-account nature"
-    note for RelationshipAssertionERC8092 "erc8092:RelationshipAssertionERC8092\nERC-8092 association record"
-    note for AccountRelationshipAssertionERC8092 "erc8092:AccountRelationshipAssertionERC8092\nEquivalent to RelationshipAssertionERC8092"
+direction LR
+
+class Account["agentictrustEth:Account"]
+class AccountAssociation["erc8092:AccountAssociation8092"]
+class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
+class AccountRelationship["agentictrustEth:AccountRelationship"]
+
+Account --> AccountAssociation : hasAccountAssociation
+AccountAssociation --> RelationshipTrustSituation : assertsSituation
+RelationshipTrustSituation --> AccountRelationship : aboutSubject
 ```
 
-### ERC-8092 Properties
+### ERC-8092 association assertions (assertion-side only)
 
-- `erc8092:hasParticipant`: ERC-8092 specific property linking a Relationship to an Agent (subproperty of `agentictrust:hasParticipant`)
-- `erc8092:qualifiedParticipation`: ERC-8092 specific property (subproperty of `agentictrust:qualifiedParticipation`)
-- `erc8092:hasRole`: ERC-8092 specific property (subproperty of `agentictrust:hasRole`)
-- `erc8092:initiator`: The initiator Account
-- `erc8092:approver`: The approver Account
-- `erc8092:initiatorAccount`: The initiator RelationshipAccount
-- `erc8092:approverAccount`: The approver RelationshipAccount
+ERC-8092 is modeled as **assertion-side only**:
 
-### SPARQL Query: ERC-8092 Relationship with Participants
+- `erc8092:AccountAssociation8092` (association record, as an assertion activity)
+- `erc8092:AccountAssociationRevocation8092` (revocation)
+
+The association asserts a **Situation** in core:
+
+- `agentictrust:assertsSituation` → `agentictrust:RelationshipTrustSituation`
+- `agentictrust:aboutSubject` (on the situation) → `agentictrustEth:AccountRelationship`
+
+### SPARQL Query: ERC-8092 AccountAssociation8092 asserted relationship situation
 
 ```sparql
 PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
-SELECT ?relationship ?relationshipId ?participantAccount ?accountAddress
+SELECT ?association ?situation ?relationship ?initiator ?approver ?initiatorAccountId ?approverAccountId
 WHERE {
-  ?relationship a erc8092:RelationshipERC8092 ;
-    erc8092:relationshipId ?relationshipId ;
-    agentictrust:hasParticipant ?participantAccount .
-  ?participantAccount a agentictrustEth:Account ;
-    agentictrustEth:accountAddress ?accountAddress .
+  ?association a erc8092:AccountAssociation8092 .
+  OPTIONAL { ?association agentictrust:assertsSituation ?situation . }
+  OPTIONAL {
+    ?situation a agentictrust:RelationshipTrustSituation ;
+      agentictrust:aboutSubject ?relationship .
+    ?relationship a agentictrustEth:AccountRelationship .
+  }
+  OPTIONAL { ?association erc8092:initiator ?initiator . }
+  OPTIONAL { ?association erc8092:approver ?approver . }
+  OPTIONAL { ?association erc8092:initiatorAccountId ?initiatorAccountId . }
+  OPTIONAL { ?association erc8092:approverAccountId ?approverAccountId . }
 }
-```
-
-### SPARQL Query: ERC-8092 Relationship Assertion with Participants
-
-```sparql
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-
-SELECT ?assertion ?relationship ?initiator ?approver ?initiatorAccount ?approverAccount
-WHERE {
-  ?assertion a erc8092:RelationshipAssertionERC8092 ;
-    agentictrust:assertsRelationship ?relationship .
-  
-  OPTIONAL {
-    ?assertion erc8092:initiator ?initiator .
-    ?initiator a agentictrustEth:Account .
-  }
-  OPTIONAL {
-    ?assertion erc8092:approver ?approver .
-    ?approver a agentictrustEth:Account .
-  }
-  OPTIONAL {
-    ?assertion erc8092:initiatorAccount ?initiatorAccount .
-  }
-  OPTIONAL {
-    ?assertion erc8092:approverAccount ?approverAccount .
-  }
-}
-```
-
-### SPARQL Query: Complete ERC-8092 Relationship Pattern
-
-This query shows the complete pattern: Relationship Assertion → Relationship → Participants (via both assertion properties and relationship hasParticipant):
-
-```sparql
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-
-SELECT ?assertion ?relationship ?relationshipId 
-       ?initiator ?initiatorAddress ?approver ?approverAddress
-       ?participantViaAssertion ?participantViaRelationship
-WHERE {
-  ?assertion a erc8092:RelationshipAssertionERC8092 ;
-    agentictrust:assertsRelationship ?relationship .
-  
-  ?relationship a erc8092:RelationshipERC8092 ;
-    erc8092:relationshipId ?relationshipId .
-  
-  # Participants via assertion
-  OPTIONAL {
-    ?assertion erc8092:initiator ?initiator .
-    ?initiator a agentictrustEth:Account ;
-      agentictrustEth:accountAddress ?initiatorAddress .
-  }
-  OPTIONAL {
-    ?assertion erc8092:approver ?approver .
-    ?approver a agentictrustEth:Account ;
-      agentictrustEth:accountAddress ?approverAddress .
-  }
-  
-  # Participants via relationship hasParticipant
-  OPTIONAL {
-    ?relationship agentictrust:hasParticipant ?participantViaRelationship .
-    ?participantViaRelationship a agentictrustEth:Account .
-  }
-}
+LIMIT 200
 ```
 
 ### SPARQL Query: Relationship with Qualified Participation (ERC-8092)
@@ -328,7 +237,7 @@ PREFIX p-plan: <http://purl.org/net/p-plan#>
 
 SELECT ?relationship ?participantAccount ?role
 WHERE {
-  ?relationship a erc8092:RelationshipERC8092 .
+  ?relationship a agentictrustEth:AccountRelationship .
   ?relationship agentictrust:qualifiedParticipation ?qualifiedParticipation .
   ?qualifiedParticipation agentictrust:participant ?participantAccount .
   ?qualifiedParticipation agentictrust:participationRole ?role .

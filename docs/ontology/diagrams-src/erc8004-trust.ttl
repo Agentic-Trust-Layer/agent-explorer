@@ -1,7 +1,7 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
 @prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
 
 erc8004:Diagram_Trust a owl:Ontology .
@@ -11,15 +11,14 @@ prov:Entity a owl:Class .
 prov:SoftwareAgent a owl:Class .
 
 agentictrust:AIAgent a owl:Class ; rdfs:subClassOf prov:SoftwareAgent .
-agentictrust:TrustSituation a owl:Class ; rdfs:subClassOf prov:Activity .
-agentictrust:TrustAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:TrustSituation a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:TrustAssertion a owl:Class ; rdfs:subClassOf prov:Activity .
 agentictrust:VerificationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 agentictrust:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
-erc8004:TrustSituation a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
 erc8004:TrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
-erc8004:ValidationRequest a owl:Class ; rdfs:subClassOf erc8004:TrustSituation .
+agentictrust:ValidationRequestSituation8004 a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
 erc8004:ValidationResponse a owl:Class ;
   rdfs:subClassOf erc8004:TrustAssertion, agentictrust:VerificationTrustAssertion .
 
@@ -39,6 +38,6 @@ erc8004:hasValidation a owl:ObjectProperty ;
 
 erc8004:validationRespondsToRequest a owl:ObjectProperty ;
   rdfs:domain erc8004:ValidationResponse ;
-  rdfs:range erc8004:ValidationRequest .
+  rdfs:range agentictrust:ValidationRequestSituation8004 .
 
 

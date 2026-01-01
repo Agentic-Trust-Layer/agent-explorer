@@ -16,15 +16,17 @@ direction LR
 class provEntity["prov:Entity"]
 class Situation["agentictrust:Situation"]
 class TrustSituation["agentictrust:TrustSituation"]
-class ReputationSituation["agentictrust:ReputationSituation"]
-class VerificationSituation["agentictrust:VerificationSituation"]
+class ReputationTrustSituation["agentictrust:ReputationTrustSituation"]
+class VerificationTrustSituation["agentictrust:VerificationTrustSituation"]
 class RelationshipSituation["agentictrust:RelationshipSituation"]
+class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
 
 Situation --|> provEntity
 TrustSituation --|> Situation
-ReputationSituation --|> TrustSituation
-VerificationSituation --|> TrustSituation
+ReputationTrustSituation --|> TrustSituation
+VerificationTrustSituation --|> TrustSituation
 RelationshipSituation --|> Situation
+RelationshipTrustSituation --|> TrustSituation
 ```
 
 ### SPARQL: Situation hierarchy + instances
@@ -150,7 +152,7 @@ classDiagram
 direction LR
 
 class AIAgent["agentictrust:AIAgent"]
-class ValidationRequest["erc8004:ValidationRequest"]
+class ValidationRequest["agentictrust:ValidationRequestSituation8004"]
 class ValidationResponse["erc8004:ValidationResponse"]
 class provAgent["prov:Agent"]
 
@@ -179,31 +181,31 @@ LIMIT 200
 
 ### ERC-8092 relationship flow
 
-Ontology: `ERC8092.owl`
+Ontology: `ERC8092.owl` (assertion-side only)
 
 ```mermaid
 classDiagram
 direction LR
 
 class Account["agentictrustEth:Account"]
-class Relationship["erc8092:RelationshipERC8092"]
-class RelationshipAssertion["erc8092:RelationshipAssertionERC8092"]
-class RelationshipAccount["erc8092:RelationshipAccount"]
-class RelationshipSituation["agentictrust:RelationshipSituation"]
-class RelationshipRevocation["erc8092:RelationshipRevocationAssertion"]
+class Relationship["agentictrustEth:AccountRelationship"]
+class AccountAssociation["erc8092:AccountAssociation8092"]
+class RelationshipSituation["agentictrust:RelationshipTrustSituation"]
+class AccountAssociationRevocation["erc8092:AccountAssociationRevocation8092"]
 
-Account --> RelationshipAssertion : hasRelationshipAssertion
-RelationshipAssertion --> Relationship : assertsRelationship
-RelationshipAssertion --> RelationshipSituation : assertsSituation
+Account --> AccountAssociation : hasAccountAssociation
+AccountAssociation --> RelationshipSituation : assertsSituation
 RelationshipSituation --> Relationship : aboutSubject
 
-Relationship --> RelationshipAccount : hasRelationshipAccount
-Account --> RelationshipAccount : ownsRelationshipAccount
-
-RelationshipRevocation --> RelationshipAssertion : revocationOfRelationshipAssertion
-
-note for RelationshipAssertion "Edge labels omit CURIE prefixes for Mermaid parsing. Mappings:\n- hasRelationshipAssertion = erc8092:hasRelationshipAssertion\n- assertsRelationship = agentictrust:assertsRelationship\n- assertsSituation = agentictrust:assertsSituation\n- aboutSubject = agentictrust:aboutSubject\n- hasRelationshipAccount = agentictrust:hasRelationshipAccount\n- ownsRelationshipAccount = erc8092:ownsRelationshipAccount\n- revocationOfRelationshipAssertion = erc8092:revocationOfRelationshipAssertion"
+AccountAssociationRevocation --> AccountAssociation : revocationOfAccountAssociation
 ```
+
+Mappings (diagram edge labels → ontology properties):
+
+- **hasAccountAssociation** → `erc8092:hasAccountAssociation`
+- **assertsSituation** → `agentictrust:assertsSituation`
+- **aboutSubject** → `agentictrust:aboutSubject`
+- **revocationOfAccountAssociation** → `erc8092:revocationOfAccountAssociation`
 
 **SPARQL: relationship assertions → relationship + participants**
 
@@ -211,14 +213,14 @@ note for RelationshipAssertion "Edge labels omit CURIE prefixes for Mermaid pars
 PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
-SELECT ?rel ?assertion ?initiator ?approver
+SELECT ?situation ?assertion ?initiator ?approver
 WHERE {
-  ?assertion a erc8092:RelationshipAssertionERC8092 .
-  OPTIONAL { ?assertion agentictrust:assertsRelationship ?rel . }
+  ?assertion a erc8092:AccountAssociation8092 .
+  OPTIONAL { ?assertion agentictrust:assertsSituation ?situation . }
   OPTIONAL { ?assertion erc8092:initiator ?initiator . }
   OPTIONAL { ?assertion erc8092:approver ?approver . }
 }
-ORDER BY ?rel ?assertion
+ORDER BY ?situation ?assertion
 LIMIT 200
 ```
 
@@ -229,8 +231,8 @@ PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 
 SELECT ?revocation ?ofAssertion ?revokedAt
 WHERE {
-  ?revocation a erc8092:RelationshipRevocationAssertion .
-  OPTIONAL { ?revocation erc8092:revocationOfRelationshipAssertion ?ofAssertion . }
+  ?revocation a erc8092:AccountAssociationRevocation8092 .
+  OPTIONAL { ?revocation erc8092:revocationOfAccountAssociation ?ofAssertion . }
   OPTIONAL { ?ofAssertion erc8092:revokedAt ?revokedAt . }
 }
 ORDER BY DESC(?revokedAt)
@@ -250,16 +252,22 @@ class provEntity["prov:Entity"]
 
 class TrustAssertion["agentictrust:TrustAssertion"]
 class Relationship["agentictrust:Relationship"]
-class RelationshipTrustAssertion["agentictrust:RelationshipTrustAssertion"]
+class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
 
 provAgent --> TrustAssertion : hasTrustAssertion
 
 TrustAssertion --> provEntity : aboutSubject
 TrustAssertion --> Relationship : qualifiesRelationship
-RelationshipTrustAssertion --> Relationship : assertsRelationship
-
-note for TrustAssertion "Edge labels omit CURIE prefixes for Mermaid parsing. Mappings:\n- hasTrustAssertion = agentictrust:hasTrustAssertion\n- aboutSubject = agentictrust:aboutSubject\n- qualifiesRelationship = agentictrust:qualifiesRelationship\n- assertsRelationship = agentictrust:assertsRelationship"
+TrustAssertion --> RelationshipTrustSituation : assertsSituation
+RelationshipTrustSituation --> Relationship : aboutSubject
 ```
+
+Mappings (diagram edge labels → ontology properties):
+
+- **hasTrustAssertion** → `agentictrust:hasTrustAssertion`
+- **aboutSubject** → `agentictrust:aboutSubject`
+- **qualifiesRelationship** → `agentictrust:qualifiesRelationship`
+- **assertsSituation** → `agentictrust:assertsSituation`
 
 **SPARQL: assertions about a subject (generic)**
 
@@ -287,15 +295,17 @@ WHERE {
 LIMIT 200
 ```
 
-**SPARQL: relationship-constitutive assertions**
+**SPARQL: relationship trust situations asserted by trust assertions**
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
-SELECT ?assertion ?relationship
+SELECT ?assertion ?situation ?relationship
 WHERE {
-  ?assertion a agentictrust:RelationshipTrustAssertion ;
-    agentictrust:assertsRelationship ?relationship .
+  ?assertion a agentictrust:TrustAssertion ;
+    agentictrust:assertsSituation ?situation .
+  ?situation a agentictrust:RelationshipTrustSituation ;
+    agentictrust:aboutSubject ?relationship .
 }
 LIMIT 200
 ```

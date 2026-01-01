@@ -1218,7 +1218,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     // Create ReputationSituation and link to Feedback
     const repSituationIri = situationIri(chainId, agentId, 'reputation', `${client}:${feedbackIndex}`, meta?.didIdentity);
     // Situation is an epistemic object (prov:Entity); the Feedback itself is the asserting activity.
-    chunks.push(`${repSituationIri} a agentictrust:ReputationSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    chunks.push(`${repSituationIri} a agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
     chunks.push(`  .\n`);
     // The ReputationSituation exists independently as an epistemic object; the Feedback activity asserts it.
@@ -1361,12 +1361,13 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const vi = validationRequestIri(chainId, id);
     // No direct agent link for requests; link agent via ValidationResponse using agentictrust:hasValidation.
     const lines: string[] = [];
-    // ValidationRequest is the situation object (Entity) being asserted/answered by later responses.
-    lines.push(`${vi} a erc8004:ValidationRequest, agentictrust:TrustSituation, agentictrust:VerificationSituation, prov:Entity ;`);
+    // ValidationRequest is a Situation (Entity) being asserted/answered by later responses.
+    // ERC8004.owl is assertion-only, so the request situation type lives in agentictrust-core as ValidationRequestSituation8004.
+    lines.push(`${vi} a agentictrust:ValidationRequestSituation8004, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     const validator = normalizeHex(v?.validatorAddress);
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);
-    // Link VerificationSituation to IntentType via satisfiesIntent
+    // Link VerificationTrustSituation to IntentType via satisfiesIntent
     lines.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.validation')}> ;`);
     if (validator) {
       ensureAccountNode(chunks, chainId, validator, 'SmartAccount'); // Validator is typically agentAccount
@@ -1475,7 +1476,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     if (typeof v?.tag === 'string' && v.tag.trim()) lines.push(`  erc8004:validationTagCheck <${checkIri(v.tag.trim())}> ;`);
     const reqHash = typeof v?.requestHash === 'string' ? v.requestHash.trim() : '';
     if (reqHash) {
-      lines.push(`  erc8004:requestHash "${escapeTurtleString(reqHash)}" ;`);
+        lines.push(`  erc8004:requestHash "${escapeTurtleString(reqHash)}" ;`);
       const reqIri = requestByHash.get(`${chainId}|${reqHash}`);
       if (reqIri) {
         lines.push(`  erc8004:validationRespondsToRequest ${reqIri} ;`);
@@ -1580,31 +1581,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     `,
   );
 
-  // Emit all relationship account ids for each chainId observed in associations.
-  // Note: association_accounts table is not chain-scoped, but associations are, and our IRIs are chain-scoped.
-  const associationAccounts = await safeAll(
-    `
-    SELECT a.*
-    FROM association_accounts a
-    `,
-  );
-  const associationChainIds = new Set<number>();
-  for (const assoc of associations) {
-    const chainId = Number(assoc?.chainId ?? 0) || 0;
-    if (chainId) associationChainIds.add(chainId);
-  }
-  for (const a of associationAccounts) {
-    const id = String(a?.id ?? '');
-    if (!id) continue;
-    for (const chainId of associationChainIds) {
-      const iri = relationshipAccountIri(chainId, id);
-      chunks.push(
-        `${iri} a agentictrust:RelationshipAccount, erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
-          id,
-        )}" ; erc8092:accountAddress "${escapeTurtleString(id)}" .\n`,
-      );
-    }
-  }
+  // NOTE: ERC8092.owl is assertion-only; we do not emit RelationshipAccount nodes.
 
   const associationRevocations = await safeAll(
     `
@@ -1642,12 +1619,12 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const approverAgent = approver ? agentByAccountKey.get(`${chainId}|${approver}`) : undefined;
 
     if (initiatorAgent) {
-      chunks.push(`${initiatorAgent} erc8092:hasRelationshipAssertion ${raIri} .\n`);
+      chunks.push(`${initiatorAgent} erc8092:hasAccountAssociation ${raIri} .\n`);
       const mk = initiator ? agentKeyByAccountKey.get(`${chainId}|${initiator}`) : undefined;
       if (mk) ensureAgentNode(mk.chainId, mk.agentId);
     }
     if (approverAgent) {
-      chunks.push(`${approverAgent} erc8092:hasRelationshipAssertion ${raIri} .\n`);
+      chunks.push(`${approverAgent} erc8092:hasAccountAssociation ${raIri} .\n`);
       const mk = approver ? agentKeyByAccountKey.get(`${chainId}|${approver}`) : undefined;
       if (mk) ensureAgentNode(mk.chainId, mk.agentId);
     }
@@ -1655,7 +1632,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const lines: string[] = [];
     // Create RelationshipSituation and link to Relationship
     const relSituationIri = situationIri(chainId, associationId, 'relationship', relationshipId, undefined);
-    chunks.push(`${relSituationIri} a agentictrust:RelationshipSituation, prov:Entity ;`);
+    chunks.push(`${relSituationIri} a agentictrust:RelationshipTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     chunks.push(`  agentictrust:aboutSubject ${relIri} ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);
     chunks.push(`  .\n`);
@@ -1663,9 +1640,8 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     // Relationship instance (ERC8092AccountRelationship)
     const relLines: string[] = [];
     relLines.push(
-      `${relIri} a agentictrust:Relationship, agentictrustEth:AccountRelationship, erc8092:RelationshipERC8092, erc8092:AccountRelationshipERC8092, prov:Entity ;`,
+      `${relIri} a agentictrust:Relationship, agentictrustEth:AccountRelationship, prov:Entity ;`,
     );
-    relLines.push(`  erc8092:relationshipId "${escapeTurtleString(relationshipId)}" ;`);
     
     // Add hasParticipant links to initiator and approver accounts
     if (initiator) {
@@ -1683,13 +1659,12 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const relContent = relLines.join('\n').replace(/ ;$/, ' .');
     chunks.push(`${relContent}\n`);
 
-    // Relationship assertion (ERC-8092 association row) - ERC8092AccountRelationshipAssertion
-    lines.push(`${raIri} a agentictrust:RelationshipTrustAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:RelationshipAssertionERC8092, erc8092:AccountRelationshipAssertionERC8092, prov:Activity ;`);
+    // Account association assertion (ERC-8092 on-chain association row)
+    lines.push(`${raIri} a agentictrust:TrustAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:AccountAssociation8092, prov:Activity ;`);
     lines.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(associationId)}" ;`);
-    lines.push(`  agentictrust:assertsRelationship ${relIri} ;`);
-    // The relationship situation exists independently as an epistemic object; this assertion asserts it.
+    lines.push(`  erc8092:associationId "${escapeTurtleString(associationId)}" ;`);
+    // Assertion-side only: assert the relationship trust situation (not a relationship instance class in ERC8092.owl).
     lines.push(`  agentictrust:assertsSituation ${relSituationIri} ;`);
-    lines.push(`  agentictrust:aboutSubject ${relIri} ;`);
     if (initiator) {
       // initiator/approver reference agentAccount, not eoaOwner
       ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
@@ -1702,41 +1677,11 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
 
     if (assoc?.initiatorAccountId) {
       const id = String(assoc.initiatorAccountId);
-      lines.push(`  erc8092:initiatorAccount ${relationshipAccountIri(chainId, id)} ;`);
-      // Link RelationshipAccount -> controlling account/address node (bridge to agent account/owner)
-      if (initiator) {
-        ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
-        chunks.push(
-          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForIdentifier ${accountIri(chainId, initiator)} .\n`,
-        );
-      }
-      // Relationship -> RelationshipAccount (core-level traversal)
-      chunks.push(`${relIri} agentictrust:hasRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
-      if (initiatorAgent) {
-        // Core-level bridge all the way to agent
-        chunks.push(`${initiatorAgent} agentictrust:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
-        // Also emit ERC-8092 subproperty for compatibility
-        chunks.push(`${initiatorAgent} erc8092:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
-      }
+      if (id) lines.push(`  erc8092:initiatorAccountId "${escapeTurtleString(id)}" ;`);
     }
     if (assoc?.approverAccountId) {
       const id = String(assoc.approverAccountId);
-      lines.push(`  erc8092:approverAccount ${relationshipAccountIri(chainId, id)} ;`);
-      // Link RelationshipAccount -> controlling account/address node (bridge to agent account/owner)
-      if (approver) {
-        ensureAccountNode(chunks, chainId, approver, 'SmartAccount');
-        chunks.push(
-          `${relationshipAccountIri(chainId, id)} agentictrust:relationshipAccountForIdentifier ${accountIri(chainId, approver)} .\n`,
-        );
-      }
-      // Relationship -> RelationshipAccount (core-level traversal)
-      chunks.push(`${relIri} agentictrust:hasRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
-      if (approverAgent) {
-        // Core-level bridge all the way to agent
-        chunks.push(`${approverAgent} agentictrust:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
-        // Also emit ERC-8092 subproperty for compatibility
-        chunks.push(`${approverAgent} erc8092:ownsRelationshipAccount ${relationshipAccountIri(chainId, id)} .\n`);
-      }
+      if (id) lines.push(`  erc8092:approverAccountId "${escapeTurtleString(id)}" ;`);
     }
     if (assoc?.interfaceId) lines.push(`  erc8092:interfaceId "${escapeTurtleString(String(assoc.interfaceId))}" ;`);
     if (assoc?.validAt != null) lines.push(`  erc8092:validAt ${Number(assoc.validAt) || 0} ;`);
@@ -1763,35 +1708,16 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
 
-    // Emit RelationshipAccount nodes (best-effort)
-    if (assoc?.initiatorAccountId) {
-      const id = String(assoc.initiatorAccountId);
-      chunks.push(
-        `${relationshipAccountIri(chainId, id)} a agentictrust:RelationshipAccount, erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
-          id,
-        )}" ; erc8092:accountAddress "${escapeTurtleString(id)}" .\n`,
-      );
-    }
-    if (assoc?.approverAccountId) {
-      const id = String(assoc.approverAccountId);
-      chunks.push(
-        `${relationshipAccountIri(chainId, id)} a agentictrust:RelationshipAccount, erc8092:RelationshipAccount, prov:Entity ; erc8092:relationshipAccountId "${escapeTurtleString(
-          id,
-        )}" ; erc8092:accountAddress "${escapeTurtleString(id)}" .\n`,
-      );
-    }
-
-    // Emit RelationshipRevocationAssertion nodes (best-effort)
+    // Emit AccountAssociationRevocation8092 nodes (best-effort)
     for (const r of revocationRows) {
       const rid = String(r?.id ?? '');
       if (!rid) continue;
       const rr: string[] = [];
       const rIri = relationshipRevocationAssertionIri(chainId, rid);
-      rr.push(`${rIri} a erc8092:RelationshipRevocationAssertion, prov:Activity ;`);
+      rr.push(`${rIri} a erc8092:AccountAssociationRevocation8092, prov:Activity ;`);
       rr.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(rid)}" ;`);
-      rr.push(`  agentictrust:assertsRelationship ${relIri} ;`);
       rr.push(`  agentictrust:aboutSubject ${relIri} ;`);
-      rr.push(`  erc8092:revocationOfRelationshipAssertion ${raIri} ;`);
+      rr.push(`  erc8092:revocationOfAccountAssociation ${raIri} ;`);
       if (r?.revokedAt != null) rr.push(`  erc8092:revokedAt ${Number(r.revokedAt) || 0} ;`);
       if (r?.txHash) rr.push(`  erc8092:revocationTxHash "${escapeTurtleString(String(r.txHash))}" ;`);
       if (r?.blockNumber != null) rr.push(`  erc8092:revocationBlockNumber ${Number(r.blockNumber) || 0} ;`);

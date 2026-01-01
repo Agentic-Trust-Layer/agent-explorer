@@ -330,7 +330,7 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?verificationSituation ?intentType ?intentTypeLabel ?agentId
 WHERE {
-  ?verificationSituation a agentictrust:VerificationSituation, erc8004:ValidationRequest .
+  ?verificationSituation a agentictrust:VerificationTrustSituation, erc8004:ValidationRequest .
   
   OPTIONAL {
     ?verificationSituation agentictrust:satisfiesIntent ?intentType .
@@ -357,7 +357,7 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?reputationSituation ?intentType ?intentTypeLabel ?assertion
 WHERE {
-  ?reputationSituation a agentictrust:ReputationSituation .
+  ?reputationSituation a agentictrust:ReputationTrustSituation .
   
   OPTIONAL {
     ?reputationSituation agentictrust:satisfiesIntent ?intentType .
@@ -447,8 +447,8 @@ WHERE {
   OPTIONAL {
     ?situation a ?situationType .
     FILTER(?situationType IN (
-      agentictrust:VerificationSituation,
-      agentictrust:ReputationSituation,
+      agentictrust:VerificationTrustSituation,
+      agentictrust:ReputationTrustSituation,
       agentictrust:RelationshipSituation
     ))
   }

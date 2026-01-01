@@ -165,7 +165,7 @@ This leads to a core distinction:
 DOLCE-DnS introduces constructs essential for agentic trust:
 
 1. **Situations** – Configurations of entities at a moment in time
-   - Example: A `VerificationSituation` where an agent is being validated
+   - Example: A `VerificationTrustSituation` where an agent is being validated
    - Captures the ongoing state, not just the completed activity
 
 2. **Descriptions** – Conceptual or normative frames applied to situations
@@ -229,6 +229,7 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`discovery.md`](./discovery.md): Skills, intents, tasks, execution traces, and OASF alignment (merged from skills.md, skills-intents-tasks.md, and oasf.md)
 - [`intent.md`](./intent.md): IntentType and IntentSituation model - wraps OASF skills, aligned with DOLCE-DnS, explains why skills are invoked
 - Trust building overlay: see the **Trust graph overlay** section in [`situation.md`](./situation.md)
+- Trust graph overview (PROV grounding): see [`trust-graph.md`](./trust-graph.md)
 
 ### Protocol-Specific Documentation
 
