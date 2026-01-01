@@ -1212,9 +1212,8 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     chunks.push(`${repSituationIri} a agentictrust:ReputationSituation, agentictrust:TrustSituation, prov:Entity ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
     chunks.push(`  .\n`);
-    chunks.push(`${fi} agentictrust:assertsSituation ${repSituationIri} ;`);
-    chunks.push(`  agentictrust:generatedSituation ${repSituationIri} ;`);
-    chunks.push(`  .\n`);
+    // The ReputationSituation exists independently as an epistemic object; the Feedback activity asserts it.
+    chunks.push(`${fi} agentictrust:assertsSituation ${repSituationIri} .\n`);
     if (client) {
       ensureAccountNode(chunks, chainId, client, 'EOA'); // Feedback client is typically EOA
       lines.push(`  erc8004:feedbackClient ${accountIri(chainId, client)} ;`);
@@ -1471,10 +1470,8 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
       const reqIri = requestByHash.get(`${chainId}|${reqHash}`);
       if (reqIri) {
         lines.push(`  erc8004:validationRespondsToRequest ${reqIri} ;`);
-        // ValidationResponse (assertion act) asserts the VerificationSituation (the request record),
-        // and may be treated as generating the recorded situation in our PROV-native DnS pattern.
+        // The ValidationRequest situation exists already; the ValidationResponse activity asserts/validates it.
         chunks.push(`${vi} agentictrust:assertsSituation ${reqIri} .\n`);
-        chunks.push(`${vi} agentictrust:generatedSituation ${reqIri} .\n`);
       }
     }
     const validator = normalizeHex(v?.validatorAddress);

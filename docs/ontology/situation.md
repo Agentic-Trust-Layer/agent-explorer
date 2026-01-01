@@ -122,7 +122,7 @@ class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
-TrustAssertion --> TrustSituation : generatedSituation
+TrustAssertion --> TrustSituation : assertsSituation
 ```
 
 **SPARQL: TrustAssertion + asserted TrustSituation + description**
@@ -133,7 +133,7 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 SELECT ?trustAssertion ?trustSituation ?trustDescription
 WHERE {
   ?trustAssertion a agentictrust:TrustAssertion .
-  OPTIONAL { ?trustAssertion agentictrust:generatedSituation ?trustSituation . }
+  OPTIONAL { ?trustAssertion agentictrust:assertsSituation ?trustSituation . }
   OPTIONAL { ?trustSituation agentictrust:hasSituationDescription ?trustDescription . }
 }
 LIMIT 200

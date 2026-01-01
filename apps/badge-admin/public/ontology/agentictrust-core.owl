@@ -156,7 +156,7 @@ agentictrust:RelationshipSituation a owl:Class ;
 ### TrustAssertion (assertion act / activity)
 agentictrust:TrustAssertion a owl:Class ;
   rdfs:label "TrustAssertion" ;
-  rdfs:comment "An assertion act (activity) by which an agent asserts that a TrustSituation holds, typically generating (prov:generated) a Situation entity and linking evidence." ;
+  rdfs:comment "An assertion act (activity) by which an agent asserts that a Situation/TrustSituation holds (agentictrust:assertsSituation) and links evidence. Use agentictrust:generatedSituation only when the assertion mints a new Situation entity as an explicit recorded claim object." ;
   rdfs:subClassOf agentictrust:SituationAssertion .
 
 agentictrust:VerificationAssertion a owl:Class ;
@@ -255,7 +255,7 @@ agentictrust:assertsDescription a owl:ObjectProperty ;
 
 agentictrust:generatedSituation a owl:ObjectProperty ;
   rdfs:label "generatedSituation" ;
-  rdfs:comment "A SituationAssertion activity generates (prov:generated) a Situation entity as its asserted/recorded outcome." ;
+  rdfs:comment "Optional: use when a SituationAssertion activity mints a new Situation entity (prov:generated) as an explicit recorded claim object. If the Situation already exists (e.g., registry request records), prefer agentictrust:assertsSituation." ;
   rdfs:subPropertyOf prov:generated ;
   rdfs:domain agentictrust:SituationAssertion ;
   rdfs:range agentictrust:Situation .
