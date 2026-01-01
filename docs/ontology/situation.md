@@ -4,43 +4,114 @@ Ontology: `agentictrust-core.owl`
 
 In this ontology, **Situation is not an event**.
 
-- `agentictrust:Situation` (and `agentictrust:TrustSituation`) is a **prov:Entity**: an epistemic/social object (“what is being claimed to hold”).
-- `agentictrust:SituationAssertion` (and `agentictrust:TrustAssertion`) is a **prov:Activity**: the time-scoped act of asserting a situation.
-- Execution/work still “happens” in PROV Activities like `TaskExecution`, `SkillInvocation`, `MessageSend`, etc.
+- `agentictrust:TrustSituation` is a **prov:Entity**: “what is being claimed to hold”.
+- `agentictrust:TrustAssertion` is a **prov:Activity**: the time-scoped act of asserting that situation.
 
-### Class hierarchy (key)
+### TrustSituation hierarchy (prov:Entity)
+
+```mermaid
+classDiagram
+direction LR
+
+class provEntity["prov:Entity"]
+class Situation["agentictrust:Situation"]
+class TrustSituation["agentictrust:TrustSituation"]
+class RelationshipSituation["agentictrust:RelationshipSituation"]
+class ReputationSituation["agentictrust:ReputationSituation"]
+class VerificationSituation["agentictrust:VerificationSituation"]
+
+Situation --|> provEntity
+TrustSituation --|> Situation
+RelationshipSituation --|> TrustSituation
+ReputationSituation --|> TrustSituation
+VerificationSituation --|> TrustSituation
+```
+
+### SPARQL: TrustSituation hierarchy + instances
+
+**List subclasses of `agentictrust:TrustSituation`:**
+
+```sparql
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?cls
+WHERE {
+  ?cls rdfs:subClassOf* agentictrust:TrustSituation .
+}
+ORDER BY ?cls
+```
+
+**List instances (any subtype of TrustSituation):**
+
+```sparql
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?situation ?type
+WHERE {
+  ?situation a ?type .
+  ?type rdfs:subClassOf* agentictrust:TrustSituation .
+}
+ORDER BY ?type ?situation
+LIMIT 200
+```
+
+### TrustAssertion hierarchy (prov:Activity)
 
 ```mermaid
 classDiagram
 direction LR
 
 class provActivity["prov:Activity"]
-class provEntity["prov:Entity"]
-
-class Situation["agentictrust:Situation"]
 class SituationAssertion["agentictrust:SituationAssertion"]
-class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
-class TrustArtifact["agentictrust:TrustArtifact"]
+class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+class ReputationAssertion["agentictrust:ReputationAssertion"]
+class VerificationAssertion["agentictrust:VerificationAssertion"]
 
-class TaskExecution["agentictrust:TaskExecution"]
-class SkillInvocation["agentictrust:SkillInvocation"]
-class MessageSend["agentictrust:MessageSend"]
-class MessageReceive["agentictrust:MessageReceive"]
-
-Situation --|> provEntity
 SituationAssertion --|> provActivity
-TrustSituation --|> Situation
 TrustAssertion --|> SituationAssertion
-TaskExecution --|> provActivity
-SkillInvocation --|> provActivity
-MessageSend --|> provActivity
-MessageReceive --|> provActivity
-
-TrustArtifact --|> provEntity
+RelationshipAssertion --|> TrustAssertion
+ReputationAssertion --|> TrustAssertion
+VerificationAssertion --|> TrustAssertion
 ```
 
-### Relationship diagram (properties)
+### SPARQL: TrustAssertion hierarchy + instances
+
+**List subclasses of `agentictrust:TrustAssertion`:**
+
+```sparql
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?cls
+WHERE {
+  ?cls rdfs:subClassOf* agentictrust:TrustAssertion .
+}
+ORDER BY ?cls
+```
+
+**TrustAssertions and the TrustSituation they generated:**
+
+```sparql
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?assertion ?assertionType ?situation ?situationType
+WHERE {
+  ?assertion a ?assertionType .
+  ?assertionType rdfs:subClassOf* agentictrust:TrustAssertion .
+  OPTIONAL {
+    ?assertion agentictrust:generatedSituation ?situation .
+    OPTIONAL { ?situation a ?situationType . }
+  }
+}
+ORDER BY ?assertionType ?assertion
+LIMIT 200
+```
+
+### TrustSituation ↔ TrustAssertion (core links)
 
 ```mermaid
 classDiagram
@@ -49,101 +120,90 @@ direction LR
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
-class TaskExecution["agentictrust:TaskExecution"]
-class SkillInvocation["agentictrust:SkillInvocation"]
-class Skill["agentictrust:Skill"]
-class Message["agentictrust:Message"]
-class Artifact["agentictrust:Artifact"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
 TrustAssertion --> TrustSituation : generatedSituation
-
-TaskExecution --> SkillInvocation : hasInvocation
-SkillInvocation --> Skill : invokesSkill
-SkillInvocation --> Message : invocationUsedMessage
-TaskExecution --> Artifact : producedArtifact
 ```
 
-### SPARQL Queries (demonstrating property relationships)
+**SPARQL: TrustAssertion + asserted TrustSituation + description**
 
-**Query TrustAssertion (activity) with TrustDescription and asserted TrustSituation (entity):**
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?trustAssertion ?trustSituation ?trustDescription
 WHERE {
   ?trustAssertion a agentictrust:TrustAssertion .
-  
-  OPTIONAL {
-    ?trustAssertion agentictrust:generatedSituation ?trustSituation .
-  }
-  OPTIONAL {
-    ?trustSituation agentictrust:hasSituationDescription ?trustDescription .
-  }
+  OPTIONAL { ?trustAssertion agentictrust:generatedSituation ?trustSituation . }
+  OPTIONAL { ?trustSituation agentictrust:hasSituationDescription ?trustDescription . }
 }
+LIMIT 200
 ```
 
-**Query TaskExecution with SkillInvocation and Skill:**
+### ERC-8004 TrustSituation + TrustAssertion flows
+
+Ontology: `ERC8004.owl`
+
+#### Validation (request → response)
+
+```mermaid
+classDiagram
+direction LR
+
+class AIAgent["agentictrust:AIAgent"]
+class ValidationRequest["erc8004:ValidationRequest"]
+class ValidationResponse["erc8004:ValidationResponse"]
+class provAgent["prov:Agent"]
+
+AIAgent --> ValidationResponse : hasValidation
+ValidationResponse --> ValidationRequest : validationRespondsToRequest
+ValidationResponse --> ValidationRequest : generatedSituation
+ValidationResponse --> provAgent : validatorAgentForResponse
+```
+
+**SPARQL: validation responses and their requests**
+
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 
-SELECT ?taskExecution ?skillInvocation ?skill ?message ?artifact
+SELECT ?agent ?response ?request ?validator
 WHERE {
-  ?taskExecution a agentictrust:TaskExecution .
-  
-  OPTIONAL {
-    ?taskExecution agentictrust:hasInvocation ?skillInvocation .
-    ?skillInvocation agentictrust:invokesSkill ?skill .
-    ?skillInvocation agentictrust:invocationUsedMessage ?message .
-  }
-  OPTIONAL {
-    ?taskExecution agentictrust:producedArtifact ?artifact .
-  }
+  ?agent erc8004:hasValidation ?response .
+  OPTIONAL { ?response erc8004:validationRespondsToRequest ?request . }
+  OPTIONAL { ?response agentictrust:generatedSituation ?request . }
+  OPTIONAL { ?response erc8004:validatorAgentForResponse ?validator . }
 }
+ORDER BY ?agent ?response
+LIMIT 200
 ```
 
-### Diagrams (how Situation is used)
+#### Reputation / feedback
 
-#### Situation → Trust establishment (verification, reputation, relationships)
+```mermaid
+classDiagram
+direction LR
 
-![Situation trust context](./images/sections/situation-trust-context.png)
+class AIAgent["agentictrust:AIAgent"]
+class Feedback["erc8004:Feedback"]
+class provAgent["prov:Agent"]
+class Skill["agentictrust:Skill"]
 
-#### Situation → Work execution (intent → discovery → invocation → tasks → outcomes)
+AIAgent --> Feedback : hasFeedback
+Feedback --> provAgent : feedbackClient
+Feedback --> Skill : feedbackSkill
+```
 
-![Situation execution context](./images/sections/situation-execution-context.png)
+**SPARQL: feedback records**
 
-### What a TrustSituation is (in this ontology)
+```sparql
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 
-- **Class**: `agentictrust:TrustSituation`
-- **Meaning**: a time-scoped realization of a trust description/plan that can use evidence and produce durable outputs.
-
-### Used to establish trust (registry-aligned)
-
-Situations generate assertions that become the durable “ledger” of trust signals:
-
-- **Verification**: ERC-8004 validation (e.g., `erc8004:ValidationRequest` → `erc8004:ValidationResponse`)
-- **Reputation**: ERC-8004 feedback (e.g., `erc8004:Feedback`)
-- **Relationships**: ERC-8092 relationship assertions (e.g., `erc8092:RelationshipAssertionERC8092`)
-
-### Used to perform agent work (protocol-aligned)
-
-Situations also cover operational agent work:
-
-- a **message** carries an **intent**
-- skills are discovered via **intent type / task type** compatibility
-- an agent performs a **SkillInvocation**
-- invocations are part of a **TaskExecution**
-- tasks produce **Artifacts** (which can include attestations, reports, or trust assertions depending on workflow)
-
-Key links (high level):
-
-- **Message → Intent**: `agentictrust:hasIntent`
-- **Skill → IntentType**: `agentictrust:supportsIntentType`
-- **IntentType → TaskType**: `agentictrust:mapsToTaskType`
-- **Skill → TaskType**: `agentictrust:enablesTaskType`
-- **TaskExecution → SkillInvocation**: `agentictrust:hasInvocation`
-- **SkillInvocation → Skill**: `agentictrust:invokesSkill`
-- **SkillInvocation → Message**: `agentictrust:invocationUsedMessage`
-- **TaskExecution → Artifact**: `agentictrust:producedArtifact`
-
-
+SELECT ?agent ?feedback ?score ?ratingPct
+WHERE {
+  ?agent erc8004:hasFeedback ?feedback .
+  OPTIONAL { ?feedback erc8004:feedbackScore ?score . }
+  OPTIONAL { ?feedback erc8004:feedbackRatingPct ?ratingPct . }
+}
+ORDER BY ?agent ?feedback
+LIMIT 200
+```

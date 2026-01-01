@@ -119,12 +119,12 @@ erc8004:listsSkill a owl:ObjectProperty ;
   rdfs:range agentictrust:Skill .
 
 erc8004:TrustSituation a owl:Class ;
-  rdfs:label "8004TrustSituation" ;
+  rdfs:label "TrustSituation8004" ;
   rdfs:comment "Base class for ERC-8004 trust situations (registry operations / time-scoped occurrences)." ;
   rdfs:subClassOf agentictrust:TrustSituation .
 
 erc8004:TrustAssertion a owl:Class ;
-  rdfs:label "8004TrustAssertion" ;
+  rdfs:label "TrustAssertion8004" ;
   rdfs:comment "Base class for ERC-8004 trust assertions (durable claims/evidence/artifacts)." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
