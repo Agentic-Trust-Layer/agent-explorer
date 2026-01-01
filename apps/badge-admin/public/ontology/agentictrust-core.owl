@@ -150,8 +150,8 @@ agentictrust:ReputationSituation a owl:Class ;
 
 agentictrust:RelationshipSituation a owl:Class ;
   rdfs:label "RelationshipSituation" ;
-  rdfs:comment "A TrustSituation about the status/constraints/qualification of a Relationship." ;
-  rdfs:subClassOf agentictrust:TrustSituation .
+  rdfs:comment "A Situation about the status/constraints/qualification of a Relationship. This can exist independently of trust, and can be asserted/qualified by TrustAssertions." ;
+  rdfs:subClassOf agentictrust:Situation .
 
 ### TrustAssertion (assertion act / activity)
 agentictrust:TrustAssertion a owl:Class ;
@@ -159,13 +159,13 @@ agentictrust:TrustAssertion a owl:Class ;
   rdfs:comment "An assertion act (activity) by which an agent asserts that a Situation/TrustSituation holds (agentictrust:assertsSituation) and links evidence. Use agentictrust:generatedSituation only when the assertion mints a new Situation entity as an explicit recorded claim object." ;
   rdfs:subClassOf agentictrust:SituationAssertion .
 
-agentictrust:VerificationAssertion a owl:Class ;
-  rdfs:label "VerificationAssertion" ;
+agentictrust:VerificationTrustAssertion a owl:Class ;
+  rdfs:label "VerificationTrustAssertion" ;
   rdfs:comment "A TrustAssertion act about verification/validation of an agent, endpoint, or credential." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
-agentictrust:ReputationAssertion a owl:Class ;
-  rdfs:label "ReputationAssertion" ;
+agentictrust:ReputationTrustAssertion a owl:Class ;
+  rdfs:label "ReputationTrustAssertion" ;
   rdfs:comment "A TrustAssertion act about reputation/feedback outcomes." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
@@ -174,8 +174,8 @@ agentictrust:Relationship a owl:Class ;
   rdfs:comment "A persistent social relationship between Agents. Exists independently of any single TrustSituation and has a lifecycle supported by RelationshipAssertions. For Account-to-Account relationships, see agentictrustEth:AccountRelationship." ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:RelationshipAssertion a owl:Class ;
-  rdfs:label "RelationshipAssertion" ;
+agentictrust:RelationshipTrustAssertion a owl:Class ;
+  rdfs:label "RelationshipTrustAssertion" ;
   rdfs:comment "A constitutive TrustAssertion act that establishes, modifies, or terminates a Relationship between Agents. For Account-to-Account relationship assertions, see agentictrustEth:AccountRelationshipAssertion." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
@@ -269,7 +269,7 @@ agentictrust:aboutSubject a owl:ObjectProperty ;
 agentictrust:assertsRelationship a owl:ObjectProperty ;
   rdfs:label "assertsRelationship" ;
   rdfs:comment "RelationshipAssertion establishes/modifies/terminates the Relationship instance it is about (constitutive link)." ;
-  rdfs:domain agentictrust:RelationshipAssertion ;
+  rdfs:domain agentictrust:RelationshipTrustAssertion ;
   rdfs:range agentictrust:Relationship .
 
 agentictrust:hasRelationship a owl:ObjectProperty ;
@@ -301,21 +301,21 @@ agentictrust:hasVerificationAssertion a owl:ObjectProperty ;
   rdfs:comment "Links an agent to verification assertions (e.g., validation responses) about it or produced by it." ;
   rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
   rdfs:domain prov:Agent ;
-  rdfs:range agentictrust:VerificationAssertion .
+  rdfs:range agentictrust:VerificationTrustAssertion .
 
 agentictrust:hasReputationAssertion a owl:ObjectProperty ;
   rdfs:label "hasReputationAssertion" ;
   rdfs:comment "Links an agent to reputation assertions (e.g., feedback responses) about it or produced by it." ;
   rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
   rdfs:domain prov:Agent ;
-  rdfs:range agentictrust:ReputationAssertion .
+  rdfs:range agentictrust:ReputationTrustAssertion .
 
 agentictrust:hasRelationshipAssertion a owl:ObjectProperty ;
   rdfs:label "hasRelationshipAssertion" ;
   rdfs:comment "Links an Agent to RelationshipAssertions it participates in or produces (for Agent-to-Agent relationships). For Account-to-Account relationship assertions, see agentictrustEth:hasAccountRelationshipAssertion." ;
   rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
   rdfs:domain prov:Agent ;
-  rdfs:range agentictrust:RelationshipAssertion .
+  rdfs:range agentictrust:RelationshipTrustAssertion .
 
 ########
 # Relationship Participant and Role properties
@@ -867,7 +867,7 @@ agentictrust:assembledFromMetadata a owl:ObjectProperty ;
   rdfs:label "assembledFromMetadata" ;
   rdfs:comment "Links an AgentDescriptor to other descriptor documents/components it is assembled from (inputs used to produce the operational descriptor used for advertisement and discovery)." ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentDescriptor .
+  rdfs:range agentictrust:Descriptor .
 
 agentictrust:hasEndpoint a owl:ObjectProperty ;
   rdfs:label "hasEndpoint" ;

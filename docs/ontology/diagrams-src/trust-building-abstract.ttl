@@ -20,16 +20,16 @@ agentictrust:TrustAssertion a owl:Class ;
   rdfs:label "TrustAssertion(DurableClaim)" ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:VerificationAssertion a owl:Class ;
+agentictrust:VerificationTrustAssertion a owl:Class ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
-agentictrust:ReputationAssertion a owl:Class ;
+agentictrust:ReputationTrustAssertion a owl:Class ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
 agentictrust:Relationship a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:RelationshipAssertion a owl:Class ;
+agentictrust:RelationshipTrustAssertion a owl:Class ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
 ### Core edges (trust graph overlay)
@@ -46,7 +46,7 @@ agentictrust:aboutSubject a owl:ObjectProperty ;
   rdfs:range prov:Entity .
 
 agentictrust:assertsRelationship a owl:ObjectProperty ;
-  rdfs:domain agentictrust:RelationshipAssertion ;
+  rdfs:domain agentictrust:RelationshipTrustAssertion ;
   rdfs:range agentictrust:Relationship .
 
 agentictrust:qualifiesRelationship a owl:ObjectProperty ;

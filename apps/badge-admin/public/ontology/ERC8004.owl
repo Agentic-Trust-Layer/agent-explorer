@@ -139,9 +139,9 @@ erc8004:ValidationRequest a owl:Class ;
 
 erc8004:ValidationResponse a owl:Class ;
   rdfs:label "ValidationResponse" ;
-  rdfs:comment "ERC-8004 validation response/attestation (a VerificationAssertion)." ;
+  rdfs:comment "ERC-8004 validation response/attestation (a VerificationTrustAssertion)." ;
   rdfs:subClassOf erc8004:TrustAssertion ;
-  rdfs:subClassOf agentictrust:VerificationAssertion .
+  rdfs:subClassOf agentictrust:VerificationTrustAssertion .
 
 ########
 # Feedback / reputation (ERC-8004)
@@ -151,13 +151,13 @@ erc8004:Feedback a owl:Class ;
   rdfs:label "Feedback" ;
   rdfs:comment "ERC-8004 reputation feedback record." ;
   rdfs:subClassOf erc8004:TrustAssertion ;
-  rdfs:subClassOf agentictrust:ReputationAssertion .
+  rdfs:subClassOf agentictrust:ReputationTrustAssertion .
 
 erc8004:FeedbackResponse a owl:Class ;
   rdfs:label "FeedbackResponse" ;
   rdfs:comment "Response to a feedback record (e.g., dispute/clarification)." ;
   rdfs:subClassOf erc8004:TrustAssertion ;
-  rdfs:subClassOf agentictrust:ReputationAssertion .
+  rdfs:subClassOf agentictrust:ReputationTrustAssertion .
 
 ########
 # Links from agents to ERC-8004 records

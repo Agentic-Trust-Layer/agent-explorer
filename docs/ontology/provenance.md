@@ -72,8 +72,8 @@ We ground trust and execution in PROV so:
 
 Trust claims land as subclasses of `agentictrust:TrustAssertion`:
 
-- Verification: `agentictrust:VerificationAssertion` (used by ERC8004 validation responses)
-- Reputation: `agentictrust:ReputationAssertion` (used by ERC8004 feedback)
-- Relationship assertions: `agentictrust:RelationshipAssertion` (used by ERC8092)
+- Verification: `agentictrust:VerificationTrustAssertion` (used by ERC8004 validation responses)
+- Reputation: `agentictrust:ReputationTrustAssertion` (used by ERC8004 feedback)
+- Relationship assertions: `agentictrust:RelationshipTrustAssertion` (used by ERC8092)
 
 

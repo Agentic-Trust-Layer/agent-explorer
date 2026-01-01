@@ -10,15 +10,15 @@ prov:Entity a owl:Class .
 prov:Agent a owl:Class .
 
 agentictrust:Relationship a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:RelationshipTrustAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
 
 erc8092:RelationshipERC8092 a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
-erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipTrustAssertion .
 erc8092:RelationshipAccount a owl:Class ; rdfs:subClassOf prov:Entity .
-erc8092:RelationshipRevocationAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipRevocationAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipTrustAssertion .
 
 agentictrust:assertsRelationship a owl:ObjectProperty ;
-  rdfs:domain agentictrust:RelationshipAssertion ;
+  rdfs:domain agentictrust:RelationshipTrustAssertion ;
   rdfs:range agentictrust:Relationship .
 
 erc8092:initiator a owl:ObjectProperty ;
@@ -43,6 +43,6 @@ erc8092:ownsRelationshipAccount a owl:ObjectProperty ;
 
 erc8092:revocationOfRelationshipAssertion a owl:ObjectProperty ;
   rdfs:domain erc8092:RelationshipRevocationAssertion ;
-  rdfs:range agentictrust:RelationshipAssertion .
+  rdfs:range agentictrust:RelationshipTrustAssertion .
 
 

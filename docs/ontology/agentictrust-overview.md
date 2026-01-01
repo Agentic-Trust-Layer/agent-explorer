@@ -42,7 +42,7 @@ By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituat
 - **TrustSituation**: epistemic/social object (“what is being claimed to hold”) (subclass of `prov:Entity`)
 - **TrustAssertion**: asserting act (“who asserted what, when”) (subclass of `prov:Activity`)
 - **Relationship**: persistent relationship instance (subclass of `prov:Entity`)
-- **RelationshipAssertion**: constitutive assertion about a `Relationship` (subclass of `TrustAssertion`)
+- **RelationshipTrustAssertion**: constitutive assertion about a `Relationship` (subclass of `TrustAssertion`)
 
 ```mermaid
 classDiagram
@@ -57,10 +57,10 @@ class provAgent["prov:Agent"]
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
-class VerificationAssertion["agentictrust:VerificationAssertion"]
-class ReputationAssertion["agentictrust:ReputationAssertion"]
+class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
+class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class Relationship["agentictrust:Relationship"]
-class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 
 TrustDescription --|> provPlan
 TrustDescription --|> pplanPlan
@@ -72,7 +72,7 @@ Relationship --|> provEntity
 RelationshipAssertion --|> TrustAssertion
 
 TrustSituation --> TrustDescription : hasSituationDescription
-TrustAssertion --> TrustSituation : generatedSituation
+TrustAssertion --> TrustSituation : assertsSituation
 TrustAssertion --> provEntity : aboutSubject
 RelationshipAssertion --> Relationship : assertsRelationship
 TrustAssertion --> Relationship : qualifiesRelationship

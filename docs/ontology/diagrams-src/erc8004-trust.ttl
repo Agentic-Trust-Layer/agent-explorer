@@ -13,21 +13,21 @@ prov:SoftwareAgent a owl:Class .
 agentictrust:AIAgent a owl:Class ; rdfs:subClassOf prov:SoftwareAgent .
 agentictrust:TrustSituation a owl:Class ; rdfs:subClassOf prov:Activity .
 agentictrust:TrustAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:VerificationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
-agentictrust:ReputationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:VerificationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
 erc8004:TrustSituation a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
 erc8004:TrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
 erc8004:ValidationRequest a owl:Class ; rdfs:subClassOf erc8004:TrustSituation .
 erc8004:ValidationResponse a owl:Class ;
-  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:VerificationAssertion .
+  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:VerificationTrustAssertion .
 
 erc8004:Feedback a owl:Class ;
-  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:ReputationAssertion .
+  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:ReputationTrustAssertion .
 
 erc8004:FeedbackResponse a owl:Class ;
-  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:ReputationAssertion .
+  rdfs:subClassOf erc8004:TrustAssertion, agentictrust:ReputationTrustAssertion .
 
 erc8004:hasFeedback a owl:ObjectProperty ;
   rdfs:domain agentictrust:AIAgent ;

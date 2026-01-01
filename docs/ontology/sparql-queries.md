@@ -333,7 +333,7 @@ WHERE {
     erc8004:hasValidation ?validation .
   ?identifier a agentictrustEth:Account ;
     agentictrustEth:accountChainId ?chainId .
-  ?validation a erc8004:ValidationResponse, agentictrust:VerificationAssertion .
+  ?validation a erc8004:ValidationResponse, agentictrust:VerificationTrustAssertion .
   OPTIONAL {
     ?validation erc8004:validatorAgent ?validator .
   }
@@ -356,7 +356,7 @@ WHERE {
     erc8004:hasFeedback ?feedback .
   ?identifier a agentictrustEth:Account ;
     agentictrustEth:accountChainId ?chainId .
-  ?feedback a erc8004:Feedback, agentictrust:ReputationAssertion .
+  ?feedback a erc8004:Feedback, agentictrust:ReputationTrustAssertion .
   OPTIONAL {
     ?feedback erc8004:feedbackClient ?clientAccount .
     ?clientAccount agentictrustEth:accountAddress ?client .

@@ -9,13 +9,13 @@ agentictrust:Diagram_DiscoveryTrustSignals a owl:Ontology ;
 
 agentictrust:AIAgent a owl:Class .
 agentictrust:TrustAssertion a owl:Class .
-agentictrust:VerificationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
-agentictrust:ReputationAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
-agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:VerificationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+agentictrust:RelationshipTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
-erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:VerificationAssertion .
-erc8004:Feedback a owl:Class ; rdfs:subClassOf agentictrust:ReputationAssertion .
-erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:VerificationTrustAssertion .
+erc8004:Feedback a owl:Class ; rdfs:subClassOf agentictrust:ReputationTrustAssertion .
+erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipTrustAssertion .
 
 erc8004:hasValidation a owl:ObjectProperty ;
   rdfs:domain agentictrust:AIAgent ;

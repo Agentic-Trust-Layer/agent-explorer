@@ -664,8 +664,17 @@ function renderAgentSection(
   if (hasProtocolProps) {
     // Use DID for protocol descriptor IRI (protocol-agnostic, no chainId needed)
     const didForProtocol = row?.didIdentity ? iriEncodeSegment(String(row.didIdentity)) : `${chainId}/${iriEncodeSegment(agentId)}`;
-    const protocolIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${didForProtocol}>`;
-    afterAgent.push(`${protocolIri} a agentictrust:A2AProtocolDescriptor, agentictrust:ProtocolDescriptor, prov:Entity ;`);
+    const protocolDescriptorIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${didForProtocol}>`;
+    const protocolIri = `<https://www.agentictrust.io/id/protocol/a2a/${didForProtocol}>`;
+
+    // Protocol instance + descriptor link (so Protocol → ProtocolDescriptor is queryable)
+    afterAgent.push(`${protocolIri} a agentictrust:Protocol, prov:Entity .\n`);
+    afterAgent.push(`${protocolIri} agentictrust:hasProtocolDescriptor ${protocolDescriptorIri} .\n`);
+
+    // AgentDescriptor assembled from this protocol descriptor component
+    afterAgent.push(`${adIri} agentictrust:assembledFromMetadata ${protocolDescriptorIri} .\n`);
+
+    afterAgent.push(`${protocolDescriptorIri} a agentictrust:A2AProtocolDescriptor, agentictrust:ProtocolDescriptor, prov:Entity ;`);
     if (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim())
       afterAgent.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
     if (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim())
@@ -1203,7 +1212,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
 
     const lines: string[] = [];
     // Feedback is a trust assertion act (Activity) in the Situation/SituationAssertion model.
-    lines.push(`${fi} a erc8004:Feedback, agentictrust:ReputationAssertion, prov:Activity ;`);
+    lines.push(`${fi} a erc8004:Feedback, agentictrust:ReputationTrustAssertion, prov:Activity ;`);
     lines.push(`  erc8004:feedbackIndex ${feedbackIndex} ;`);
     
     // Create ReputationSituation and link to Feedback
@@ -1329,7 +1338,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const ai = agentIri(chainId, agentId, meta?.didIdentity);
     chunks.push(`${ai} erc8004:hasFeedback ${ri} .\n`);
     const lines: string[] = [];
-    lines.push(`${ri} a erc8004:FeedbackResponse, agentictrust:ReputationAssertion, prov:Activity ;`);
+    lines.push(`${ri} a erc8004:FeedbackResponse, agentictrust:ReputationTrustAssertion, prov:Activity ;`);
     if (r?.responseJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(r.responseJson))} ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
@@ -1458,7 +1467,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     chunks.push(`${ai} erc8004:hasValidation ${vi} .\n`);
     const lines: string[] = [];
     // ValidationResponse is the trust assertion act (Activity).
-    lines.push(`${vi} a erc8004:ValidationResponse, agentictrust:VerificationAssertion, prov:Activity ;`);
+    lines.push(`${vi} a erc8004:ValidationResponse, agentictrust:VerificationTrustAssertion, prov:Activity ;`);
     lines.push(`  erc8004:validationChainIdForResponse ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentIdForResponse "${escapeTurtleString(agentId)}" ;`);
     if (typeof v?.response === 'number' || typeof v?.response === 'string') lines.push(`  erc8004:validationResponseValue ${Number(v.response) || 0} ;`);
@@ -1646,7 +1655,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const lines: string[] = [];
     // Create RelationshipSituation and link to Relationship
     const relSituationIri = situationIri(chainId, associationId, 'relationship', relationshipId, undefined);
-    chunks.push(`${relSituationIri} a agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    chunks.push(`${relSituationIri} a agentictrust:RelationshipSituation, prov:Entity ;`);
     chunks.push(`  agentictrust:aboutSubject ${relIri} ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);
     chunks.push(`  .\n`);
@@ -1675,7 +1684,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     chunks.push(`${relContent}\n`);
 
     // Relationship assertion (ERC-8092 association row) - ERC8092AccountRelationshipAssertion
-    lines.push(`${raIri} a agentictrust:RelationshipAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:RelationshipAssertionERC8092, erc8092:AccountRelationshipAssertionERC8092, prov:Activity ;`);
+    lines.push(`${raIri} a agentictrust:RelationshipTrustAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:RelationshipAssertionERC8092, erc8092:AccountRelationshipAssertionERC8092, prov:Activity ;`);
     lines.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(associationId)}" ;`);
     lines.push(`  agentictrust:assertsRelationship ${relIri} ;`);
     // The relationship situation exists independently as an epistemic object; this assertion asserts it.

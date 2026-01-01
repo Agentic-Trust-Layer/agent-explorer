@@ -14,7 +14,7 @@ class Account["agentictrustEth:Account"]
 
 class AIAgent["agentictrust:AIAgent"]
 class Relationship["agentictrust:Relationship"]
-class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 
 class RelationshipERC8092["erc8092:RelationshipERC8092"]
 class RelationshipAssertionERC8092["erc8092:RelationshipAssertionERC8092"]

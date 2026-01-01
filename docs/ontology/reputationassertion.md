@@ -1,6 +1,6 @@
-## ReputationAssertion
+## ReputationTrustAssertion
 
-This page documents the **ReputationAssertion** class hierarchy and property relationships used to represent agent feedback and reputation claims.
+This page documents the **ReputationTrustAssertion** class hierarchy and property relationships used to represent agent feedback and reputation claims.
 
 ### Class Hierarchy
 
@@ -8,13 +8,13 @@ This page documents the **ReputationAssertion** class hierarchy and property rel
 classDiagram
 direction TB
 
-class provEntity["prov:Entity"]
+class provActivity["prov:Activity"]
 class TrustAssertion["agentictrust:TrustAssertion"]
-class ReputationAssertion["agentictrust:ReputationAssertion"]
+class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class Feedback["erc8004:Feedback"]
 class FeedbackResponse["erc8004:FeedbackResponse"]
 
-provEntity <|-- TrustAssertion
+provActivity <|-- TrustAssertion
 TrustAssertion <|-- ReputationAssertion
 ReputationAssertion <|-- Feedback
 ReputationAssertion <|-- FeedbackResponse
@@ -23,7 +23,7 @@ ReputationAssertion <|-- FeedbackResponse
 **Inheritance chain:**
 - `prov:Entity` (base PROV-O class)
   - `agentictrust:TrustAssertion` (durable trust claim)
-    - `agentictrust:ReputationAssertion` (reputation/feedback claim)
+    - `agentictrust:ReputationTrustAssertion` (reputation/feedback claim)
       - `erc8004:Feedback` (ERC-8004 feedback record)
       - `erc8004:FeedbackResponse` (response to feedback)
 
@@ -34,7 +34,7 @@ classDiagram
 direction LR
 
 class AIAgent["agentictrust:AIAgent"]
-class ReputationAssertion["agentictrust:ReputationAssertion"]
+class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class Feedback["erc8004:Feedback"]
 class FeedbackResponse["erc8004:FeedbackResponse"]
 class provAgent["prov:Agent"]
@@ -53,7 +53,7 @@ Feedback --> IntentType : feedbackIntentType (erc8004)
 
 #### Agent → Assertion Links
 
-- **`agentictrust:hasReputationAssertion`** (domain: `prov:Agent`, range: `agentictrust:ReputationAssertion`)
+- **`agentictrust:hasReputationAssertion`** (domain: `prov:Agent`, range: `agentictrust:ReputationTrustAssertion`)
   - Links an agent to reputation assertions about it or produced by it
   - Subproperty of `agentictrust:hasTrustAssertion`
 
@@ -95,7 +95,7 @@ WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:hasReputationAssertion ?reputationAssertion .
   
-  ?reputationAssertion a agentictrust:ReputationAssertion .
+  ?reputationAssertion a agentictrust:ReputationTrustAssertion .
   
   OPTIONAL {
     ?agent agentictrust:agentId ?agentId .

@@ -15,10 +15,10 @@ class provEntity["prov:Entity"]
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
-class VerificationAssertion["agentictrust:VerificationAssertion"]
-class ReputationAssertion["agentictrust:ReputationAssertion"]
+class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
+class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class Relationship["agentictrust:Relationship"]
-class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 
 TrustDescription --|> provPlan
 TrustSituation --|> provEntity
@@ -43,7 +43,7 @@ class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 class Relationship["agentictrust:Relationship"]
-class RelationshipAssertion["agentictrust:RelationshipAssertion"]
+class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
 TrustSituation --> TrustDescription : hasSituationDescription

@@ -16,15 +16,15 @@ direction LR
 class provEntity["prov:Entity"]
 class Situation["agentictrust:Situation"]
 class TrustSituation["agentictrust:TrustSituation"]
-class RelationshipSituation["agentictrust:RelationshipSituation"]
 class ReputationSituation["agentictrust:ReputationSituation"]
 class VerificationSituation["agentictrust:VerificationSituation"]
+class RelationshipSituation["agentictrust:RelationshipSituation"]
 
 Situation --|> provEntity
 TrustSituation --|> Situation
-RelationshipSituation --|> TrustSituation
 ReputationSituation --|> TrustSituation
 VerificationSituation --|> TrustSituation
+RelationshipSituation --|> Situation
 ```
 
 ### SPARQL: Situation hierarchy + instances
@@ -66,9 +66,9 @@ direction LR
 class provActivity["prov:Activity"]
 class SituationAssertion["agentictrust:SituationAssertion"]
 class TrustAssertion["agentictrust:TrustAssertion"]
-class RelationshipAssertion["agentictrust:RelationshipAssertion"]
-class ReputationAssertion["agentictrust:ReputationAssertion"]
-class VerificationAssertion["agentictrust:VerificationAssertion"]
+class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
+class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
+class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 
 SituationAssertion --|> provActivity
 TrustAssertion --|> SituationAssertion

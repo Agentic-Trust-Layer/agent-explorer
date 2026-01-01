@@ -16,10 +16,10 @@ prov:SoftwareAgent a owl:Class ; rdfs:subClassOf prov:Agent .
 
 agentictrust:AIAgent a owl:Class ; rdfs:subClassOf prov:SoftwareAgent .
 agentictrust:Relationship a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:RelationshipTrustAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
 
 erc8092:RelationshipERC8092 a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
-erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipTrustAssertion .
 erc8092:RelationshipAccount a owl:Class ; rdfs:subClassOf prov:Entity .
 
 ########

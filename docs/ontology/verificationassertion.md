@@ -1,6 +1,6 @@
-## VerificationAssertion
+## VerificationTrustAssertion
 
-This page documents the **VerificationAssertion** class hierarchy and property relationships used to represent agent validation and verification claims.
+This page documents the **VerificationTrustAssertion** class hierarchy and property relationships used to represent agent validation and verification claims.
 
 ### Class Hierarchy
 
@@ -8,12 +8,12 @@ This page documents the **VerificationAssertion** class hierarchy and property r
 classDiagram
 direction TB
 
-class provEntity["prov:Entity"]
+class provActivity["prov:Activity"]
 class TrustAssertion["agentictrust:TrustAssertion"]
-class VerificationAssertion["agentictrust:VerificationAssertion"]
+class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 class ValidationResponse["erc8004:ValidationResponse"]
 
-provEntity <|-- TrustAssertion
+provActivity <|-- TrustAssertion
 TrustAssertion <|-- VerificationAssertion
 VerificationAssertion <|-- ValidationResponse
 ```
@@ -21,7 +21,7 @@ VerificationAssertion <|-- ValidationResponse
 **Inheritance chain:**
 - `prov:Entity` (base PROV-O class)
   - `agentictrust:TrustAssertion` (durable trust claim)
-    - `agentictrust:VerificationAssertion` (verification/validation claim)
+    - `agentictrust:VerificationTrustAssertion` (verification/validation claim)
       - `erc8004:ValidationResponse` (ERC-8004 validation response)
 
 ### Property Relationships
@@ -31,7 +31,7 @@ classDiagram
 direction LR
 
 class AIAgent["agentictrust:AIAgent"]
-class VerificationAssertion["agentictrust:VerificationAssertion"]
+class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 class ValidationResponse["erc8004:ValidationResponse"]
 class ValidationRequest["erc8004:ValidationRequest"]
 class TrustSituation["agentictrust:TrustSituation"]
@@ -45,7 +45,7 @@ ValidationResponse --> ValidationRequest : validationRespondsToRequest (erc8004)
 ValidationResponse --> provAgent : validatorAgentForResponse (erc8004)
 ValidationResponse --> IntentCheck : validationTagCheck (erc8004)
 
-VerificationAssertion --> TrustSituation : generatedSituation (agentictrust)
+VerificationAssertion --> TrustSituation : assertsSituation (agentictrust)
 ValidationResponse --> ValidationRequest : assertsSituation (agentictrust)
 ```
 
@@ -53,7 +53,7 @@ ValidationResponse --> ValidationRequest : assertsSituation (agentictrust)
 
 #### Agent → Assertion Links
 
-- **`agentictrust:hasVerificationAssertion`** (domain: `prov:Agent`, range: `agentictrust:VerificationAssertion`)
+- **`agentictrust:hasVerificationAssertion`** (domain: `prov:Agent`, range: `agentictrust:VerificationTrustAssertion`)
   - Links an agent to verification assertions about it or produced by it
   - Subproperty of `agentictrust:hasTrustAssertion`
 
@@ -66,9 +66,8 @@ ValidationResponse --> ValidationRequest : assertsSituation (agentictrust)
 - **`erc8004:validationRespondsToRequest`** (domain: `erc8004:ValidationResponse`, range: `erc8004:ValidationRequest`)
   - Links a validation response to the request it responds to
 
-- **`agentictrust:generatedSituation`** (domain: `agentictrust:SituationAssertion`, range: `agentictrust:Situation`)
-  - Links an asserting act (validation response) to the situation entity it records/produces
-  - Subproperty of `prov:generated`
+- **`agentictrust:assertsSituation`** (domain: `agentictrust:SituationAssertion`, range: `agentictrust:Situation`)
+  - Links an asserting act (validation response) to the situation it asserts/validates
 
 #### Validator Links
 
@@ -100,7 +99,7 @@ WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:hasVerificationAssertion ?verificationAssertion .
   
-  ?verificationAssertion a agentictrust:VerificationAssertion .
+  ?verificationAssertion a agentictrust:VerificationTrustAssertion .
   
   OPTIONAL {
     ?agent agentictrust:agentId ?agentId .
