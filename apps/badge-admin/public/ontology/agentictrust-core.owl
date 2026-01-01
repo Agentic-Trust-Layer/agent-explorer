@@ -54,7 +54,7 @@ Things that can be described:
 Protocol specializations:
 
   agentictrustEth:Account      ── agentictrust:hasDescriptor ──▶ agentictrustEth:AccountDescriptor (in agentictrust-eth.owl)
-  erc8004:8004Identity         ── agentictrust:hasDescriptor ──▶ erc8004:IdentityDescriptor8004 (in ERC8004.owl)
+  erc8004:Identity8004         ── agentictrust:hasDescriptor ──▶ erc8004:IdentityDescriptor8004 (in ERC8004.owl)
   NANDAIdentity                ── agentictrust:hasDescriptor ──▶ NANDAIdentityDescriptor (in NANDA.owl)
   agentictrustEth:NameENS      ── agentictrust:hasDescriptor ──▶ agentictrustEth:NameDescriptorENS (in agentictrust-eth.owl)
   DNSName                       ── agentictrust:hasDescriptor ──▶ DNSNameDescriptor (in agentictrust-dns.owl)
@@ -191,7 +191,7 @@ agentictrust:Identifier a owl:Class ;
 
 agentictrust:Identity a owl:Class ;
   rdfs:label "Identity" ;
-  rdfs:comment "Abstract identity for an agent. Protocol-specific realizations include ERC-8004 Identity (erc8004:8004Identity), Web2 identities, etc. An agent may have one or more Identities. Modeled as prov:Entity. Protocol-specific identities inherit from this class." ;
+  rdfs:comment "Abstract identity for an agent. Protocol-specific realizations include ERC-8004 Identity (erc8004:Identity8004), Web2 identities, etc. An agent may have one or more Identities. Modeled as prov:Entity. Protocol-specific identities inherit from this class." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:Name a owl:Class ;
@@ -439,7 +439,7 @@ agentictrust:assertedIn a owl:ObjectProperty ;
 
 agentictrust:hasIdentity a owl:ObjectProperty ;
   rdfs:label "hasIdentity" ;
-  rdfs:comment "Links an Agent (or any subclass of prov:Agent) to an Identity (e.g., erc8004:8004Identity). An agent may have one or more identities." ;
+  rdfs:comment "Links an Agent (or any subclass of prov:Agent) to an Identity (e.g., erc8004:Identity8004). An agent may have one or more identities." ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:Identity .
 

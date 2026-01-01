@@ -23,24 +23,24 @@ erc8092: a owl:Ontology ;
 # ERC-8092 Relationship model
 ########
 
-erc8092:ERC8092Relationship a owl:Class ;
-  rdfs:label "ERC8092Relationship" ;
+erc8092:RelationshipERC8092 a owl:Class ;
+  rdfs:label "RelationshipERC8092" ;
   rdfs:comment "An ERC-8092 relationship instance (identified by associationId). Specializes AccountRelationship for ERC-8092 account-to-account relationships." ;
   rdfs:subClassOf agentictrustEth:AccountRelationship .
 
-erc8092:ERC8092AccountRelationship a owl:Class ;
-  rdfs:label "ERC8092AccountRelationship" ;
-  rdfs:comment "An ERC-8092 account relationship instance (identified by associationId). Alias/synonym for ERC8092Relationship, emphasizing the account-to-account nature. Instances are typed with both classes in RDF data." ;
+erc8092:AccountRelationshipERC8092 a owl:Class ;
+  rdfs:label "AccountRelationshipERC8092" ;
+  rdfs:comment "An ERC-8092 account relationship instance (identified by associationId). Alias/synonym for RelationshipERC8092, emphasizing the account-to-account nature. Instances are typed with both classes in RDF data." ;
   rdfs:subClassOf agentictrustEth:AccountRelationship .
 
-erc8092:ERC8092RelationshipAssertion a owl:Class ;
-  rdfs:label "ERC8092RelationshipAssertion" ;
+erc8092:RelationshipAssertionERC8092 a owl:Class ;
+  rdfs:label "RelationshipAssertionERC8092" ;
   rdfs:comment "An ERC-8092 association record interpreted as an account relationship assertion that establishes or modifies an underlying AccountRelationship." ;
   rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion .
 
-erc8092:ERC8092AccountRelationshipAssertion a owl:Class ;
-  rdfs:label "ERC8092AccountRelationshipAssertion" ;
-  rdfs:comment "An ERC-8092 account relationship assertion. Alias/synonym for ERC8092RelationshipAssertion, emphasizing the account-to-account nature. Instances are typed with both classes in RDF data." ;
+erc8092:AccountRelationshipAssertionERC8092 a owl:Class ;
+  rdfs:label "AccountRelationshipAssertionERC8092" ;
+  rdfs:comment "An ERC-8092 account relationship assertion. Alias/synonym for RelationshipAssertionERC8092, emphasizing the account-to-account nature. Instances are typed with both classes in RDF data." ;
   rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion .
 
 erc8092:RelationshipAccount a owl:Class ;
@@ -70,23 +70,23 @@ erc8092:relationshipAssertionId a owl:DatatypeProperty ;
 erc8092:initiator a owl:ObjectProperty ;
   rdfs:label "initiator" ;
   rdfs:comment "The initiator Account (may be a key-id/account-id represented as an Account IRI in data)." ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range agentictrustEth:Account .
 
 erc8092:approver a owl:ObjectProperty ;
   rdfs:label "approver" ;
   rdfs:comment "The approver Account (may be a key-id/account-id represented as an Account IRI in data)." ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range agentictrustEth:Account .
 
 erc8092:initiatorAccount a owl:ObjectProperty ;
   rdfs:label "initiatorAccount" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range agentictrustEth:AccountRelationshipAccount .
 
 erc8092:approverAccount a owl:ObjectProperty ;
   rdfs:label "approverAccount" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range agentictrustEth:AccountRelationshipAccount .
 
 erc8092:ownsRelationshipAccount a owl:ObjectProperty ;
@@ -101,7 +101,7 @@ erc8092:hasRelationshipAssertion a owl:ObjectProperty ;
   rdfs:comment "ERC-8092 specific property linking Accounts to account relationship assertions (associations) they participate in. Subproperty of agentictrustEth:hasAccountRelationshipAssertion." ;
   rdfs:subPropertyOf agentictrustEth:hasAccountRelationshipAssertion ;
   rdfs:domain agentictrustEth:Account ;
-  rdfs:range erc8092:ERC8092RelationshipAssertion .
+  rdfs:range erc8092:RelationshipAssertionERC8092 .
 
 erc8092:relationshipAccountId a owl:DatatypeProperty ;
   rdfs:label "relationshipAccountId" ;
@@ -117,77 +117,77 @@ erc8092:accountAddress a owl:DatatypeProperty ;
 
 erc8092:interfaceId a owl:DatatypeProperty ;
   rdfs:label "interfaceId" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:validAt a owl:DatatypeProperty ;
   rdfs:label "validAt" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:integer .
 
 erc8092:validUntil a owl:DatatypeProperty ;
   rdfs:label "validUntil" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:integer .
 
 erc8092:revokedAt a owl:DatatypeProperty ;
   rdfs:label "revokedAt" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:integer .
 
 erc8092:dataHex a owl:DatatypeProperty ;
   rdfs:label "dataHex" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:initiatorKeyType a owl:DatatypeProperty ;
   rdfs:label "initiatorKeyType" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:approverKeyType a owl:DatatypeProperty ;
   rdfs:label "approverKeyType" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:initiatorSignature a owl:DatatypeProperty ;
   rdfs:label "initiatorSignature" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:approverSignature a owl:DatatypeProperty ;
   rdfs:label "approverSignature" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:createdTxHash a owl:DatatypeProperty ;
   rdfs:label "createdTxHash" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:createdBlockNumber a owl:DatatypeProperty ;
   rdfs:label "createdBlockNumber" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:integer .
 
 erc8092:createdTimestamp a owl:DatatypeProperty ;
   rdfs:label "createdTimestamp" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:integer .
 
 erc8092:lastUpdatedTxHash a owl:DatatypeProperty ;
   rdfs:label "lastUpdatedTxHash" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:string .
 
 erc8092:lastUpdatedBlockNumber a owl:DatatypeProperty ;
   rdfs:label "lastUpdatedBlockNumber" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:integer .
 
 erc8092:lastUpdatedTimestamp a owl:DatatypeProperty ;
   rdfs:label "lastUpdatedTimestamp" ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range xsd:integer .
 
 erc8092:revocationOfRelationshipAssertion a owl:ObjectProperty ;
@@ -218,21 +218,21 @@ erc8092:hasParticipant a owl:ObjectProperty ;
   rdfs:label "hasParticipant" ;
   rdfs:comment "ERC-8092 specific property linking a Relationship to an Agent that participates in it. Subproperty of agentictrust:hasParticipant." ;
   rdfs:subPropertyOf agentictrust:hasParticipant ;
-  rdfs:domain erc8092:ERC8092Relationship ;
+  rdfs:domain erc8092:RelationshipERC8092 ;
   rdfs:range agentictrust:AIAgent .
 
 erc8092:qualifiedParticipation a owl:ObjectProperty ;
   rdfs:label "qualifiedParticipation" ;
   rdfs:comment "ERC-8092 specific property linking a Relationship to a QualifiedParticipation instance. Subproperty of agentictrust:qualifiedParticipation." ;
   rdfs:subPropertyOf agentictrust:qualifiedParticipation ;
-  rdfs:domain erc8092:ERC8092Relationship ;
+  rdfs:domain erc8092:RelationshipERC8092 ;
   rdfs:range agentictrust:QualifiedParticipation .
 
 erc8092:hasRole a owl:ObjectProperty ;
   rdfs:label "hasRole" ;
   rdfs:comment "ERC-8092 specific property linking a Relationship to a Role. Subproperty of agentictrust:hasRole." ;
   rdfs:subPropertyOf agentictrust:hasRole ;
-  rdfs:domain erc8092:ERC8092Relationship ;
+  rdfs:domain erc8092:RelationshipERC8092 ;
   rdfs:range p-plan:Role .
 
 

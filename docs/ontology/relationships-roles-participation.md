@@ -217,10 +217,10 @@ classDiagram
     
     ERC8092Relationship --> Account : hasParticipant (agentictrust)
     
-    note for ERC8092Relationship "erc8092:ERC8092Relationship\nERC-8092 relationship instance\n(identified by associationId)"
-    note for ERC8092AccountRelationship "erc8092:ERC8092AccountRelationship\nEquivalent to ERC8092Relationship\nEmphasizes account-to-account nature"
-    note for ERC8092RelationshipAssertion "erc8092:ERC8092RelationshipAssertion\nERC-8092 association record"
-    note for ERC8092AccountRelationshipAssertion "erc8092:ERC8092AccountRelationshipAssertion\nEquivalent to ERC8092RelationshipAssertion"
+    note for RelationshipERC8092 "erc8092:RelationshipERC8092\nERC-8092 relationship instance\n(identified by associationId)"
+    note for AccountRelationshipERC8092 "erc8092:AccountRelationshipERC8092\nEquivalent to RelationshipERC8092\nEmphasizes account-to-account nature"
+    note for RelationshipAssertionERC8092 "erc8092:RelationshipAssertionERC8092\nERC-8092 association record"
+    note for AccountRelationshipAssertionERC8092 "erc8092:AccountRelationshipAssertionERC8092\nEquivalent to RelationshipAssertionERC8092"
 ```
 
 ### ERC-8092 Properties
@@ -242,7 +242,7 @@ PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
 SELECT ?relationship ?relationshipId ?participantAccount ?accountAddress
 WHERE {
-  ?relationship a erc8092:ERC8092Relationship ;
+  ?relationship a erc8092:RelationshipERC8092 ;
     erc8092:relationshipId ?relationshipId ;
     agentictrust:hasParticipant ?participantAccount .
   ?participantAccount a agentictrustEth:Account ;
@@ -259,7 +259,7 @@ PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
 SELECT ?assertion ?relationship ?initiator ?approver ?initiatorAccount ?approverAccount
 WHERE {
-  ?assertion a erc8092:ERC8092RelationshipAssertion ;
+  ?assertion a erc8092:RelationshipAssertionERC8092 ;
     agentictrust:assertsRelationship ?relationship .
   
   OPTIONAL {
@@ -292,10 +292,10 @@ SELECT ?assertion ?relationship ?relationshipId
        ?initiator ?initiatorAddress ?approver ?approverAddress
        ?participantViaAssertion ?participantViaRelationship
 WHERE {
-  ?assertion a erc8092:ERC8092RelationshipAssertion ;
+  ?assertion a erc8092:RelationshipAssertionERC8092 ;
     agentictrust:assertsRelationship ?relationship .
   
-  ?relationship a erc8092:ERC8092Relationship ;
+  ?relationship a erc8092:RelationshipERC8092 ;
     erc8092:relationshipId ?relationshipId .
   
   # Participants via assertion
@@ -328,7 +328,7 @@ PREFIX p-plan: <http://purl.org/net/p-plan#>
 
 SELECT ?relationship ?participantAccount ?role
 WHERE {
-  ?relationship a erc8092:ERC8092Relationship .
+  ?relationship a erc8092:RelationshipERC8092 .
   ?relationship agentictrust:qualifiedParticipation ?qualifiedParticipation .
   ?qualifiedParticipation agentictrust:participant ?participantAccount .
   ?qualifiedParticipation agentictrust:participationRole ?role .

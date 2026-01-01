@@ -239,7 +239,7 @@ ERC ontologies
 - [`relationships-roles-participation.md`](./relationships-roles-participation.md): relationship model with participants, roles, and qualified participation (core, eth, and ERC-8092 levels)
 - [`verificationassertion.md`](./verificationassertion.md): VerificationAssertion class hierarchy and property relationships
 - [`reputationassertion.md`](./reputationassertion.md): ReputationAssertion class hierarchy and property relationships
-- [`identifiers.md`](./identifiers.md): Complete agent identity model: Agent relationships to identifiers (Account, ENSName, 8004Identity), DIDs, and Descriptors
+- [`identifiers.md`](./identifiers.md): Complete agent identity model: Agent relationships to identifiers (Account, NameENS, Identity8004), DIDs, and Descriptors
 - [`sparql-queries.md`](./sparql-queries.md): SPARQL queries for querying agents and related data
 
 ## Ontology Source Files

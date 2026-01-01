@@ -23,6 +23,6 @@ erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:Verificati
 erc8004:Feedback a owl:Class ; rdfs:subClassOf agentictrust:ReputationAssertion .
 
 ### ERC-8092: relationship assertions
-erc8092:ERC8092RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
 
 

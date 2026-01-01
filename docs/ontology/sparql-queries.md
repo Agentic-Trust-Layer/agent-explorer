@@ -77,7 +77,7 @@ WHERE {
   }
   UNION
   {
-    # Identifiers via 8004Identity → hasIdentifier → IdentityIdentifier8004
+    # Identifiers via Identity8004 → hasIdentifier → IdentityIdentifier8004
     ?agent agentictrust:hasIdentity ?identity .
     ?identity agentictrust:hasIdentifier ?identifier .
   }

@@ -123,7 +123,7 @@ Situations generate assertions that become the durable “ledger” of trust sig
 
 - **Verification**: ERC-8004 validation (e.g., `erc8004:ValidationRequest` → `erc8004:ValidationResponse`)
 - **Reputation**: ERC-8004 feedback (e.g., `erc8004:Feedback`)
-- **Relationships**: ERC-8092 relationship assertions (e.g., `erc8092:ERC8092RelationshipAssertion`)
+- **Relationships**: ERC-8092 relationship assertions (e.g., `erc8092:RelationshipAssertionERC8092`)
 
 ### Used to perform agent work (protocol-aligned)
 

@@ -85,8 +85,8 @@ How to read this:
   - links like `erc8004:feedbackClient` and `erc8004:feedbackSkill` express who provided feedback and for which capability
 
 - **ERC-8092 associated accounts storage**
-  - `erc8092:ERC8092RelationshipAssertion` is modeled as a **RelationshipAssertion** (on-chain relationship record)
-  - the relationship instance is `erc8092:ERC8092Relationship`
+  - `erc8092:RelationshipAssertionERC8092` is modeled as a **RelationshipAssertion** (on-chain relationship record)
+  - the relationship instance is `erc8092:RelationshipERC8092`
   - participant accounts are captured via `erc8092:initiatorAccount` / `erc8092:approverAccount`
 
 ### Practical “trust building” query patterns

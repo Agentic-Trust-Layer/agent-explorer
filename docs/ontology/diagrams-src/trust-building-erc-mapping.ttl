@@ -53,16 +53,16 @@ erc8004:feedbackSkill a owl:ObjectProperty ;
 agentictrust:Skill a owl:Class .
 
 ### ERC-8092 associated accounts storage (relationship assertions)
-erc8092:ERC8092Relationship a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
-erc8092:ERC8092RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipERC8092 a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
+erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
 erc8092:RelationshipAccount a owl:Class .
 
 erc8092:initiatorAccount a owl:ObjectProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range erc8092:RelationshipAccount .
 
 erc8092:approverAccount a owl:ObjectProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range erc8092:RelationshipAccount .
 
 

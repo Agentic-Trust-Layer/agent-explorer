@@ -398,7 +398,7 @@ WHERE {
   
   OPTIONAL {
     ?relationshipSituation agentictrust:aboutSubject ?relationship .
-    ?relationship a agentictrust:Relationship, erc8092:ERC8092AccountRelationship .
+    ?relationship a agentictrust:Relationship, erc8092:AccountRelationshipERC8092 .
   }
 }
 LIMIT 50

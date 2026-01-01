@@ -23,7 +23,7 @@ ORDER BY ?agentType ?agent
 ### SPARQL: AI Agents with Identity, Name, and Identifier
 
 This returns each `agentictrust:AIAgent` along with (when present) its:
-- ERC-8004 identity (`agentictrust:hasIdentity` → `erc8004:8004Identity`) and its identity identifier (`agentictrust:hasIdentifier` → `erc8004:IdentityIdentifier8004`)
+- ERC-8004 identity (`agentictrust:hasIdentity` → `erc8004:Identity8004`) and its identity identifier (`agentictrust:hasIdentifier` → `erc8004:IdentityIdentifier8004`)
 - ENS name (`agentictrust:hasName` → `agentictrustEth:NameENS`) and its ENS name identifier (`agentictrustEth:hasIdentifier` → `agentictrustEth:NameIdentifierENS`)
 - Account identifier (`agentictrustEth:hasAccountIdentifier`) and its DID (`agentictrustEth:hasDID`)
 - Any direct identifiers attached at the `prov:Agent` level (`agentictrust:hasIdentifier`)
@@ -161,22 +161,20 @@ classDiagram
     provSoftwareAgent <|-- AIAgent
     provSoftwareAgent <|-- Account
     
-    AIAgent --> Identity8004 : hasIdentity (agentictrust)
-    AIAgent --> Identifier : hasIdentifier (agentictrust)
-    AIAgent --> AccountIdentifier : hasAccountIdentifier (agentictrustEth)
-    AIAgent --> NameENS : hasName (agentictrust)
-    Account --> AccountIdentifier : hasIdentifier (agentictrust)
+    provAgent --> Identity8004 : hasIdentity
+    provAgent --> Identifier : hasIdentifier
+    provAgent --> NameENS : hasName
     
     Identity8004 --> IdentityIdentifier8004 : hasIdentifier (agentictrust)
     NameENS --> NameIdentifierENS : hasIdentifier (agentictrustEth)
     
-    AIAgent --> AgentDescriptor : hasDescriptor (agentictrust)
-    Identity8004 --> IdentityDescriptor8004 : hasDescriptor (agentictrust)
+    provAgent --> AgentDescriptor : hasDescription / hasAgentDescriptor
+    Identity8004 --> IdentityDescriptor8004 : hasDescriptor (prov:Entity)
     Identifier --> IdentifierDescriptor : hasDescriptor (agentictrust)
     AccountIdentifier --> AccountDescriptor : hasDescriptor (agentictrust)
     NameENS --> NameDescriptorENS : hasDescriptor (agentictrust)
     
-    note for Identity8004 "erc8004:8004Identity\nERC-8004 on-chain identity"
+    note for Identity8004 "erc8004:Identity8004\nERC-8004 on-chain identity"
     note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004\ndid:8004:chainId:agentId"
     note for AccountIdentifier "agentictrustEth:AccountIdentifier\nEthereum account identifier"
     note for NameIdentifierENS "agentictrustEth:NameIdentifierENS\nENS name identifier"
@@ -190,10 +188,16 @@ classDiagram
 - `agentictrust:hasIdentifier`: Links an Agent to its Identifier (inherited from `prov:Agent`, defined in `agentictrust-core.owl`)
   - Range: `agentictrust:Identifier`
   - Protocol-specific realizations: `AccountIdentifier`, `NameIdentifierENS`, `IdentityIdentifier8004`
+- `agentictrust:hasIdentity`: Links an Agent to an Identity (e.g., `erc8004:Identity8004`)
+  - Range: `agentictrust:Identity`
+- `agentictrust:hasName`: Links an Agent to a Name (e.g., `agentictrustEth:NameENS`)
+  - Range: `agentictrust:Name`
+- `agentictrust:hasDescription`: Links an Agent to a resolver-produced `Descriptor` (agent-level description)
+  - Range: `agentictrust:Descriptor`
 
 ### AIAgent-Specific Properties
 
-- `agentictrust:hasIdentity`: Links an Agent to an Identity (e.g., `erc8004:8004Identity`)
+- `agentictrust:hasIdentity`: Links an Agent to an Identity (e.g., `erc8004:Identity8004`)
   - Range: `agentictrust:Identity`
 - `agentictrustEth:hasAccountIdentifier`: Links an AIAgent to its Ethereum AccountIdentifier
   - Range: `agentictrustEth:AccountIdentifier`
@@ -214,7 +218,7 @@ classDiagram
 All identity-related entities have Descriptors that provide resolved, normalized metadata:
 
 - **Agent** → `hasDescriptor` → `AgentDescriptor`
-- **Identity** (8004Identity) → `hasDescriptor` → `IdentityDescriptor8004`
+- **Identity** (Identity8004) → `hasDescriptor` → `IdentityDescriptor8004`
 - **Identifier** → `hasDescriptor` → `IdentifierDescriptor`
   - `AccountIdentifier` → `hasDescriptor` → `AccountDescriptor`
   - `NameIdentifierENS` → `hasDescriptor` → `NameDescriptorENS`
@@ -297,7 +301,7 @@ WHERE {
     ?agentDescriptor a agentictrust:AgentDescriptor .
   }
   
-  # Identity Descriptor (via 8004Identity)
+  # Identity Descriptor (via Identity8004)
   OPTIONAL {
     ?agent agentictrust:hasIdentity ?identity .
     ?identity agentictrust:hasDescriptor ?identityDescriptor .
@@ -433,7 +437,7 @@ WHERE {
     ?agent agentictrust:agentName ?agentName .
   }
   
-  # Identity chain: Agent → 8004Identity → IdentityDescriptor8004
+  # Identity chain: Agent → Identity8004 → IdentityDescriptor8004
   OPTIONAL {
     ?agent agentictrust:hasIdentity ?identity .
     ?identity agentictrust:hasDescriptor ?identityDescriptor .
@@ -490,7 +494,7 @@ LIMIT 50
 The Agent model provides a layered identity approach:
 
 1. **Agent Classes**: `prov:Agent` → `prov:SoftwareAgent` → `AIAgent` / `Account`
-2. **Identity Layer**: Agent → `8004Identity` → `IdentityIdentifier8004`
+2. **Identity Layer**: Agent → `Identity8004` → `IdentityIdentifier8004`
 3. **Identifier Layer**: Agent → `Identifier` (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004)
 4. **Name Layer**: Agent → `NameENS` → `NameIdentifierENS`
 5. **Descriptor Layer**: Entities (Identity/Identifier/Name) → `hasDescriptor` → `Descriptor` (resolved metadata); Agents additionally use `hasDescription` / `hasAgentDescriptor`

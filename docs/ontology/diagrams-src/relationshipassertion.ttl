@@ -18,8 +18,8 @@ agentictrust:AIAgent a owl:Class ; rdfs:subClassOf prov:SoftwareAgent .
 agentictrust:Relationship a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:RelationshipAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
 
-erc8092:ERC8092Relationship a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
-erc8092:ERC8092RelationshipAssertion a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
+erc8092:RelationshipERC8092 a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
+erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipAssertion .
 erc8092:RelationshipAccount a owl:Class ; rdfs:subClassOf prov:Entity .
 
 ########
@@ -28,34 +28,34 @@ erc8092:RelationshipAccount a owl:Class ; rdfs:subClassOf prov:Entity .
 ########
 
 erc8092:relationshipId a owl:DatatypeProperty ;
-  rdfs:domain erc8092:ERC8092Relationship ;
+  rdfs:domain erc8092:RelationshipERC8092 ;
   rdfs:range rdfs:Literal .
 
 erc8092:relationshipAssertionId a owl:DatatypeProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range rdfs:Literal .
 
 # RelationshipAssertion -> Relationship (by id)
 erc8092:assertsRelationshipId a owl:DatatypeProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range rdfs:Literal .
 
 # RelationshipAssertion -> participant accounts (account ids)
 erc8092:initiatorAccountId a owl:DatatypeProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range rdfs:Literal .
 
 erc8092:approverAccountId a owl:DatatypeProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range rdfs:Literal .
 
 # RelationshipAssertion -> participant agent identifiers (addresses, DIDs, etc.)
 erc8092:initiatorAgentId a owl:DatatypeProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range rdfs:Literal .
 
 erc8092:approverAgentId a owl:DatatypeProperty ;
-  rdfs:domain erc8092:ERC8092RelationshipAssertion ;
+  rdfs:domain erc8092:RelationshipAssertionERC8092 ;
   rdfs:range rdfs:Literal .
 
 # Agent -> owned relationship account ids

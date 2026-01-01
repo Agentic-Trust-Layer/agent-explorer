@@ -379,21 +379,21 @@ function renderAgentSection(
   const adIri = agentDescriptorIri(chainId, agentId, row?.didIdentity);
   lines.push(`  agentictrust:hasAgentDescriptor ${adIri} ;`);
   
-  // 8004Identity and IdentityIdentifier8004 for didIdentity
+  // Identity8004 and IdentityIdentifier8004 for didIdentity
   if (row?.didIdentity) {
     lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
     const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didIdentity))}>`;
     
-    // Create 8004Identity instance
+    // Create Identity8004 instance
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
     lines.push(`  agentictrust:hasIdentity ${identity8004IriValue} ;`);
     
     // Create IdentityIdentifier8004 instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
     
-    // Emit 8004Identity
+    // Emit Identity8004
     accountChunks.push(
-      `${identity8004IriValue} a erc8004:8004Identity, prov:Entity ;\n` +
+      `${identity8004IriValue} a erc8004:Identity8004, prov:Entity ;\n` +
         `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
@@ -570,12 +570,12 @@ function renderAgentSection(
   adLines.push(`  .\n`);
   afterAgent.push(adLines.join('\n'));
 
-  // Create IdentityDescriptor8004 from tokenUri (rawJson) if we have 8004Identity
+  // Create IdentityDescriptor8004 from tokenUri (rawJson) if we have Identity8004
   if (row?.didIdentity) {
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
     const identityDescriptorIri = identity8004DescriptorIri(chainId, agentId, row.didIdentity);
     
-    // Link 8004Identity to its Descriptor
+    // Link Identity8004 to its Descriptor
     accountChunks.push(
       `${identity8004IriValue} agentictrust:hasDescriptor ${identityDescriptorIri} .\n\n`,
     );
@@ -781,21 +781,21 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
   if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
   
-  // 8004Identity and IdentityIdentifier8004 for didIdentity
+  // Identity8004 and IdentityIdentifier8004 for didIdentity
   if (row?.didIdentity) {
     lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
     const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didIdentity))}>`;
     
-    // Create 8004Identity instance
+    // Create Identity8004 instance
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
     lines.push(`  agentictrust:hasIdentity ${identity8004IriValue} ;`);
     
     // Create IdentityIdentifier8004 instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
     
-    // Emit 8004Identity
+    // Emit Identity8004
     accountChunks.push(
-      `${identity8004IriValue} a erc8004:8004Identity, prov:Entity ;\n` +
+      `${identity8004IriValue} a erc8004:Identity8004, prov:Entity ;\n` +
         `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
@@ -1657,7 +1657,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     // Relationship instance (ERC8092AccountRelationship)
     const relLines: string[] = [];
     relLines.push(
-      `${relIri} a agentictrust:Relationship, agentictrustEth:AccountRelationship, erc8092:ERC8092Relationship, erc8092:ERC8092AccountRelationship, prov:Entity ;`,
+      `${relIri} a agentictrust:Relationship, agentictrustEth:AccountRelationship, erc8092:RelationshipERC8092, erc8092:AccountRelationshipERC8092, prov:Entity ;`,
     );
     relLines.push(`  erc8092:relationshipId "${escapeTurtleString(relationshipId)}" ;`);
     
@@ -1678,7 +1678,7 @@ async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: 
     chunks.push(`${relContent}\n`);
 
     // Relationship assertion (ERC-8092 association row) - ERC8092AccountRelationshipAssertion
-    lines.push(`${raIri} a agentictrust:RelationshipAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:ERC8092RelationshipAssertion, erc8092:ERC8092AccountRelationshipAssertion, prov:Entity ;`);
+    lines.push(`${raIri} a agentictrust:RelationshipAssertion, agentictrustEth:AccountRelationshipAssertion, erc8092:RelationshipAssertionERC8092, erc8092:AccountRelationshipAssertionERC8092, prov:Entity ;`);
     lines.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(associationId)}" ;`);
     lines.push(`  agentictrust:assertsRelationship ${relIri} ;`);
     lines.push(`  agentictrust:aboutSubject ${relIri} ;`);

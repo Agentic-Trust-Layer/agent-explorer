@@ -16,8 +16,8 @@ class AIAgent["agentictrust:AIAgent"]
 class Relationship["agentictrust:Relationship"]
 class RelationshipAssertion["agentictrust:RelationshipAssertion"]
 
-class ERC8092Relationship["erc8092:ERC8092Relationship"]
-class ERC8092RelationshipAssertion["erc8092:ERC8092RelationshipAssertion"]
+class RelationshipERC8092["erc8092:RelationshipERC8092"]
+class RelationshipAssertionERC8092["erc8092:RelationshipAssertionERC8092"]
 class RelationshipAccount["erc8092:RelationshipAccount"]
 
 ERC8092Relationship --|> Relationship
@@ -46,7 +46,7 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?relationshipAssertion ?relationship ?initiatorAccount ?approverAccount ?initiator ?approver
 WHERE {
-  ?relationshipAssertion a erc8092:ERC8092RelationshipAssertion .
+  ?relationshipAssertion a erc8092:RelationshipAssertionERC8092 .
   
   OPTIONAL {
     ?relationshipAssertion agentictrust:assertsRelationship ?relationship .
@@ -92,7 +92,7 @@ ORDER BY ?agentId
 
 ### Core idea
 
-- **Relationship assertion** (`erc8092:ERC8092RelationshipAssertion`) is the on-chain record.
+- **Relationship assertion** (`erc8092:RelationshipAssertionERC8092`) is the on-chain record.
 - It names the participant **relationship accounts**:
   - `erc8092:initiatorAccount`
   - `erc8092:approverAccount`
@@ -102,7 +102,7 @@ ORDER BY ?agentId
 - Those accounts are connected to the controlling identity via:
   - `erc8092:ownsRelationshipAccount` (domain `prov:Agent`, typically `agentictrust:AIAgent`)
 - The assertion also **asserts** the underlying relationship instance:
-  - `agentictrust:assertsRelationship` → `erc8092:ERC8092Relationship`
+  - `agentictrust:assertsRelationship` → `erc8092:RelationshipERC8092`
 - The relationship links to participant Accounts via:
   - `agentictrust:hasParticipant` → `agentictrustEth:Account` (inherited from core Relationship)
 

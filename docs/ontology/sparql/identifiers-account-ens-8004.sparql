@@ -1,4 +1,4 @@
-# Identifier-centric queries: Account, NameENS, 8004Identity (→ Agent)
+# Identifier-centric queries: Account, NameENS, Identity8004 (→ Agent)
 #
 # Ontology prefixes:
 # - agentictrust-core: https://www.agentictrust.io/ontology/agentictrust-core#
@@ -49,7 +49,7 @@ WHERE {
 ORDER BY ?agentId
 
 ################################################################################
-# 3) Agent → 8004Identity → IdentityIdentifier8004 (+ DID)
+# 3) Agent → Identity8004 → IdentityIdentifier8004 (+ DID)
 ################################################################################
 
 SELECT ?agent ?agentId ?identity8004 ?identityIdentifier ?did
@@ -64,7 +64,7 @@ WHERE {
 ORDER BY ?agentId
 
 ################################################################################
-# 4) One row per agent: Account + ENS + 8004Identity (all OPTIONAL)
+# 4) One row per agent: Account + ENS + Identity8004 (all OPTIONAL)
 ################################################################################
 
 SELECT ?agent ?agentId
