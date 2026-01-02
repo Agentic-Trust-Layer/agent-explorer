@@ -33,7 +33,7 @@ direction LR
 class AIAgent["agentictrust:AIAgent"]
 class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 class ValidationResponse["erc8004:ValidationResponse"]
-class ValidationRequest["agentictrust:ValidationRequestSituation8004"]
+class ValidationRequest["agentictrust:VerificationRequestSituation"]
 class TrustSituation["agentictrust:TrustSituation"]
 class IntentCheck["agentictrust:IntentCheck"]
 class provAgent["prov:Agent"]
@@ -63,7 +63,7 @@ ValidationResponse --> ValidationRequest : assertsSituation (agentictrust)
 
 #### Assertion → Request Links
 
-- **`erc8004:validationRespondsToRequest`** (domain: `erc8004:ValidationResponse`, range: `agentictrust:ValidationRequestSituation8004`)
+- **`erc8004:validationRespondsToRequest`** (domain: `erc8004:ValidationResponse`, range: `agentictrust:VerificationRequestSituation`)
   - Links a validation response to the request it responds to
 
 - **`agentictrust:assertsSituation`** (domain: `agentictrust:SituationAssertion`, range: `agentictrust:Situation`)
@@ -127,7 +127,7 @@ WHERE {
 
 ### Related Concepts
 
-- **TrustSituation**: Validation requests are `agentictrust:ValidationRequestSituation8004` (subclass of `agentictrust:VerificationTrustSituation`)
+- **TrustSituation**: Validation requests are `agentictrust:VerificationRequestSituation` (subclass of `agentictrust:RequestSituation`, and a `agentictrust:VerificationTrustSituation`)
 - **TrustAssertion**: VerificationAssertion is a subclass of TrustAssertion
 - **IntentCheck**: Validation responses link to intent checks via `validationTagCheck`
 - See also: [ERC-8004 documentation](./erc8004.md), [Situation](./situation.md)

@@ -158,10 +158,27 @@ agentictrust:RelationshipTrustSituation a owl:Class ;
   rdfs:comment "A TrustSituation about the status/constraints/qualification of a Relationship (trust-qualified relationship state)." ;
   rdfs:subClassOf agentictrust:TrustSituation .
 
-agentictrust:ValidationRequestSituation8004 a owl:Class ;
-  rdfs:label "ValidationRequestSituation8004" ;
-  rdfs:comment "ERC-8004 validation request record modeled as a Situation (not defined in ERC8004.owl, which is assertion-only). Used as the asserted situation for validation responses." ;
+agentictrust:RequestSituation a owl:Class ;
+  rdfs:label "RequestSituation" ;
+  rdfs:comment "A Situation that represents a request context (epistemic request object), which may later be asserted/validated by one or more TrustAssertions." ;
+  rdfs:subClassOf agentictrust:Situation .
+
+agentictrust:VerificationRequestSituation a owl:Class ;
+  rdfs:label "VerificationRequestSituation" ;
+  rdfs:comment "ERC-8004 verification/validation request record modeled as a Situation (not defined in ERC8004.owl, which is assertion-only). Used as the asserted situation for validation responses." ;
+  rdfs:subClassOf agentictrust:RequestSituation ;
   rdfs:subClassOf agentictrust:VerificationTrustSituation .
+
+agentictrust:ReputationRequestSituation a owl:Class ;
+  rdfs:label "ReputationRequestSituation" ;
+  rdfs:comment "A request-shaped Situation in the reputation domain (e.g., a client requests feedback authorization or asks to provide feedback). This is a RequestSituation and also a ReputationTrustSituation." ;
+  rdfs:subClassOf agentictrust:RequestSituation ;
+  rdfs:subClassOf agentictrust:ReputationTrustSituation .
+
+agentictrust:FeedbackAuthRequestSituation a owl:Class ;
+  rdfs:label "FeedbackAuthRequestSituation" ;
+  rdfs:comment "A ReputationRequestSituation representing the request flow for issuing an ERC-8004 feedbackAuth token/signature, enabling a client to submit feedback." ;
+  rdfs:subClassOf agentictrust:ReputationRequestSituation .
 
 ### TrustAssertion (assertion act / activity)
 agentictrust:TrustAssertion a owl:Class ;

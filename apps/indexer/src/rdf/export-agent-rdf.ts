@@ -1362,8 +1362,8 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     // No direct agent link for requests; link agent via ValidationResponse using agentictrust:hasValidation.
     const lines: string[] = [];
     // ValidationRequest is a Situation (Entity) being asserted/answered by later responses.
-    // ERC8004.owl is assertion-only, so the request situation type lives in agentictrust-core as ValidationRequestSituation8004.
-    lines.push(`${vi} a agentictrust:ValidationRequestSituation8004, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    // ERC8004.owl is assertion-only, so the request situation type lives in agentictrust-core as VerificationRequestSituation.
+    lines.push(`${vi} a agentictrust:VerificationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     const validator = normalizeHex(v?.validatorAddress);
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);

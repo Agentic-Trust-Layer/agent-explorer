@@ -18,7 +18,7 @@ agentictrust:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust
 
 erc8004:TrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
-agentictrust:ValidationRequestSituation8004 a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
+agentictrust:VerificationRequestSituation a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
 erc8004:ValidationResponse a owl:Class ;
   rdfs:subClassOf erc8004:TrustAssertion, agentictrust:VerificationTrustAssertion .
 
@@ -38,6 +38,6 @@ erc8004:hasValidation a owl:ObjectProperty ;
 
 erc8004:validationRespondsToRequest a owl:ObjectProperty ;
   rdfs:domain erc8004:ValidationResponse ;
-  rdfs:range agentictrust:ValidationRequestSituation8004 .
+  rdfs:range agentictrust:VerificationRequestSituation .
 
 

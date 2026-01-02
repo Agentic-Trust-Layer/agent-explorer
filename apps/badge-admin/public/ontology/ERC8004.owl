@@ -193,13 +193,13 @@ erc8004:feedbackIntentType a owl:ObjectProperty ;
 
 erc8004:validationValidator a owl:ObjectProperty ;
   rdfs:label "validationValidator" ;
-  rdfs:domain agentictrust:ValidationRequestSituation8004 ;
+  rdfs:domain agentictrust:VerificationRequestSituation ;
   rdfs:range prov:Agent .
 
 erc8004:validatorAgent a owl:ObjectProperty ;
   rdfs:label "validatorAgent" ;
   rdfs:comment "Optional link when validatorAddress maps to a known AIAgent account/address." ;
-  rdfs:domain agentictrust:ValidationRequestSituation8004 ;
+  rdfs:domain agentictrust:VerificationRequestSituation ;
   rdfs:range agentictrust:AIAgent .
 
 erc8004:validatorAgentForResponse a owl:ObjectProperty ;
@@ -211,7 +211,7 @@ erc8004:validatorAgentForResponse a owl:ObjectProperty ;
 erc8004:validationRespondsToRequest a owl:ObjectProperty ;
   rdfs:label "validationRespondsToRequest" ;
   rdfs:domain erc8004:ValidationResponse ;
-  rdfs:range agentictrust:ValidationRequestSituation8004 .
+  rdfs:range agentictrust:VerificationRequestSituation .
 
 erc8004:validationTagCheck a owl:ObjectProperty ;
   rdfs:label "validationTagCheck" ;
@@ -244,22 +244,22 @@ erc8004:isRevoked a owl:DatatypeProperty ;
 
 erc8004:requestHash a owl:DatatypeProperty ;
   rdfs:label "requestHash" ;
-  rdfs:domain agentictrust:ValidationRequestSituation8004 ;
+  rdfs:domain agentictrust:VerificationRequestSituation ;
   rdfs:range xsd:string .
 
 erc8004:validationChainId a owl:DatatypeProperty ;
   rdfs:label "validationChainId" ;
-  rdfs:domain agentictrust:ValidationRequestSituation8004 ;
+  rdfs:domain agentictrust:VerificationRequestSituation ;
   rdfs:range xsd:integer .
 
 erc8004:requestingAgentId a owl:DatatypeProperty ;
   rdfs:label "requestingAgentId" ;
-  rdfs:domain agentictrust:ValidationRequestSituation8004 ;
+  rdfs:domain agentictrust:VerificationRequestSituation ;
   rdfs:range xsd:string .
 
 erc8004:validatorAddress a owl:DatatypeProperty ;
   rdfs:label "validatorAddress" ;
-  rdfs:domain agentictrust:ValidationRequestSituation8004 ;
+  rdfs:domain agentictrust:VerificationRequestSituation ;
   rdfs:range xsd:string .
 
 erc8004:responseHash a owl:DatatypeProperty ;
