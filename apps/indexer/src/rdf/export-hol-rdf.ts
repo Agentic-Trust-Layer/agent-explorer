@@ -34,17 +34,23 @@ function escapeTurtleString(value: string): string {
 }
 
 function iriEncodeSegment(seg: string): string {
+  if (!seg || typeof seg !== 'string') return '';
+  // Reject problematic values that shouldn't be in IRIs
+  const trimmed = seg.trim();
+  if (!trimmed || trimmed === 'value' || trimmed === 'type' || trimmed.length === 0) {
+    return 'invalid';
+  }
   // encodeURIComponent already handles most special characters
   // But we need to handle / specially - keep it as %2F, not double-encode
-  return encodeURIComponent(seg).replace(/%2F/g, '%252F');
+  return encodeURIComponent(trimmed).replace(/%2F/g, '%252F');
 }
 
 function isSafeAbsoluteIri(value: string): boolean {
   if (!/^[A-Za-z][A-Za-z0-9+.-]*:/.test(value)) return false;
   // GraphDB is strict about IRI validity - reject localhost and other problematic patterns
-  if (/[<>"\s\\{}|^`]/.test(value)) return false;
+  if (/[<>"\s\\{}|^`\[\]]/.test(value)) return false;
   // Reject localhost URLs as they're not valid in production RDF
-  if (/^https?:\/\/localhost[:\/]/.test(value)) return false;
+  if (/^https?:\/\/localhost[:\/]/i.test(value)) return false;
   // Reject data URIs - they're too long and may contain problematic characters
   if (/^data:/.test(value)) return false;
   // Reject URLs with query parameters containing colons (e.g., ?q=tbn:...) as GraphDB may reject them
@@ -53,16 +59,52 @@ function isSafeAbsoluteIri(value: string): boolean {
   if (value.length > 200) return false;
   // Only allow http/https IRIs for safety
   if (!/^https?:\/\//.test(value)) return false;
+  // Reject single-word values that aren't valid IRIs (e.g., "value", "type", etc.)
+  if (/^[a-z]+$/i.test(value) && value.length < 10) return false;
+  // Reject IRIs with double slashes in the path (e.g., https://domain//path)
+  if (/^https?:\/\/[^\/]+\/\/+/.test(value)) return false;
+
+  // Additional hostname sanity checks (GraphDB tends to reject "weird but RFC-legal" IRIs)
+  // - must have a dot
+  // - TLD length >= 2
+  // - reject IPv4 hosts and common local dev hosts
+  try {
+    const u = new URL(value);
+    const host = (u.hostname ?? '').toLowerCase();
+    if (!host) return false;
+    if (host === 'localhost') return false;
+    if (host === 'locahost') return false;
+    // Reject IPv4 (GraphDB often rejects these in some deployments, and we don't want local endpoints as IRIs)
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return false;
+    if (!host.includes('.')) return false;
+    const tld = host.split('.').pop() ?? '';
+    if (tld.length < 2) return false;
+  } catch {
+    return false;
+  }
+
   return true;
 }
 
 function turtleIriOrLiteral(value: unknown): string | null {
   if (typeof value !== 'string' || !value.trim()) return null;
-  const s = value.trim();
+  let s = value.trim();
+  // Reject common invalid values that might be misinterpreted as IRIs
+  if (s === 'value' || s === 'type' || s === 'name' || s.length < 4) {
+    return `"${escapeTurtleString(s)}"`;
+  }
   // Filter out localhost URLs - they're not valid in production RDF
   if (/^https?:\/\/localhost[:\/]/.test(s)) {
     // Return as string literal instead of IRI
     return `"${escapeTurtleString(s)}"`;
+  }
+  // Filter out data URIs - they're too long and may contain problematic characters
+  if (/^data:/.test(s)) {
+    return `"${escapeTurtleString(s)}"`;
+  }
+  // Fix double slashes in URL paths (e.g., https://domain//path -> https://domain/path)
+  if (/^https?:\/\//.test(s)) {
+    s = s.replace(/(https?:\/\/[^\/]+)\/\/+/g, '$1/');
   }
   if (isSafeAbsoluteIri(s)) return `<${s}>`;
   return `"${escapeTurtleString(s)}"`;
@@ -160,8 +202,17 @@ export async function exportHolAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
 
   for (const row of agentRows) {
     const chainId = Number(row?.chainId ?? 0) || 0;
-    const agentId = String(row?.agentId ?? '');
+    let agentId = String(row?.agentId ?? '');
     if (!agentId) continue;
+    
+    // If agentId is a UAID (very long, contains uaid:), use a hash-based identifier instead
+    // to avoid creating IRIs that are too long for GraphDB
+    if (agentId.length > 100 || agentId.toLowerCase().startsWith('uaid:')) {
+      // Use a hash of the agentId to create a stable, shorter identifier
+      const hash = createHash('sha256').update(agentId).digest('hex').slice(0, 32);
+      agentId = `hol-${hash}`;
+    }
+    
     // Skip agents with problematic IDs that might create invalid IRIs
     // (e.g., IDs that when encoded create patterns GraphDB rejects)
     if (agentId.toLowerCase().includes('localhost') && agentId.length > 50) {
@@ -472,6 +523,11 @@ export async function exportHolAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
               endpointUrl = endpointUrl.trim();
             } else {
               continue; // Skip non-string, non-object values
+            }
+            
+            // Validate that we have a real URL, not just the word "value" or other invalid values
+            if (!endpointUrl || endpointUrl === 'value' || endpointUrl === 'type' || endpointUrl.length < 4 || !endpointUrl.includes('://')) {
+              continue;
             }
             
             const epIri = endpointIri(agentId, key.trim(), uaid);

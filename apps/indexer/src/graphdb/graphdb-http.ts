@@ -209,7 +209,17 @@ export async function uploadFileToRepository(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`GraphDB upload failed (${filePath}): HTTP ${res.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+    // Try to extract line number or IRI from error message
+    const lineMatch = text.match(/line\s+(\d+)/i) || text.match(/\[line\s+(\d+)\]/i) || text.match(/at\s+line\s+(\d+)/i);
+    // Look for IRI in angle brackets or after "IRI:" but not from "Invalid IRI value" message
+    const iriMatch = text.match(/IRI[:\s]+<([^>]+)>/i) || 
+                     text.match(/IRI[:\s]+(https?:\/\/[^\s<>"{}|^`\n]+)/i) ||
+                     text.match(/IRI[:\s]+([a-z][a-z0-9+.-]*:[^\s<>"{}|^`\n]+)/i);
+    const lineInfo = lineMatch ? ` (line ${lineMatch[1]})` : '';
+    const iriInfo = iriMatch ? ` (problematic IRI: ${iriMatch[1].slice(0, 150)})` : '';
+    // Show full error for debugging
+    const fullError = text ? `\nFull error: ${text}` : '';
+    throw new Error(`GraphDB upload failed (${filePath})${lineInfo}${iriInfo}${fullError.slice(0, 2000)}`);
   }
   return { bytes: stat.size };
 }
