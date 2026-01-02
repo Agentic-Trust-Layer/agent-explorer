@@ -228,6 +228,7 @@ erc8004:validatorAgent a owl:ObjectProperty ;
 erc8004:validatorAgentForResponse a owl:ObjectProperty ;
   rdfs:label "validatorAgentForResponse" ;
   rdfs:comment "Optional link when validatorAddress maps to a known AIAgent account/address (response side)." ;
+  rdfs:subPropertyOf agentictrust:assertedBy ;
   rdfs:domain erc8004:ValidationResponse ;
   rdfs:range agentictrust:AIAgent .
 

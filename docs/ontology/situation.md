@@ -203,6 +203,46 @@ ORDER BY ?agent ?response
 LIMIT 200
 ```
 
+## Abstract “Situation graph” query layer
+
+These query-friendly abstractions are defined in `agentictrust-core.owl` so you can query consistently across trust sources:
+
+- **Situation subject (evaluated agent)**: `agentictrust:isAboutAgent` (Situation → AIAgent)
+- **Situation participants** (client/validator/org/etc.): `agentictrust:hasSituationParticipant` (Situation → Agent)
+- **Assertion act → Situation**: `agentictrust:assertsSituation` (AssertionAct → Situation)
+- **Assertion act author/performer**: `agentictrust:assertedBy` (AssertionAct → Agent)
+
+### SPARQL: situations + evaluated agent + participants
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?situation ?aboutAgent ?participant
+WHERE {
+  ?situation a agentictrust:Situation .
+  OPTIONAL { ?situation agentictrust:isAboutAgent ?aboutAgent . }
+  OPTIONAL { ?situation agentictrust:hasSituationParticipant ?participant . }
+}
+ORDER BY ?situation ?aboutAgent ?participant
+LIMIT 200
+```
+
+### SPARQL: assertion acts + asserted situation + assertedBy
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX prov: <http://www.w3.org/ns/prov#>
+
+SELECT ?act ?situation ?assertedBy
+WHERE {
+  ?act a prov:Activity ;
+    agentictrust:assertsSituation ?situation .
+  OPTIONAL { ?act agentictrust:assertedBy ?assertedBy . }
+}
+ORDER BY ?act ?situation
+LIMIT 200
+```
+
 ### ERC-8092 relationship flow
 
 Ontology: `ERC8092.owl` (assertion-side only)

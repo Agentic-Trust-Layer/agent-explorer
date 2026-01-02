@@ -1227,6 +1227,8 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const repSituationIri = situationIri(chainId, agentId, 'reputation', `${client}:${feedbackIndex}`, meta?.didIdentity);
     // Situation is an epistemic object (prov:Entity); the Feedback itself is the asserting activity.
     chunks.push(`${repSituationIri} a agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    // Situation is about the agent being evaluated.
+    chunks.push(`  agentictrust:isAboutAgent ${ai} ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
     chunks.push(`  .\n`);
     // Link record and act to the asserted situation.
@@ -1237,10 +1239,17 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     if (client) {
       const clientIri = accountIri(chainId, client);
       chunks.push(`  prov:wasAssociatedWith ${clientIri} ;\n`);
+      chunks.push(`  agentictrust:assertedBy ${clientIri} ;\n`);
       // Attribute the record to the client as the author/source.
       recordLines.push(`  prov:wasAttributedTo ${clientIri} ;`);
     }
     chunks.push(`  .\n`);
+
+    // Emit Situation participants as separate triples (outside the act node's predicate list).
+    if (client) {
+      const clientIri = accountIri(chainId, client);
+      chunks.push(`${repSituationIri} agentictrust:hasSituationParticipant ${clientIri} .\n`);
+    }
 
     // Inverse link for query convenience.
     chunks.push(`${fi} agentictrust:assertionRecordOf ${actIri} .\n`);
@@ -1384,7 +1393,10 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const lines: string[] = [];
     // ValidationRequest is a Situation (Entity) being asserted/answered by later responses.
     // ERC8004.owl is assertion-only, so the request situation type lives in agentictrust-core as VerificationRequestSituation.
+    const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
+    const ai = agentIri(chainId, agentId, meta?.didIdentity);
     lines.push(`${vi} a agentictrust:VerificationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    lines.push(`  agentictrust:isAboutAgent ${ai} ;`);
     const validator = normalizeHex(v?.validatorAddress);
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);
@@ -1394,9 +1406,11 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
       ensureAccountNode(chunks, chainId, validator, 'SmartAccount'); // Validator is typically agentAccount
       lines.push(`  erc8004:validatorAddress "${escapeTurtleString(validator)}" ;`);
       lines.push(`  erc8004:validationValidator ${accountIri(chainId, validator)} ;`);
+      lines.push(`  agentictrust:hasSituationParticipant ${accountIri(chainId, validator)} ;`);
       const mapped = agentByAccountKey.get(`${chainId}|${validator}`);
       if (mapped) {
         lines.push(`  erc8004:validatorAgent ${mapped} ;`);
+        lines.push(`  agentictrust:hasSituationParticipant ${mapped} ;`);
         const mk = agentKeyByAccountKey.get(`${chainId}|${validator}`);
         if (mk) ensureAgentNode(mk.chainId, mk.agentId);
       }
@@ -1526,6 +1540,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
       // Best-effort provenance: associate act with validator account.
       ensureAccountNode(chunks, chainId, validator, 'SmartAccount');
       actLines.push(`  prov:wasAssociatedWith ${accountIri(chainId, validator)} ;`);
+      actLines.push(`  agentictrust:assertedBy ${mapped ?? accountIri(chainId, validator)} ;`);
       recordLines.push(`  prov:wasAttributedTo ${accountIri(chainId, validator)} ;`);
     }
     if (v?.responseJson) recordLines.push(`  agentictrust:json ${turtleJsonLiteral(String(v.responseJson))} ;`);

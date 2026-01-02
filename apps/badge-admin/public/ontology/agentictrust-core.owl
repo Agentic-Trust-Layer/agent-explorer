@@ -135,6 +135,11 @@ agentictrust:Role a owl:Class ;
   rdfs:subClassOf prov:Entity ;
   rdfs:subClassOf p-plan:Role .
 
+agentictrust:SituationParticipation a owl:Class ;
+  rdfs:label "SituationParticipation" ;
+  rdfs:comment "A reified link between a Situation and a participating Agent, qualified by a Role. Use this for validator/client/member roles within a Situation (query-friendly participation pattern)." ;
+  rdfs:subClassOf prov:Entity .
+
 ### DnS-like Trust specializations
 ### TrustDescription (schema / pattern)
 agentictrust:TrustDescription a owl:Class ;
@@ -304,6 +309,12 @@ agentictrust:assertsSituation a owl:ObjectProperty ;
   rdfs:domain agentictrust:AssertionAct ;
   rdfs:range agentictrust:Situation .
 
+agentictrust:assertedInAct a owl:ObjectProperty ;
+  rdfs:label "assertedInAct" ;
+  rdfs:comment "Inverse/navigation helper: links a Situation to the AssertionAct activities that assert it (inverse of assertsSituation)." ;
+  rdfs:domain agentictrust:Situation ;
+  rdfs:range agentictrust:AssertionAct .
+
 agentictrust:recordsSituation a owl:ObjectProperty ;
   rdfs:label "recordsSituation" ;
   rdfs:comment "Links an AssertionRecord (Entity) to the Situation it is a durable record about (for query convenience and citation)." ;
@@ -342,6 +353,44 @@ agentictrust:aboutSubject a owl:ObjectProperty ;
   rdfs:comment "Links a Situation (or its Assertion activity) to its subject (agent, relationship, endpoint, credential, etc.)." ;
   rdfs:domain prov:Entity ;
   rdfs:range prov:Entity .
+
+agentictrust:isAboutAgent a owl:ObjectProperty ;
+  rdfs:label "isAboutAgent" ;
+  rdfs:comment "Links a Situation (Entity) to the AI Agent it is about (the evaluated/verified/rated agent). Subproperty of aboutSubject." ;
+  rdfs:subPropertyOf agentictrust:aboutSubject ;
+  rdfs:domain agentictrust:Situation ;
+  rdfs:range agentictrust:AIAgent .
+
+agentictrust:hasSituationParticipant a owl:ObjectProperty ;
+  rdfs:label "hasSituationParticipant" ;
+  rdfs:comment "Unqualified link from a Situation to participating Agents (validator/client/org/member/etc.). Use qualifiedSituationParticipation when roles matter." ;
+  rdfs:domain agentictrust:Situation ;
+  rdfs:range prov:Agent .
+
+agentictrust:qualifiedSituationParticipation a owl:ObjectProperty ;
+  rdfs:label "qualifiedSituationParticipation" ;
+  rdfs:comment "Links a Situation to a SituationParticipation node that qualifies a participant with a Role." ;
+  rdfs:domain agentictrust:Situation ;
+  rdfs:range agentictrust:SituationParticipation .
+
+agentictrust:situationParticipant a owl:ObjectProperty ;
+  rdfs:label "situationParticipant" ;
+  rdfs:comment "Links a SituationParticipation node to the participating Agent." ;
+  rdfs:domain agentictrust:SituationParticipation ;
+  rdfs:range prov:Agent .
+
+agentictrust:situationParticipantRole a owl:ObjectProperty ;
+  rdfs:label "situationParticipantRole" ;
+  rdfs:comment "Links a SituationParticipation node to the Role (within the situation) that qualifies the participation." ;
+  rdfs:domain agentictrust:SituationParticipation ;
+  rdfs:range agentictrust:Role .
+
+agentictrust:assertedBy a owl:ObjectProperty ;
+  rdfs:label "assertedBy" ;
+  rdfs:comment "Abstract link from an AssertionAct (Activity) to the Agent that performed the assertion. Subproperty of prov:wasAssociatedWith." ;
+  rdfs:subPropertyOf prov:wasAssociatedWith ;
+  rdfs:domain agentictrust:AssertionAct ;
+  rdfs:range prov:Agent .
 
 agentictrust:assertsRelationship a owl:ObjectProperty ;
   rdfs:label "assertsRelationship" ;
