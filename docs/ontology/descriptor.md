@@ -51,22 +51,28 @@ direction LR
 class Descriptor["agentictrust:Descriptor"]
 class Endpoint["agentictrust:Endpoint"]
 class EndpointType["agentictrust:EndpointType"]
-class Skill["agentictrust:Skill"]
-class Domain["agentictrust:Domain"]
+class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 class DID["agentictrust:DID"]
 class DomainName["agentictrust:DomainName"]
 class TrustType["agentictrust:TrustType"]
 
 Descriptor --> Endpoint : hasEndpoint
 Endpoint --> EndpointType : endpointType
-Descriptor --> Skill : hasSkill
-Descriptor --> Domain : hasDomain
-Descriptor --> DID : hasDIDForDescriptor
+Descriptor --> AgentSkillClassification : hasSkill
+Descriptor --> AgentDomainClassification : hasDomain
+Descriptor --> DID : hasDID
 Descriptor --> DomainName : hasDomainName
 Descriptor --> TrustType : hasTrustType
-Descriptor : +descriptorName (text)
-Descriptor : +descriptorDescription (text)
-Descriptor : +descriptorImage (image path)
+Descriptor : +descriptorName (text, UTF-8)
+Descriptor : +descriptorDescription (text, UTF-8/Markdown)
+Descriptor : +descriptorImage (URI, RFC 3986)
+
+note for Endpoint "URI/URL standards\n(RFC 3986)"
+note for AgentSkillClassification "OASF standards\n(Open Agent Skill Format)"
+note for AgentDomainClassification "OASF standards\n(Open Agent Skill Format)"
+note for DID "W3C DID Core\n(https://www.w3.org/TR/did-core/)"
+note for DomainName "IETF DNS standards\n(RFC 1034, RFC 1035)"
 ```
 
 **SPARQL: identifiers and their descriptor**
@@ -92,8 +98,8 @@ class AIAgent["agentictrust:AIAgent"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
 class Endpoint["agentictrust:Endpoint"]
 class EndpointType["agentictrust:EndpointType"]
-class Skill["agentictrust:Skill"]
-class Domain["agentictrust:Domain"]
+class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 class DID["agentictrust:DID"]
 class DomainName["agentictrust:DomainName"]
 class TrustType["agentictrust:TrustType"]
@@ -101,14 +107,20 @@ class TrustType["agentictrust:TrustType"]
 AIAgent --> AgentDescriptor : hasAgentDescriptor
 AgentDescriptor --> Endpoint : hasEndpoint
 Endpoint --> EndpointType : endpointType
-AgentDescriptor --> Skill : hasSkill
-AgentDescriptor --> Domain : declaresDomain
-AgentDescriptor --> DID : hasDIDForDescriptor
+AgentDescriptor --> AgentSkillClassification : hasSkill
+AgentDescriptor --> AgentDomainClassification : declaresDomain
+AgentDescriptor --> DID : hasDID
 AgentDescriptor --> DomainName : hasDomainName
 AgentDescriptor --> TrustType : hasTrustType
-AgentDescriptor : +descriptorName (text)
-AgentDescriptor : +descriptorDescription (text)
-AgentDescriptor : +descriptorImage (image path)
+AgentDescriptor : +descriptorName (text, UTF-8)
+AgentDescriptor : +descriptorDescription (text, UTF-8/Markdown)
+AgentDescriptor : +descriptorImage (URI, RFC 3986)
+
+note for Endpoint "URI/URL standards\n(RFC 3986)"
+note for AgentSkillClassification "OASF standards\n(Open Agent Skill Format)"
+note for AgentDomainClassification "OASF standards\n(Open Agent Skill Format)"
+note for DID "W3C DID Core\n(https://www.w3.org/TR/did-core/)"
+note for DomainName "IETF DNS standards\n(RFC 1034, RFC 1035)"
 ```
 
 **SPARQL: agent descriptor, endpoints, and skills**
@@ -128,7 +140,7 @@ WHERE {
   }
   OPTIONAL { ?agentDescriptor agentictrust:hasSkill ?skill . }
   OPTIONAL { ?agentDescriptor agentictrust:hasDomain ?domain . }
-  OPTIONAL { ?agentDescriptor agentictrust:hasDIDForDescriptor ?did . }
+  OPTIONAL { ?agentDescriptor agentictrust:hasDID ?did . }
   OPTIONAL { ?agentDescriptor agentictrust:hasDomainName ?domainName . }
   OPTIONAL { ?agentDescriptor agentictrust:hasTrustType ?trustType . }
   OPTIONAL { ?agentDescriptor agentictrust:descriptorName ?name . }
@@ -148,11 +160,11 @@ direction LR
 class AIAgent["agentictrust:AIAgent"]
     class AgentIdentity8004["erc8004:AgentIdentity8004"]
 class IdentityDescriptor8004["erc8004:IdentityDescriptor8004"]
-class Skill["agentictrust:Skill"]
+class AgentSkillClassification["agentictrust:AgentSkillClassification"]
 
 AIAgent --> AgentIdentity8004 : hasIdentity
 AgentIdentity8004 --> IdentityDescriptor8004 : hasDescriptor
-IdentityDescriptor8004 --> Skill : hasSkill
+IdentityDescriptor8004 --> AgentSkillClassification : hasSkill
 ```
 
 **SPARQL: 8004 identity and its descriptor**

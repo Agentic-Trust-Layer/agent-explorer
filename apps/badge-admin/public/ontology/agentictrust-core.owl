@@ -581,8 +581,8 @@ agentictrust:identifierType a owl:ObjectProperty ;
 
 agentictrust:hasDID a owl:ObjectProperty ;
   rdfs:label "hasDID" ;
-  rdfs:comment "Links an Identifier to its associated DID. Protocol-specific identifier types (e.g., erc8004:IdentityIdentifier8004, agentictrustEth:NameIdentifierENS) link to their respective DIDs." ;
-  rdfs:domain agentictrust:Identifier ;
+  rdfs:comment "Links a Descriptor to a DID (Decentralized Identifier) following W3C DID Core specification (https://www.w3.org/TR/did-core/). DID is a descriptor data type that follows DID Document standards." ;
+  rdfs:domain agentictrust:Descriptor ;
   rdfs:range agentictrust:DID .
 
 
@@ -782,9 +782,9 @@ agentictrust:TransportBinding a owl:Class ;
   rdfs:comment "Transport/protocol binding (e.g., HTTP+JSON, JSON-RPC)." ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:Skill a owl:Class ;
-  rdfs:label "Skill" ;
-  rdfs:comment "A callable capability (tool/function) exposed by an agent. Used across protocols (e.g., A2A skills, MCP tools)." ;
+agentictrust:AgentSkillClassification a owl:Class ;
+  rdfs:label "AgentSkillClassification" ;
+  rdfs:comment "A callable capability (tool/function) classification exposed by an agent. Used across protocols (e.g., A2A skills, MCP tools). Follows OASF (Open Agent Skill Format) standards for skill classification and discovery." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:JsonSchema a owl:Class ;
@@ -794,7 +794,7 @@ agentictrust:JsonSchema a owl:Class ;
 
 agentictrust:SkillExample a owl:Class ;
   rdfs:label "SkillExample" ;
-  rdfs:comment "Example attached to a skill; may contain intent-driven requests." ;
+  rdfs:comment "Example attached to an agent skill classification; may contain intent-driven requests." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:Tag a owl:Class ;
@@ -802,21 +802,21 @@ agentictrust:Tag a owl:Class ;
   rdfs:comment "A tag value used for discovery and matching (e.g., trust.validation, ens.name.valid)." ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:Domain a owl:Class ;
-  rdfs:label "Domain" ;
-  rdfs:comment "OASF Domain: A categorization/grouping mechanism for discovery and filtering. Examples: 'finance', 'healthcare', 'education', 'e-commerce'. Distinct from integration capabilities (which describe how agents integrate with external systems). Synced from https://github.com/agntcy/oasf/tree/main/schema/domains" ;
+agentictrust:AgentDomainClassification a owl:Class ;
+  rdfs:label "AgentDomainClassification" ;
+  rdfs:comment "OASF Domain classification: A categorization/grouping mechanism for discovery and filtering. Examples: 'finance', 'healthcare', 'education', 'e-commerce'. Distinct from integration capabilities (which describe how agents integrate with external systems). Follows OASF (Open Agent Skill Format) standards. Synced from https://github.com/agntcy/oasf/tree/main/schema/domains" ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:OASFDomain a owl:Class ;
   rdfs:label "OASFDomain" ;
   rdfs:comment "OASF Domain instance synced from GitHub. Contains OASF schema metadata including name, description, category, and full schema JSON." ;
-  rdfs:subClassOf agentictrust:Domain ;
+  rdfs:subClassOf agentictrust:AgentDomainClassification ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:OASFSkill a owl:Class ;
   rdfs:label "OASFSkill" ;
   rdfs:comment "OASF Skill instance synced from GitHub. Contains OASF schema metadata including name, description, domain, category, and full schema JSON. Synced from https://github.com/agntcy/oasf/tree/main/schema/skills" ;
-  rdfs:subClassOf agentictrust:Skill ;
+  rdfs:subClassOf agentictrust:AgentSkillClassification ;
   rdfs:subClassOf prov:Entity .
 
 ########
@@ -991,61 +991,56 @@ agentictrust:hasEndpoint a owl:ObjectProperty ;
 
 agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:label "hasSkill" ;
-  rdfs:comment "Links a Descriptor to a Skill (OASF skill/capability)." ;
+  rdfs:comment "Links a Descriptor to an AgentSkillClassification (OASF skill/capability classification)." ;
   rdfs:domain agentictrust:Descriptor ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:declaresSkill a owl:ObjectProperty ;
   rdfs:label "declaresSkill" ;
-  rdfs:comment "Links agent metadata to skills/capabilities it declares for discovery." ;
+  rdfs:comment "Links agent metadata to agent skill classifications it declares for discovery." ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:hasExample a owl:ObjectProperty ;
   rdfs:label "hasExample" ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:SkillExample .
 
 agentictrust:hasInputSchema a owl:ObjectProperty ;
   rdfs:label "hasInputSchema" ;
   rdfs:comment "Links a skill/tool to its JSON Schema describing valid inputs." ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:JsonSchema .
 
 agentictrust:hasOutputSchema a owl:ObjectProperty ;
   rdfs:label "hasOutputSchema" ;
   rdfs:comment "Links a skill/tool to its JSON Schema describing outputs (when declared)." ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:JsonSchema .
 
 agentictrust:hasTag a owl:ObjectProperty ;
   rdfs:label "hasTag" ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:Tag .
 
 agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:label "hasDomain" ;
-  rdfs:comment "Links a Skill to an OASF Domain for categorization and discovery filtering. OASF Domains are high-level categories (e.g., 'finance', 'healthcare') used to group skills and agents by application area. Distinct from integration capabilities which describe technical integration mechanisms." ;
-  rdfs:domain agentictrust:Skill ;
-  rdfs:range agentictrust:Domain .
+  rdfs:comment "Links an AgentSkillClassification to an AgentDomainClassification for categorization and discovery filtering. OASF Domain classifications are high-level categories (e.g., 'finance', 'healthcare') used to group skills and agents by application area. Distinct from integration capabilities which describe technical integration mechanisms." ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
+  rdfs:range agentictrust:AgentDomainClassification .
 
 agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:label "hasDomain" ;
   rdfs:comment "Links a Descriptor to an OASF Domain for categorization and discovery filtering." ;
   rdfs:domain agentictrust:Descriptor ;
-  rdfs:range agentictrust:Domain .
+  rdfs:range agentictrust:AgentDomainClassification .
 
 agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:label "hasDomain" ;
   rdfs:comment "Links a Descriptor to an OASF Domain for categorization and discovery filtering." ;
   rdfs:domain agentictrust:Descriptor ;
-  rdfs:range agentictrust:Domain .
+  rdfs:range agentictrust:AgentDomainClassification .
 
-agentictrust:hasDIDForDescriptor a owl:ObjectProperty ;
-  rdfs:label "hasDIDForDescriptor" ;
-  rdfs:comment "Links a Descriptor to a DID (Decentralized Identifier) following W3C DID Core specification." ;
-  rdfs:domain agentictrust:Descriptor ;
-  rdfs:range agentictrust:DID .
 
 agentictrust:hasDomainName a owl:ObjectProperty ;
   rdfs:label "hasDomainName" ;
@@ -1061,9 +1056,9 @@ agentictrust:hasTrustType a owl:ObjectProperty ;
 
 agentictrust:declaresDomain a owl:ObjectProperty ;
   rdfs:label "declaresDomain" ;
-  rdfs:comment "Links an AgentDescriptor to one or more OASF Domains for discovery and filtering. This allows agent descriptions to be categorized by application area independently of individual skills." ;
+  rdfs:comment "Links an AgentDescriptor to one or more AgentDomainClassifications (OASF domain classifications) for discovery and filtering. This allows agent descriptions to be categorized by application area independently of individual skills." ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Domain .
+  rdfs:range agentictrust:AgentDomainClassification .
 
 agentictrust:oasfDomainId a owl:DatatypeProperty ;
   rdfs:label "oasfDomainId" ;
@@ -1123,26 +1118,26 @@ agentictrust:githubSha a owl:DatatypeProperty ;
 agentictrust:supportsIntentType a owl:ObjectProperty ;
   rdfs:label "supportsIntentType" ;
   rdfs:comment "Links a Skill to an IntentType that it can support. This is the inverse direction from targetsSkill." ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:IntentType .
 
 agentictrust:targetsSkill a owl:ObjectProperty ;
   rdfs:label "targetsSkill" ;
   rdfs:comment "Links an IntentType to an OASF Skill that can satisfy this intent. This intent can be satisfied by invoking this skill. Allows many intents to target the same skill, and one intent to target many skills. Keeps OASF skills untouched - only references them." ;
   rdfs:domain agentictrust:IntentType ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:enablesTaskType a owl:ObjectProperty ;
   rdfs:label "enablesTaskType" ;
   rdfs:comment "Links a skill/tool to the task types it can realize." ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:TaskType .
 
 agentictrust:implementedBySkill a owl:ObjectProperty ;
   rdfs:label "implementedBySkill" ;
   rdfs:comment "Inverse-style link from task type to skills that can implement it." ;
   rdfs:domain agentictrust:TaskType ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:mapsToTaskType a owl:ObjectProperty ;
   rdfs:label "mapsToTaskType" ;
@@ -1198,7 +1193,7 @@ agentictrust:taskRealizedBy a owl:ObjectProperty ;
 agentictrust:invokesSkill a owl:ObjectProperty ;
   rdfs:label "invokesSkill" ;
   rdfs:domain agentictrust:SkillInvocation ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:invocationUsedMessage a owl:ObjectProperty ;
   rdfs:label "invocationUsedMessage" ;
@@ -1315,19 +1310,19 @@ agentictrust:serviceUrl a owl:DatatypeProperty ;
 
 agentictrust:descriptorName a owl:DatatypeProperty ;
   rdfs:label "descriptorName" ;
-  rdfs:comment "Name text associated with a Descriptor (e.g., agent name from registration metadata)." ;
+  rdfs:comment "Name text associated with a Descriptor (e.g., agent name from registration metadata). Follows Unicode text encoding standards (UTF-8) for international character support." ;
   rdfs:domain agentictrust:Descriptor ;
   rdfs:range xsd:string .
 
 agentictrust:descriptorDescription a owl:DatatypeProperty ;
   rdfs:label "descriptorDescription" ;
-  rdfs:comment "Description text associated with a Descriptor (e.g., agent description from registration metadata)." ;
+  rdfs:comment "Description text associated with a Descriptor (e.g., agent description from registration metadata). Follows Unicode text encoding standards (UTF-8) for international character support. May support Markdown or plain text formatting." ;
   rdfs:domain agentictrust:Descriptor ;
   rdfs:range xsd:string .
 
 agentictrust:descriptorImage a owl:DatatypeProperty ;
   rdfs:label "descriptorImage" ;
-  rdfs:comment "Image path/URL associated with a Descriptor (e.g., agent image from registration metadata)." ;
+  rdfs:comment "Image path/URL associated with a Descriptor (e.g., agent image from registration metadata). Follows URI/URL standards (RFC 3986) and common image format standards (PNG, JPEG, SVG, WebP)." ;
   rdfs:domain agentictrust:Descriptor ;
   rdfs:range xsd:anyURI .
 
@@ -1339,23 +1334,23 @@ agentictrust:domainNameValue a owl:DatatypeProperty ;
 
 agentictrust:trustTypeValue a owl:DatatypeProperty ;
   rdfs:label "trustTypeValue" ;
-  rdfs:comment "Trust type string value (e.g., 'reputation', 'crypto-economic', 'tee', 'zkml')." ;
+  rdfs:comment "Trust type string value (e.g., 'reputation', 'crypto-economic', 'tee', 'zkml'). Follows trust mechanism taxonomy standards for agent trust classification." ;
   rdfs:domain agentictrust:TrustType ;
   rdfs:range xsd:string .
 
 agentictrust:skillId a owl:DatatypeProperty ;
   rdfs:label "skillId" ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range xsd:string .
 
 agentictrust:skillName a owl:DatatypeProperty ;
   rdfs:label "skillName" ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range xsd:string .
 
 agentictrust:skillDescription a owl:DatatypeProperty ;
   rdfs:label "skillDescription" ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range xsd:string .
 
 agentictrust:schemaJson a owl:DatatypeProperty ;

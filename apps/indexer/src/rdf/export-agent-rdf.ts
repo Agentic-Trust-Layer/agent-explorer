@@ -441,13 +441,14 @@ function renderAgentSection(
     // Emit IdentityIdentifier8004
     accountChunks.push(
       `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
-        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
+        `  agentictrust:identifierType erc8004:IdentifierType_8004 .\n\n`,
     );
     
-    // Emit DID instance for identifier
+    // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
+    // DID identifies the IdentityIdentifier8004 via identifies property
+    // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifies ${identityIdentifierIri} .\n\n`,
     );
   }
@@ -479,13 +480,14 @@ function renderAgentSection(
     accountChunks.push(
       `${ensIdentifierIri} a agentictrustEth:NameIdentifierENS, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
-        `  agentictrust:hasDID ${ensDidIri} ;\n` +
         `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
     );
     
-    // Emit DID for ENS name
+    // Emit DID for ENS name (DID is a DecentralizedIdentifier, which is a type of Identifier)
+    // DID identifies the NameIdentifierENS via identifies property
+    // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifies ${ensIdentifierIri} .\n\n`,
     );
   }
@@ -511,10 +513,11 @@ function renderAgentSection(
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
-      accountIdentifierLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
-      // Emit DID instance
+      // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
+      // DID identifies the AccountIdentifier via identifies property
+      // Note: hasDID is only for Descriptor → DID, not Identifier → DID
       accountChunks.push(
-        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
           `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
       );
     }
@@ -669,7 +672,7 @@ function renderAgentSection(
     if (typeof tokenUriData?.did === 'string' && tokenUriData.did.trim()) {
       const didValue = tokenUriData.did.trim();
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(didValue)}>`;
-      adLines.push(`  agentictrust:hasDIDForDescriptor ${didIri} ;`);
+      adLines.push(`  agentictrust:hasDID ${didIri} ;`);
       accountChunks.push(`${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity .\n\n`);
     }
     
@@ -694,7 +697,7 @@ function renderAgentSection(
       const domIri = oasfDomainIri(dom);
       adLines.push(`  agentictrust:hasDomain ${domIri} ;`);
       // Emit a minimal OASFDomain node (full node also emitted from DB if present)
-      accountChunks.push(`${domIri} a agentictrust:OASFDomain, agentictrust:Domain, prov:Entity ; agentictrust:oasfDomainId "${escapeTurtleString(dom)}" .\n\n`);
+      accountChunks.push(`${domIri} a agentictrust:OASFDomain, agentictrust:AgentDomainClassification, prov:Entity ; agentictrust:oasfDomainId "${escapeTurtleString(dom)}" .\n\n`);
     }
   }
   if (declaredOasfSkills.size) {
@@ -702,7 +705,7 @@ function renderAgentSection(
       const skIri = oasfSkillIri(sk);
       adLines.push(`  agentictrust:hasSkill ${skIri} ;`);
       // Emit a minimal OASFSkill node (full node also emitted from DB if present)
-      accountChunks.push(`${skIri} a agentictrust:OASFSkill, agentictrust:Skill, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(sk)}" .\n\n`);
+      accountChunks.push(`${skIri} a agentictrust:OASFSkill, agentictrust:AgentSkillClassification, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(sk)}" .\n\n`);
     }
   }
   adLines.push(`  .\n`);
@@ -740,7 +743,7 @@ function renderAgentSection(
         
         // Create Skill instance
         const skillLines: string[] = [];
-        skillLines.push(`${sIri} a agentictrust:Skill, prov:Entity ;`);
+        skillLines.push(`${sIri} a agentictrust:AgentSkillClassification, prov:Entity ;`);
         skillLines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
         if (typeof skill?.name === 'string' && skill.name.trim()) {
           skillLines.push(`  agentictrust:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
@@ -755,7 +758,7 @@ function renderAgentSection(
           const domainIriValue = domainIri(domainName);
           skillLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
           // Emit Domain
-          accountChunks.push(`${domainIriValue} a agentictrust:Domain, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+          accountChunks.push(`${domainIriValue} a agentictrust:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
         }
         
         // Link IntentType to Skill via targetsSkill
@@ -850,7 +853,7 @@ function renderAgentSection(
     if (!id) continue;
     const sIri = skillIri(chainId, agentId, id, row?.didIdentity);
     const afterSkill: string[] = [];
-    lines.push(`${sIri} a agentictrust:Skill, prov:Entity ;`);
+    lines.push(`${sIri} a agentictrust:AgentSkillClassification, prov:Entity ;`);
     lines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
     if (typeof skill?.name === 'string' && skill.name.trim()) lines.push(`  agentictrust:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
     if (typeof skill?.description === 'string' && skill.description.trim())
@@ -964,13 +967,14 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     // Emit IdentityIdentifier8004
     accountChunks.push(
       `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
-        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
+        `  agentictrust:identifierType erc8004:IdentifierType_8004 .\n\n`,
     );
     
-    // Emit DID instance for identifier
+    // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
+    // DID identifies the IdentityIdentifier8004 via identifies property
+    // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifies ${identityIdentifierIri} .\n\n`,
     );
   }
@@ -1002,13 +1006,14 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     accountChunks.push(
       `${ensIdentifierIri} a agentictrustEth:NameIdentifierENS, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
-        `  agentictrust:hasDID ${ensDidIri} ;\n` +
         `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
     );
     
-    // Emit DID for ENS name
+    // Emit DID for ENS name (DID is a DecentralizedIdentifier, which is a type of Identifier)
+    // DID identifies the NameIdentifierENS via identifies property
+    // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifies ${ensIdentifierIri} .\n\n`,
     );
   }
@@ -1034,10 +1039,11 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
-      accountIdentifierLines.push(`  agentictrustEth:hasDID ${didIri} ;`);
-      // Emit DID instance
+      // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
+      // DID identifies the AccountIdentifier via identifies property
+      // Note: hasDID is only for Descriptor → DID, not Identifier → DID
       accountChunks.push(
-        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity ;\n` +
+        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
           `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
       );
     }

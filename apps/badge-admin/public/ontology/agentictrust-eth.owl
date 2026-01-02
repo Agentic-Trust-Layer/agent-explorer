@@ -76,11 +76,6 @@ agentictrustEth:AccountType_SmartAccount a agentictrustEth:AccountType ; rdfs:la
 # AccountIdentifier DID
 ########
 
-agentictrustEth:hasDID a owl:ObjectProperty ;
-  rdfs:label "hasDID" ;
-  rdfs:comment "Links an AccountIdentifier to its DID (e.g., did:ethr). Each AccountIdentifier has one DID." ;
-  rdfs:domain agentictrustEth:AccountIdentifier ;
-  rdfs:range agentictrust:DID .
 
 ########
 # Account Signing Authority

@@ -152,7 +152,7 @@ erc8004:feedbackClient a owl:ObjectProperty ;
 erc8004:feedbackSkill a owl:ObjectProperty ;
   rdfs:label "feedbackSkill" ;
   rdfs:domain erc8004:Feedback ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 erc8004:feedbackIntentType a owl:ObjectProperty ;
   rdfs:label "feedbackIntentType" ;

@@ -1,6 +1,6 @@
 # Skills and Domains (OASF-aligned)
 
-This document is the **deep dive** on how Skills and Domains are modeled, how they connect to Descriptors for discovery, and how we align with OASF.
+This document is the **deep dive** on how Agent Skill Classifications and Agent Domain Classifications are modeled, how they connect to Descriptors for discovery, and how we align with OASF (Open Agent Skill Format) standards.
 
 Source ontology: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 
@@ -9,21 +9,22 @@ Source ontology: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 ### Key classes
 
 - **`agentictrust:AgentDescriptor`**: resolver-produced description used for discovery.
-- **`agentictrust:Skill`**: a capability/tool surface used in discovery and routing.
-- **`agentictrust:Domain`**: categorization used for discovery filtering.
-- **`agentictrust:OASFSkill` / `agentictrust:OASFDomain`**: OASF-synced skills/domains (vocabulary instances).
+- **`agentictrust:AgentSkillClassification`**: a capability/tool classification used in discovery and routing. Follows OASF (Open Agent Skill Format) standards for skill classification.
+- **`agentictrust:AgentDomainClassification`**: categorization classification used for discovery filtering. Follows OASF standards for domain classification.
+- **`agentictrust:OASFSkill` / `agentictrust:OASFDomain`**: OASF-synced skill/domain classifications (vocabulary instances).
 
 ### Key relationships
 
-- **Skill declaration on descriptors**
-  - `agentictrust:AgentDescriptor` → `agentictrust:declaresSkill` → `agentictrust:Skill`
-  - `agentictrust:AgentDescriptor` → `agentictrust:hasSkill` → `agentictrust:Skill`
+- **Skill classification declaration on descriptors**
+  - `agentictrust:AgentDescriptor` → `agentictrust:declaresSkill` → `agentictrust:AgentSkillClassification`
+  - `agentictrust:Descriptor` → `agentictrust:hasSkill` → `agentictrust:AgentSkillClassification`
 
-- **Domain association**
-  - `agentictrust:Skill` → `agentictrust:hasDomain` → `agentictrust:Domain`
-  - `agentictrust:AgentDescriptor` → `agentictrust:declaresDomain` → `agentictrust:Domain` *(direct domain tagging)*
+- **Domain classification association**
+  - `agentictrust:AgentSkillClassification` → `agentictrust:hasDomain` → `agentictrust:AgentDomainClassification`
+  - `agentictrust:AgentDescriptor` → `agentictrust:declaresDomain` → `agentictrust:AgentDomainClassification` *(direct domain tagging)*
+  - `agentictrust:Descriptor` → `agentictrust:hasDomain` → `agentictrust:AgentDomainClassification`
 
-### Diagram: Skills + Domains inside discovery descriptors
+### Diagram: Agent Skill Classifications + Agent Domain Classifications inside discovery descriptors
 
 ```mermaid
 classDiagram
@@ -31,22 +32,25 @@ direction TB
 
 class AIAgent["agentictrust:AIAgent"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class Skill["agentictrust:Skill"]
-class Domain["agentictrust:Domain"]
+class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 class Tag["agentictrust:Tag"]
 class JsonSchema["agentictrust:JsonSchema"]
 class IntentType["agentictrust:IntentType"]
 
 AIAgent --> AgentDescriptor : hasAgentDescriptor
 
-AgentDescriptor --> Skill : declaresSkill / hasSkill
-AgentDescriptor --> Domain : declaresDomain
+AgentDescriptor --> AgentSkillClassification : declaresSkill / hasSkill
+AgentDescriptor --> AgentDomainClassification : declaresDomain
 
-Skill --> Domain : hasDomain
-Skill --> Tag : hasTag
-Skill --> JsonSchema : hasInputSchema / hasOutputSchema
-Skill --> IntentType : supportsIntentType
-IntentType --> Skill : targetsSkill
+AgentSkillClassification --> AgentDomainClassification : hasDomain
+AgentSkillClassification --> Tag : hasTag
+AgentSkillClassification --> JsonSchema : hasInputSchema / hasOutputSchema
+AgentSkillClassification --> IntentType : supportsIntentType
+IntentType --> AgentSkillClassification : targetsSkill
+
+note for AgentSkillClassification "OASF standards\n(Open Agent Skill Format)"
+note for AgentDomainClassification "OASF standards\n(Open Agent Skill Format)"
 ```
 
 ## OASF alignment
@@ -79,19 +83,22 @@ direction TB
 class OASFSkill["agentictrust:OASFSkill"]
 class OASFDomain["agentictrust:OASFDomain"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class Skill["agentictrust:Skill"]
-class Domain["agentictrust:Domain"]
+class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 
 AgentDescriptor --> OASFSkill : declaresSkill (when card lists oasf_skills)
 AgentDescriptor --> OASFDomain : declaresDomain (when card lists oasf_domains)
 
-OASFSkill --|> Skill
-OASFDomain --|> Domain
+OASFSkill --|> AgentSkillClassification
+OASFDomain --|> AgentDomainClassification
+
+note for OASFSkill "OASF standards\n(Open Agent Skill Format)"
+note for OASFDomain "OASF standards\n(Open Agent Skill Format)"
 ```
 
-## SPARQL: Skills (with related info)
+## SPARQL: Agent Skill Classifications (with related info)
 
-### Query: Skills declared by AgentDescriptors (with tags/domains/schemas/intents)
+### Query: Agent Skill Classifications declared by AgentDescriptors (with tags/domains/schemas/intents)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -130,6 +137,8 @@ WHERE {
   OPTIONAL {
     ?skill agentictrust:hasDomain ?domain .
     OPTIONAL { ?domain rdfs:label ?domainLabel . }
+    # Domain is now AgentDomainClassification
+    FILTER(?domain a agentictrust:AgentDomainClassification)
   }
 
   OPTIONAL { ?skill agentictrust:hasTag ?tag . }
@@ -146,7 +155,7 @@ ORDER BY ?agentId ?skillId ?skill
 LIMIT 200
 ```
 
-### Query: OASF-only skill view (category + GitHub source)
+### Query: OASF-only Agent Skill Classification view (category + GitHub source)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -170,9 +179,9 @@ ORDER BY ?oasfSkillId
 LIMIT 200
 ```
 
-## SPARQL: Domains (with related info)
+## SPARQL: Agent Domain Classifications (with related info)
 
-### Query: Domains only (no joins)
+### Query: Agent Domain Classifications only (no joins)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -184,7 +193,7 @@ SELECT DISTINCT
   ?extendsKey ?categoryNode
   ?githubPath ?githubSha
 WHERE {
-  ?domain a agentictrust:Domain .
+  ?domain a agentictrust:AgentDomainClassification .
   OPTIONAL { ?domain a ?domainType . }
   OPTIONAL { ?domain agentictrust:oasfDomainId ?domainId . }
   OPTIONAL { ?domain rdfs:label ?label . }
@@ -199,7 +208,7 @@ ORDER BY ?domainId ?domain
 LIMIT 200
 ```
 
-### Query: Domains declared on AgentDescriptors (and linked skills)
+### Query: Agent Domain Classifications declared on AgentDescriptors (and linked skill classifications)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -222,12 +231,13 @@ WHERE {
   OPTIONAL { ?domain rdfs:label ?domainLabel . }
 
   OPTIONAL {
-    # Skills that are connected via hasDomain
+    # Agent Skill Classifications that are connected via hasDomain
     {
       ?descriptor agentictrust:declaresSkill ?skill .
     } UNION {
       ?descriptor agentictrust:hasSkill ?skill .
     }
+    ?skill a agentictrust:AgentSkillClassification .
     ?skill agentictrust:hasDomain ?domain .
     OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }
   }
@@ -236,7 +246,7 @@ ORDER BY ?agentId ?domainId ?domain
 LIMIT 200
 ```
 
-### Query: OASF-only domain view (category + GitHub source)
+### Query: OASF-only Agent Domain Classification view (category + GitHub source)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
