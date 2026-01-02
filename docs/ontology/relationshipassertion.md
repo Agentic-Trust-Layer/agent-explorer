@@ -1,6 +1,6 @@
-## AccountAssociation8092 (assertion → situation → relationship)
+## AssociatedAccounts8092 (assertion → situation → relationship)
 
-This page documents the **AccountAssociation8092 → RelationshipTrustSituation → AccountRelationship** pattern for ERC‑8092 association records, without using ERC‑8092 ontology classes on the Situation side.
+This page documents the **AssociatedAccounts8092 → RelationshipTrustSituation → AccountRelationship** pattern for ERC‑8092 associated-accounts records, without using ERC‑8092 ontology classes on the Situation side.
 
 ### Diagram
 
@@ -15,8 +15,10 @@ class Account["agentictrustEth:Account"]
 class AIAgent["agentictrust:AIAgent"]
 class Relationship["agentictrust:Relationship"]
 class TrustAssertion["agentictrust:TrustAssertion"]
+class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 
-class AccountAssociation["erc8092:AccountAssociation8092"]
+class AssociatedAccounts["erc8092:AssociatedAccounts8092"]
+class AssociatedAccountsAct["erc8092:AssociatedAccountsAct8092"]
 class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
 
 AIAgent --|> provSoftwareAgent
@@ -24,25 +26,28 @@ provSoftwareAgent --|> provAgent
 Account --|> provSoftwareAgent
 
 provAgent --> TrustAssertion : hasTrustAssertion
-Account --> AccountAssociation : hasAccountAssociation (erc8092)
-AccountAssociation --> RelationshipTrustSituation : assertsSituation (agentictrust)
+Account --> AssociatedAccounts : hasAssociatedAccounts (erc8092)
+AssociatedAccounts --> RelationshipTrustSituation : recordsSituation (agentictrust)
 RelationshipTrustSituation --> Relationship : aboutSubject (agentictrust)
 
-AccountAssociation --> Account : initiator (erc8092)
-AccountAssociation --> Account : approver (erc8092)
+AssociatedAccounts --> Account : initiator (erc8092)
+AssociatedAccounts --> Account : approver (erc8092)
+
+TrustAssertionAct --> RelationshipTrustSituation : assertsSituation (agentictrust)
+AssociatedAccountsAct --> AssociatedAccounts : generatedAssertionRecord (agentictrust)
 ```
 
 ### SPARQL Queries (demonstrating property relationships)
 
-**Query AccountAssociation8092 with its asserted relationship situation:**
+**Query AssociatedAccounts8092 with its asserted relationship situation:**
 ```sparql
 PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?association ?situation ?relationship ?initiator ?approver ?initiatorAccountId ?approverAccountId
 WHERE {
-  ?association a erc8092:AccountAssociation8092 .
-  OPTIONAL { ?association agentictrust:assertsSituation ?situation . }
+  ?association a erc8092:AssociatedAccounts8092 .
+  OPTIONAL { ?association agentictrust:recordsSituation ?situation . }
   OPTIONAL { ?situation a agentictrust:RelationshipTrustSituation ; agentictrust:aboutSubject ?relationship . }
   OPTIONAL { ?association erc8092:initiator ?initiator . }
   OPTIONAL { ?association erc8092:approver ?approver . }
@@ -53,7 +58,7 @@ WHERE {
 
 ### Core idea
 
-- **Account association** (`erc8092:AccountAssociation8092`) is the on-chain record.
+- **Associated accounts** (`erc8092:AssociatedAccounts8092`) is the on-chain record.
 - It names the participant **relationship accounts**:
   - `erc8092:initiatorAccount`
   - `erc8092:approverAccount`
@@ -62,8 +67,8 @@ WHERE {
   - `erc8092:approver` → `agentictrustEth:Account`
 - Those accounts are connected to the controlling identity via:
   - `erc8092:ownsRelationshipAccount` (domain `prov:Agent`, typically `agentictrust:AIAgent`)
-- The association asserts a relationship trust situation:
-  - `agentictrust:assertsSituation` → `agentictrust:RelationshipTrustSituation`
+- The record points at a relationship trust situation:
+  - `agentictrust:recordsSituation` → `agentictrust:RelationshipTrustSituation`
 - The relationship links to participant Accounts via:
   - `agentictrust:hasParticipant` → `agentictrustEth:Account` (inherited from core Relationship)
 

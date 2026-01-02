@@ -14,10 +14,20 @@ prov:Agent a owl:Class .
 agentictrust:RelationshipTrustSituation a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrustEth:AccountRelationship a owl:Class ; rdfs:subClassOf prov:Entity .
 
-erc8092:AccountAssociation8092 a owl:Class ; rdfs:subClassOf prov:Activity .
-erc8092:AccountAssociationRevocation8092 a owl:Class ; rdfs:subClassOf prov:Activity .
+erc8092:AssociatedAccounts8092 a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8092:AssociatedAccountsAct8092 a owl:Class ; rdfs:subClassOf prov:Activity .
+erc8092:AssociatedAccountsRevocation8092 a owl:Class ; rdfs:subClassOf prov:Entity .
+erc8092:AssociatedAccountsRevocationAct8092 a owl:Class ; rdfs:subClassOf prov:Activity .
 
 agentictrust:assertsSituation a owl:ObjectProperty ;
+  rdfs:domain prov:Activity ;
+  rdfs:range prov:Entity .
+
+agentictrust:recordsSituation a owl:ObjectProperty ;
+  rdfs:domain prov:Entity ;
+  rdfs:range prov:Entity .
+
+agentictrust:generatedAssertionRecord a owl:ObjectProperty ;
   rdfs:domain prov:Activity ;
   rdfs:range prov:Entity .
 
@@ -26,15 +36,15 @@ agentictrust:aboutSubject a owl:ObjectProperty ;
   rdfs:range prov:Entity .
 
 erc8092:initiator a owl:ObjectProperty ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range prov:Agent .
 
 erc8092:approver a owl:ObjectProperty ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range prov:Agent .
 
-erc8092:revocationOfAccountAssociation a owl:ObjectProperty ;
-  rdfs:domain erc8092:AccountAssociationRevocation8092 ;
-  rdfs:range erc8092:AccountAssociation8092 .
+erc8092:revocationOfAssociatedAccounts a owl:ObjectProperty ;
+  rdfs:domain erc8092:AssociatedAccountsRevocation8092 ;
+  rdfs:range erc8092:AssociatedAccounts8092 .
 
 

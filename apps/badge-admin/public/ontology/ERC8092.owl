@@ -22,15 +22,25 @@ erc8092: a owl:Ontology ;
 # ERC-8092 Assertion model (association records)
 ########
 
-erc8092:AccountAssociation8092 a owl:Class ;
-  rdfs:label "AccountAssociation8092" ;
-  rdfs:comment "An ERC-8092 on-chain association record interpreted as a trust assertion activity. Assertion-side only: it asserts a RelationshipTrustSituation describing a relationship state." ;
+erc8092:AssociatedAccounts8092 a owl:Class ;
+  rdfs:label "AssociatedAccounts8092" ;
+  rdfs:comment "An ERC-8092 on-chain association record (durable assertion record). Assertion-side only: the associated Act asserts a RelationshipTrustSituation describing a relationship state." ;
   rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion .
 
-erc8092:AccountAssociationRevocation8092 a owl:Class ;
-  rdfs:label "AccountAssociationRevocation8092" ;
-  rdfs:comment "A revocation assertion that revokes a prior ERC-8092 association record." ;
+erc8092:AssociatedAccountsAct8092 a owl:Class ;
+  rdfs:label "AssociatedAccountsAct8092" ;
+  rdfs:comment "The act of asserting an ERC-8092 associated-accounts record. Generates an AssociatedAccounts8092 record and asserts a RelationshipTrustSituation." ;
+  rdfs:subClassOf agentictrust:TrustAssertionAct .
+
+erc8092:AssociatedAccountsRevocation8092 a owl:Class ;
+  rdfs:label "AssociatedAccountsRevocation8092" ;
+  rdfs:comment "A revocation record that revokes a prior ERC-8092 association record." ;
   rdfs:subClassOf agentictrustEth:AccountRelationshipAssertion .
+
+erc8092:AssociatedAccountsRevocationAct8092 a owl:Class ;
+  rdfs:label "AssociatedAccountsRevocationAct8092" ;
+  rdfs:comment "The act of revoking a prior ERC-8092 associated-accounts record. Generates an AssociatedAccountsRevocation8092 record." ;
+  rdfs:subClassOf agentictrust:TrustAssertionAct .
 
 ########
 # ERC-8092 properties
@@ -39,7 +49,7 @@ erc8092:AccountAssociationRevocation8092 a owl:Class ;
 erc8092:associationId a owl:DatatypeProperty ;
   rdfs:label "associationId" ;
   rdfs:comment "The ERC-8092 association id (primary identifier for the on-chain association record)." ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:relationshipAssertionId a owl:DatatypeProperty ;
@@ -50,127 +60,127 @@ erc8092:relationshipAssertionId a owl:DatatypeProperty ;
 erc8092:initiator a owl:ObjectProperty ;
   rdfs:label "initiator" ;
   rdfs:comment "The initiator Account (may be a key-id/account-id represented as an Account IRI in data)." ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range agentictrustEth:Account .
 
 erc8092:approver a owl:ObjectProperty ;
   rdfs:label "approver" ;
   rdfs:comment "The approver Account (may be a key-id/account-id represented as an Account IRI in data)." ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range agentictrustEth:Account .
 
 erc8092:initiatorAccountId a owl:DatatypeProperty ;
   rdfs:label "initiatorAccountId" ;
   rdfs:comment "Raw initiator account-id / key-id string from ERC-8092 (not necessarily an EVM address)." ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:approverAccountId a owl:DatatypeProperty ;
   rdfs:label "approverAccountId" ;
   rdfs:comment "Raw approver account-id / key-id string from ERC-8092 (not necessarily an EVM address)." ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
-erc8092:hasAccountAssociation a owl:ObjectProperty ;
-  rdfs:label "hasAccountAssociation" ;
+erc8092:hasAssociatedAccounts a owl:ObjectProperty ;
+  rdfs:label "hasAssociatedAccounts" ;
   rdfs:comment "ERC-8092 specific property linking Accounts to association assertions they participate in. Subproperty of agentictrustEth:hasAccountRelationshipAssertion." ;
   rdfs:subPropertyOf agentictrustEth:hasAccountRelationshipAssertion ;
   rdfs:domain agentictrustEth:Account ;
-  rdfs:range erc8092:AccountAssociation8092 .
+  rdfs:range erc8092:AssociatedAccounts8092 .
 
 erc8092:interfaceId a owl:DatatypeProperty ;
   rdfs:label "interfaceId" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:validAt a owl:DatatypeProperty ;
   rdfs:label "validAt" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:integer .
 
 erc8092:validUntil a owl:DatatypeProperty ;
   rdfs:label "validUntil" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:integer .
 
 erc8092:revokedAt a owl:DatatypeProperty ;
   rdfs:label "revokedAt" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:integer .
 
 erc8092:dataHex a owl:DatatypeProperty ;
   rdfs:label "dataHex" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:initiatorKeyType a owl:DatatypeProperty ;
   rdfs:label "initiatorKeyType" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:approverKeyType a owl:DatatypeProperty ;
   rdfs:label "approverKeyType" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:initiatorSignature a owl:DatatypeProperty ;
   rdfs:label "initiatorSignature" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:approverSignature a owl:DatatypeProperty ;
   rdfs:label "approverSignature" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:createdTxHash a owl:DatatypeProperty ;
   rdfs:label "createdTxHash" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:createdBlockNumber a owl:DatatypeProperty ;
   rdfs:label "createdBlockNumber" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:integer .
 
 erc8092:createdTimestamp a owl:DatatypeProperty ;
   rdfs:label "createdTimestamp" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:integer .
 
 erc8092:lastUpdatedTxHash a owl:DatatypeProperty ;
   rdfs:label "lastUpdatedTxHash" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:string .
 
 erc8092:lastUpdatedBlockNumber a owl:DatatypeProperty ;
   rdfs:label "lastUpdatedBlockNumber" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:integer .
 
 erc8092:lastUpdatedTimestamp a owl:DatatypeProperty ;
   rdfs:label "lastUpdatedTimestamp" ;
-  rdfs:domain erc8092:AccountAssociation8092 ;
+  rdfs:domain erc8092:AssociatedAccounts8092 ;
   rdfs:range xsd:integer .
 
-erc8092:revocationOfAccountAssociation a owl:ObjectProperty ;
-  rdfs:label "revocationOfAccountAssociation" ;
-  rdfs:domain erc8092:AccountAssociationRevocation8092 ;
+erc8092:revocationOfAssociatedAccounts a owl:ObjectProperty ;
+  rdfs:label "revocationOfAssociatedAccounts" ;
+  rdfs:domain erc8092:AssociatedAccountsRevocation8092 ;
   rdfs:range agentictrustEth:AccountRelationshipAssertion .
 
 erc8092:revocationTxHash a owl:DatatypeProperty ;
   rdfs:label "revocationTxHash" ;
-  rdfs:domain erc8092:AccountAssociationRevocation8092 ;
+  rdfs:domain erc8092:AssociatedAccountsRevocation8092 ;
   rdfs:range xsd:string .
 
 erc8092:revocationBlockNumber a owl:DatatypeProperty ;
   rdfs:label "revocationBlockNumber" ;
-  rdfs:domain erc8092:AccountAssociationRevocation8092 ;
+  rdfs:domain erc8092:AssociatedAccountsRevocation8092 ;
   rdfs:range xsd:integer .
 
 erc8092:revocationTimestamp a owl:DatatypeProperty ;
   rdfs:label "revocationTimestamp" ;
-  rdfs:domain erc8092:AccountAssociationRevocation8092 ;
+  rdfs:domain erc8092:AssociatedAccountsRevocation8092 ;
   rdfs:range xsd:integer .
 
 ########

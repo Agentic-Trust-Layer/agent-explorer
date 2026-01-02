@@ -5,7 +5,8 @@ Ontology: `agentictrust-core.owl`
 In this ontology, **Situation is not an event**.
 
 - `agentictrust:TrustSituation` is a **prov:Entity**: “what is being claimed to hold”.
-- `agentictrust:TrustAssertion` is a **prov:Activity**: the time-scoped act of asserting that situation.
+- `agentictrust:TrustAssertion` is a **prov:Entity**: the durable trust claim record (citable).
+- `agentictrust:TrustAssertionAct` is a **prov:Activity**: the time-scoped act that generates the record and asserts a situation.
 
 ### Situation hierarchy (prov:Entity)
 
@@ -59,27 +60,47 @@ ORDER BY ?type ?situation
 LIMIT 200
 ```
 
-### SituationAssertion hierarchy (prov:Activity)
+### AssertionAct hierarchy (prov:Activity)
 
 ```mermaid
 classDiagram
 direction LR
 
 class provActivity["prov:Activity"]
-class SituationAssertion["agentictrust:SituationAssertion"]
+class AssertionAct["agentictrust:AssertionAct"]
+class TrustAssertionAct["agentictrust:TrustAssertionAct"]
+class RelationshipAssertionAct["agentictrust:RelationshipTrustAssertionAct"]
+class ReputationAssertionAct["agentictrust:ReputationTrustAssertionAct"]
+class VerificationAssertionAct["agentictrust:VerificationTrustAssertionAct"]
+
+AssertionAct --|> provActivity
+TrustAssertionAct --|> AssertionAct
+RelationshipAssertionAct --|> TrustAssertionAct
+ReputationAssertionAct --|> TrustAssertionAct
+VerificationAssertionAct --|> TrustAssertionAct
+```
+
+### AssertionRecord hierarchy (prov:Entity)
+
+```mermaid
+classDiagram
+direction LR
+
+class provEntity["prov:Entity"]
+class AssertionRecord["agentictrust:AssertionRecord"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 
-SituationAssertion --|> provActivity
-TrustAssertion --|> SituationAssertion
+AssertionRecord --|> provEntity
+TrustAssertion --|> AssertionRecord
 RelationshipAssertion --|> TrustAssertion
 ReputationAssertion --|> TrustAssertion
 VerificationAssertion --|> TrustAssertion
 ```
 
-### SPARQL: TrustAssertion hierarchy + instances
+### SPARQL: TrustAssertion (records) + asserted situations
 
 **List subclasses of `agentictrust:TrustAssertion`:**
 
@@ -105,7 +126,7 @@ WHERE {
   ?assertion a ?assertionType .
   ?assertionType rdfs:subClassOf* agentictrust:TrustAssertion .
   OPTIONAL {
-    ?assertion agentictrust:assertsSituation ?situation .
+    ?assertion agentictrust:recordsSituation ?situation .
     OPTIONAL { ?situation a ?situationType . }
   }
 }
@@ -122,9 +143,12 @@ direction LR
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
+class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
-TrustAssertion --> TrustSituation : assertsSituation
+TrustAssertion --> TrustSituation : recordsSituation
+TrustAssertionAct --> TrustSituation : assertsSituation
+TrustAssertionAct --> TrustAssertion : generatedAssertionRecord
 ```
 
 **SPARQL: TrustAssertion + asserted TrustSituation + description**
@@ -135,7 +159,7 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 SELECT ?trustAssertion ?trustSituation ?trustDescription
 WHERE {
   ?trustAssertion a agentictrust:TrustAssertion .
-  OPTIONAL { ?trustAssertion agentictrust:assertsSituation ?trustSituation . }
+  OPTIONAL { ?trustAssertion agentictrust:recordsSituation ?trustSituation . }
   OPTIONAL { ?trustSituation agentictrust:hasSituationDescription ?trustDescription . }
 }
 LIMIT 200
@@ -158,7 +182,7 @@ class provAgent["prov:Agent"]
 
 AIAgent --> ValidationResponse : hasValidation
 ValidationResponse --> ValidationRequest : validationRespondsToRequest
-ValidationResponse --> ValidationRequest : assertsSituation
+ValidationResponse --> ValidationRequest : recordsSituation
 ValidationResponse --> provAgent : validatorAgentForResponse
 ```
 
@@ -172,7 +196,7 @@ SELECT ?agent ?response ?request ?validator
 WHERE {
   ?agent erc8004:hasValidation ?response .
   OPTIONAL { ?response erc8004:validationRespondsToRequest ?request . }
-  OPTIONAL { ?response agentictrust:assertsSituation ?request . }
+  OPTIONAL { ?response agentictrust:recordsSituation ?request . }
   OPTIONAL { ?response erc8004:validatorAgentForResponse ?validator . }
 }
 ORDER BY ?agent ?response
@@ -189,23 +213,23 @@ direction LR
 
 class Account["agentictrustEth:Account"]
 class Relationship["agentictrustEth:AccountRelationship"]
-class AccountAssociation["erc8092:AccountAssociation8092"]
+class AssociatedAccounts["erc8092:AssociatedAccounts8092"]
 class RelationshipSituation["agentictrust:RelationshipTrustSituation"]
-class AccountAssociationRevocation["erc8092:AccountAssociationRevocation8092"]
+class AssociatedAccountsRevocation["erc8092:AssociatedAccountsRevocation8092"]
 
-Account --> AccountAssociation : hasAccountAssociation
-AccountAssociation --> RelationshipSituation : assertsSituation
+Account --> AssociatedAccounts : hasAssociatedAccounts
+AssociatedAccounts --> RelationshipSituation : recordsSituation
 RelationshipSituation --> Relationship : aboutSubject
 
-AccountAssociationRevocation --> AccountAssociation : revocationOfAccountAssociation
+AssociatedAccountsRevocation --> AssociatedAccounts : revocationOfAssociatedAccounts
 ```
 
 Mappings (diagram edge labels → ontology properties):
 
-- **hasAccountAssociation** → `erc8092:hasAccountAssociation`
-- **assertsSituation** → `agentictrust:assertsSituation`
+- **hasAssociatedAccounts** → `erc8092:hasAssociatedAccounts`
+- **recordsSituation** → `agentictrust:recordsSituation`
 - **aboutSubject** → `agentictrust:aboutSubject`
-- **revocationOfAccountAssociation** → `erc8092:revocationOfAccountAssociation`
+- **revocationOfAssociatedAccounts** → `erc8092:revocationOfAssociatedAccounts`
 
 **SPARQL: relationship assertions → relationship + participants**
 
@@ -215,8 +239,8 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?situation ?assertion ?initiator ?approver
 WHERE {
-  ?assertion a erc8092:AccountAssociation8092 .
-  OPTIONAL { ?assertion agentictrust:assertsSituation ?situation . }
+  ?assertion a erc8092:AssociatedAccounts8092 .
+  OPTIONAL { ?assertion agentictrust:recordsSituation ?situation . }
   OPTIONAL { ?assertion erc8092:initiator ?initiator . }
   OPTIONAL { ?assertion erc8092:approver ?approver . }
 }
@@ -231,8 +255,8 @@ PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 
 SELECT ?revocation ?ofAssertion ?revokedAt
 WHERE {
-  ?revocation a erc8092:AccountAssociationRevocation8092 .
-  OPTIONAL { ?revocation erc8092:revocationOfAccountAssociation ?ofAssertion . }
+  ?revocation a erc8092:AssociatedAccountsRevocation8092 .
+  OPTIONAL { ?revocation erc8092:revocationOfAssociatedAccounts ?ofAssertion . }
   OPTIONAL { ?ofAssertion erc8092:revokedAt ?revokedAt . }
 }
 ORDER BY DESC(?revokedAt)
@@ -258,7 +282,7 @@ provAgent --> TrustAssertion : hasTrustAssertion
 
 TrustAssertion --> provEntity : aboutSubject
 TrustAssertion --> Relationship : qualifiesRelationship
-TrustAssertion --> RelationshipTrustSituation : assertsSituation
+TrustAssertion --> RelationshipTrustSituation : recordsSituation
 RelationshipTrustSituation --> Relationship : aboutSubject
 ```
 
@@ -267,7 +291,7 @@ Mappings (diagram edge labels → ontology properties):
 - **hasTrustAssertion** → `agentictrust:hasTrustAssertion`
 - **aboutSubject** → `agentictrust:aboutSubject`
 - **qualifiesRelationship** → `agentictrust:qualifiesRelationship`
-- **assertsSituation** → `agentictrust:assertsSituation`
+- **recordsSituation** → `agentictrust:recordsSituation`
 
 **SPARQL: assertions about a subject (generic)**
 
@@ -303,7 +327,7 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 SELECT ?assertion ?situation ?relationship
 WHERE {
   ?assertion a agentictrust:TrustAssertion ;
-    agentictrust:assertsSituation ?situation .
+    agentictrust:recordsSituation ?situation .
   ?situation a agentictrust:RelationshipTrustSituation ;
     agentictrust:aboutSubject ?relationship .
 }

@@ -182,12 +182,12 @@ classDiagram
 direction LR
 
 class Account["agentictrustEth:Account"]
-class AccountAssociation["erc8092:AccountAssociation8092"]
+class AssociatedAccounts["erc8092:AssociatedAccounts8092"]
 class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
 class AccountRelationship["agentictrustEth:AccountRelationship"]
 
-Account --> AccountAssociation : hasAccountAssociation
-AccountAssociation --> RelationshipTrustSituation : assertsSituation
+Account --> AssociatedAccounts : hasAssociatedAccounts
+AssociatedAccounts --> RelationshipTrustSituation : recordsSituation
 RelationshipTrustSituation --> AccountRelationship : aboutSubject
 ```
 
@@ -195,15 +195,15 @@ RelationshipTrustSituation --> AccountRelationship : aboutSubject
 
 ERC-8092 is modeled as **assertion-side only**:
 
-- `erc8092:AccountAssociation8092` (association record, as an assertion activity)
-- `erc8092:AccountAssociationRevocation8092` (revocation)
+- `erc8092:AssociatedAccounts8092` (associated-accounts record, as a durable assertion record)
+- `erc8092:AssociatedAccountsRevocation8092` (revocation)
 
-The association asserts a **Situation** in core:
+The association record points at a **Situation** in core:
 
-- `agentictrust:assertsSituation` → `agentictrust:RelationshipTrustSituation`
+- `agentictrust:recordsSituation` → `agentictrust:RelationshipTrustSituation`
 - `agentictrust:aboutSubject` (on the situation) → `agentictrustEth:AccountRelationship`
 
-### SPARQL Query: ERC-8092 AccountAssociation8092 asserted relationship situation
+### SPARQL Query: ERC-8092 AssociatedAccounts8092 asserted relationship situation
 
 ```sparql
 PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
@@ -212,8 +212,8 @@ PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
 SELECT ?association ?situation ?relationship ?initiator ?approver ?initiatorAccountId ?approverAccountId
 WHERE {
-  ?association a erc8092:AccountAssociation8092 .
-  OPTIONAL { ?association agentictrust:assertsSituation ?situation . }
+  ?association a erc8092:AssociatedAccounts8092 .
+  OPTIONAL { ?association agentictrust:recordsSituation ?situation . }
   OPTIONAL {
     ?situation a agentictrust:RelationshipTrustSituation ;
       agentictrust:aboutSubject ?relationship .

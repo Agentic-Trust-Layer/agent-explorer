@@ -9,20 +9,25 @@ agentictrust:Diagram_SituationTrustContext a owl:Ontology ;
 
 agentictrust:TrustSituation a owl:Class .
 agentictrust:TrustAssertion a owl:Class .
+agentictrust:TrustAssertionAct a owl:Class .
 agentictrust:VerificationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 agentictrust:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 agentictrust:RelationshipTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 
-agentictrust:assertsSituation a owl:ObjectProperty ;
+agentictrust:recordsSituation a owl:ObjectProperty ;
   rdfs:domain agentictrust:TrustAssertion ;
   rdfs:range agentictrust:TrustSituation .
 
+agentictrust:assertsSituation a owl:ObjectProperty ;
+  rdfs:domain agentictrust:TrustAssertionAct ;
+  rdfs:range agentictrust:TrustSituation .
+
 ### ERC-8004: validation + feedback
-erc8004:ValidationRequest a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
+agentictrust:VerificationRequestSituation a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
 erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:VerificationTrustAssertion .
 erc8004:Feedback a owl:Class ; rdfs:subClassOf agentictrust:ReputationTrustAssertion .
 
 ### ERC-8092: relationship assertions
-erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipTrustAssertion .
+erc8092:AssociatedAccounts8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipTrustAssertion .
 
 

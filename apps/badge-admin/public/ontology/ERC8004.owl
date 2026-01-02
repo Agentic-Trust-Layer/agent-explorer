@@ -123,6 +123,11 @@ erc8004:TrustAssertion a owl:Class ;
   rdfs:comment "Base class for ERC-8004 trust assertions (durable claims/evidence/artifacts)." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
+erc8004:TrustAssertionAct a owl:Class ;
+  rdfs:label "TrustAssertionAct8004" ;
+  rdfs:comment "Base class for ERC-8004 trust assertion acts (time-scoped, provenance-bearing activities) that generate ERC-8004 trust assertion records." ;
+  rdfs:subClassOf agentictrust:TrustAssertionAct .
+
 ########
 # Validation (ERC-8004)
 ########
@@ -134,9 +139,15 @@ erc8004:TrustAssertion a owl:Class ;
 
 erc8004:ValidationResponse a owl:Class ;
   rdfs:label "ValidationResponse" ;
-  rdfs:comment "ERC-8004 validation response/attestation (a VerificationTrustAssertion)." ;
+  rdfs:comment "ERC-8004 validation response/attestation record (a VerificationTrustAssertion record)." ;
   rdfs:subClassOf erc8004:TrustAssertion ;
   rdfs:subClassOf agentictrust:VerificationTrustAssertion .
+
+erc8004:ValidationResponseAct a owl:Class ;
+  rdfs:label "ValidationResponseAct" ;
+  rdfs:comment "The act of producing an ERC-8004 validation response. Generates a ValidationResponse record and asserts a VerificationRequestSituation." ;
+  rdfs:subClassOf erc8004:TrustAssertionAct ;
+  rdfs:subClassOf agentictrust:VerificationTrustAssertionAct .
 
 ########
 # Feedback / reputation (ERC-8004)
@@ -144,15 +155,27 @@ erc8004:ValidationResponse a owl:Class ;
 
 erc8004:Feedback a owl:Class ;
   rdfs:label "Feedback" ;
-  rdfs:comment "ERC-8004 reputation feedback record." ;
+  rdfs:comment "ERC-8004 reputation feedback record (a ReputationTrustAssertion record)." ;
   rdfs:subClassOf erc8004:TrustAssertion ;
   rdfs:subClassOf agentictrust:ReputationTrustAssertion .
+
+erc8004:FeedbackAct a owl:Class ;
+  rdfs:label "FeedbackAct" ;
+  rdfs:comment "The act of producing an ERC-8004 feedback record. Generates a Feedback record and asserts a ReputationTrustSituation." ;
+  rdfs:subClassOf erc8004:TrustAssertionAct ;
+  rdfs:subClassOf agentictrust:ReputationTrustAssertionAct .
 
 erc8004:FeedbackResponse a owl:Class ;
   rdfs:label "FeedbackResponse" ;
   rdfs:comment "Response to a feedback record (e.g., dispute/clarification)." ;
   rdfs:subClassOf erc8004:TrustAssertion ;
   rdfs:subClassOf agentictrust:ReputationTrustAssertion .
+
+erc8004:FeedbackResponseAct a owl:Class ;
+  rdfs:label "FeedbackResponseAct" ;
+  rdfs:comment "The act of producing an ERC-8004 feedback response. Generates a FeedbackResponse record." ;
+  rdfs:subClassOf erc8004:TrustAssertionAct ;
+  rdfs:subClassOf agentictrust:ReputationTrustAssertionAct .
 
 ########
 # Links from agents to ERC-8004 records

@@ -37,6 +37,7 @@ class ValidationRequest["agentictrust:VerificationRequestSituation"]
 class TrustSituation["agentictrust:TrustSituation"]
 class IntentCheck["agentictrust:IntentCheck"]
 class provAgent["prov:Agent"]
+class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 
 AIAgent --> VerificationAssertion : hasVerificationAssertion (agentictrust)
 AIAgent --> ValidationResponse : hasValidation (erc8004)
@@ -45,8 +46,9 @@ ValidationResponse --> ValidationRequest : validationRespondsToRequest (erc8004)
 ValidationResponse --> provAgent : validatorAgentForResponse (erc8004)
 ValidationResponse --> IntentCheck : validationTagCheck (erc8004)
 
-VerificationAssertion --> TrustSituation : assertsSituation (agentictrust)
-ValidationResponse --> ValidationRequest : assertsSituation (agentictrust)
+ValidationResponse --> TrustSituation : recordsSituation (agentictrust)
+TrustAssertionAct --> TrustSituation : assertsSituation (agentictrust)
+TrustAssertionAct --> ValidationResponse : generatedAssertionRecord (agentictrust)
 ```
 
 ### Core Properties
@@ -66,8 +68,11 @@ ValidationResponse --> ValidationRequest : assertsSituation (agentictrust)
 - **`erc8004:validationRespondsToRequest`** (domain: `erc8004:ValidationResponse`, range: `agentictrust:VerificationRequestSituation`)
   - Links a validation response to the request it responds to
 
-- **`agentictrust:assertsSituation`** (domain: `agentictrust:SituationAssertion`, range: `agentictrust:Situation`)
-  - Links an asserting act (validation response) to the situation it asserts/validates
+- **`agentictrust:recordsSituation`** (domain: `agentictrust:AssertionRecord`, range: `agentictrust:Situation`)
+  - Links a durable assertion record (validation response) to the situation it is a record about
+
+- **`agentictrust:assertsSituation`** (domain: `agentictrust:AssertionAct`, range: `agentictrust:Situation`)
+  - Links an asserting act to the situation it asserts/validates
 
 #### Validator Links
 

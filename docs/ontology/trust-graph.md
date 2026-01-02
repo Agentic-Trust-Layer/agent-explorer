@@ -17,13 +17,17 @@ class provActivity["prov:Activity"]
 class provAgent["prov:Agent"]
 
 class Situation["agentictrust:Situation"]
-class SituationAssertion["agentictrust:SituationAssertion"]
+class AssertionAct["agentictrust:AssertionAct"]
+class AssertionRecord["agentictrust:AssertionRecord"]
 
 Situation --|> provEntity
-SituationAssertion --|> provActivity
+AssertionAct --|> provActivity
+AssertionRecord --|> provEntity
 
-provAgent --> SituationAssertion : wasAssociatedWith
-SituationAssertion --> Situation : assertsSituation
+provAgent --> AssertionAct : wasAssociatedWith
+AssertionAct --> Situation : assertsSituation
+AssertionAct --> AssertionRecord : generatedAssertionRecord
+AssertionRecord --> Situation : recordsSituation
 ```
 
 ### Situation (context) — roles and participation
@@ -73,10 +77,12 @@ direction LR
 
 class provAgent["prov:Agent"]
 class TrustAssertion["agentictrust:TrustAssertion"]
+class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 class TrustSituation["agentictrust:TrustSituation"]
 
 provAgent --> TrustAssertion : hasTrustAssertion
-TrustAssertion --> TrustSituation : assertsSituation
+TrustAssertion --> TrustSituation : recordsSituation
+TrustAssertionAct --> TrustSituation : assertsSituation
 ```
 
 **SPARQL: count assertions per situation**
@@ -87,7 +93,7 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 SELECT ?situation (COUNT(?assertion) AS ?assertionCount)
 WHERE {
   ?assertion a agentictrust:TrustAssertion ;
-    agentictrust:assertsSituation ?situation .
+    agentictrust:recordsSituation ?situation .
 }
 GROUP BY ?situation
 ORDER BY DESC(?assertionCount)
