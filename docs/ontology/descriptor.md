@@ -88,69 +88,6 @@ WHERE {
 LIMIT 200
 ```
 
-### Agent → AgentDescriptor (and its data types)
-
-```mermaid
-classDiagram
-direction LR
-
-class AIAgent["agentictrust:AIAgent"]
-class AgentDescriptor["agentictrust:AgentDescriptor"]
-class Endpoint["agentictrust:Endpoint"]
-class EndpointType["agentictrust:EndpointType"]
-class AgentSkillClassification["agentictrust:AgentSkillClassification"]
-class AgentDomainClassification["agentictrust:AgentDomainClassification"]
-class DID["agentictrust:DID"]
-class DomainName["agentictrust:DomainName"]
-class TrustType["agentictrust:TrustType"]
-
-AIAgent --> AgentDescriptor : hasAgentDescriptor
-AgentDescriptor --> Endpoint : hasEndpoint
-Endpoint --> EndpointType : endpointType
-AgentDescriptor --> AgentSkillClassification : hasSkill
-AgentDescriptor --> AgentDomainClassification : declaresDomain
-AgentDescriptor --> DID : hasDID
-AgentDescriptor --> DomainName : hasDomainName
-AgentDescriptor --> TrustType : hasTrustType
-AgentDescriptor : +descriptorName (text, UTF-8)
-AgentDescriptor : +descriptorDescription (text, UTF-8/Markdown)
-AgentDescriptor : +descriptorImage (URI, RFC 3986)
-
-note for Endpoint "URI/URL standards\n(RFC 3986)"
-note for AgentSkillClassification "OASF standards\n(Open Agent Skill Format)"
-note for AgentDomainClassification "OASF standards\n(Open Agent Skill Format)"
-note for DID "W3C DID Core\n(https://www.w3.org/TR/did-core/)"
-note for DomainName "IETF DNS standards\n(RFC 1034, RFC 1035)"
-```
-
-**SPARQL: agent descriptor, endpoints, and skills**
-
-```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-
-SELECT ?agent ?agentId ?agentDescriptor ?endpoint ?endpointType ?skill ?domain ?did ?domainName ?trustType ?name ?description ?image
-WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId ;
-    agentictrust:hasAgentDescriptor ?agentDescriptor .
-
-  OPTIONAL {
-    ?agentDescriptor agentictrust:hasEndpoint ?endpoint .
-    OPTIONAL { ?endpoint agentictrust:endpointType ?endpointType . }
-  }
-  OPTIONAL { ?agentDescriptor agentictrust:hasSkill ?skill . }
-  OPTIONAL { ?agentDescriptor agentictrust:hasDomain ?domain . }
-  OPTIONAL { ?agentDescriptor agentictrust:hasDID ?did . }
-  OPTIONAL { ?agentDescriptor agentictrust:hasDomainName ?domainName . }
-  OPTIONAL { ?agentDescriptor agentictrust:hasTrustType ?trustType . }
-  OPTIONAL { ?agentDescriptor agentictrust:descriptorName ?name . }
-  OPTIONAL { ?agentDescriptor agentictrust:descriptorDescription ?description . }
-  OPTIONAL { ?agentDescriptor agentictrust:descriptorImage ?image . }
-}
-ORDER BY ?agentId
-LIMIT 200
-```
-
 ### Agent Identity8004 → Descriptor (8004-specific)
 
 ```mermaid
@@ -184,7 +121,7 @@ WHERE {
 LIMIT 200
 ```
 
-### Protocol (A2A) → ProtocolDescriptor (and how AgentDescriptor references it)
+### Protocol (A2A) → ProtocolDescriptor
 
 ```mermaid
 classDiagram
@@ -192,10 +129,11 @@ direction LR
 
 class Protocol["agentictrust:Protocol"]
 class A2AProtocolDescriptor["agentictrust:A2AProtocolDescriptor"]
-class AgentDescriptor["agentictrust:AgentDescriptor"]
+class Descriptor["agentictrust:Descriptor"]
 
 Protocol --> A2AProtocolDescriptor : hasProtocolDescriptor
-AgentDescriptor --> A2AProtocolDescriptor : assembledFromMetadata
+A2AProtocolDescriptor --|> Descriptor
+Descriptor --> A2AProtocolDescriptor : assembledFromMetadata
 ```
 
 **SPARQL: A2A protocol descriptors**

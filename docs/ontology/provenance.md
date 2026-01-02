@@ -14,11 +14,13 @@ class provEntity["prov:Entity"]
 
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
-class TrustAssertion["agentictrust:TrustAssertion"]
+class AssertionAct["agentictrust:AssertionAct"]
+class AssertionRecord["agentictrust:AssertionRecord"]
 
 TrustDescription --|> provPlan
 TrustSituation --|> provEntity
-TrustAssertion --|> provActivity
+AssertionAct --|> provActivity
+AssertionRecord --|> provEntity
 ```
 
 ### Relationship diagram (alias properties)
@@ -33,13 +35,15 @@ class provEntity["prov:Entity"]
 
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
-class TrustAssertion["agentictrust:TrustAssertion"]
+class AssertionAct["agentictrust:AssertionAct"]
+class AssertionRecord["agentictrust:AssertionRecord"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
-TrustAssertion --> TrustSituation : assertsSituation
-TrustAssertion --> provEntity : aboutSubject
+AssertionAct --> TrustSituation : assertsSituation
+AssertionAct --> AssertionRecord : generatedAssertionRecord
+AssertionRecord --> TrustSituation : recordsSituation
 
-note for TrustAssertion "If the Situation already exists, use assertsSituation. Use generatedSituation only when the assertion mints a new claim-object Situation (⊑ prov:generated)."
+note for AssertionAct "AssertionAct (prov:Activity) asserts a Situation and generates an AssertionRecord (prov:Entity)."
 ```
 
 ### Diagram
@@ -57,7 +61,8 @@ We ground trust and execution in PROV so:
 
 - **`agentictrust:TrustDescription`** ⊑ `prov:Plan` and `p-plan:Plan`
 - **`agentictrust:TrustSituation`** ⊑ `prov:Entity`
-- **`agentictrust:TrustAssertion`** ⊑ `prov:Activity`
+- **`agentictrust:AssertionAct`** ⊑ `prov:Activity` (the act of asserting)
+- **`agentictrust:AssertionRecord`** ⊑ `prov:Entity` (the durable record/artifact)
 
 ### Common provenance patterns in this repo
 
@@ -66,14 +71,20 @@ We ground trust and execution in PROV so:
   - timestamp via `prov:endedAtTime`
 
 - **Invocation trace**:
-  - `agentictrust:SkillInvocation` (Activity) links to the invoked `Skill` and input `Message`
+  - `agentictrust:SkillInvocation` (Activity) links to the invoked `AgentSkillClassification` and input `Message`
 
 ### Where assertions land
 
-Trust claims land as subclasses of `agentictrust:TrustAssertion`:
+Trust claims land as subclasses of `agentictrust:AssertionRecord` (durable entities) and `agentictrust:AssertionAct` (activities):
 
-- Verification: `agentictrust:VerificationTrustAssertion` (used by ERC8004 validation responses)
-- Reputation: `agentictrust:ReputationTrustAssertion` (used by ERC8004 feedback)
-- Relationship assertions: `agentictrust:RelationshipTrustAssertion` (used by ERC8092)
+- **Verification**:
+  - `agentictrust:VerificationTrustAssertion` (Record) - used by ERC8004 validation responses
+  - `agentictrust:VerificationTrustAssertionAct` (Act) - the act of validating
+- **Reputation**:
+  - `agentictrust:ReputationTrustAssertion` (Record) - used by ERC8004 feedback
+  - `agentictrust:ReputationTrustAssertionAct` (Act) - the act of providing feedback
+- **Relationship**:
+  - `agentictrust:RelationshipTrustAssertion` (Record) - used by ERC8092
+  - `agentictrust:RelationshipTrustAssertionAct` (Act) - the act of asserting relationships
 
 

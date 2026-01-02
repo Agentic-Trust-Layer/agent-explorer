@@ -995,11 +995,6 @@ agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:Descriptor ;
   rdfs:range agentictrust:AgentSkillClassification .
 
-agentictrust:declaresSkill a owl:ObjectProperty ;
-  rdfs:label "declaresSkill" ;
-  rdfs:comment "Links agent metadata to agent skill classifications it declares for discovery." ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:hasExample a owl:ObjectProperty ;
   rdfs:label "hasExample" ;
@@ -1023,11 +1018,6 @@ agentictrust:hasTag a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:Tag .
 
-agentictrust:hasDomain a owl:ObjectProperty ;
-  rdfs:label "hasDomain" ;
-  rdfs:comment "Links an AgentSkillClassification to an AgentDomainClassification for categorization and discovery filtering. OASF Domain classifications are high-level categories (e.g., 'finance', 'healthcare') used to group skills and agents by application area. Distinct from integration capabilities which describe technical integration mechanisms." ;
-  rdfs:domain agentictrust:AgentSkillClassification ;
-  rdfs:range agentictrust:AgentDomainClassification .
 
 agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:label "hasDomain" ;
@@ -1054,11 +1044,6 @@ agentictrust:hasTrustType a owl:ObjectProperty ;
   rdfs:domain agentictrust:Descriptor ;
   rdfs:range agentictrust:TrustType .
 
-agentictrust:declaresDomain a owl:ObjectProperty ;
-  rdfs:label "declaresDomain" ;
-  rdfs:comment "Links an AgentDescriptor to one or more AgentDomainClassifications (OASF domain classifications) for discovery and filtering. This allows agent descriptions to be categorized by application area independently of individual skills." ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentDomainClassification .
 
 agentictrust:oasfDomainId a owl:DatatypeProperty ;
   rdfs:label "oasfDomainId" ;
