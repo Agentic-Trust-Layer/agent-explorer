@@ -233,7 +233,7 @@ agentictrust:Relationship a owl:Class ;
 
 agentictrust:RelationshipTrustAssertion a owl:Class ;
   rdfs:label "RelationshipTrustAssertion" ;
-  rdfs:comment "A durable trust assertion record that establishes, modifies, or terminates a Relationship between Agents. For Account-to-Account relationship assertions, see agentictrustEth:AccountRelationshipAssertion." ;
+  rdfs:comment "A durable trust assertion record that establishes, modifies, or terminates a Relationship between Agents. For Account-to-Account relationship assertions, see agentictrustEth:TrustAssertion8092." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
 agentictrust:RelationshipTrustAssertionAct a owl:Class ;
@@ -438,7 +438,7 @@ agentictrust:hasReputationAssertion a owl:ObjectProperty ;
 
 agentictrust:hasRelationshipAssertion a owl:ObjectProperty ;
   rdfs:label "hasRelationshipAssertion" ;
-  rdfs:comment "Links an Agent to RelationshipAssertions it participates in or produces (for Agent-to-Agent relationships). For Account-to-Account relationship assertions, see agentictrustEth:hasAccountRelationshipAssertion." ;
+  rdfs:comment "Links an Agent to RelationshipAssertions it participates in or produces (for Agent-to-Agent relationships). For Account-to-Account relationship assertions, see agentictrustEth:hasAccountRelationshipAssertion (which links to TrustAssertion8092)." ;
   rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:RelationshipTrustAssertion .
