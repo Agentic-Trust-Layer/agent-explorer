@@ -1,0 +1,231 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22/rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix hol: <https://www.agentictrust.io/ontology/hol#> .
+
+hol: a owl:Ontology ;
+  dcterms:title "HOL Ontology" ;
+  dcterms:description "HOL (HOL Universal Registry) aligned terms for agent identity and profile descriptors, layered on the AgenticTrust core trust model." ;
+  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:versionInfo "0.1.0" ;
+  dcterms:license <https://opensource.org/license/mit/> .
+
+########
+# Base HOL classes (derive from AgenticTrust trust model)
+########
+
+hol:AgentIdentityHOL a owl:Class ;
+  rdfs:label "AgentIdentityHOL" ;
+  rdfs:comment "HOL agent identity. Represents the agent's identity in the HOL Universal Registry, linked to its IdentityIdentifierHOL. Inherits from agentictrust:AgentIdentity." ;
+  rdfs:subClassOf agentictrust:AgentIdentity ;
+  rdfs:subClassOf prov:Entity ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty agentictrust:hasDescriptor ;
+    owl:allValuesFrom hol:IdentityDescriptorHOL
+  ] .
+
+hol:IdentityIdentifierHOL a owl:Class ;
+  rdfs:label "IdentityIdentifierHOL" ;
+  rdfs:comment "HOL agent identity identifier (UAID format). A UniversalIdentifier that represents the agent's identity in the HOL Universal Registry." ;
+  rdfs:subClassOf agentictrust:UniversalIdentifier ;
+  rdfs:subClassOf prov:Entity .
+
+hol:IdentifierType_HOL a agentictrust:IdentifierType ;
+  rdfs:label "HOL" ;
+  rdfs:comment "HOL identity identifier type." .
+
+hol:IdentityDescriptorHOL a owl:Class ;
+  rdfs:label "IdentityDescriptorHOL" ;
+  rdfs:comment "Descriptor for a HOL identity (resolved registry metadata, rawJson content, and linked identifiers/endpoints)." ;
+  rdfs:subClassOf agentictrust:AgentIdentityDescriptor .
+
+hol:AgentProfileHOL a owl:Class ;
+  rdfs:label "AgentProfileHOL" ;
+  rdfs:comment "HOL agent profile descriptor extracted from rawJson metadata. Contains all agent profile data including name, description, bio, displayName, alias, capabilities, protocols, endpoints, and metadata." ;
+  rdfs:subClassOf agentictrust:AgentIdentityDescriptor ;
+  rdfs:subClassOf prov:Entity .
+
+hol:hasAgentProfileHOL a owl:ObjectProperty ;
+  rdfs:label "hasAgentProfileHOL" ;
+  rdfs:comment "Links a HOL agent to its profile descriptor extracted from rawJson metadata." ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range hol:AgentProfileHOL .
+
+########
+# HOL-specific datatype properties for profile metadata
+########
+
+hol:uaid a owl:DatatypeProperty ;
+  rdfs:label "uaid" ;
+  rdfs:comment "HOL Universal Agent Identifier (UAID) string." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:originalId a owl:DatatypeProperty ;
+  rdfs:label "originalId" ;
+  rdfs:comment "Original agent ID from the HOL registry." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:registry a owl:DatatypeProperty ;
+  rdfs:label "registry" ;
+  rdfs:comment "HOL registry name (e.g., 'agentverse', 'erc-8004', 'hol')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:displayName a owl:DatatypeProperty ;
+  rdfs:label "displayName" ;
+  rdfs:comment "Display name from HOL profile." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:alias a owl:DatatypeProperty ;
+  rdfs:label "alias" ;
+  rdfs:comment "Agent alias from HOL profile." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:bio a owl:DatatypeProperty ;
+  rdfs:label "bio" ;
+  rdfs:comment "Agent bio/description from HOL profile." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:rating a owl:DatatypeProperty ;
+  rdfs:label "rating" ;
+  rdfs:comment "Agent rating score from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:decimal .
+
+hol:trustScore a owl:DatatypeProperty ;
+  rdfs:label "trustScore" ;
+  rdfs:comment "Agent trust score from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:decimal .
+
+hol:totalInteractions a owl:DatatypeProperty ;
+  rdfs:label "totalInteractions" ;
+  rdfs:comment "Total number of interactions from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:integer .
+
+hol:availabilityScore a owl:DatatypeProperty ;
+  rdfs:label "availabilityScore" ;
+  rdfs:comment "Availability score from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:decimal .
+
+hol:availabilityLatencyMs a owl:DatatypeProperty ;
+  rdfs:label "availabilityLatencyMs" ;
+  rdfs:comment "Availability latency in milliseconds from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:integer .
+
+hol:availabilityStatus a owl:DatatypeProperty ;
+  rdfs:label "availabilityStatus" ;
+  rdfs:comment "Availability status from HOL metadata (e.g., 'online', 'offline')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:availabilityCheckedAt a owl:DatatypeProperty ;
+  rdfs:label "availabilityCheckedAt" ;
+  rdfs:comment "Timestamp when availability was last checked (Unix epoch seconds)." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:integer .
+
+hol:availabilityReason a owl:DatatypeProperty ;
+  rdfs:label "availabilityReason" ;
+  rdfs:comment "Reason for availability status from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:availabilitySource a owl:DatatypeProperty ;
+  rdfs:label "availabilitySource" ;
+  rdfs:comment "Source of availability information (e.g., 'probe')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:available a owl:DatatypeProperty ;
+  rdfs:label "available" ;
+  rdfs:comment "Boolean indicating if agent is available (as string 'true' or 'false')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:detectedLanguage a owl:DatatypeProperty ;
+  rdfs:label "detectedLanguage" ;
+  rdfs:comment "Detected language from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:detectedLanguageCode a owl:DatatypeProperty ;
+  rdfs:label "detectedLanguageCode" ;
+  rdfs:comment "Detected language code (e.g., 'en') from HOL metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:detectedLanguageConfidence a owl:DatatypeProperty ;
+  rdfs:label "detectedLanguageConfidence" ;
+  rdfs:comment "Confidence score for detected language." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:decimal .
+
+hol:adapter a owl:DatatypeProperty ;
+  rdfs:label "adapter" ;
+  rdfs:comment "Adapter name from HOL metadata (e.g., 'agentverse-adapter')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:protocol a owl:DatatypeProperty ;
+  rdfs:label "protocol" ;
+  rdfs:comment "Protocol name from HOL metadata (e.g., 'uagent', 'a2a')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:aiagentCreator a owl:DatatypeProperty ;
+  rdfs:label "aiagentCreator" ;
+  rdfs:comment "AI agent creator from HOL profile metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:aiagentModel a owl:DatatypeProperty ;
+  rdfs:label "aiagentModel" ;
+  rdfs:comment "AI agent model from HOL profile metadata." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:communicationSupported a owl:DatatypeProperty ;
+  rdfs:label "communicationSupported" ;
+  rdfs:comment "Boolean indicating if communication is supported (as string 'true' or 'false')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:routingSupported a owl:DatatypeProperty ;
+  rdfs:label "routingSupported" ;
+  rdfs:comment "Boolean indicating if routing is supported (as string 'true' or 'false')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:imageStatus a owl:DatatypeProperty ;
+  rdfs:label "imageStatus" ;
+  rdfs:comment "Image status from HOL metadata (e.g., 'no-image', 'has-image')." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+hol:lastIndexed a owl:DatatypeProperty ;
+  rdfs:label "lastIndexed" ;
+  rdfs:comment "Timestamp when agent was last indexed (Unix epoch seconds)." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:integer .
+
+hol:lastSeen a owl:DatatypeProperty ;
+  rdfs:label "lastSeen" ;
+  rdfs:comment "Timestamp when agent was last seen (Unix epoch seconds)." ;
+  rdfs:domain hol:AgentProfileHOL ;
+  rdfs:range xsd:integer .
+

@@ -23,7 +23,7 @@ erc8004: a owl:Ontology ;
 erc8004:AgentRegistration8004 a owl:Class ;
   rdfs:label "AgentRegistration8004" ;
   rdfs:comment "ERC-8004 agent registration descriptor extracted from tokenUri rawJson metadata. Contains all agent registration data including endpoints, skills, domains, DIDs, names, descriptions, images, and trust types." ;
-  rdfs:subClassOf agentictrust:AgentDescriptor ;
+  rdfs:subClassOf agentictrust:AgentIdentityDescriptor ;
   rdfs:subClassOf prov:Entity .
 
 erc8004:AgentIdentity8004 a owl:Class ;

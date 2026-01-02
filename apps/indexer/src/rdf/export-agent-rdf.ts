@@ -226,6 +226,16 @@ function accountIdentifierIri(chainId: number, address: string): string {
   return `<https://www.agentictrust.io/id/account-identifier/${chainId}/${iriEncodeSegment(addr)}>`;
 }
 
+function identifierDescriptorIri(identifierIri: string, type: '8004' | 'ens' | 'account'): string {
+  // Extract identifier from IRI and create descriptor IRI
+  const match = identifierIri.match(/\/id\/identifier\/([^>]+)>/) || identifierIri.match(/\/id\/account-identifier\/([^>]+)>/);
+  if (match) {
+    return `<https://www.agentictrust.io/id/identifier-descriptor/${type}/${match[1]}>`;
+  }
+  // Fallback: use identifier IRI with descriptor suffix
+  return identifierIri.replace('/identifier/', '/identifier-descriptor/').replace('/account-identifier/', '/identifier-descriptor/account/');
+}
+
 function ensNameIri(chainId: number, ensName: string): string {
   return `<https://www.agentictrust.io/id/ens-name/${chainId}/${iriEncodeSegment(ensName)}>`;
 }
@@ -439,9 +449,17 @@ function renderAgentSection(
     );
     
     // Emit IdentityIdentifier8004
+    const identityDescriptorIriValue = identifierDescriptorIri(identityIdentifierIri, '8004');
     accountChunks.push(
       `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType erc8004:IdentifierType_8004 .\n\n`,
+        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
+        `  agentictrust:hasDescriptor ${identityDescriptorIriValue} .\n\n`,
+    );
+    
+    // Emit IdentifierDescriptor for IdentityIdentifier8004 with DID
+    accountChunks.push(
+      `${identityDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
+        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
     );
     
     // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
@@ -477,10 +495,18 @@ function renderAgentSection(
     );
     
     // Emit NameIdentifierENS
+    const ensDescriptorIriValue = identifierDescriptorIri(ensIdentifierIri, 'ens');
     accountChunks.push(
       `${ensIdentifierIri} a agentictrustEth:NameIdentifierENS, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
-        `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
+        `  rdfs:label "${escapeTurtleString(ensName)}" ;\n` +
+        `  agentictrust:hasDescriptor ${ensDescriptorIriValue} .\n\n`,
+    );
+    
+    // Emit IdentifierDescriptor for NameIdentifierENS with DID
+    accountChunks.push(
+      `${ensDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
+        `  agentictrust:hasDID ${ensDidIri} .\n\n`,
     );
     
     // Emit DID for ENS name (DID is a DecentralizedIdentifier, which is a type of Identifier)
@@ -506,19 +532,31 @@ function renderAgentSection(
     
     // Emit AccountIdentifier instance
     const accountIdentifierLines: string[] = [];
+    const accountDescriptorIriValue = identifierDescriptorIri(accountIdentifierIriValue, 'account');
     accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
     accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  agentictrust:hasDescriptor ${accountDescriptorIriValue} ;`);
     // Link Account -> AccountIdentifier (canonical direction in agentictrust-eth)
     accountChunks.push(`${acctIri} agentictrustEth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
+      // Emit IdentifierDescriptor for AccountIdentifier with DID
+      accountChunks.push(
+        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
+          `  agentictrust:hasDID ${didIri} .\n\n`,
+      );
       // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
       // DID identifies the AccountIdentifier via identifies property
       // Note: hasDID is only for Descriptor → DID, not Identifier → DID
       accountChunks.push(
         `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
           `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
+      );
+    } else {
+      // Emit IdentifierDescriptor for AccountIdentifier without DID
+      accountChunks.push(
+        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity .\n\n`,
       );
     }
     accountChunks.push(accountIdentifierLines.join('\n') + ' .\n\n');
@@ -594,7 +632,7 @@ function renderAgentSection(
   // Emit AgentRegistration8004 or AgentDescriptor node and links
   const adLines: string[] = [];
   if (isERC8004) {
-    adLines.push(`${adIri} a erc8004:AgentRegistration8004, agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+    adLines.push(`${adIri} a erc8004:AgentRegistration8004, agentictrust:AgentIdentityDescriptor, agentictrust:Descriptor, prov:Entity ;`);
   } else {
     adLines.push(`${adIri} a agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
   }
@@ -812,12 +850,20 @@ function renderAgentSection(
   }
   
   // A2A Protocol Descriptor (from agentCardJson)
+  // Extract all protocol descriptor fields from agentCardJson
   const hasProtocolProps = 
     (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim()) ||
     (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim()) ||
-    (typeof agentCard?.url === 'string' && agentCard.url.trim());
+    (typeof agentCard?.url === 'string' && agentCard.url.trim()) ||
+    (typeof agentCard?.name === 'string' && agentCard.name.trim()) ||
+    (typeof agentCard?.description === 'string' && agentCard.description.trim()) ||
+    (typeof agentCard?.version === 'string' && agentCard.version.trim()) ||
+    Array.isArray(agentCard?.capabilities) ||
+    Array.isArray(agentCard?.operators) ||
+    Array.isArray(agentCard?.defaultInputModes) ||
+    Array.isArray(agentCard?.defaultOutputModes);
   
-  if (hasProtocolProps) {
+  if (hasProtocolProps && agentCard && typeof agentCard === 'object') {
     // Use DID for protocol descriptor IRI (protocol-agnostic, no chainId needed)
     const didForProtocol = row?.didIdentity ? iriEncodeSegment(String(row.didIdentity)) : `${chainId}/${iriEncodeSegment(agentId)}`;
     const protocolDescriptorIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${didForProtocol}>`;
@@ -830,16 +876,87 @@ function renderAgentSection(
     // AgentDescriptor assembled from this protocol descriptor component
     afterAgent.push(`${adIri} agentictrust:assembledFromMetadata ${protocolDescriptorIri} .\n`);
 
-    afterAgent.push(`${protocolDescriptorIri} a agentictrust:A2AProtocolDescriptor, agentictrust:ProtocolDescriptor, prov:Entity ;`);
+    const protocolDescriptorLines: string[] = [];
+    protocolDescriptorLines.push(`${protocolDescriptorIri} a agentictrust:A2AProtocolDescriptor, agentictrust:ProtocolDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+    
+    // Core protocol fields
     if (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim())
-      afterAgent.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
+      protocolDescriptorLines.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
     if (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim())
-      afterAgent.push(`  agentictrust:preferredTransport "${escapeTurtleString(agentCard.preferredTransport.trim())}" ;`);
+      protocolDescriptorLines.push(`  agentictrust:preferredTransport "${escapeTurtleString(agentCard.preferredTransport.trim())}" ;`);
     if (typeof agentCard?.url === 'string' && agentCard.url.trim()) {
       const tok = turtleIriOrLiteral(agentCard.url.trim());
-      if (tok) afterAgent.push(`  agentictrust:serviceUrl ${tok} ;`);
+      if (tok) protocolDescriptorLines.push(`  agentictrust:serviceUrl ${tok} ;`);
     }
-    afterAgent.push(`  .\n`);
+    
+    // Descriptor fields (name, description, image) - ProtocolDescriptor inherits from Descriptor
+    if (typeof agentCard?.name === 'string' && agentCard.name.trim()) {
+      protocolDescriptorLines.push(`  agentictrust:descriptorName "${escapeTurtleString(agentCard.name.trim())}" ;`);
+      protocolDescriptorLines.push(`  rdfs:label "${escapeTurtleString(agentCard.name.trim())}" ;`);
+    }
+    if (typeof agentCard?.description === 'string' && agentCard.description.trim())
+      protocolDescriptorLines.push(`  agentictrust:descriptorDescription "${escapeTurtleString(agentCard.description.trim())}" ;`);
+    if (agentCard?.image != null) {
+      const imgUrl = String(agentCard.image).trim();
+      if (imgUrl) {
+        const imgIri = turtleIriOrLiteral(imgUrl);
+        if (imgIri) protocolDescriptorLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+      }
+    }
+    
+    // Version field (use version if protocolVersion not already set)
+    if (typeof agentCard?.version === 'string' && agentCard.version.trim()) {
+      const hasProtocolVersion = protocolDescriptorLines.some(l => l.includes('protocolVersion'));
+      if (!hasProtocolVersion) {
+        protocolDescriptorLines.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.version.trim())}" ;`);
+      }
+    }
+    
+    // Capabilities (array of strings)
+    const capabilities: any[] = Array.isArray(agentCard?.capabilities) ? agentCard.capabilities : [];
+    for (const cap of capabilities) {
+      if (typeof cap === 'string' && cap.trim()) {
+        const capIri = `<https://www.agentictrust.io/id/capability/${iriEncodeSegment(cap.trim())}>`;
+        protocolDescriptorLines.push(`  agentictrust:hasCapability ${capIri} ;`);
+        accountChunks.push(`${capIri} a agentictrust:Capability, prov:Entity ; rdfs:label "${escapeTurtleString(cap.trim())}" .\n\n`);
+      }
+    }
+    
+    // Operators (array of strings)
+    const operators: any[] = Array.isArray(agentCard?.operators) ? agentCard.operators : [];
+    for (const op of operators) {
+      if (typeof op === 'string' && op.trim()) {
+        const opIri = `<https://www.agentictrust.io/id/operator/${iriEncodeSegment(op.trim())}>`;
+        protocolDescriptorLines.push(`  agentictrust:hasOperator ${opIri} ;`);
+        accountChunks.push(`${opIri} a agentictrust:Operator, prov:Entity ; rdfs:label "${escapeTurtleString(op.trim())}" .\n\n`);
+      }
+    }
+    
+    // Default input/output modes
+    const inputModes: any[] = Array.isArray(agentCard?.defaultInputModes) ? agentCard.defaultInputModes : [];
+    for (const mode of inputModes) {
+      if (typeof mode === 'string' && mode.trim()) {
+        const modeIri = `<https://www.agentictrust.io/id/input-mode/${iriEncodeSegment(mode.trim())}>`;
+        protocolDescriptorLines.push(`  agentictrust:hasDefaultInputMode ${modeIri} ;`);
+        accountChunks.push(`${modeIri} a agentictrust:InputMode, prov:Entity ; rdfs:label "${escapeTurtleString(mode.trim())}" .\n\n`);
+      }
+    }
+    
+    const outputModes: any[] = Array.isArray(agentCard?.defaultOutputModes) ? agentCard.defaultOutputModes : [];
+    for (const mode of outputModes) {
+      if (typeof mode === 'string' && mode.trim()) {
+        const modeIri = `<https://www.agentictrust.io/id/output-mode/${iriEncodeSegment(mode.trim())}>`;
+        protocolDescriptorLines.push(`  agentictrust:hasDefaultOutputMode ${modeIri} ;`);
+        accountChunks.push(`${modeIri} a agentictrust:OutputMode, prov:Entity ; rdfs:label "${escapeTurtleString(mode.trim())}" .\n\n`);
+      }
+    }
+    
+    // Remove trailing semicolon and close
+    if (protocolDescriptorLines.length > 0) {
+      const lastLine = protocolDescriptorLines[protocolDescriptorLines.length - 1];
+      protocolDescriptorLines[protocolDescriptorLines.length - 1] = lastLine.replace(/ ;$/, ' .');
+      afterAgent.push(protocolDescriptorLines.join('\n') + '\n');
+    }
   }
 
   // Skills from agentCard (A2A protocol) - these are protocol-specific, not identity-level
@@ -965,9 +1082,17 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     );
     
     // Emit IdentityIdentifier8004
+    const identityDescriptorIriValue = identifierDescriptorIri(identityIdentifierIri, '8004');
     accountChunks.push(
       `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType erc8004:IdentifierType_8004 .\n\n`,
+        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
+        `  agentictrust:hasDescriptor ${identityDescriptorIriValue} .\n\n`,
+    );
+    
+    // Emit IdentifierDescriptor for IdentityIdentifier8004 with DID
+    accountChunks.push(
+      `${identityDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
+        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
     );
     
     // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
@@ -1003,10 +1128,18 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     );
     
     // Emit NameIdentifierENS
+    const ensDescriptorIriValue = identifierDescriptorIri(ensIdentifierIri, 'ens');
     accountChunks.push(
       `${ensIdentifierIri} a agentictrustEth:NameIdentifierENS, agentictrust:Identifier, prov:Entity ;\n` +
         `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
-        `  rdfs:label "${escapeTurtleString(ensName)}" .\n\n`,
+        `  rdfs:label "${escapeTurtleString(ensName)}" ;\n` +
+        `  agentictrust:hasDescriptor ${ensDescriptorIriValue} .\n\n`,
+    );
+    
+    // Emit IdentifierDescriptor for NameIdentifierENS with DID
+    accountChunks.push(
+      `${ensDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
+        `  agentictrust:hasDID ${ensDidIri} .\n\n`,
     );
     
     // Emit DID for ENS name (DID is a DecentralizedIdentifier, which is a type of Identifier)
@@ -1032,19 +1165,31 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     
     // Emit AccountIdentifier instance
     const accountIdentifierLines: string[] = [];
+    const accountDescriptorIriValue = identifierDescriptorIri(accountIdentifierIriValue, 'account');
     accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
     accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  agentictrust:hasDescriptor ${accountDescriptorIriValue} ;`);
     // Link Account -> AccountIdentifier (canonical direction in agentictrust-eth)
     accountChunks.push(`${acctIri} agentictrustEth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
+      // Emit IdentifierDescriptor for AccountIdentifier with DID
+      accountChunks.push(
+        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
+          `  agentictrust:hasDID ${didIri} .\n\n`,
+      );
       // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
       // DID identifies the AccountIdentifier via identifies property
       // Note: hasDID is only for Descriptor → DID, not Identifier → DID
       accountChunks.push(
         `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
           `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
+      );
+    } else {
+      // Emit IdentifierDescriptor for AccountIdentifier without DID
+      accountChunks.push(
+        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity .\n\n`,
       );
     }
     accountChunks.push(accountIdentifierLines.join('\n') + ' .\n\n');

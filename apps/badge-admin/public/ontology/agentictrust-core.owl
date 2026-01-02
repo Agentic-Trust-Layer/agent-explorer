@@ -1293,6 +1293,50 @@ agentictrust:serviceUrl a owl:DatatypeProperty ;
   rdfs:domain agentictrust:A2AProtocolDescriptor ;
   rdfs:range xsd:anyURI .
 
+agentictrust:Capability a owl:Class ;
+  rdfs:label "Capability" ;
+  rdfs:comment "A capability supported by an agent (e.g., 'text-generation', 'image-processing'). Used in A2A protocol descriptors to describe agent capabilities." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:Operator a owl:Class ;
+  rdfs:label "Operator" ;
+  rdfs:comment "An operator address or identifier associated with an agent. Used in A2A protocol descriptors to list authorized operators." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:InputMode a owl:Class ;
+  rdfs:label "InputMode" ;
+  rdfs:comment "An input mode supported by an agent (e.g., 'text', 'image', 'audio'). Used in A2A protocol descriptors to specify default input modes." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:OutputMode a owl:Class ;
+  rdfs:label "OutputMode" ;
+  rdfs:comment "An output mode supported by an agent (e.g., 'text', 'image', 'audio'). Used in A2A protocol descriptors to specify default output modes." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:hasCapability a owl:ObjectProperty ;
+  rdfs:label "hasCapability" ;
+  rdfs:comment "Links a ProtocolDescriptor to a Capability it supports." ;
+  rdfs:domain agentictrust:ProtocolDescriptor ;
+  rdfs:range agentictrust:Capability .
+
+agentictrust:hasOperator a owl:ObjectProperty ;
+  rdfs:label "hasOperator" ;
+  rdfs:comment "Links a ProtocolDescriptor to an Operator (authorized operator address/identifier)." ;
+  rdfs:domain agentictrust:ProtocolDescriptor ;
+  rdfs:range agentictrust:Operator .
+
+agentictrust:hasDefaultInputMode a owl:ObjectProperty ;
+  rdfs:label "hasDefaultInputMode" ;
+  rdfs:comment "Links a ProtocolDescriptor to a default InputMode it supports." ;
+  rdfs:domain agentictrust:ProtocolDescriptor ;
+  rdfs:range agentictrust:InputMode .
+
+agentictrust:hasDefaultOutputMode a owl:ObjectProperty ;
+  rdfs:label "hasDefaultOutputMode" ;
+  rdfs:comment "Links a ProtocolDescriptor to a default OutputMode it supports." ;
+  rdfs:domain agentictrust:ProtocolDescriptor ;
+  rdfs:range agentictrust:OutputMode .
+
 agentictrust:descriptorName a owl:DatatypeProperty ;
   rdfs:label "descriptorName" ;
   rdfs:comment "Name text associated with a Descriptor (e.g., agent name from registration metadata). Follows Unicode text encoding standards (UTF-8) for international character support." ;

@@ -7,10 +7,11 @@ function usage(): never {
       '  tsx src/graphdb/cli.ts repos',
       '  tsx src/graphdb/cli.ts create-repo [--force]',
       '  tsx src/graphdb/cli.ts ingest [all|agents|ontologies] [--reset]',
+      '  tsx src/graphdb/cli.ts ingest-hol [all|agents|ontologies] [--reset]',
       '',
       'Env:',
       '  GRAPHDB_BASE_URL=http://localhost:7200',
-      '  GRAPHDB_REPOSITORY=agentictrust',
+      '  GRAPHDB_REPOSITORY=agentictrust (or holagents for HOL)',
       '  GRAPHDB_USERNAME=... (optional)',
       '  GRAPHDB_PASSWORD=... (optional)',
       '  GRAPHDB_RULESET=owl-horst-optimized (optional)',
@@ -67,6 +68,30 @@ async function main(): Promise<void> {
     if (target === 'all') {
       await mod.ingestOntologiesToGraphdb({ resetContext: reset });
       await mod.ingestAgentsRdfToGraphdb({ resetContext: reset });
+      return;
+    }
+
+    usage();
+  }
+
+  if (cmd === 'ingest-hol') {
+    const target = args[1] ?? 'all';
+    const reset = hasFlag('--reset');
+
+    // Import lazily so "repos" and "create-repo" don't require HOL DB env vars.
+    const mod = await import('./hol-ingest');
+
+    if (target === 'agents') {
+      await mod.ingestHolAgentsRdfToGraphdb({ resetContext: reset, repository: 'holagents' });
+      return;
+    }
+    if (target === 'ontologies') {
+      await mod.ingestHolOntologiesToGraphdb({ resetContext: reset, repository: 'holagents' });
+      return;
+    }
+    if (target === 'all') {
+      await mod.ingestHolOntologiesToGraphdb({ resetContext: reset, repository: 'holagents' });
+      await mod.ingestHolAgentsRdfToGraphdb({ resetContext: reset, repository: 'holagents' });
       return;
     }
 

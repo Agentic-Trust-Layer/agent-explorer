@@ -16,6 +16,7 @@
     "crossref": "tsx src/crossref/cli.ts",
     "crossref:hol-agentverse": "tsx src/crossref/cli.ts hol-agentverse",
     "graphdb:ingest": "tsx src/graphdb/cli.ts ingest",
+    "graphdb:ingest-hol": "tsx src/graphdb/cli.ts ingest-hol",
     "graphdb:repos": "tsx src/graphdb/cli.ts repos",
     "graphdb:create-repo": "tsx src/graphdb/cli.ts create-repo",
     "rdf:agent": "tsx src/rdf/agent-cli.ts",
