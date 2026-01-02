@@ -711,14 +711,9 @@ agentictrust:AIAgent a owl:Class ;
     owl:allValuesFrom agentictrust:AgentDescriptor
   ] .
 
-agentictrust:AgentEndpoint a owl:Class ;
-  rdfs:label "AgentEndpoint" ;
-  rdfs:comment "An endpoint entry declared by an AgentDescriptor (name/endpoint/version)." ;
-  rdfs:subClassOf prov:Entity .
-
 agentictrust:EndpointType a owl:Class ;
   rdfs:label "EndpointType" ;
-  rdfs:comment "Recommended endpoint type taxonomy for agent metadata endpoints." ;
+  rdfs:comment "Recommended endpoint type taxonomy for agent metadata endpoints (e.g., a2a, mcp, ens, agentAccount)." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:OperatorIdentifier a owl:Class ;
@@ -956,14 +951,10 @@ agentictrust:hasDescriptor a owl:ObjectProperty ;
   rdfs:domain prov:Entity ;
   rdfs:range agentictrust:Descriptor .
 
-agentictrust:hasEndpointEntry a owl:ObjectProperty ;
-  rdfs:label "hasEndpointEntry" ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentEndpoint .
-
 agentictrust:endpointType a owl:ObjectProperty ;
   rdfs:label "endpointType" ;
-  rdfs:domain agentictrust:AgentEndpoint ;
+  rdfs:comment "Links an Endpoint to its EndpointType (e.g., a2a, mcp, ens, agentAccount)." ;
+  rdfs:domain agentictrust:Endpoint ;
   rdfs:range agentictrust:EndpointType .
 
 agentictrust:hasOperatorIdentifier a owl:ObjectProperty ;
@@ -994,12 +985,14 @@ agentictrust:assembledFromMetadata a owl:ObjectProperty ;
 
 agentictrust:hasEndpoint a owl:ObjectProperty ;
   rdfs:label "hasEndpoint" ;
-  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:comment "Links a Descriptor to an Endpoint (network endpoint used by protocols like A2A/MCP)." ;
+  rdfs:domain agentictrust:Descriptor ;
   rdfs:range agentictrust:Endpoint .
 
 agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:label "hasSkill" ;
-  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:comment "Links a Descriptor to a Skill (OASF skill/capability)." ;
+  rdfs:domain agentictrust:Descriptor ;
   rdfs:range agentictrust:Skill .
 
 agentictrust:declaresSkill a owl:ObjectProperty ;
@@ -1035,6 +1028,36 @@ agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:comment "Links a Skill to an OASF Domain for categorization and discovery filtering. OASF Domains are high-level categories (e.g., 'finance', 'healthcare') used to group skills and agents by application area. Distinct from integration capabilities which describe technical integration mechanisms." ;
   rdfs:domain agentictrust:Skill ;
   rdfs:range agentictrust:Domain .
+
+agentictrust:hasDomain a owl:ObjectProperty ;
+  rdfs:label "hasDomain" ;
+  rdfs:comment "Links a Descriptor to an OASF Domain for categorization and discovery filtering." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range agentictrust:Domain .
+
+agentictrust:hasDomain a owl:ObjectProperty ;
+  rdfs:label "hasDomain" ;
+  rdfs:comment "Links a Descriptor to an OASF Domain for categorization and discovery filtering." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range agentictrust:Domain .
+
+agentictrust:hasDIDForDescriptor a owl:ObjectProperty ;
+  rdfs:label "hasDIDForDescriptor" ;
+  rdfs:comment "Links a Descriptor to a DID (Decentralized Identifier) following W3C DID Core specification." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range agentictrust:DID .
+
+agentictrust:hasDomainName a owl:ObjectProperty ;
+  rdfs:label "hasDomainName" ;
+  rdfs:comment "Links a Descriptor to a DomainName (IETF FQDN) for agent naming and discovery." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range agentictrust:DomainName .
+
+agentictrust:hasTrustType a owl:ObjectProperty ;
+  rdfs:label "hasTrustType" ;
+  rdfs:comment "Links a Descriptor to a TrustType indicating the types of trust mechanisms supported (e.g., reputation, crypto-economic, tee, zkml)." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range agentictrust:TrustType .
 
 agentictrust:declaresDomain a owl:ObjectProperty ;
   rdfs:label "declaresDomain" ;
@@ -1290,6 +1313,36 @@ agentictrust:serviceUrl a owl:DatatypeProperty ;
   rdfs:domain agentictrust:A2AProtocolDescriptor ;
   rdfs:range xsd:anyURI .
 
+agentictrust:descriptorName a owl:DatatypeProperty ;
+  rdfs:label "descriptorName" ;
+  rdfs:comment "Name text associated with a Descriptor (e.g., agent name from registration metadata)." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range xsd:string .
+
+agentictrust:descriptorDescription a owl:DatatypeProperty ;
+  rdfs:label "descriptorDescription" ;
+  rdfs:comment "Description text associated with a Descriptor (e.g., agent description from registration metadata)." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range xsd:string .
+
+agentictrust:descriptorImage a owl:DatatypeProperty ;
+  rdfs:label "descriptorImage" ;
+  rdfs:comment "Image path/URL associated with a Descriptor (e.g., agent image from registration metadata)." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range xsd:anyURI .
+
+agentictrust:domainNameValue a owl:DatatypeProperty ;
+  rdfs:label "domainNameValue" ;
+  rdfs:comment "Domain name string value following IETF standards (RFC 1034, RFC 1035)." ;
+  rdfs:domain agentictrust:DomainName ;
+  rdfs:range xsd:string .
+
+agentictrust:trustTypeValue a owl:DatatypeProperty ;
+  rdfs:label "trustTypeValue" ;
+  rdfs:comment "Trust type string value (e.g., 'reputation', 'crypto-economic', 'tee', 'zkml')." ;
+  rdfs:domain agentictrust:TrustType ;
+  rdfs:range xsd:string .
+
 agentictrust:skillId a owl:DatatypeProperty ;
   rdfs:label "skillId" ;
   rdfs:domain agentictrust:Skill ;
@@ -1454,17 +1507,20 @@ agentictrust:metadataUpdatedAt a owl:DatatypeProperty ;
 
 agentictrust:endpointName a owl:DatatypeProperty ;
   rdfs:label "endpointName" ;
-  rdfs:domain agentictrust:AgentEndpoint ;
+  rdfs:comment "Name of an endpoint (e.g., 'A2A', 'MCP', 'ENS', 'agentAccount')." ;
+  rdfs:domain agentictrust:Endpoint ;
   rdfs:range xsd:string .
 
 agentictrust:endpointUrl a owl:DatatypeProperty ;
   rdfs:label "endpointUrl" ;
-  rdfs:domain agentictrust:AgentEndpoint ;
+  rdfs:comment "URL/URI of an endpoint." ;
+  rdfs:domain agentictrust:Endpoint ;
   rdfs:range xsd:anyURI .
 
 agentictrust:endpointVersion a owl:DatatypeProperty ;
   rdfs:label "endpointVersion" ;
-  rdfs:domain agentictrust:AgentEndpoint ;
+  rdfs:comment "Version string for an endpoint." ;
+  rdfs:domain agentictrust:Endpoint ;
   rdfs:range xsd:string .
 
 agentictrust:operatorIdentifierValue a owl:DatatypeProperty ;

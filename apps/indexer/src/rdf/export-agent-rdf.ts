@@ -410,9 +410,15 @@ function renderAgentSection(
   lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
   if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
 
-  // AgentDescriptor (resolver-produced description used for discovery)
+  // AgentRegistration8004 (ERC-8004 registration descriptor extracted from rawJson)
   const adIri = agentDescriptorIri(chainId, agentId, row?.didIdentity);
-  lines.push(`  agentictrust:hasAgentDescriptor ${adIri} ;`);
+  // For ERC-8004 agents, use AgentRegistration8004; otherwise use AgentDescriptor
+  const isERC8004 = !!row?.didIdentity;
+  if (isERC8004) {
+    lines.push(`  erc8004:hasAgentRegistration8004 ${adIri} ;`);
+  } else {
+    lines.push(`  agentictrust:hasAgentDescriptor ${adIri} ;`);
+  }
   
   // Identity8004 and IdentityIdentifier8004 for didIdentity
   if (row?.didIdentity) {
@@ -582,14 +588,111 @@ function renderAgentSection(
   for (const s of takeStrings((tokenUriData as any)?.oasf_skills)) declaredOasfSkills.add(s);
   for (const d of takeStrings((tokenUriData as any)?.oasf_domains)) declaredOasfDomains.add(d);
 
-  // Emit AgentDescriptor node and links
+  // Emit AgentRegistration8004 or AgentDescriptor node and links
   const adLines: string[] = [];
-  adLines.push(`${adIri} a agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
-  if (row?.agentName) adLines.push(`  rdfs:label "${escapeTurtleString(String(row.agentName))}" ;`);
+  if (isERC8004) {
+    adLines.push(`${adIri} a erc8004:AgentRegistration8004, agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+  } else {
+    adLines.push(`${adIri} a agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+  }
+  
+  // Extract and populate data from rawJson (tokenUriData) for ERC-8004 agents
+  if (isERC8004 && tokenUriData) {
+    // Name, Description, Image
+    if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
+      adLines.push(`  agentictrust:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+      adLines.push(`  rdfs:label "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+    } else if (row?.agentName) {
+      adLines.push(`  agentictrust:descriptorName "${escapeTurtleString(String(row.agentName))}" ;`);
+      adLines.push(`  rdfs:label "${escapeTurtleString(String(row.agentName))}" ;`);
+    }
+    
+    if (typeof tokenUriData?.description === 'string' && tokenUriData.description.trim()) {
+      adLines.push(`  agentictrust:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
+    }
+    
+    if (tokenUriData?.image != null) {
+      const imgUrl = String(tokenUriData.image).trim();
+      if (imgUrl) {
+        const imgIri = turtleIriOrLiteral(imgUrl);
+        if (imgIri) adLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+      }
+    } else if (row?.image) {
+      const imgIri = turtleIriOrLiteral(String(row.image));
+      if (imgIri) adLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+    }
+    
+    // Endpoints from rawJson
+    const endpoints: any[] = Array.isArray(tokenUriData?.endpoints) ? tokenUriData.endpoints : [];
+    for (const ep of endpoints) {
+      const epName = typeof ep?.name === 'string' ? ep.name.trim().toLowerCase() : '';
+      const epUrl = typeof ep?.endpoint === 'string' ? ep.endpoint.trim() : '';
+      if (!epName || !epUrl) continue;
+      
+      const epIri = `<https://www.agentictrust.io/id/endpoint/${chainId}/${iriEncodeSegment(agentId)}/${iriEncodeSegment(epName)}>`;
+      adLines.push(`  agentictrust:hasEndpoint ${epIri} ;`);
+      
+      // Determine endpoint type
+      let endpointType = 'unknown';
+      if (epName === 'a2a' || epName === 'agent') endpointType = 'a2a';
+      else if (epName === 'mcp') endpointType = 'mcp';
+      else if (epName === 'ens') endpointType = 'ens';
+      else if (epName === 'agentaccount' || epName === 'agent-account') endpointType = 'agentAccount';
+      
+      const endpointTypeIri = `<https://www.agentictrust.io/ontology/agentictrust-core/endpointType/${endpointType}>`;
+      const endpointLines: string[] = [];
+      endpointLines.push(`${epIri} a agentictrust:Endpoint, prov:Entity ;`);
+      endpointLines.push(`  agentictrust:endpointName "${escapeTurtleString(epName)}" ;`);
+      const urlIri = turtleIriOrLiteral(epUrl);
+      if (urlIri) endpointLines.push(`  agentictrust:endpointUrl ${urlIri} ;`);
+      if (typeof ep?.version === 'string' && ep.version.trim()) {
+        endpointLines.push(`  agentictrust:endpointVersion "${escapeTurtleString(ep.version.trim())}" ;`);
+      }
+      endpointLines.push(`  agentictrust:endpointType ${endpointTypeIri} ;`);
+      endpointLines.push(`  .\n`);
+      accountChunks.push(endpointLines.join('\n'));
+      accountChunks.push(`${endpointTypeIri} a agentictrust:EndpointType, prov:Entity ; rdfs:label "${endpointType}" .\n\n`);
+    }
+    
+    // TrustTypes from rawJson
+    const supportedTrust = Array.isArray(tokenUriData?.supportedTrust) ? tokenUriData.supportedTrust : 
+                          (typeof tokenUriData?.supportedTrust === 'string' ? [tokenUriData.supportedTrust] : []);
+    for (const trustTypeStr of supportedTrust) {
+      const trustTypeValue = String(trustTypeStr).trim();
+      if (!trustTypeValue) continue;
+      const trustTypeIri = `<https://www.agentictrust.io/id/trust-type/${iriEncodeSegment(trustTypeValue)}>`;
+      adLines.push(`  agentictrust:hasTrustType ${trustTypeIri} ;`);
+      accountChunks.push(`${trustTypeIri} a agentictrust:TrustType, prov:Entity ; agentictrust:trustTypeValue "${escapeTurtleString(trustTypeValue)}" .\n\n`);
+    }
+    
+    // DIDs from rawJson (if any additional DIDs beyond the standard ones)
+    if (typeof tokenUriData?.did === 'string' && tokenUriData.did.trim()) {
+      const didValue = tokenUriData.did.trim();
+      const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(didValue)}>`;
+      adLines.push(`  agentictrust:hasDIDForDescriptor ${didIri} ;`);
+      accountChunks.push(`${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity .\n\n`);
+    }
+    
+    // DomainName from rawJson (if agentName is a domain name)
+    if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
+      const nameValue = tokenUriData.name.trim();
+      // Check if it's a domain name (contains dots but not .eth which is ENS)
+      if (nameValue.includes('.') && !nameValue.endsWith('.eth')) {
+        const domainNameIri = `<https://www.agentictrust.io/id/domain-name/${iriEncodeSegment(nameValue)}>`;
+        adLines.push(`  agentictrust:hasDomainName ${domainNameIri} ;`);
+        accountChunks.push(`${domainNameIri} a agentictrust:DomainName, prov:Entity ; agentictrust:domainNameValue "${escapeTurtleString(nameValue)}" .\n\n`);
+      }
+    }
+  } else {
+    // Non-ERC-8004 agents: use standard AgentDescriptor
+    if (row?.agentName) adLines.push(`  rdfs:label "${escapeTurtleString(String(row.agentName))}" ;`);
+  }
+  
+  // OASF Domains and Skills (for both ERC-8004 and non-ERC-8004)
   if (declaredOasfDomains.size) {
     for (const dom of declaredOasfDomains) {
       const domIri = oasfDomainIri(dom);
-      adLines.push(`  agentictrust:declaresDomain ${domIri} ;`);
+      adLines.push(`  agentictrust:hasDomain ${domIri} ;`);
       // Emit a minimal OASFDomain node (full node also emitted from DB if present)
       accountChunks.push(`${domIri} a agentictrust:OASFDomain, agentictrust:Domain, prov:Entity ; agentictrust:oasfDomainId "${escapeTurtleString(dom)}" .\n\n`);
     }
@@ -597,7 +700,7 @@ function renderAgentSection(
   if (declaredOasfSkills.size) {
     for (const sk of declaredOasfSkills) {
       const skIri = oasfSkillIri(sk);
-      adLines.push(`  agentictrust:declaresSkill ${skIri} ;`);
+      adLines.push(`  agentictrust:hasSkill ${skIri} ;`);
       // Emit a minimal OASFSkill node (full node also emitted from DB if present)
       accountChunks.push(`${skIri} a agentictrust:OASFSkill, agentictrust:Skill, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(sk)}" .\n\n`);
     }
@@ -683,6 +786,21 @@ function renderAgentSection(
         const domainIriValue = domainIri(domainName);
         descriptorLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
         accountChunks.push(`${domainIriValue} a agentictrust:Domain, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+      }
+      
+      // Extract Name, Description, Image for IdentityDescriptor8004
+      if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
+        descriptorLines.push(`  agentictrust:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+      }
+      if (typeof tokenUriData?.description === 'string' && tokenUriData.description.trim()) {
+        descriptorLines.push(`  agentictrust:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
+      }
+      if (tokenUriData?.image != null) {
+        const imgUrl = String(tokenUriData.image).trim();
+        if (imgUrl) {
+          const imgIri = turtleIriOrLiteral(imgUrl);
+          if (imgIri) descriptorLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+        }
       }
     }
     

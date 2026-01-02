@@ -42,27 +42,31 @@ WHERE {
 ORDER BY ?cls
 ```
 
-### Descriptor relationships (Endpoint, Skill, Identifier)
+### Descriptor relationships (Data Types)
 
 ```mermaid
 classDiagram
 direction LR
 
 class Descriptor["agentictrust:Descriptor"]
-class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentEndpoint["agentictrust:AgentEndpoint"]
+class Endpoint["agentictrust:Endpoint"]
 class EndpointType["agentictrust:EndpointType"]
 class Skill["agentictrust:Skill"]
-class Endpoint["agentictrust:Endpoint"]
+class Domain["agentictrust:Domain"]
+class DID["agentictrust:DID"]
+class DomainName["agentictrust:DomainName"]
+class TrustType["agentictrust:TrustType"]
 
-class Identifier["agentictrust:Identifier"]
-
-Identifier --> Descriptor : hasDescriptor
-AgentDescriptor --> AgentEndpoint : hasEndpointEntry
-AgentEndpoint --> EndpointType : endpointType
-AgentDescriptor --> Skill : declaresSkill
-AgentDescriptor --> Skill : hasSkill
-AgentDescriptor --> Endpoint : hasEndpoint
+Descriptor --> Endpoint : hasEndpoint
+Endpoint --> EndpointType : endpointType
+Descriptor --> Skill : hasSkill
+Descriptor --> Domain : hasDomain
+Descriptor --> DID : hasDIDForDescriptor
+Descriptor --> DomainName : hasDomainName
+Descriptor --> TrustType : hasTrustType
+Descriptor : +descriptorName (text)
+Descriptor : +descriptorDescription (text)
+Descriptor : +descriptorImage (image path)
 ```
 
 **SPARQL: identifiers and their descriptor**
@@ -78,7 +82,7 @@ WHERE {
 LIMIT 200
 ```
 
-### Agent → AgentDescriptor (and its metadata graph)
+### Agent → AgentDescriptor (and its data types)
 
 ```mermaid
 classDiagram
@@ -86,16 +90,25 @@ direction LR
 
 class AIAgent["agentictrust:AIAgent"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentEndpoint["agentictrust:AgentEndpoint"]
+class Endpoint["agentictrust:Endpoint"]
 class EndpointType["agentictrust:EndpointType"]
 class Skill["agentictrust:Skill"]
-class Endpoint["agentictrust:Endpoint"]
+class Domain["agentictrust:Domain"]
+class DID["agentictrust:DID"]
+class DomainName["agentictrust:DomainName"]
+class TrustType["agentictrust:TrustType"]
 
 AIAgent --> AgentDescriptor : hasAgentDescriptor
-AgentDescriptor --> AgentEndpoint : hasEndpointEntry
-AgentEndpoint --> EndpointType : endpointType
-AgentDescriptor --> Skill : declaresSkill
 AgentDescriptor --> Endpoint : hasEndpoint
+Endpoint --> EndpointType : endpointType
+AgentDescriptor --> Skill : hasSkill
+AgentDescriptor --> Domain : declaresDomain
+AgentDescriptor --> DID : hasDIDForDescriptor
+AgentDescriptor --> DomainName : hasDomainName
+AgentDescriptor --> TrustType : hasTrustType
+AgentDescriptor : +descriptorName (text)
+AgentDescriptor : +descriptorDescription (text)
+AgentDescriptor : +descriptorImage (image path)
 ```
 
 **SPARQL: agent descriptor, endpoints, and skills**
@@ -103,17 +116,24 @@ AgentDescriptor --> Endpoint : hasEndpoint
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
-SELECT ?agent ?agentId ?agentDescriptor ?endpointEntry ?endpointType ?skill
+SELECT ?agent ?agentId ?agentDescriptor ?endpoint ?endpointType ?skill ?domain ?did ?domainName ?trustType ?name ?description ?image
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:agentId ?agentId ;
     agentictrust:hasAgentDescriptor ?agentDescriptor .
 
   OPTIONAL {
-    ?agentDescriptor agentictrust:hasEndpointEntry ?endpointEntry .
-    OPTIONAL { ?endpointEntry agentictrust:endpointType ?endpointType . }
+    ?agentDescriptor agentictrust:hasEndpoint ?endpoint .
+    OPTIONAL { ?endpoint agentictrust:endpointType ?endpointType . }
   }
-  OPTIONAL { ?agentDescriptor agentictrust:declaresSkill ?skill . }
+  OPTIONAL { ?agentDescriptor agentictrust:hasSkill ?skill . }
+  OPTIONAL { ?agentDescriptor agentictrust:hasDomain ?domain . }
+  OPTIONAL { ?agentDescriptor agentictrust:hasDIDForDescriptor ?did . }
+  OPTIONAL { ?agentDescriptor agentictrust:hasDomainName ?domainName . }
+  OPTIONAL { ?agentDescriptor agentictrust:hasTrustType ?trustType . }
+  OPTIONAL { ?agentDescriptor agentictrust:descriptorName ?name . }
+  OPTIONAL { ?agentDescriptor agentictrust:descriptorDescription ?description . }
+  OPTIONAL { ?agentDescriptor agentictrust:descriptorImage ?image . }
 }
 ORDER BY ?agentId
 LIMIT 200

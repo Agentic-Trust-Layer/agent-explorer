@@ -20,33 +20,9 @@ erc8004: a owl:Ontology ;
 # Base ERC-8004 classes (derive from AgenticTrust trust model)
 ########
 
-erc8004:AgentRegistration a owl:Class ;
-  rdfs:label "AgentRegistrationJSON" ;
-  rdfs:comment "ERC-8004 registration metadata referenced by tokenUri; composed of protocol/name/skills/integration metadata." ;
-  rdfs:subClassOf agentictrust:AgentDescriptor ;
-  rdfs:subClassOf prov:Entity .
-
-erc8004:ProtocolMetadata a owl:Class ;
-  rdfs:label "ProtocolMetadata" ;
-  rdfs:comment "Protocol-related registration metadata (supported protocols, endpoints, transports, versions)." ;
-  rdfs:subClassOf agentictrust:AgentDescriptor ;
-  rdfs:subClassOf prov:Entity .
-
-erc8004:AgentNameMetadata a owl:Class ;
-  rdfs:label "AgentNameMetadata" ;
-  rdfs:comment "Naming/identity metadata (names, ENS, DIDs, identifiers)." ;
-  rdfs:subClassOf agentictrust:AgentDescriptor ;
-  rdfs:subClassOf prov:Entity .
-
-erc8004:SkillsMetadata a owl:Class ;
-  rdfs:label "SkillsMetadata" ;
-  rdfs:comment "Skills/capabilities metadata (skills list, intent types, tags, categories)." ;
-  rdfs:subClassOf agentictrust:AgentDescriptor ;
-  rdfs:subClassOf prov:Entity .
-
-erc8004:IntegrationMetadata a owl:Class ;
-  rdfs:label "IntegrationMetadata" ;
-  rdfs:comment "Integration metadata (SDKs, tool integrations, external services, auth/payment integration hints)." ;
+erc8004:AgentRegistration8004 a owl:Class ;
+  rdfs:label "AgentRegistration8004" ;
+  rdfs:comment "ERC-8004 agent registration descriptor extracted from tokenUri rawJson metadata. Contains all agent registration data including endpoints, skills, domains, DIDs, names, descriptions, images, and trust types." ;
   rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
@@ -81,42 +57,11 @@ erc8004:IdentityDescriptor8004 a owl:Class ;
   rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
   rdfs:subClassOf agentictrust:AgentIdentityDescriptor .
 
-erc8004:hasAgentRegistration a owl:ObjectProperty ;
-  rdfs:label "hasAgentRegistration" ;
+erc8004:hasAgentRegistration8004 a owl:ObjectProperty ;
+  rdfs:label "hasAgentRegistration8004" ;
+  rdfs:comment "Links an ERC-8004 agent to its registration descriptor extracted from tokenUri metadata." ;
   rdfs:domain agentictrust:AIAgent ;
-  rdfs:range erc8004:AgentRegistration .
-
-erc8004:hasProtocolMetadata a owl:ObjectProperty ;
-  rdfs:label "hasProtocolMetadata" ;
-  rdfs:domain erc8004:AgentRegistration ;
-  rdfs:range erc8004:ProtocolMetadata .
-
-erc8004:hasNameMetadata a owl:ObjectProperty ;
-  rdfs:label "hasNameMetadata" ;
-  rdfs:domain erc8004:AgentRegistration ;
-  rdfs:range erc8004:AgentNameMetadata .
-
-erc8004:hasSkillsMetadata a owl:ObjectProperty ;
-  rdfs:label "hasSkillsMetadata" ;
-  rdfs:domain erc8004:AgentRegistration ;
-  rdfs:range erc8004:SkillsMetadata .
-
-erc8004:hasIntegrationMetadata a owl:ObjectProperty ;
-  rdfs:label "hasIntegrationMetadata" ;
-  rdfs:domain erc8004:AgentRegistration ;
-  rdfs:range erc8004:IntegrationMetadata .
-
-erc8004:exposesSkill a owl:ObjectProperty ;
-  rdfs:label "exposesSkill" ;
-  rdfs:comment "Links protocol metadata to skills/capabilities exposed over that protocol/endpoint." ;
-  rdfs:domain erc8004:ProtocolMetadata ;
-  rdfs:range agentictrust:Skill .
-
-erc8004:listsSkill a owl:ObjectProperty ;
-  rdfs:label "listsSkill" ;
-  rdfs:comment "Links skills-metadata to the skills it lists/catalogs for discovery." ;
-  rdfs:domain erc8004:SkillsMetadata ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range erc8004:AgentRegistration8004 .
 
 erc8004:TrustAssertion a owl:Class ;
   rdfs:label "TrustAssertion8004" ;
