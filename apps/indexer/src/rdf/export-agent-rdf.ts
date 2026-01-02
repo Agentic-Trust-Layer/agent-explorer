@@ -426,9 +426,9 @@ function renderAgentSection(
     // Create IdentityIdentifier8004 instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
     
-    // Emit Identity8004
+    // Emit AgentIdentity8004
     accountChunks.push(
-      `${identity8004IriValue} a erc8004:Identity8004, prov:Entity ;\n` +
+      `${identity8004IriValue} a erc8004:AgentIdentity8004, prov:Entity ;\n` +
         `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
@@ -463,7 +463,7 @@ function renderAgentSection(
     
     // Emit NameENS
     accountChunks.push(
-      `${ensNameIriValue} a agentictrustEth:NameENS, agentictrust:Name, prov:Entity ;\n` +
+      `${ensNameIriValue} a agentictrustEth:AgentNameENS, agentictrust:AgentName, prov:Entity ;\n` +
         `  agentictrustEth:ensName "${escapeTurtleString(ensName)}" ;\n` +
         `  agentictrustEth:ensChainId ${chainId} ;\n` +
         `  agentictrustEth:hasIdentifier ${ensIdentifierIri} .\n\n`,
@@ -837,9 +837,9 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     // Create IdentityIdentifier8004 instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
     
-    // Emit Identity8004
+    // Emit AgentIdentity8004
     accountChunks.push(
-      `${identity8004IriValue} a erc8004:Identity8004, prov:Entity ;\n` +
+      `${identity8004IriValue} a erc8004:AgentIdentity8004, prov:Entity ;\n` +
         `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
@@ -874,7 +874,7 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     
     // Emit NameENS
     accountChunks.push(
-      `${ensNameIriValue} a agentictrustEth:NameENS, agentictrust:Name, prov:Entity ;\n` +
+      `${ensNameIriValue} a agentictrustEth:AgentNameENS, agentictrust:AgentName, prov:Entity ;\n` +
         `  agentictrustEth:ensName "${escapeTurtleString(ensName)}" ;\n` +
         `  agentictrustEth:ensChainId ${chainId} ;\n` +
         `  agentictrustEth:hasIdentifier ${ensIdentifierIri} .\n\n`,
@@ -1826,8 +1826,33 @@ async function exportAgentsRdfInternal(
     // Expose "about agent" hooks:
     // - always about the participant Accounts (prov:Agent), and
     // - additionally about AIAgents when we can map the account -> agent.
-    if (initiator) chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, initiator)} ;`);
-    if (approver) chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, approver)} ;`);
+    // - also about base accounts when prefixed ERC-8092 accounts are detected
+    if (initiator) {
+      chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, initiator)} ;`);
+      // If this is a prefixed ERC-8092 account, also link to the base account
+      const last40 = initiator.replace(/^0x/i, '').slice(-40);
+      if (last40.length === 40 && initiator.length > 42) {
+        const baseAccount = `0x${last40}`;
+        const baseAccountKey = `${chainId}|${baseAccount}`;
+        // Check if base account exists in our mapping (has an identifier)
+        if (agentByAccountKey.has(baseAccountKey) || agentByAccountSuffixKey.has(`${chainId}|${last40}`)) {
+          chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, baseAccount)} ;`);
+        }
+      }
+    }
+    if (approver) {
+      chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, approver)} ;`);
+      // If this is a prefixed ERC-8092 account, also link to the base account
+      const last40 = approver.replace(/^0x/i, '').slice(-40);
+      if (last40.length === 40 && approver.length > 42) {
+        const baseAccount = `0x${last40}`;
+        const baseAccountKey = `${chainId}|${baseAccount}`;
+        // Check if base account exists in our mapping (has an identifier)
+        if (agentByAccountKey.has(baseAccountKey) || agentByAccountSuffixKey.has(`${chainId}|${last40}`)) {
+          chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, baseAccount)} ;`);
+        }
+      }
+    }
     if (initiatorAgent) chunks.push(`  agentictrust:isAboutAgent ${initiatorAgent} ;`);
     if (approverAgent) chunks.push(`  agentictrust:isAboutAgent ${approverAgent} ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);

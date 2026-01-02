@@ -21,8 +21,8 @@ agentictrustDns: a owl:Ontology ;
 
 agentictrustDns:DNSName a owl:Class ;
   rdfs:label "DNSName" ;
-  rdfs:comment "DNS name (e.g., example.com, subdomain.example.com). A protocol-specific realization of agentictrust:Name." ;
-  rdfs:subClassOf agentictrust:Name ;
+  rdfs:comment "DNS name (e.g., example.com, subdomain.example.com). A protocol-specific realization of agentictrust:AgentName." ;
+  rdfs:subClassOf agentictrust:AgentName ;
   rdfs:subClassOf prov:Entity .
 
 ########
@@ -42,7 +42,7 @@ agentictrustDns:DNSNameIdentifier a owl:Class ;
 agentictrustDns:DNSNameDescriptor a owl:Class ;
   rdfs:label "DNSNameDescriptor" ;
   rdfs:comment "Descriptor for a DNS Name (resolved metadata from DNS records, resolver, and associated metadata)." ;
-  rdfs:subClassOf agentictrust:NameDescriptor .
+  rdfs:subClassOf agentictrust:AgentNameDescriptor .
 
 ########
 # Properties

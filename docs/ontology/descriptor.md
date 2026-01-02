@@ -15,7 +15,7 @@ class provEntity["prov:Entity"]
 class Descriptor["agentictrust:Descriptor"]
 class IdentifierDescriptor["agentictrust:IdentifierDescriptor"]
 class IdentityDescriptor["agentictrust:IdentityDescriptor"]
-class NameDescriptor["agentictrust:NameDescriptor"]
+class AgentNameDescriptor["agentictrust:AgentNameDescriptor"]
 class ProtocolDescriptor["agentictrust:ProtocolDescriptor"]
 class A2AProtocolDescriptor["agentictrust:A2AProtocolDescriptor"]
 class MCPProtocolDescriptor["agentictrust:MCPProtocolDescriptor"]
@@ -23,7 +23,7 @@ class MCPProtocolDescriptor["agentictrust:MCPProtocolDescriptor"]
 Descriptor --|> provEntity
 IdentifierDescriptor --|> Descriptor
 IdentityDescriptor --|> Descriptor
-NameDescriptor --|> Descriptor
+AgentNameDescriptor --|> Descriptor
 ProtocolDescriptor --|> Descriptor
 A2AProtocolDescriptor --|> ProtocolDescriptor
 MCPProtocolDescriptor --|> ProtocolDescriptor
@@ -126,12 +126,12 @@ classDiagram
 direction LR
 
 class AIAgent["agentictrust:AIAgent"]
-class Identity8004["erc8004:Identity8004"]
+    class AgentIdentity8004["erc8004:AgentIdentity8004"]
 class IdentityDescriptor8004["erc8004:IdentityDescriptor8004"]
 class Skill["agentictrust:Skill"]
 
-AIAgent --> Identity8004 : hasIdentity
-Identity8004 --> IdentityDescriptor8004 : hasDescriptor
+AIAgent --> AgentIdentity8004 : hasIdentity
+AgentIdentity8004 --> IdentityDescriptor8004 : hasDescriptor
 IdentityDescriptor8004 --> Skill : hasSkill
 ```
 
@@ -145,7 +145,7 @@ SELECT ?agent ?identity ?descriptor ?skill
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:hasIdentity ?identity .
-  ?identity a erc8004:Identity8004 ;
+  ?identity a erc8004:AgentIdentity8004 ;
     agentictrust:hasDescriptor ?descriptor .
   OPTIONAL { ?descriptor agentictrust:hasSkill ?skill . }
 }

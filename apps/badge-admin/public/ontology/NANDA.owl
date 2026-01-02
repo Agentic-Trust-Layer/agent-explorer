@@ -42,7 +42,7 @@ nanda:NANDAIdentityIdentifier a owl:Class ;
 nanda:NANDAIdentityDescriptor a owl:Class ;
   rdfs:label "NANDAIdentityDescriptor" ;
   rdfs:comment "Descriptor for a NANDA Identity (resolved metadata from NANDA registry and resolver)." ;
-  rdfs:subClassOf agentictrust:IdentityDescriptor .
+  rdfs:subClassOf agentictrust:AgentIdentityDescriptor .
 
 ########
 # Properties

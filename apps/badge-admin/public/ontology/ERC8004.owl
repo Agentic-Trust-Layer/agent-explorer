@@ -32,8 +32,8 @@ erc8004:ProtocolMetadata a owl:Class ;
   rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
-erc8004:NameMetadata a owl:Class ;
-  rdfs:label "NameMetadata" ;
+erc8004:AgentNameMetadata a owl:Class ;
+  rdfs:label "AgentNameMetadata" ;
   rdfs:comment "Naming/identity metadata (names, ENS, DIDs, identifiers)." ;
   rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
@@ -50,10 +50,10 @@ erc8004:IntegrationMetadata a owl:Class ;
   rdfs:subClassOf agentictrust:AgentDescriptor ;
   rdfs:subClassOf prov:Entity .
 
-erc8004:Identity8004 a owl:Class ;
-  rdfs:label "Identity8004" ;
-  rdfs:comment "ERC-8004 agent identity. Represents the agent's on-chain identity in the ERC-8004 registry, linked to its IdentityIdentifier8004. Inherits from agentictrust:Identity." ;
-  rdfs:subClassOf agentictrust:Identity ;
+erc8004:AgentIdentity8004 a owl:Class ;
+  rdfs:label "AgentIdentity8004" ;
+  rdfs:comment "ERC-8004 agent identity. Represents the agent's on-chain identity in the ERC-8004 registry, linked to its IdentityIdentifier8004. Inherits from agentictrust:AgentIdentity." ;
+  rdfs:subClassOf agentictrust:AgentIdentity ;
   rdfs:subClassOf prov:Entity ;
   rdfs:subClassOf [
     a owl:Restriction ;
@@ -62,8 +62,8 @@ erc8004:Identity8004 a owl:Class ;
   ] .
 
 ###
-# NOTE: replaced by agentictrust:hasIdentity (prov:Agent → agentictrust:Identity)
-# where the concrete identity instance is an erc8004:Identity8004.
+# NOTE: replaced by agentictrust:hasIdentity (prov:Agent → agentictrust:AgentIdentity)
+# where the concrete identity instance is an erc8004:AgentIdentity8004.
 ###
 
 erc8004:IdentityIdentifier8004 a owl:Class ;
@@ -79,7 +79,7 @@ erc8004:IdentifierType_8004 a agentictrust:IdentifierType ;
 erc8004:IdentityDescriptor8004 a owl:Class ;
   rdfs:label "IdentityDescriptor8004" ;
   rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
-  rdfs:subClassOf agentictrust:IdentityDescriptor .
+  rdfs:subClassOf agentictrust:AgentIdentityDescriptor .
 
 erc8004:hasAgentRegistration a owl:ObjectProperty ;
   rdfs:label "hasAgentRegistration" ;
@@ -94,7 +94,7 @@ erc8004:hasProtocolMetadata a owl:ObjectProperty ;
 erc8004:hasNameMetadata a owl:ObjectProperty ;
   rdfs:label "hasNameMetadata" ;
   rdfs:domain erc8004:AgentRegistration ;
-  rdfs:range erc8004:NameMetadata .
+  rdfs:range erc8004:AgentNameMetadata .
 
 erc8004:hasSkillsMetadata a owl:ObjectProperty ;
   rdfs:label "hasSkillsMetadata" ;

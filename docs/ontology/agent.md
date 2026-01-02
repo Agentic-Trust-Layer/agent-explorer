@@ -23,8 +23,8 @@ ORDER BY ?agentType ?agent
 ### SPARQL: AI Agents with Identity, Name, and Identifier
 
 This returns each `agentictrust:AIAgent` along with (when present) its:
-- ERC-8004 identity (`agentictrust:hasIdentity` → `erc8004:Identity8004`) and its identity identifier (`agentictrust:hasIdentifier` → `erc8004:IdentityIdentifier8004`)
-- ENS name (`agentictrust:hasName` → `agentictrustEth:NameENS`) and its ENS name identifier (`agentictrustEth:hasIdentifier` → `agentictrustEth:NameIdentifierENS`)
+- ERC-8004 identity (`agentictrust:hasIdentity` → `erc8004:AgentIdentity8004`) and its identity identifier (`agentictrust:hasIdentifier` → `erc8004:IdentityIdentifier8004`)
+- ENS name (`agentictrust:hasName` → `agentictrustEth:AgentNameENS`) and its ENS name identifier (`agentictrustEth:hasIdentifier` → `agentictrustEth:NameIdentifierENS`)
 - Account identifier (`agentictrustEth:hasAccountIdentifier`) and its DID (`agentictrustEth:hasDID`)
 - Any direct identifiers attached at the `prov:Agent` level (`agentictrust:hasIdentifier`)
 
@@ -106,7 +106,7 @@ Agents have relationships to three types of identity entities:
 
 1. **Identity**: Protocol-specific identity (e.g., ERC-8004 identity)
 2. **Identifier**: Stable identity anchors (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004)
-3. **Name**: Human-readable names (NameENS)
+3. **Name**: Human-readable names (AgentNameENS)
 
 ### Core Relationship Diagram (AgenticTrust core only)
 
@@ -118,13 +118,13 @@ classDiagram
         <<agentictrust>>
     }
 
-    class Identity {
+    class AgentIdentity {
         <<agentictrust>>
     }
     class Identifier {
         <<agentictrust>>
     }
-    class Name {
+    class AgentName {
         <<agentictrust>>
     }
 
@@ -165,10 +165,10 @@ classDiagram
     class Account {
         <<agentictrustEth>>
     }
-    class Identity {
+    class AgentIdentity {
         <<agentictrust>>
     }
-    class Identity8004 {
+    class AgentIdentity8004 {
         <<erc8004>>
     }
     class Identifier {
@@ -183,10 +183,10 @@ classDiagram
     class IdentityIdentifier8004 {
         <<erc8004>>
     }
-    class Name {
+    class AgentName {
         <<agentictrust>>
     }
-    class NameENS {
+    class AgentNameENS {
         <<agentictrustEth>>
     }
     class AgentDescriptor {
@@ -201,7 +201,7 @@ classDiagram
     class AccountDescriptor {
         <<agentictrustEth>>
     }
-    class NameDescriptorENS {
+    class AgentNameENSDescriptor {
         <<agentictrustEth>>
     }
     
@@ -210,20 +210,20 @@ classDiagram
     provSoftwareAgent <|-- Account
     
     provAgent --> Identifier : hasIdentifier
-    provAgent --> Identity : hasIdentity
-    provAgent --> Name : hasName
+    provAgent --> AgentIdentity : hasIdentity
+    provAgent --> AgentName : hasName
 
-    Identity <|-- Identity8004
-    Name <|-- NameENS
+    AgentIdentity <|-- AgentIdentity8004
+    AgentName <|-- AgentNameENS
     
-    Identity8004 --> IdentityIdentifier8004 : hasIdentifier
-    NameENS --> NameIdentifierENS : hasIdentifier
+    AgentIdentity8004 --> IdentityIdentifier8004 : hasIdentifier
+    AgentNameENS --> NameIdentifierENS : hasIdentifier
     
     provAgent --> AgentDescriptor : hasAgentDescriptor
-    Identity8004 --> IdentityDescriptor8004 : hasDescriptor
+    AgentIdentity8004 --> IdentityDescriptor8004 : hasDescriptor
     Identifier --> IdentifierDescriptor : hasDescriptor
     AccountIdentifier --> AccountDescriptor : hasDescriptor
-    NameENS --> NameDescriptorENS : hasDescriptor
+    AgentNameENS --> AgentNameENSDescriptor : hasDescriptor
     
     note for Identity8004 "erc8004:Identity8004\nERC-8004 on-chain identity"
     note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004\ndid:8004:chainId:agentId"
@@ -240,10 +240,10 @@ classDiagram
 - `agentictrust:hasIdentifier`: Links an Agent to its Identifier (inherited from `prov:Agent`, defined in `agentictrust-core.owl`)
   - Range: `agentictrust:Identifier`
   - Protocol-specific realizations: `AccountIdentifier`, `NameIdentifierENS`, `IdentityIdentifier8004`
-- `agentictrust:hasIdentity`: Links an Agent to an Identity (e.g., `erc8004:Identity8004`)
-  - Range: `agentictrust:Identity`
-- `agentictrust:hasName`: Links an Agent to a Name (e.g., `agentictrustEth:NameENS`)
-  - Range: `agentictrust:Name`
+- `agentictrust:hasIdentity`: Links an Agent to an AgentIdentity (e.g., `erc8004:AgentIdentity8004`)
+  - Range: `agentictrust:AgentIdentity`
+- `agentictrust:hasName`: Links an Agent to an AgentName (e.g., `agentictrustEth:AgentNameENS`)
+  - Range: `agentictrust:AgentName`
 
 ### AIAgent-Specific Properties
 
@@ -370,7 +370,7 @@ WHERE {
   OPTIONAL {
     ?agent agentictrust:hasName ?ensName .
     ?ensName agentictrust:hasDescriptor ?ensNameDescriptor .
-    ?ensNameDescriptor a agentictrustEth:NameDescriptorENS .
+    ?ensNameDescriptor a agentictrustEth:AgentNameENSDescriptor .
   }
 }
 LIMIT 50
@@ -505,9 +505,9 @@ WHERE {
   # Name chain: Agent → Name → NameDescriptor
   OPTIONAL {
     ?agent agentictrust:hasName ?name .
-    ?name a agentictrustEth:NameENS .
+    ?name a agentictrustEth:AgentNameENS .
     ?name agentictrust:hasDescriptor ?nameDescriptor .
-    ?nameDescriptor a agentictrustEth:NameDescriptorENS .
+    ?nameDescriptor a agentictrustEth:AgentNameENSDescriptor .
   }
 }
 LIMIT 50
@@ -544,9 +544,9 @@ LIMIT 50
 The Agent model provides a layered identity approach:
 
 1. **Agent Classes**: `prov:Agent` → `prov:SoftwareAgent` → `AIAgent` / `Account`
-2. **Identity Layer**: Agent → `Identity8004` → `IdentityIdentifier8004`
+2. **Identity Layer**: Agent → `AgentIdentity8004` → `IdentityIdentifier8004`
 3. **Identifier Layer**: Agent → `Identifier` (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004)
-4. **Name Layer**: Agent → `NameENS` → `NameIdentifierENS`
+4. **Name Layer**: Agent → `AgentNameENS` → `NameIdentifierENS`
 5. **Descriptor Layer**: Entities (Identity/Identifier/Name) → `hasDescriptor` → `Descriptor` (resolved metadata); Agents additionally use `hasAgentDescriptor`
 
 All Agents inherit `hasIdentifier` from `prov:Agent`, enabling consistent identity management across all agent types.
