@@ -30,6 +30,35 @@ function rdfPrefixes(): string {
   ].join('\n');
 }
 
+type ExportOneAgent = { chainId: number; agentId: string };
+
+function rdfPrefixesForAgent(agent?: ExportOneAgent): string {
+  if (!agent) return rdfPrefixes();
+  const ontologyIri = `<https://www.agentictrust.io/data/agent/${agent.chainId}/${iriEncodeSegment(agent.agentId)}>`;
+  return [
+    '@prefix owl: <http://www.w3.org/2002/07/owl#> .',
+    '@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .',
+    '@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .',
+    '@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .',
+    '@prefix prov: <http://www.w3.org/ns/prov#> .',
+    '@prefix p-plan: <http://purl.org/net/p-plan#> .',
+    '@prefix dcterms: <http://purl.org/dc/terms/> .',
+    '@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .',
+    '@prefix agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#> .',
+    '@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .',
+    '@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .',
+    '',
+    // Provide an ontology header so Protégé auto-loads imports instead of requiring manual import.
+    `${ontologyIri} a owl:Ontology ;`,
+    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;',
+    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-eth> ;',
+    '  owl:imports <https://www.agentictrust.io/ontology/ERC8004> ;',
+    '  owl:imports <https://www.agentictrust.io/ontology/ERC8092> ;',
+    '  .',
+    '',
+  ].join('\n');
+}
+
 function parseCursor(value: unknown): { chainId: number; agentId: string } {
   if (typeof value !== 'string' || !value.trim()) return { chainId: 0, agentId: '' };
   const parts = value.split('|');
@@ -944,7 +973,10 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   return lines.join('\n');
 }
 
-export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: number; agentCount: number }> {
+async function exportAgentsRdfInternal(
+  db: AnyDb,
+  onlyAgent?: ExportOneAgent,
+): Promise<{ outPath: string; bytes: number; agentCount: number }> {
   const safeAll = async (sql: string, ...params: any[]) => {
     try {
       const res = await db.prepare(sql).all(...params);
@@ -960,6 +992,8 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
   `);
   const agentMetaByKey = new Map<string, { chainId: number; agentId: string; agentName?: string | null; didIdentity?: string | null }>();
   const agentByAccountKey = new Map<string, string>(); // `${chainId}|${addrLower}` -> agentIri
+  const agentByAccountIdentifierIri = new Map<string, string>(); // `<.../account-identifier/chainId/addr>` -> agentIri
+  const agentByAccountSuffixKey = new Map<string, string>(); // `${chainId}|${last40}` -> agentIri (supports prefixed account ids)
   const agentKeyByAccountKey = new Map<string, { chainId: number; agentId: string }>(); // `${chainId}|${addrLower}` -> {chainId, agentId}
   for (const row of allAgentsForMaps) {
     const chainId = Number(row?.chainId ?? 0) || 0;
@@ -972,15 +1006,38 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const addr = normalizeHex(row?.agentAddress);
     const owner = normalizeHex(row?.agentOwner);
     const eoa = normalizeHex(row?.eoaOwner);
+
+    const indexAccountIdentifier = (address: string | null) => {
+      if (!address) return;
+      try {
+        agentByAccountIdentifierIri.set(accountIdentifierIri(chainId, address), aIri);
+      } catch {
+        // ignore invalid addresses
+      }
+    };
+
+    const indexAccountSuffix = (address: string | null) => {
+      if (!address) return;
+      const norm = normalizeHex(address);
+      if (!norm) return;
+      const last40 = norm.replace(/^0x/i, '').slice(-40);
+      if (last40.length === 40) {
+        agentByAccountSuffixKey.set(`${chainId}|${last40}`, aIri);
+      }
+    };
     if (acct) {
       const k = `${chainId}|${acct}`;
       agentByAccountKey.set(k, aIri);
       agentKeyByAccountKey.set(k, { chainId, agentId });
+      indexAccountIdentifier(acct);
+      indexAccountSuffix(acct);
     }
     if (addr) {
       const k = `${chainId}|${addr}`;
       agentByAccountKey.set(k, aIri);
       agentKeyByAccountKey.set(k, { chainId, agentId });
+      indexAccountIdentifier(addr);
+      indexAccountSuffix(addr);
     }
     // Bridge relationship assertions to agents even when ERC-8092 initiator/approver addresses correspond
     // to the agent's owner EOAs (not the agent account / smart account).
@@ -988,17 +1045,39 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
       const k = `${chainId}|${owner}`;
       agentByAccountKey.set(k, aIri);
       agentKeyByAccountKey.set(k, { chainId, agentId });
+      indexAccountIdentifier(owner);
+      indexAccountSuffix(owner);
     }
     if (eoa) {
       const k = `${chainId}|${eoa}`;
       agentByAccountKey.set(k, aIri);
       agentKeyByAccountKey.set(k, { chainId, agentId });
+      indexAccountIdentifier(eoa);
+      indexAccountSuffix(eoa);
     }
   }
 
-  const rows = await db
-    .prepare(
-      `
+  const agentSql = onlyAgent
+    ? `
+      SELECT
+        chainId, agentId, agentName, agentOwner, eoaOwner, agentCategory, tokenUri,
+        a2aEndpoint, ensEndpoint, agentAccountEndpoint,
+        didIdentity, didAccount, didName,
+        agentAccount,
+        agentAddress,
+        supportedTrust,
+        rawJson,
+        agentCardJson,
+        agentCardReadAt,
+        createdAtTime,
+        updatedAtTime,
+        description,
+        image,
+        type
+      FROM agents
+      WHERE chainId = ? AND agentId = ?
+    `
+    : `
       SELECT
         chainId, agentId, agentName, agentOwner, eoaOwner, agentCategory, tokenUri,
         a2aEndpoint, ensEndpoint, agentAccountEndpoint,
@@ -1016,14 +1095,13 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
         type
       FROM agents
       ORDER BY chainId ASC, LENGTH(agentId) ASC, agentId ASC
-    `,
-    )
-    .all();
+    `;
+  const rows = await db.prepare(agentSql).all(...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []));
 
   const agentRows: any[] = Array.isArray(rows) ? rows : Array.isArray((rows as any)?.results) ? (rows as any).results : [];
 
   const chunks: string[] = [];
-  chunks.push(rdfPrefixes());
+  chunks.push(rdfPrefixesForAgent(onlyAgent));
 
   const emittedAgents = new Set<string>(); // `${chainId}|${agentId}`
   const ensureAgentNode = (chainId: number, agentId: string) => {
@@ -1201,7 +1279,9 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     `
     SELECT f.*
     FROM rep_feedbacks f
+    ${onlyAgent ? 'WHERE f.chainId = ? AND f.agentId = ?' : ''}
     `,
+    ...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []),
   );
 
   for (const f of feedbacks) {
@@ -1378,7 +1458,9 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     `
     SELECT v.*
     FROM validation_requests v
+    ${onlyAgent ? 'WHERE v.chainId = ? AND v.agentId = ?' : ''}
     `,
+    ...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []),
   );
   const requestByHash = new Map<string, string>(); // `${chainId}|${hash}` -> requestIri
   for (const v of validationRequests) {
@@ -1488,7 +1570,9 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     `
     SELECT v.*
     FROM validation_responses v
+    ${onlyAgent ? 'WHERE v.chainId = ? AND v.agentId = ?' : ''}
     `,
+    ...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []),
   );
   for (const v of validationResponses) {
     const chainId = Number(v?.chainId ?? 0) || 0;
@@ -1626,7 +1710,7 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
   }
 
   // Relationships (ERC-8092): export as RelationshipAssertion + Relationship (see ERC8092.owl).
-  const associations = await safeAll(
+  const associationsRaw = await safeAll(
     `
     SELECT assoc.*
     FROM associations assoc
@@ -1635,12 +1719,49 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
 
   // NOTE: ERC8092.owl is assertion-only; we do not emit RelationshipAccount nodes.
 
-  const associationRevocations = await safeAll(
+  const associationRevocationsRaw = await safeAll(
     `
     SELECT r.*
     FROM association_revocations r
     `,
   );
+
+  // If exporting one agent, restrict associations to those involving its known account(s).
+  const associations = (() => {
+    if (!onlyAgent) return associationsRaw;
+    const chainId = onlyAgent.chainId;
+    const agentId = onlyAgent.agentId;
+    const key = `${chainId}|${agentId}`;
+    const meta = agentMetaByKey.get(key);
+    const targetAgentIri = agentIri(chainId, agentId, meta?.didIdentity);
+
+    // Collect all known account keys that map to this agent (agentAccount, agentAddress, agentOwner, eoaOwner).
+    const addresses = new Set<string>();
+    for (const [k, v] of agentByAccountKey.entries()) {
+      if (v === targetAgentIri && k.startsWith(`${chainId}|`)) {
+        addresses.add(k.split('|').slice(1).join('|'));
+      }
+    }
+
+    // If we couldn't find addresses, still at least filter by chainId.
+    if (addresses.size === 0) {
+      return associationsRaw.filter((a: any) => Number(a?.chainId ?? 0) === chainId);
+    }
+
+    return associationsRaw.filter((a: any) => {
+      if (Number(a?.chainId ?? 0) !== chainId) return false;
+      const initiator = normalizeHex(a?.initiator);
+      const approver = normalizeHex(a?.approver);
+      return (initiator && addresses.has(initiator)) || (approver && addresses.has(approver));
+    });
+  })();
+
+  const associationIds = new Set<string>(associations.map((a: any) => String(a?.associationId ?? '')).filter(Boolean));
+  const associationRevocations = onlyAgent
+    ? associationRevocationsRaw.filter(
+        (r: any) => Number(r?.chainId ?? 0) === onlyAgent.chainId && associationIds.has(String(r?.associationId ?? '')),
+      )
+    : associationRevocationsRaw;
   const revocationsByAssociationKey = new Map<string, any[]>();
   for (const r of associationRevocations) {
     const chainId = Number(r?.chainId ?? 0) || 0;
@@ -1667,8 +1788,26 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const initiator = normalizeHex(assoc?.initiator);
     const approver = normalizeHex(assoc?.approver);
 
-    const initiatorAgent = initiator ? agentByAccountKey.get(`${chainId}|${initiator}`) : undefined;
-    const approverAgent = approver ? agentByAccountKey.get(`${chainId}|${approver}`) : undefined;
+    const lookupAgentByAccountLike = (addr: string | null): string | undefined => {
+      if (!addr) return undefined;
+      const direct = agentByAccountKey.get(`${chainId}|${addr}`);
+      if (direct) return direct;
+      try {
+        const byIdent = agentByAccountIdentifierIri.get(accountIdentifierIri(chainId, addr));
+        if (byIdent) return byIdent;
+      } catch {
+        // ignore
+      }
+      const last40 = addr.replace(/^0x/i, '').slice(-40);
+      if (last40.length === 40) {
+        const bySuffix = agentByAccountSuffixKey.get(`${chainId}|${last40}`);
+        if (bySuffix) return bySuffix;
+      }
+      return undefined;
+    };
+
+    const initiatorAgent = lookupAgentByAccountLike(initiator);
+    const approverAgent = lookupAgentByAccountLike(approver);
 
     if (initiatorAgent) {
       chunks.push(`${initiatorAgent} erc8092:hasAssociatedAccounts ${raIri} .\n`);
@@ -1686,8 +1825,27 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const relSituationIri = situationIri(chainId, associationId, 'relationship', relationshipId, undefined);
     chunks.push(`${relSituationIri} a agentictrust:RelationshipTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     chunks.push(`  agentictrust:aboutSubject ${relIri} ;`);
+    // Expose "about agent" hooks:
+    // - always about the participant Accounts (prov:Agent), and
+    // - additionally about AIAgents when we can map the account -> agent.
+    if (initiator) chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, initiator)} ;`);
+    if (approver) chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, approver)} ;`);
+    if (initiatorAgent) chunks.push(`  agentictrust:isAboutAgent ${initiatorAgent} ;`);
+    if (approverAgent) chunks.push(`  agentictrust:isAboutAgent ${approverAgent} ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);
     chunks.push(`  .\n`);
+
+    // Also emit unqualified situation participants (accounts + mapped agents) for convenience.
+    if (initiator) {
+      const initiatorAccountIri = accountIri(chainId, initiator);
+      chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${initiatorAccountIri} .\n`);
+      if (initiatorAgent) chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${initiatorAgent} .\n`);
+    }
+    if (approver) {
+      const approverAccountIri = accountIri(chainId, approver);
+      chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${approverAccountIri} .\n`);
+      if (approverAgent) chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${approverAgent} .\n`);
+    }
     
     // Relationship instance (ERC8092AccountRelationship)
     const relLines: string[] = [];
@@ -1768,7 +1926,11 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     chunks.push(`  agentictrust:generatedAssertionRecord ${raIri} ;\n`);
     chunks.push(`  agentictrust:assertsSituation ${relSituationIri} ;\n`);
     // Best-effort: associate the act with a participant account if present.
-    if (initiator) chunks.push(`  prov:wasAssociatedWith ${accountIri(chainId, initiator)} ;\n`);
+    if (initiator) {
+      const initiatorTok = initiatorAgent ?? accountIri(chainId, initiator);
+      chunks.push(`  prov:wasAssociatedWith ${initiatorTok} ;\n`);
+      chunks.push(`  agentictrust:assertedBy ${initiatorTok} ;\n`);
+    }
     chunks.push(`  .\n`);
 
     // Emit AssociatedAccountsRevocation8092 nodes (best-effort)
@@ -1807,9 +1969,23 @@ export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     (process.env.RDF_PUBLIC_DIR && process.env.RDF_PUBLIC_DIR.trim()) ||
     path.resolve(process.cwd(), '../badge-admin/public');
 
-  const outPath = path.resolve(publicDir, 'rdf', 'agents.ttl');
+  const outPath = onlyAgent
+    ? path.resolve(publicDir, 'rdf', `agent-${onlyAgent.chainId}-${onlyAgent.agentId}.ttl`)
+    : path.resolve(publicDir, 'rdf', 'agents.ttl');
   await writeFileAtomically(outPath, ttl);
   return { outPath, bytes: Buffer.byteLength(ttl, 'utf8'), agentCount: included };
+}
+
+export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: number; agentCount: number }> {
+  return await exportAgentsRdfInternal(db);
+}
+
+export async function exportOneAgentRdf(
+  db: AnyDb,
+  chainId: number,
+  agentId: string,
+): Promise<{ outPath: string; bytes: number; agentCount: number }> {
+  return await exportAgentsRdfInternal(db, { chainId, agentId });
 }
 
 export async function exportAgentRdfForAgentCardUpdate(db: AnyDb, chainId: number, agentId: string): Promise<void> {

@@ -356,10 +356,10 @@ agentictrust:aboutSubject a owl:ObjectProperty ;
 
 agentictrust:isAboutAgent a owl:ObjectProperty ;
   rdfs:label "isAboutAgent" ;
-  rdfs:comment "Links a Situation (Entity) to the AI Agent it is about (the evaluated/verified/rated agent). Subproperty of aboutSubject." ;
+  rdfs:comment "Links a Situation (Entity) to the Agent it is about. Typically an agentictrust:AIAgent, but may also be an agentictrustEth:Account (prov:SoftwareAgent) for account-centric situations like ERC-8092 relationships. Subproperty of aboutSubject." ;
   rdfs:subPropertyOf agentictrust:aboutSubject ;
   rdfs:domain agentictrust:Situation ;
-  rdfs:range agentictrust:AIAgent .
+  rdfs:range prov:Agent .
 
 agentictrust:hasSituationParticipant a owl:ObjectProperty ;
   rdfs:label "hasSituationParticipant" ;

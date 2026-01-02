@@ -18,6 +18,7 @@
     "graphdb:ingest": "tsx src/graphdb/cli.ts ingest",
     "graphdb:repos": "tsx src/graphdb/cli.ts repos",
     "graphdb:create-repo": "tsx src/graphdb/cli.ts create-repo",
+    "rdf:agent": "tsx src/rdf/agent-cli.ts",
     "start:graphql": "tsx src/graphql-server.ts",
     "deploy": "wrangler deploy",
     "deploy:dev": "wrangler deploy --env development",
