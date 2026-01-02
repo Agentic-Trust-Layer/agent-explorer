@@ -98,7 +98,7 @@ Design notes
 # PROV-native intermediate layer:
 #   - Situation (prov:Entity): the epistemic/social object ("what is being claimed to hold")
 #   - SituationDescription (prov:Plan / p-plan:Plan): the schema/pattern/roles of a situation
-#   - SituationAssertion (prov:Activity): the act of asserting a situation (time-scoped, agent-associated)
+#   - AssertionAct (prov:Activity): the act of asserting a situation (time-scoped, agent-associated)
 #   - Role (p-plan:Role): contextual role within a situation, played by an Agent
 ########
 
@@ -124,10 +124,6 @@ agentictrust:AssertionAct a owl:Class ;
   rdfs:comment "The time-scoped act of asserting (PROV Activity). Generates an AssertionRecord." ;
   rdfs:subClassOf prov:Activity .
 
-agentictrust:SituationAssertion a owl:Class ;
-  rdfs:label "SituationAssertion" ;
-  rdfs:comment "Legacy alias for AssertionAct: an activity by which an agent asserts that a Situation holds (time-scoped, revocable/supersedable). Modeled as a PROV Activity." ;
-  rdfs:subClassOf agentictrust:AssertionAct .
 
 agentictrust:Role a owl:Class ;
   rdfs:label "Role" ;
@@ -171,7 +167,8 @@ agentictrust:RelationshipSituation a owl:Class ;
 agentictrust:RelationshipTrustSituation a owl:Class ;
   rdfs:label "RelationshipTrustSituation" ;
   rdfs:comment "A TrustSituation about the status/constraints/qualification of a Relationship (trust-qualified relationship state)." ;
-  rdfs:subClassOf agentictrust:TrustSituation .
+  rdfs:subClassOf agentictrust:TrustSituation ;
+  rdfs:subClassOf agentictrust:RelationshipSituation .
 
 agentictrust:RequestSituation a owl:Class ;
   rdfs:label "RequestSituation" ;
@@ -228,12 +225,12 @@ agentictrust:ReputationTrustAssertionAct a owl:Class ;
 
 agentictrust:Relationship a owl:Class ;
   rdfs:label "Relationship" ;
-  rdfs:comment "A persistent social relationship between Agents. Exists independently of any single TrustSituation and has a lifecycle supported by RelationshipAssertions. For Account-to-Account relationships, see agentictrustEth:AccountRelationship." ;
+  rdfs:comment "A persistent social relationship between Agents. Exists independently of any single TrustSituation and has a lifecycle supported by RelationshipAssertions." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:RelationshipTrustAssertion a owl:Class ;
   rdfs:label "RelationshipTrustAssertion" ;
-  rdfs:comment "A durable trust assertion record that establishes, modifies, or terminates a Relationship between Agents. For Account-to-Account relationship assertions, see agentictrustEth:TrustAssertion8092." ;
+  rdfs:comment "A durable trust assertion record that establishes, modifies, or terminates a Relationship between Agents. For Account-to-Account relationship assertions, see erc8092:TrustAssertion." ;
   rdfs:subClassOf agentictrust:TrustAssertion .
 
 agentictrust:RelationshipTrustAssertionAct a owl:Class ;
@@ -282,7 +279,7 @@ agentictrust:FeedbackAuthorizationCommitment a owl:Class ;
   rdfs:subClassOf agentictrust:Commitment .
 
 ########
-# Core Situation/SituationAssertion properties (PROV-native DnS behavior)
+# Core Situation/AssertionAct properties (PROV-native DnS behavior)
 ########
 
 agentictrust:hasSituationDescription a owl:ObjectProperty ;
@@ -343,7 +340,7 @@ agentictrust:assertionRecordOf a owl:ObjectProperty ;
 
 agentictrust:generatedSituation a owl:ObjectProperty ;
   rdfs:label "generatedSituation" ;
-  rdfs:comment "Optional: use when a SituationAssertion activity mints a new Situation entity (prov:generated) as an explicit recorded claim object. If the Situation already exists (e.g., registry request records), prefer agentictrust:assertsSituation." ;
+  rdfs:comment "Optional: use when an AssertionAct activity mints a new Situation entity (prov:generated) as an explicit recorded claim object. If the Situation already exists (e.g., registry request records), prefer agentictrust:assertsSituation." ;
   rdfs:subPropertyOf prov:generated ;
   rdfs:domain agentictrust:AssertionAct ;
   rdfs:range agentictrust:Situation .
@@ -438,7 +435,7 @@ agentictrust:hasReputationAssertion a owl:ObjectProperty ;
 
 agentictrust:hasRelationshipAssertion a owl:ObjectProperty ;
   rdfs:label "hasRelationshipAssertion" ;
-  rdfs:comment "Links an Agent to RelationshipAssertions it participates in or produces (for Agent-to-Agent relationships). For Account-to-Account relationship assertions, see agentictrustEth:hasAccountRelationshipAssertion (which links to TrustAssertion8092)." ;
+  rdfs:comment "Links an Agent to RelationshipAssertions it participates in or produces (for Agent-to-Agent relationships). For Account-to-Account relationship assertions, see agentictrustEth:hasAccountRelationshipAssertion (which links to erc8092:TrustAssertion)." ;
   rdfs:subPropertyOf agentictrust:hasTrustAssertion ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:RelationshipTrustAssertion .

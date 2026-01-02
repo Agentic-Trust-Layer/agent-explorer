@@ -1783,7 +1783,6 @@ async function exportAgentsRdfInternal(
     seenAssoc.add(key);
 
     const relationshipId = associationId;
-    const relIri = relationshipIri(chainId, relationshipId);
     const raIri = relationshipAssertionIri(chainId, associationId);
     const initiator = normalizeHex(assoc?.initiator);
     const approver = normalizeHex(assoc?.approver);
@@ -1821,10 +1820,9 @@ async function exportAgentsRdfInternal(
     }
 
     const lines: string[] = [];
-    // Create RelationshipSituation and link to Relationship
+    // Create RelationshipTrustSituation (the situation IS the relationship state)
     const relSituationIri = situationIri(chainId, associationId, 'relationship', relationshipId, undefined);
-    chunks.push(`${relSituationIri} a agentictrust:RelationshipTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
-    chunks.push(`  agentictrust:aboutSubject ${relIri} ;`);
+    chunks.push(`${relSituationIri} a agentictrust:RelationshipTrustSituation, agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Entity ;`);
     // Expose "about agent" hooks:
     // - always about the participant Accounts (prov:Agent), and
     // - additionally about AIAgents when we can map the account -> agent.
@@ -1838,36 +1836,16 @@ async function exportAgentsRdfInternal(
     // Also emit unqualified situation participants (accounts + mapped agents) for convenience.
     if (initiator) {
       const initiatorAccountIri = accountIri(chainId, initiator);
+      ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
       chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${initiatorAccountIri} .\n`);
       if (initiatorAgent) chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${initiatorAgent} .\n`);
     }
     if (approver) {
       const approverAccountIri = accountIri(chainId, approver);
+      ensureAccountNode(chunks, chainId, approver, 'SmartAccount');
       chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${approverAccountIri} .\n`);
       if (approverAgent) chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${approverAgent} .\n`);
     }
-    
-    // Relationship instance (ERC8092AccountRelationship)
-    const relLines: string[] = [];
-    relLines.push(
-      `${relIri} a agentictrust:Relationship, agentictrustEth:AccountRelationship, prov:Entity ;`,
-    );
-    
-    // Add hasParticipant links to initiator and approver accounts
-    if (initiator) {
-      const initiatorAccountIri = accountIri(chainId, initiator);
-      ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
-      relLines.push(`  agentictrust:hasParticipant ${initiatorAccountIri} ;`);
-    }
-    if (approver) {
-      const approverAccountIri = accountIri(chainId, approver);
-      ensureAccountNode(chunks, chainId, approver, 'SmartAccount');
-      relLines.push(`  agentictrust:hasParticipant ${approverAccountIri} ;`);
-    }
-    
-    // Remove trailing semicolon and add period
-    const relContent = relLines.join('\n').replace(/ ;$/, ' .');
-    chunks.push(`${relContent}\n`);
 
     const actIri = actIriFromRecordIri(raIri);
 
@@ -1942,7 +1920,6 @@ async function exportAgentsRdfInternal(
       const rActIri = actIriFromRecordIri(rIri);
       rr.push(`${rIri} a erc8092:AssociatedAccountsRevocation8092, prov:Entity ;`);
       rr.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(rid)}" ;`);
-      rr.push(`  agentictrust:aboutSubject ${relIri} ;`);
       rr.push(`  erc8092:revocationOfAssociatedAccounts ${raIri} ;`);
       rr.push(`  agentictrust:assertionRecordOf ${rActIri} ;`);
       if (r?.revokedAt != null) rr.push(`  erc8092:revokedAt ${Number(r.revokedAt) || 0} ;`);

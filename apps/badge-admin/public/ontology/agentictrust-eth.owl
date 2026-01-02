@@ -6,6 +6,7 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
 @prefix agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#> .
+@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .
 
 agentictrustEth: a owl:Ontology ;
   dcterms:title "AgenticTrustEthOntology" ;
@@ -162,44 +163,14 @@ agentictrustEth:hasAccountIdentifier a owl:ObjectProperty ;
 ########
 # Account Relationship (Account-to-Account relationships)
 ########
-
-agentictrustEth:AccountRelationship a owl:Class ;
-  rdfs:label "AccountRelationship" ;
-  rdfs:comment "A persistent relationship between Accounts (e.g., Ethereum accounts). ERC-8092 relationships are a specialization of AccountRelationship. Can be used to derive Agent-to-Agent relationships via Agent → Identifier (Account) mapping." ;
-  rdfs:subClassOf agentictrust:Relationship .
-
-agentictrustEth:TrustAssertion8092 a owl:Class ;
-  rdfs:label "TrustAssertion8092" ;
-  rdfs:comment "A constitutive TrustAssertion that establishes, modifies, or terminates an AccountRelationship between Accounts. ERC-8092 relationship assertions are a specialization of TrustAssertion8092." ;
-  rdfs:subClassOf agentictrust:TrustAssertion .
-
-########
 # Account Relationship Properties
 ########
 
-agentictrustEth:assertsAccountRelationship a owl:ObjectProperty ;
-  rdfs:label "assertsAccountRelationship" ;
-  rdfs:comment "TrustAssertion8092 establishes/modifies/terminates the AccountRelationship instance it is about (constitutive link)." ;
-  rdfs:domain agentictrustEth:TrustAssertion8092 ;
-  rdfs:range agentictrustEth:AccountRelationship .
-
 agentictrustEth:hasAccountRelationshipAssertion a owl:ObjectProperty ;
   rdfs:label "hasAccountRelationshipAssertion" ;
-  rdfs:comment "Links an Account to TrustAssertion8092 assertions it participates in or produces (for Account-to-Account relationships)." ;
+  rdfs:comment "Links an Account to ERC-8092 trust assertions (erc8092:TrustAssertion) it participates in or produces (for Account-to-Account relationships)." ;
   rdfs:domain agentictrustEth:Account ;
-  rdfs:range agentictrustEth:TrustAssertion8092 .
-
-agentictrustEth:hasAccountRelationship a owl:ObjectProperty ;
-  rdfs:label "hasAccountRelationship" ;
-  rdfs:comment "Links an Account to AccountRelationships it participates in." ;
-  rdfs:domain agentictrustEth:Account ;
-  rdfs:range agentictrustEth:AccountRelationship .
-
-agentictrustEth:participatesInAccountRelationship a owl:ObjectProperty ;
-  rdfs:label "participatesInAccountRelationship" ;
-  rdfs:comment "Links an AccountRelationship to the Accounts that participate in it (inverse of hasAccountRelationship)." ;
-  rdfs:domain agentictrustEth:AccountRelationship ;
-  rdfs:range agentictrustEth:Account .
+  rdfs:range erc8092:TrustAssertion .
 
 ########
 # Descriptors
