@@ -76,6 +76,46 @@ class D1Database {
     return (data.result?.[0] || data) as D1Response;
   }
 
+  private async executeBatch(statements: { sql: string; params: any[] }[]): Promise<void> {
+    if (!statements.length) return;
+    const timeoutMs = Number(process.env.D1_HTTP_TIMEOUT_MS ?? 30_000);
+    const retries = Number(process.env.D1_HTTP_RETRIES ?? 6);
+
+    // Cloudflare D1 HTTP API supports batching multiple statements in a single request in some environments.
+    // We attempt the batch form and fall back to sequential execution if the API rejects it.
+    const response = await fetchWithRetry(
+      `${this.baseUrl}/query`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.config.apiToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          batch: statements,
+        }),
+      },
+      {
+        timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30_000,
+        retries: Number.isFinite(retries) && retries >= 0 ? retries : 6,
+        retryOnStatuses: [429, 500, 502, 503, 504, 522, 524],
+        minBackoffMs: 750,
+        maxBackoffMs: 20_000,
+      },
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`D1 batch API error: ${response.status} ${errorText}`);
+    }
+
+    const data = (await response.json().catch(() => null)) as any;
+    if (data && data.success === false) {
+      const errText = data.error ? String(data.error) : JSON.stringify(data);
+      throw new Error(`D1 batch error: ${errText}`);
+    }
+  }
+
   prepare(sql: string) {
     // Replace @param with ? in SQL and extract parameter values
     const processSQLAndParams = (sql: string, params: any[]): { sql: string; params: any[] } => {
@@ -109,6 +149,32 @@ class D1Database {
     };
 
     return {
+      bind: (...params: any[]) => {
+        const { sql: processedSQL, params: paramArray } = processSQLAndParams(sql, params);
+        const bound = {
+          __d1: { sql: processedSQL, params: paramArray },
+          run: async () => {
+            const result = await this.execute(processedSQL, paramArray);
+            return {
+              changes: result.meta?.rows_written || 0,
+              lastInsertRowid: 0,
+            };
+          },
+          get: async () => {
+            const result = await this.execute(processedSQL, paramArray);
+            return result.results?.[0] || null;
+          },
+          all: async () => {
+            const result = await this.execute(processedSQL, paramArray);
+            return result.results || [];
+          },
+          first: async () => {
+            const result = await this.execute(processedSQL, paramArray);
+            return result.results?.[0] || null;
+          },
+        };
+        return bound;
+      },
       run: async (...params: any[]) => {
         const { sql: processedSQL, params: paramArray } = processSQLAndParams(sql, params);
         const result = await this.execute(processedSQL, paramArray);
@@ -127,7 +193,68 @@ class D1Database {
         const result = await this.execute(processedSQL, paramArray);
         return result.results || [];
       },
+      first: async (...params: any[]) => {
+        const { sql: processedSQL, params: paramArray } = processSQLAndParams(sql, params);
+        const result = await this.execute(processedSQL, paramArray);
+        return result.results?.[0] || null;
+      },
     };
+  }
+
+  async batch(statements: any[]): Promise<void> {
+    if (!Array.isArray(statements) || !statements.length) return;
+    const maxBatch = Number(process.env.D1_BATCH_MAX_STATEMENTS ?? 50) || 50;
+    const tryBatch = process.env.D1_BATCH !== '0';
+
+    // Normalize to [{sql, params}] when possible (from .bind()).
+    const collected: { sql: string; params: any[] }[] = [];
+    const fallback: any[] = [];
+    for (const s of statements) {
+      const meta = (s as any)?.__d1;
+      if (meta && typeof meta.sql === 'string' && Array.isArray(meta.params)) {
+        collected.push({ sql: meta.sql, params: meta.params });
+      } else {
+        fallback.push(s);
+      }
+    }
+
+    // If we can't batch them, run sequentially.
+    if (!tryBatch || collected.length === 0) {
+      for (const s of statements) {
+        if (!s) continue;
+        if (typeof s.run === 'function') {
+          await s.run();
+        } else if (typeof s === 'function') {
+          await s();
+        }
+      }
+      return;
+    }
+
+    // Chunk the batch to avoid oversized requests.
+    for (let i = 0; i < collected.length; i += maxBatch) {
+      const chunk = collected.slice(i, i + maxBatch);
+      try {
+        await this.executeBatch(chunk);
+      } catch (e: any) {
+        // Fallback: if the API doesn't support batching (or rejects the payload), run sequentially.
+        const msg = String(e?.message || '');
+        console.warn('[d1] batch failed, falling back to sequential', { err: msg.slice(0, 300), statements: chunk.length });
+        for (const st of chunk) {
+          await this.execute(st.sql, st.params);
+        }
+      }
+    }
+
+    // Execute any non-bind statements sequentially.
+    for (const s of fallback) {
+      if (!s) continue;
+      if (typeof s.run === 'function') {
+        await s.run();
+      } else if (typeof s === 'function') {
+        await s();
+      }
+    }
   }
 
   async exec(sql: string): Promise<void> {

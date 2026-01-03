@@ -814,6 +814,9 @@ type BatchWriter = {
 
 function createBatchWriter(dbInstance: any, label: string, batchSize = 50): BatchWriter {
   const supportsBatch = typeof dbInstance.batch === 'function';
+  const envBatchSizeRaw = process.env.D1_WRITE_BATCH_SIZE;
+  const envBatchSize = envBatchSizeRaw && envBatchSizeRaw.trim() ? Number(envBatchSizeRaw) : NaN;
+  const effectiveBatchSize = Number.isFinite(envBatchSize) && envBatchSize > 0 ? Math.trunc(envBatchSize) : batchSize;
   let queue: any[] = [];
 
   const runStatement = async (statement: any) => {
@@ -872,7 +875,7 @@ function createBatchWriter(dbInstance: any, label: string, batchSize = 50): Batc
         return;
       }
       queue.push(statement);
-      if (queue.length >= batchSize) {
+      if (queue.length >= effectiveBatchSize) {
         await flush();
       }
     },

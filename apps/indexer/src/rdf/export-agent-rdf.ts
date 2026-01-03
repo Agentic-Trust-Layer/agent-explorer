@@ -1384,9 +1384,26 @@ async function exportAgentsRdfInternal(
       FROM agents
       ORDER BY chainId ASC, LENGTH(agentId) ASC, agentId ASC
     `;
-  const rows = await db.prepare(agentSql).all(...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []));
+  
+  // Use streaming query if supported, otherwise load all
+  let rows: any;
+  if (db.prepare && typeof db.prepare === 'function') {
+    const stmt = db.prepare(agentSql);
+    if (stmt.bind && typeof stmt.bind === 'function') {
+      rows = await stmt.bind(...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : [])).all();
+    } else {
+      rows = await stmt.all(...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []));
+    }
+  } else {
+    rows = await db.prepare(agentSql).all(...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []));
+  }
 
   const agentRows: any[] = Array.isArray(rows) ? rows : Array.isArray((rows as any)?.results) ? (rows as any).results : [];
+  
+  // Log progress for large exports
+  if (!onlyAgent && agentRows.length > 100) {
+    console.log(`[rdf-export] Processing ${agentRows.length} agents...`);
+  }
 
   const chunks: string[] = [];
   chunks.push(rdfPrefixesForAgent(onlyAgent));
@@ -1406,7 +1423,9 @@ async function exportAgentsRdfInternal(
   };
 
   let included = 0;
-  for (const row of agentRows) {
+  const totalRows = agentRows.length;
+  for (let i = 0; i < agentRows.length; i++) {
+    const row = agentRows[i];
     const chainId = Number(row?.chainId ?? 0) || 0;
     const agentId = String(row?.agentId ?? '');
     if (!agentId) continue;
@@ -1414,6 +1433,11 @@ async function exportAgentsRdfInternal(
     const key = `${chainId}|${agentId}`;
     if (emittedAgents.has(key)) {
       continue;
+    }
+
+    // Progress logging for large exports
+    if (!onlyAgent && totalRows > 500 && (i + 1) % 500 === 0) {
+      console.log(`[rdf-export] Processed ${i + 1}/${totalRows} agents (${included} included)...`);
     }
 
     const agentCardJsonText = row?.agentCardJson != null ? String(row.agentCardJson) : '';
@@ -1434,6 +1458,7 @@ async function exportAgentsRdfInternal(
 
     emittedAgents.add(key);
     chunks.push(renderAgentNodeWithoutCard(row, chunks));
+    included += 1;
   }
 
   // ---- OASF vocabulary (domains, skills, categories, dictionary) ----
@@ -1571,6 +1596,10 @@ async function exportAgentsRdfInternal(
     `,
     ...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []),
   );
+  
+  if (!onlyAgent && feedbacks.length > 0) {
+    console.log(`[rdf-export] Loaded ${feedbacks.length} feedback records`);
+  }
 
   for (const f of feedbacks) {
     const chainId = Number(f?.chainId ?? 0) || 0;
@@ -2252,6 +2281,10 @@ async function exportAgentsRdfInternal(
     }
   }
 
+  // Optimize: For large exports, join more efficiently
+  if (!onlyAgent && chunks.length > 1000) {
+    console.log(`[rdf-export] Joining ${chunks.length} chunks...`);
+  }
   const ttl = chunks.join('\n');
 
   const path = await import('node:path');
@@ -2262,8 +2295,19 @@ async function exportAgentsRdfInternal(
   const outPath = onlyAgent
     ? path.resolve(publicDir, 'rdf', `agent-${onlyAgent.chainId}-${onlyAgent.agentId}.ttl`)
     : path.resolve(publicDir, 'rdf', 'agents.ttl');
+  
+  if (!onlyAgent) {
+    console.log(`[rdf-export] Writing ${(ttl.length / 1024 / 1024).toFixed(2)} MB to file...`);
+  }
+  
   await writeFileAtomically(outPath, ttl);
-  return { outPath, bytes: Buffer.byteLength(ttl, 'utf8'), agentCount: included };
+  const bytes = Buffer.byteLength(ttl, 'utf8');
+  
+  if (!onlyAgent) {
+    console.log(`[rdf-export] Complete: ${included} agents, ${(bytes / 1024 / 1024).toFixed(2)} MB`);
+  }
+  
+  return { outPath, bytes, agentCount: included };
 }
 
 export async function exportAllAgentsRdf(db: AnyDb): Promise<{ outPath: string; bytes: number; agentCount: number }> {
