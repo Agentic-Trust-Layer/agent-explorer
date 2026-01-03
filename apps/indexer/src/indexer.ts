@@ -3,8 +3,7 @@ import { db, getCheckpoint, setCheckpoint, ensureSchemaInitialized } from "./db"
 import { RPC_WS_URL, CONFIRMATIONS, START_BLOCK, LOGS_CHUNK_SIZE, BACKFILL_MODE, ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY, GRAPHQL_POLL_MS } from "./env";
 import { ethers } from 'ethers';
 import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
-import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
-import { ingestAgentsIntoSemanticStore } from './semantic/agent-ingest.js';
+// Semantic ingest is intentionally NOT part of the indexer runtime. Use CLI only.
 import { resolveEoaOwner } from './ownership.js';
 import { computeAndUpsertATI } from './ati.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
@@ -41,238 +40,10 @@ const erc8004EthSepoliaClient = new ERC8004Client({
   }
 });
 
-function safeJsonParse(value: unknown): any | null {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-function extractRegistrationA2AEndpoint(rawJson: unknown, fallbackA2AEndpoint?: string | null): string | null {
-  const parsed = safeJsonParse(rawJson);
-  const normalize = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
-
-  const extractFromObject = (obj: any): string | null => {
-    if (!obj || typeof obj !== 'object') return null;
-
-    // Prefer endpoints[] with name/type indicating A2A
-    const endpoints = Array.isArray(obj.endpoints) ? obj.endpoints : Array.isArray(obj.Endpoints) ? obj.Endpoints : [];
-    for (const e of endpoints) {
-      const name = typeof e?.name === 'string' ? e.name.trim().toLowerCase() : '';
-      const type = typeof e?.type === 'string' ? e.type.trim().toLowerCase() : '';
-      const kind = typeof e?.kind === 'string' ? e.kind.trim().toLowerCase() : '';
-      const isA2A = name === 'a2a' || type === 'a2a' || kind === 'a2a';
-      if (!isA2A) continue;
-      const v =
-        normalize(e?.endpoint) ||
-        normalize(e?.url) ||
-        normalize(e?.href) ||
-        normalize(e?.uri);
-      if (v) return v;
-    }
-
-    // Common direct fields found in historical/raw metadata blobs
-    const direct =
-      normalize(obj.a2aEndpoint) ||
-      normalize(obj.a2a_endpoint) ||
-      normalize(obj.chatEndpoint) ||
-      normalize(obj.chat_endpoint) ||
-      normalize(obj.a2a) ||
-      normalize(obj.agentCardUrl) ||
-      normalize(obj.agentCardURL) ||
-      normalize(obj.agent_card_url);
-    if (direct) return direct;
-
-    // Some variants wrap the A2A endpoint under a2a: { endpoint/url }
-    if (obj.a2a && typeof obj.a2a === 'object') {
-      const nested = normalize(obj.a2a.endpoint) || normalize(obj.a2a.url) || normalize(obj.a2a.href);
-      if (nested) return nested;
-    }
-
-    return null;
-  };
-
-  if (parsed && typeof parsed === 'object') {
-    const v0 = extractFromObject(parsed);
-    if (v0) return v0;
-    // One common nesting shape: { metadata: {...} }
-    const v1 = extractFromObject((parsed as any).metadata);
-    if (v1) return v1;
-    // Another common nesting shape: { token: {...} }
-    const v2 = extractFromObject((parsed as any).token);
-    if (v2) return v2;
-  }
-
-  return typeof fallbackA2AEndpoint === 'string' && fallbackA2AEndpoint.trim() ? fallbackA2AEndpoint.trim() : null;
-}
-
-function parseAgentCardCursor(value: unknown): { chainId: number; agentId: string } {
-  if (typeof value !== 'string' || !value.trim()) return { chainId: 0, agentId: '' };
-  const parts = value.split('|');
-  if (parts.length < 2) return { chainId: 0, agentId: '' };
-  const chainId = Number(parts[0]);
-  const agentId = parts.slice(1).join('|');
-  return {
-    chainId: Number.isFinite(chainId) && chainId >= 0 ? Math.trunc(chainId) : 0,
-    agentId: typeof agentId === 'string' ? agentId : '',
-  };
-}
-
-function formatAgentCardCursor(cursor: { chainId: number; agentId: string }): string {
-  const chainId = Number.isFinite(cursor.chainId) && cursor.chainId >= 0 ? Math.trunc(cursor.chainId) : 0;
-  const agentId = typeof cursor.agentId === 'string' ? cursor.agentId : '';
-  return `${chainId}|${agentId}`;
-}
-
-async function getCheckpointValue(dbInstance: any, key: string): Promise<string | null> {
-  try {
-    const stmt = dbInstance.prepare('SELECT value FROM checkpoints WHERE key = ?');
-    if (stmt.bind && typeof stmt.bind === 'function') {
-      const row = await stmt.bind(key).first();
-      return row?.value ? String(row.value) : null;
-    }
-    const row = await stmt.get(key);
-    return row?.value ? String((row as any).value) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function setCheckpointValue(dbInstance: any, key: string, value: string): Promise<void> {
-  try {
-    const stmt = dbInstance.prepare('INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value');
-    if (stmt.bind && typeof stmt.bind === 'function') {
-      await stmt.bind(key, value).run();
-      return;
-    }
-    await stmt.run(key, value);
-  } catch {
-    // best-effort
-  }
-}
-
-async function backfillAgentCards(dbInstance: any, opts?: { chunkSize?: number; reset?: boolean }) {
-  if (!dbInstance) return;
-  const checkpointKey = 'agentCardFetchCursor';
-  const chunkSize =
-    typeof opts?.chunkSize === 'number' && Number.isFinite(opts.chunkSize) && opts.chunkSize > 0 ? Math.trunc(opts.chunkSize) : 50;
-  const maxToProcessRaw = process.env.AGENT_CARD_BACKFILL_MAX;
-  const maxToProcess = maxToProcessRaw && String(maxToProcessRaw).trim() ? Number(maxToProcessRaw) : undefined;
-  const hardMax = Number.isFinite(maxToProcess as any) && (maxToProcess as any) > 0 ? Math.trunc(maxToProcess as any) : undefined;
-
-  if (opts?.reset) {
-    try {
-      await dbInstance.prepare('DELETE FROM checkpoints WHERE key = ?').run(checkpointKey);
-      console.info('[agent-card-backfill] reset: cleared agentCardFetchCursor checkpoint');
-    } catch (e) {
-      console.warn('[agent-card-backfill] reset requested but failed to clear checkpoint', e);
-    }
-  }
-
-  let cursor = parseAgentCardCursor(await getCheckpointValue(dbInstance, checkpointKey));
-
-  const query = `
-    SELECT chainId, agentId, a2aEndpoint, rawJson, agentCardJson, agentCardReadAt
-    FROM agents
-    WHERE
-      (
-        chainId > ?
-        OR (
-          chainId = ?
-          AND (
-            LENGTH(agentId) > ?
-            OR (LENGTH(agentId) = ? AND agentId > ?)
-          )
-        )
-      )
-      AND (
-        agentCardJson IS NULL OR agentCardJson = ''
-        OR agentCardReadAt IS NULL OR agentCardReadAt = 0
-      )
-    ORDER BY chainId ASC, LENGTH(agentId) ASC, agentId ASC
-    LIMIT ?
-  `;
-
-  console.info('[agent-card-backfill] starting', { chunkSize, cursor, max: hardMax ?? null });
-  let processed = 0;
-
-  while (true) {
-    if (hardMax !== undefined && processed >= hardMax) {
-      console.info('[agent-card-backfill] stopping due to AGENT_CARD_BACKFILL_MAX', { processed, max: hardMax, cursor });
-      break;
-    }
-    const agentIdLen = cursor.agentId.length;
-    const stmt = dbInstance.prepare(query);
-    const bindParams = [cursor.chainId, cursor.chainId, agentIdLen, agentIdLen, cursor.agentId, chunkSize];
-    let rows: any[] = [];
-    try {
-      if (stmt.bind && typeof stmt.bind === 'function') {
-        const result = await stmt.bind(...bindParams).all();
-        rows = Array.isArray(result?.results) ? result.results : [];
-      } else {
-        const result = await stmt.all(...bindParams);
-        rows = Array.isArray(result) ? result : [];
-      }
-    } catch (e) {
-      console.warn('[agent-card-backfill] query failed', e);
-      break;
-    }
-
-    if (!rows.length) {
-      console.info('[agent-card-backfill] complete (no more rows)', { cursor });
-      break;
-    }
-
-    for (const row of rows) {
-      if (hardMax !== undefined && processed >= hardMax) {
-        console.info('[agent-card-backfill] stopping due to AGENT_CARD_BACKFILL_MAX', { processed, max: hardMax, cursor });
-        break;
-      }
-      const chainId = Number(row?.chainId ?? 0) || 0;
-      const agentId = String(row?.agentId ?? '');
-      const fallbackA2A = row?.a2aEndpoint != null ? String(row.a2aEndpoint) : null;
-      const regA2A = extractRegistrationA2AEndpoint(row?.rawJson, fallbackA2A);
-
-      if (regA2A) {
-        try {
-          console.info('[agent-card-backfill] fetching agent card', { chainId, agentId, registrationA2AEndpoint: regA2A });
-          const ok = await upsertAgentCardForAgent(dbInstance, chainId, agentId, regA2A, { force: true });
-          if (ok) {
-            console.info('[agent-card-backfill] stored agent card', { chainId, agentId });
-          } else {
-            console.info('[agent-card-backfill] no agent card found', { chainId, agentId });
-          }
-        } catch {
-          console.warn('[agent-card-backfill] fetch failed', { chainId, agentId });
-          // best-effort: continue
-        }
-      } else {
-        console.info('[agent-card-backfill] skipping (no registration A2A endpoint)', { chainId, agentId });
-      }
-
-      cursor = { chainId, agentId };
-      await setCheckpointValue(dbInstance, checkpointKey, formatAgentCardCursor(cursor));
-      processed += 1;
-    }
-  }
-}
-
 async function maybeBackfillRdfFromStoredAgentCards(dbInstance: any) {
-  try {
-    const reset = process.env.RDF_EXPORT_BACKFILL_RESET === '1';
-    const chunkSizeRaw = process.env.RDF_EXPORT_BACKFILL_CHUNK_SIZE;
-    const maxRaw = process.env.RDF_EXPORT_BACKFILL_MAX;
-    const chunkSize = chunkSizeRaw && String(chunkSizeRaw).trim() ? Number(chunkSizeRaw) : undefined;
-    const max = maxRaw && String(maxRaw).trim() ? Number(maxRaw) : undefined;
-    const mod = await import('./rdf/export-agent-rdf');
-    if (typeof (mod as any).backfillAgentRdfFromStoredAgentDescriptors === 'function') {
-      await (mod as any).backfillAgentRdfFromStoredAgentDescriptors(dbInstance, { reset, chunkSize, max });
-    }
-  } catch (e) {
-    console.warn('[rdf-backfill] failed', e);
-  }
+  // RDF export is intentionally NOT part of the indexer runtime.
+  // Run RDF generation via CLI only (e.g. `pnpm rdf:agent` or `pnpm graphdb:ingest agents`).
+  void dbInstance;
 }
 
 
@@ -541,12 +312,16 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
   // Extremely noisy during backfills; enable only when debugging transfers.
   if (process.env.DEBUG_TRANSFERS === '1') {
+    console.info('.... processed agentId', { chainId, agentId, tokenId: tokenId.toString() });
     console.info(".... ownerAddress", ownerAddress);
     console.info(".... chainId", chainId);
   }
 
   // Fetch metadata from tokenURI BEFORE database insert to populate all fields
   let preFetchedMetadata: any = null;
+  // Preserve raw registration JSON from the subgraph even if we fail to parse it.
+  // This should be the primary source of agents.rawJson during backfills (no extra IPFS/RPC).
+  let metadataJsonRaw: string | null = null;
   const applyMetadataHints = (meta: any) => {
     if (!meta || typeof meta !== 'object') return;
     const inferredName = readAgentName(meta);
@@ -573,7 +348,9 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
   let image: string | null = null;
   const tokenInfoName = readAgentName(tokenInfo);
   if (tokenInfo && tokenInfoName) { 
-    console.info("............upsertFromTransfer: tokenInfo: ", tokenInfo)
+    if (process.env.DEBUG_TRANSFERS === '1') {
+      console.info("............upsertFromTransfer: tokenInfo: ", tokenInfo);
+    }
     agentName = tokenInfoName;
   }
   if (tokenInfo && typeof tokenInfo.description === 'string' && tokenInfo.description.trim()) {
@@ -590,17 +367,25 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
   if (tokenInfo?.metadataJson) {
     if (typeof tokenInfo.metadataJson === 'string' && tokenInfo.metadataJson.trim()) {
+      metadataJsonRaw = tokenInfo.metadataJson.trim();
       try {
-        preFetchedMetadata = JSON.parse(tokenInfo.metadataJson);
+        preFetchedMetadata = JSON.parse(metadataJsonRaw);
       } catch (error) {
         console.warn("............upsertFromTransfer: Failed to parse token metadataJson string:", error);
       }
     } else if (typeof tokenInfo.metadataJson === 'object') {
       preFetchedMetadata = tokenInfo.metadataJson;
+      try {
+        metadataJsonRaw = JSON.stringify(tokenInfo.metadataJson);
+      } catch {
+        metadataJsonRaw = null;
+      }
     }
   }
   applyMetadataHints(preFetchedMetadata);
-  if (!preFetchedMetadata && resolvedTokenURI) {
+  // IPFS metadata fetch is very slow during big backfills; keep it opt-in.
+  const allowIpfsMetadataFetch = process.env.FETCH_IPFS_METADATA_ON_WRITE === '1';
+  if (!preFetchedMetadata && resolvedTokenURI && allowIpfsMetadataFetch) {
     try {
       const metadata = await fetchIpfsJson(resolvedTokenURI);
       if (metadata && typeof metadata === 'object') {
@@ -614,7 +399,9 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
 
   if (ownerAddress != '0x000000000000000000000000000000000000dEaD') {
-    const resolvedEoaOwner = await resolveEoaOwnerSafe(chainId, ownerAddress);
+    // Resolving EOA owners can be RPC-heavy; keep it opt-in.
+    const resolveEoa = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
+    const resolvedEoaOwner = resolveEoa ? await resolveEoaOwnerSafe(chainId, ownerAddress) : null;
     const eoaOwner = resolvedEoaOwner ?? ownerAddress;
     const createdAtTime = mintedTimestamp ?? Math.floor(Date.now() / 1000);
     
@@ -624,8 +411,15 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
     
     await dbInstance.prepare(`
-      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents(
+        chainId, agentId,
+        agentAddress, agentAccount, agentOwner, eoaOwner,
+        agentName, tokenUri, a2aEndpoint,
+        createdAtBlock, createdAtTime,
+        didIdentity, didAccount, didName,
+        rawJson, updatedAtTime
+      )
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
         agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
@@ -636,7 +430,9 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         tokenUri=COALESCE(excluded.tokenUri, tokenUri),
         didIdentity=COALESCE(excluded.didIdentity, didIdentity),
         didAccount=COALESCE(excluded.didAccount, didAccount),
-        didName=COALESCE(excluded.didName, didName)
+        didName=COALESCE(excluded.didName, didName),
+        rawJson=COALESCE(excluded.rawJson, rawJson),
+        updatedAtTime=COALESCE(excluded.updatedAtTime, updatedAtTime)
     `).run(
       chainId,
       agentId,
@@ -651,21 +447,27 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       createdAtTime,
       didIdentity,
       didAccount,
-      didName
+      didName,
+      metadataJsonRaw,
+      Math.floor(Date.now() / 1000),
     );
 
-    // Precompute ATI for fast frontend retrieval
-    try {
-      await computeAndUpsertATI(dbInstance, chainId, agentId);
-    } catch (e) {
-      console.warn('............ATI compute failed (upsertFromTransfer)', e);
+    // ATI compute is intentionally NOT part of the hot path (expensive). Use CLI only.
+    if (process.env.ATI_COMPUTE_ON_WRITE === '1') {
+      try {
+        await computeAndUpsertATI(dbInstance, chainId, agentId);
+      } catch (e) {
+        console.warn('............ATI compute failed (upsertFromTransfer)', e);
+      }
     }
     // NOTE: Transfer events don’t change validation/association/feedback signals used by the Trust Ledger badges.
     // Running trust-ledger evaluation here makes backfills look “infinite” (lots of expensive badge-rule queries).
     // Trust ledger processing is triggered by the relevant evidence events (validation/association/feedback) instead.
 
-    // Use pre-fetched metadata if available, otherwise fetch now
-    const metadata = preFetchedMetadata || (resolvedTokenURI ? await fetchIpfsJson(resolvedTokenURI) : null);
+    // Use pre-fetched registration JSON (metadataJson) when available; avoid IPFS fetch by default.
+    const metadata =
+      preFetchedMetadata ||
+      (allowIpfsMetadataFetch && resolvedTokenURI ? await fetchIpfsJson(resolvedTokenURI) : null);
     if (metadata) {
       try {
         const meta = metadata as any;
@@ -685,20 +487,111 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         const ensEndpoint = findEndpoint('ENS');
         let agentAccountEndpoint = findEndpoint('agentAccount');
         // Always ensure agentAccountEndpoint reflects current owner `to`
-        console.info("............agentAccountEndpoint: ", agentAccountEndpoint)
+        if (process.env.DEBUG_METADATA === '1') {
+          console.info("............agentAccountEndpoint: ", agentAccountEndpoint);
+        }
         if (!agentAccountEndpoint || !/^eip155:/i.test(agentAccountEndpoint)) {
-          console.info("............agentAccountEndpoint: no endpoint found, setting to: ", `eip155:${chainId}:${to}`)
+          if (process.env.DEBUG_METADATA === '1') {
+            console.info("............agentAccountEndpoint: no endpoint found, setting to: ", `eip155:${chainId}:${to}`);
+          }
           agentAccountEndpoint = `eip155:${chainId}:${to}`;
         }
-        const supportedTrust = Array.isArray(meta.supportedTrust) ? meta.supportedTrust.map(String) : [];
-        console.info("............update into table: agentId: ", agentId)
-        console.info("............update into table: agentAccount: ", agentAccount)
-        console.info("............update into table: type: ", type)
-        console.info("............update into table: name: ", name)
-        console.info("............update into table: description: ", desc)
-        console.info("............update into table: image: ", img)
-        console.info("............update into table: a2aEndpoint: ", a2aEndpoint)
-        console.info("............update into table: ensEndpoint: ", ensEndpoint)
+        const supportedTrust =
+          Array.isArray(meta.supportedTrust) ? meta.supportedTrust.map(String) :
+          Array.isArray((meta as any).supportedTrusts) ? (meta as any).supportedTrusts.map(String) :
+          [];
+
+        // ---- Registration JSON ingest: OASF skills/domains + protocol versions ----
+        // From example: endpoints[] contains an OASF entry with {skills[], domains[]}
+        const oasfEndpoint = endpoints.find((e: any) => {
+          const n = typeof e?.name === 'string' ? e.name.trim().toLowerCase() : '';
+          return n === 'oasf' || Boolean(e?.skills) || Boolean(e?.domains);
+        });
+        const oasfSkills = Array.isArray(oasfEndpoint?.skills) ? oasfEndpoint.skills.map((s: any) => String(s)).filter(Boolean) : [];
+        const oasfDomains = Array.isArray(oasfEndpoint?.domains) ? oasfEndpoint.domains.map((d: any) => String(d)).filter(Boolean) : [];
+
+        // Protocols: store endpoint name + version (if present)
+        const protocolRows: { protocol: string; version: string }[] = [];
+        for (const ep of endpoints) {
+          const pname = typeof ep?.name === 'string' ? ep.name.trim() : '';
+          if (!pname) continue;
+          const ver = typeof ep?.version === 'string' && ep.version.trim() ? ep.version.trim() : '';
+          protocolRows.push({ protocol: pname, version: ver });
+        }
+
+        // Batch upserts to normalized tables (fast; uses db.batch if available)
+        const stmts: any[] = [];
+        try {
+          // supportedTrust -> agent_supported_trust
+          for (const t of supportedTrust) {
+            const v = String(t).trim();
+            if (!v) continue;
+            const s = dbInstance
+              .prepare('INSERT INTO agent_supported_trust(chainId, agentId, trust) VALUES(?, ?, ?) ON CONFLICT(chainId, agentId, trust) DO NOTHING')
+              .bind(chainId, agentId, v);
+            stmts.push(s);
+          }
+        } catch {}
+        try {
+          // OASF skills -> agent_skills
+          for (const sk of oasfSkills) {
+            const v = String(sk).trim();
+            if (!v) continue;
+            const s = dbInstance
+              .prepare('INSERT INTO agent_skills(chainId, agentId, skill) VALUES(?, ?, ?) ON CONFLICT(chainId, agentId, skill) DO NOTHING')
+              .bind(chainId, agentId, v);
+            stmts.push(s);
+          }
+        } catch {}
+        try {
+          // OASF domains -> agent_domains (new)
+          for (const dom of oasfDomains) {
+            const v = String(dom).trim();
+            if (!v) continue;
+            const s = dbInstance
+              .prepare('INSERT INTO agent_domains(chainId, agentId, domain) VALUES(?, ?, ?) ON CONFLICT(chainId, agentId, domain) DO NOTHING')
+              .bind(chainId, agentId, v);
+            stmts.push(s);
+          }
+        } catch {}
+        try {
+          // protocols -> agent_protocols (new)
+          for (const p of protocolRows) {
+            const pn = String(p.protocol).trim();
+            if (!pn) continue;
+            const pv = String(p.version ?? '').trim(); // store empty string if missing
+            const s = dbInstance
+              .prepare('INSERT INTO agent_protocols(chainId, agentId, protocol, version) VALUES(?, ?, ?, ?) ON CONFLICT(chainId, agentId, protocol, version) DO NOTHING')
+              .bind(chainId, agentId, pn, pv);
+            stmts.push(s);
+          }
+        } catch {}
+
+        if (stmts.length && typeof dbInstance.batch === 'function') {
+          try {
+            await dbInstance.batch(stmts);
+          } catch {
+            // fallback: run sequentially
+            for (const s of stmts) {
+              try { await s.run(); } catch {}
+            }
+          }
+        } else {
+          // No batching support; best-effort sequential.
+          for (const s of stmts) {
+            try { await s.run(); } catch {}
+          }
+        }
+        if (process.env.DEBUG_METADATA === '1') {
+          console.info("............update into table: agentId: ", agentId);
+          console.info("............update into table: agentAccount: ", agentAccount);
+          console.info("............update into table: type: ", type);
+          console.info("............update into table: name: ", name);
+          console.info("............update into table: description: ", desc);
+          console.info("............update into table: image: ", img);
+          console.info("............update into table: a2aEndpoint: ", a2aEndpoint);
+          console.info("............update into table: ensEndpoint: ", ensEndpoint);
+        }
         const updateTime = Math.floor(Date.now() / 1000);
         
         // Compute DID values
@@ -706,6 +599,17 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         const didAccountValue = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
         const didNameValue = name && name.endsWith('.eth') ? `did:ens:${chainId}:${name}` : null;
         
+        // Prefer storing the raw subgraph JSON (metadataJsonRaw) for agents.rawJson.
+        // Fall back to stringifying the parsed metadata object.
+        let rawJsonToStore: string | null = metadataJsonRaw;
+        if (!rawJsonToStore) {
+          try {
+            rawJsonToStore = JSON.stringify(meta);
+          } catch {
+            rawJsonToStore = null;
+          }
+        }
+
         await dbInstance.prepare(`
           UPDATE agents SET
             type = COALESCE(type, ?),
@@ -768,26 +672,30 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           didIdentity,
           didAccountValue,
           didNameValue,
-          JSON.stringify(meta),
+          rawJsonToStore,
           updateTime,
           chainId,
           agentId,
         );
 
-        // Precompute ATI after metadata update
-        try {
-          await computeAndUpsertATI(dbInstance, chainId, agentId);
-        } catch (e) {
-          console.warn('............ATI compute failed (metadata update)', e);
+        // ATI compute is intentionally NOT part of the hot path (expensive). Use CLI only.
+        if (process.env.ATI_COMPUTE_ON_WRITE === '1') {
+          try {
+            await computeAndUpsertATI(dbInstance, chainId, agentId);
+          } catch (e) {
+            console.warn('............ATI compute failed (metadata update)', e);
+          }
         }
         // Badge processing is now done via CLI: `pnpm badge:process`
 
-        // Fetch A2A agent card when tokenUri was set/updated (best-effort).
-        try {
-          if (a2aEndpoint && shouldFetchAgentCard) {
-            await upsertAgentCardForAgent(dbInstance, chainId, agentId, String(a2aEndpoint), { force: true });
-          }
-        } catch {}
+        // Agent-card fetch is intentionally NOT part of the hot path (network-heavy). Use CLI only.
+        if (process.env.AGENT_CARD_FETCH_ON_UPDATE === '1') {
+          try {
+            if (a2aEndpoint && shouldFetchAgentCard) {
+              await upsertAgentCardForAgent(dbInstance, chainId, agentId, String(a2aEndpoint), { force: true });
+            }
+          } catch {}
+        }
 
         await recordEvent({ transactionHash: `token:${agentId}`, logIndex: 0, blockNumber }, 'MetadataFetched', { tokenId: agentId }, dbInstance);
       } catch (error) {
@@ -1082,7 +990,7 @@ async function upsertFeedbackFromGraph(
       createdAt, updatedAt
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(id) DO UPDATE SET
+    ON CONFLICT(chainId, agentId, clientAddress, feedbackIndex) DO UPDATE SET
       score=excluded.score,
       tag1=excluded.tag1,
       tag2=excluded.tag2,
@@ -1635,7 +1543,28 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   let uriMetadata: any | null = null;
   let inferred: any | null = null;
 
-  console.info("@@@@@@@@@@@@@@@@@@@ upsertFromTokenGraph 0: item: ", item)
+  if (process.env.DEBUG_TOKENS === '1') {
+    console.info("@@@@@@@@@@@@@@@@@@@ upsertFromTokenGraph 0: item: ", item);
+  }
+
+  // Parse registration JSON from the subgraph (metadataJson). This is the primary source of rich agent metadata.
+  let metadataObj: any | null = null;
+  let metadataRaw: string | null = null;
+  try {
+    if (typeof item?.metadataJson === 'string' && item.metadataJson.trim()) {
+      metadataRaw = item.metadataJson.trim();
+      try {
+        metadataObj = JSON.parse(metadataRaw);
+      } catch {}
+    } else if (item?.metadataJson && typeof item.metadataJson === 'object') {
+      metadataObj = item.metadataJson;
+      try {
+        metadataRaw = JSON.stringify(item.metadataJson);
+      } catch {
+        metadataRaw = null;
+      }
+    }
+  } catch {}
 
   // If name is missing but we have a tokenURI, try to fetch and infer fields
   /*
@@ -1679,14 +1608,19 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   }
   */
 
-  console.info("@@@@@@@@@@@@@@@@@@@ upsertFromTokenGraph 1: agentName: ", agentId, agentName)
+  if (process.env.DEBUG_TOKENS === '1') {
+    console.info("@@@@@@@@@@@@@@@@@@@ upsertFromTokenGraph 1: agentName: ", agentId, agentName);
+  }
   const currentTime = Math.floor(Date.now() / 1000);
   
   // Compute DID values
   const didIdentity = `did:8004:${chainId}:${agentId}`;
   const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
   const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
-  const eoaOwner = (await resolveEoaOwnerSafe(chainId, ownerAddress)) ?? ownerAddress;
+  // Resolving EOA owners can be RPC-heavy; keep it opt-in (matches upsertFromTransfer behavior).
+  const resolveEoa = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
+  const resolvedEoaOwner = resolveEoa ? await resolveEoaOwnerSafe(chainId, ownerAddress) : null;
+  const eoaOwner = resolvedEoaOwner ?? ownerAddress;
   
   await db.prepare(`
     INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
@@ -1724,6 +1658,38 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   let a2aEndpoint: string | null = typeof item?.a2aEndpoint === 'string' ? item.a2aEndpoint : null;
   let ensEndpoint: string | null = typeof item?.ensName === 'string' ? item.ensName : null;
 
+  // Fill from registration JSON when GraphQL top-level fields are missing.
+  try {
+    if (metadataObj && typeof metadataObj === 'object') {
+      if ((!name || !name.trim())) {
+        const inferredName = readAgentName(metadataObj);
+        if (inferredName) name = inferredName;
+      }
+      if ((!description || !description.trim()) && typeof metadataObj.description === 'string' && metadataObj.description.trim()) {
+        description = metadataObj.description.trim();
+      }
+      if (!image && metadataObj.image != null) {
+        image = String(metadataObj.image);
+      }
+      if (!a2aEndpoint) {
+        const endpoints = Array.isArray(metadataObj.endpoints) ? metadataObj.endpoints : [];
+        const findEndpoint = (n: string) => {
+          const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
+          return e && typeof e.endpoint === 'string' ? e.endpoint : null;
+        };
+        a2aEndpoint = findEndpoint('A2A') || findEndpoint('a2a');
+      }
+      if (!ensEndpoint) {
+        const endpoints = Array.isArray(metadataObj.endpoints) ? metadataObj.endpoints : [];
+        const findEndpoint = (n: string) => {
+          const e = endpoints.find((x: any) => (x?.name ?? '').toLowerCase() === n.toLowerCase());
+          return e && typeof e.endpoint === 'string' ? e.endpoint : null;
+        };
+        ensEndpoint = findEndpoint('ENS') || findEndpoint('ens');
+      }
+    }
+  } catch {}
+
   // Fill from inferred registration JSON when missing
   if (inferred && typeof inferred === 'object') {
     try {
@@ -1757,8 +1723,8 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
 
   let raw: string = '{}';
   try {
-    if (item?.metadataJson && typeof item.metadataJson === 'string') raw = item.metadataJson;
-    else if (item?.metadataJson && typeof item.metadataJson === 'object') raw = JSON.stringify(item.metadataJson);
+    if (metadataRaw) raw = metadataRaw;
+    else if (metadataObj) raw = JSON.stringify(metadataObj);
     else if (inferred) raw = JSON.stringify(inferred);
     else {
       // Use uriMetadata if we fetched it earlier
@@ -1808,15 +1774,21 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
 
   // Write extended fields into agents
   const updateTime = Math.floor(Date.now() / 1000);
-  const agentCategory = readAgentCategory(uriMetadata ?? (typeof item?.metadataJson === 'object' ? item.metadataJson : null));
+  const agentCategory = readAgentCategory(uriMetadata ?? metadataObj);
   
   // Extract active field from metadata
   // Default to false, only set to true if explicitly set to true in tokenUri JSON
-  const metadataForActive = uriMetadata ?? (typeof item?.metadataJson === 'object' ? item.metadataJson : null);
+  const metadataForActive = uriMetadata ?? metadataObj;
   const activeValue = metadataForActive?.active;
   const active = activeValue !== undefined
     ? !!(activeValue === true || activeValue === 1 || String(activeValue).toLowerCase() === 'true')
     : false; // Default to false if not present
+
+  // supportedTrust can appear as supportedTrust OR supportedTrusts in registration JSON (we accept either).
+  const supportedTrust =
+    Array.isArray(metadataObj?.supportedTrust) ? metadataObj.supportedTrust.map(String) :
+    Array.isArray(metadataObj?.supportedTrusts) ? metadataObj.supportedTrusts.map(String) :
+    [];
   
   await db.prepare(`
     UPDATE agents SET
@@ -1845,7 +1817,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     a2aEndpoint,
     ensEndpoint,
     agentAccountEndpoint,
-    JSON.stringify([]),
+    JSON.stringify(supportedTrust),
     active ? 1 : 0,
     raw,
     updateTime,
@@ -1856,7 +1828,9 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   // Fetch A2A agent card when tokenUri was set/updated (best-effort).
   try {
     if (tokenUri && a2aEndpoint) {
-      await upsertAgentCardForAgent(db, chainId, agentId, String(a2aEndpoint), { force: true });
+      if (process.env.AGENT_CARD_FETCH_ON_UPDATE === '1') {
+        await upsertAgentCardForAgent(db, chainId, agentId, String(a2aEndpoint), { force: true });
+      }
     }
   } catch {}
 }
@@ -1879,6 +1853,9 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   } catch (error) {
     console.warn('............applyUriUpdateFromGraph: invalid token id', tokenIdRaw, error);
     return;
+  }
+  if (process.env.DEBUG_TRANSFERS === '1') {
+    console.info('.... processed agentId (uriUpdate)', { chainId, agentId: toDecString(tokenId), tokenId: tokenId.toString() });
   }
   if (tokenId <= 0n) return;
 
@@ -2070,18 +2047,22 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     agentId,
   );
 
-  // Fetch A2A agent card when tokenUri was set/updated (best-effort).
-  try {
-    if (a2aEndpoint && tokenUri) {
-      await upsertAgentCardForAgent(dbInstance, chainId, agentId, String(a2aEndpoint), { force: true });
-    }
-  } catch {}
+  // Agent-card fetch is intentionally NOT part of the hot path (network-heavy). Use CLI only.
+  if (process.env.AGENT_CARD_FETCH_ON_UPDATE === '1') {
+    try {
+      if (a2aEndpoint && tokenUri) {
+        await upsertAgentCardForAgent(dbInstance, chainId, agentId, String(a2aEndpoint), { force: true });
+      }
+    } catch {}
+  }
 
-  // Precompute ATI for fast frontend retrieval
-  try {
-    await computeAndUpsertATI(dbInstance, chainId, agentId);
-  } catch (e) {
-    console.warn('............ATI compute failed (applyUriUpdateFromGraph)', e);
+  // ATI compute is intentionally NOT part of the hot path (expensive). Use CLI only.
+  if (process.env.ATI_COMPUTE_ON_WRITE === '1') {
+    try {
+      await computeAndUpsertATI(dbInstance, chainId, agentId);
+    } catch (e) {
+      console.warn('............ATI compute failed (applyUriUpdateFromGraph)', e);
+    }
   }
   // Badge processing is now done via CLI: `pnpm badge:process`
 }
@@ -2401,7 +2382,12 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
 
   // Keep pages relatively small to reduce load on The Graph and avoid long-running queries/timeouts.
-  const pageSize = 200;
+  const pageSize = (() => {
+    const raw = process.env.SUBGRAPH_PAGE_SIZE;
+    const n = raw && raw.trim() ? Number(raw) : NaN;
+    // 500 is usually safe for subgraphs; tune via env.
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 500;
+  })();
 
   const fetchAllFromSubgraph = async (
     label: string,
@@ -2933,8 +2919,10 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const fb = feedbacksOrdered[i];
     const blockNum = BigInt(fb?.blockNumber || 0);
     try {
-      console.info("............  processing feedback upsert: ", fb?.id);
-      console.info(`............  processing feedback upsert: agentId=${fb?.agentId}, id=${fb?.id}`);
+      if (process.env.DEBUG_FEEDBACK === '1') {
+        console.info("............  processing feedback upsert: ", fb?.id);
+        console.info(`............  processing feedback upsert: agentId=${fb?.agentId}, id=${fb?.id}`);
+      }
       await upsertFeedbackFromGraph(fb, chainId, dbInstance, feedbackInsertBatch);
       await updateFeedbackCheckpointIfNeeded(blockNum);
       if ((i + 1) % 25 === 0 || i === feedbacksOrdered.length - 1) {
@@ -3132,7 +3120,6 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   // Badge processing is now done via CLI: `pnpm badge:process`
 
 
-  /*
   const tokenRecords = tokenItems
     .map((item) => {
       let mintedAt = 0n;
@@ -3171,7 +3158,6 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       throw error;
     }
   }
-  */
 
   // Badge processing and rankings are now done via CLI: `pnpm badge:process`
 
@@ -3386,57 +3372,13 @@ async function processSingleAgentId(agentId: string) {
     console.error('Initial GraphQL backfill failed:', e);
   }
 
-  // Backfill A2A agent cards for any agents missing agentCardJson (resumable via checkpoint).
-  // Enabled by default; disable with AGENT_CARD_BACKFILL=0
-  try {
-    const enabled = process.env.AGENT_CARD_BACKFILL !== '0';
-    if (enabled) {
-      const reset = process.env.AGENT_CARD_BACKFILL_RESET === '1';
-      const chunkSizeRaw = process.env.AGENT_CARD_BACKFILL_CHUNK_SIZE;
-      const chunkSize = chunkSizeRaw ? Number(chunkSizeRaw) : undefined;
-      await backfillAgentCards(db, { chunkSize, reset });
-    } else {
-      console.info('[agent-card-backfill] disabled (AGENT_CARD_BACKFILL=0)');
-    }
-  } catch (e) {
-    console.warn('[agent-card-backfill] failed', e);
-  }
+  // Agent-card backfill is intentionally NOT part of the indexer runtime. Use CLI only.
 
   // OASF skill metadata sync is now done via CLI: `pnpm skills:sync`
 
-  // Optional: write RDF for agents that already have agentCardJson stored.
-  await maybeBackfillRdfFromStoredAgentCards(db);
+  // RDF export is intentionally NOT part of the indexer runtime.
 
-  const pineconeTarget = {
-    index: process.env.PINECONE_INDEX || '(unset)',
-    namespace: process.env.PINECONE_NAMESPACE || '(default)',
-  };
-  console.info('[semantic-ingest] pinecone target', pineconeTarget);
-
-  const semanticSearchService = createSemanticSearchServiceFromEnv();
-  if (semanticSearchService) {
-    try {
-      console.info('[semantic-ingest] starting Pinecone ingest');
-      if (process.env.SKIP_SEMANTIC_INGEST === '1') {
-        console.info('[semantic-ingest] skipped (SKIP_SEMANTIC_INGEST=1)');
-        return;
-      }
-      if (process.env.SEMANTIC_INGEST_RESET === '1') {
-        try {
-          await db.prepare("DELETE FROM checkpoints WHERE key = 'semanticIngestCursor'").run();
-          console.info('[semantic-ingest] reset: cleared semanticIngestCursor checkpoint');
-        } catch (e) {
-          console.warn('[semantic-ingest] reset requested but failed to clear semanticIngestCursor checkpoint', e);
-        }
-      }
-      const ingestResult = await ingestAgentsIntoSemanticStore(db, semanticSearchService, { chunkSize: 100 });
-      console.log(`✅ Semantic ingest completed: ${ingestResult.processed} agents across ${ingestResult.batches} batches`);
-    } catch (error) {
-      console.error('❌ Semantic ingest failed:', error);
-    }
-  } else {
-    console.log('[semantic-ingest] Semantic search not configured; skipping Pinecone ingest');
-  }
+  // Semantic ingest is intentionally NOT part of the indexer runtime. Use CLI only.
 
   // Subscribe to on-chain events as a safety net (optional)
   //const unwatch = watch();

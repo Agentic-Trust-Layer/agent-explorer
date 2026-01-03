@@ -169,23 +169,8 @@ export async function upsertAgentCardForAgent(
     // best-effort
   }
 
-  // Only update RDF when we successfully fetched/stored an agent card.
-  // This runs only in Node.js (local indexer). Workers environments will skip.
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const isNode = typeof process !== 'undefined' && Boolean((process as any).versions?.node);
-    if (isNode) {
-      // Extensionless import works in both tsx (ts) and built (js) environments.
-      const mod = await import('../rdf/export-agent-rdf');
-      if (typeof (mod as any).exportAgentRdfForAgentDescriptorUpdate === 'function') {
-        await (mod as any).exportAgentRdfForAgentDescriptorUpdate(db, chainId, agentId);
-      }
-    }
-  } catch (err) {
-    if (process.env.DEBUG_RDF_EXPORT === '1') {
-      console.warn('[rdf-export] failed', { chainId, agentId, err });
-    }
-  }
+  // RDF export is intentionally NOT part of the indexer runtime.
+  // Run RDF generation via CLI only.
 
   return true;
 }
