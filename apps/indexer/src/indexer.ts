@@ -7,7 +7,6 @@ import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 import { ingestAgentsIntoSemanticStore } from './semantic/agent-ingest.js';
 import { resolveEoaOwner } from './ownership.js';
 import { computeAndUpsertATI } from './ati.js';
-import { trustLedgerProcessAgent } from './trust-ledger/processor.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 import { syncOASF } from './oasf-sync.js';
 
@@ -782,11 +781,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         } catch (e) {
           console.warn('............ATI compute failed (metadata update)', e);
         }
-        try {
-          await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: null, evidence: { source: 'metadata' } });
-        } catch (e) {
-          console.warn('............Trust Ledger processing failed (metadata update)', e);
-        }
+        // Badge processing is now done via CLI: `pnpm badge:process`
 
         // Fetch A2A agent card when tokenUri was set/updated (best-effort).
         try {
@@ -1137,12 +1132,7 @@ async function upsertFeedbackFromGraph(
     now,
   ]);
 
-  // Trust Ledger processing (badge/points) depends on feedback milestones.
-  try {
-    await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: id, evidence: { source: 'feedback', feedbackIndex } });
-  } catch (e) {
-    console.warn('............Trust Ledger processing failed (upsertFeedbackFromGraph)', e);
-  }
+  // Badge processing is now done via CLI: `pnpm badge:process`
 
   return feedbackIndex;
 }
@@ -2089,11 +2079,7 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   } catch (e) {
     console.warn('............ATI compute failed (applyUriUpdateFromGraph)', e);
   }
-  try {
-    await trustLedgerProcessAgent(dbInstance, chainId, agentId, { evidenceEventId: String(update?.id ?? ''), evidence: { source: 'uriUpdate' } });
-  } catch (e) {
-    console.warn('............Trust Ledger processing failed (applyUriUpdateFromGraph)', e);
-  }
+  // Badge processing is now done via CLI: `pnpm badge:process`
 }
 
 async function recordEvent(ev: any, type: string, args: any, agentIdForEventOrDb?: string | any, dbOverride?: any) {
@@ -2235,7 +2221,7 @@ async function upsertAssociationFromGraph(
       const aid = String(r?.agentId ?? '');
       if (!aid) continue;
       await computeAndUpsertATI(dbInstance, chainId, aid);
-      await trustLedgerProcessAgent(dbInstance, chainId, aid, { evidenceEventId: null, evidence: { source: 'association', associationId } });
+      // Badge processing is now done via CLI: `pnpm badge:process`
     }
   } catch (e) {
     console.warn('............ATI compute failed (association upsert)', e);
@@ -3139,17 +3125,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   await associationsBatch.flush();
   await associationRevocationsBatch.flush();
 
-  // Trust Ledger processing (badge/points) must happen AFTER batch flush so signals see the new rows.
-  if (validationAgentsToProcess.size > 0) {
-    console.info(`............  trust-ledger: processing ${validationAgentsToProcess.size} agent(s) affected by validation responses`);
-    for (const [aid, evidenceId] of validationAgentsToProcess.entries()) {
-      try {
-        await trustLedgerProcessAgent(dbInstance, chainId, aid, { evidenceEventId: evidenceId || null, evidence: { source: 'validationResponse' } });
-      } catch (e) {
-        console.warn('............Trust Ledger processing failed (validationResponse post-flush)', e);
-      }
-    }
-  }
+  // Badge processing is now done via CLI: `pnpm badge:process`
 
 
   /*
@@ -3193,17 +3169,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   }
   */
 
-  // Update trust ledger rankings after all processing is complete
-  try {
-    const { updateTrustLedgerRankings } = await import('./trust-ledger/rankings.js');
-    const chainId = await client.getChainId();
-    console.log(`[backfill] Updating trust ledger rankings for chain ${chainId}...`);
-    await updateTrustLedgerRankings(dbInstance, chainId);
-    console.log(`[backfill] Trust ledger rankings updated for chain ${chainId}`);
-  } catch (error) {
-    console.error('[backfill] Error updating trust ledger rankings:', error);
-    // Don't throw - rankings update failure shouldn't break indexing
-  }
+  // Badge processing and rankings are now done via CLI: `pnpm badge:process`
 
 }
 /*
