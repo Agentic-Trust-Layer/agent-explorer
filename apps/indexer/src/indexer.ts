@@ -8,7 +8,6 @@ import { ingestAgentsIntoSemanticStore } from './semantic/agent-ingest.js';
 import { resolveEoaOwner } from './ownership.js';
 import { computeAndUpsertATI } from './ati.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
-import { syncOASF } from './oasf-sync.js';
 
 
 import { 
@@ -3398,18 +3397,7 @@ async function processSingleAgentId(agentId: string) {
     console.warn('[agent-card-backfill] failed', e);
   }
 
-  // Sync OASF domains and skills from GitHub
-  // Enabled by default; disable with OASF_SYNC=0
-  try {
-    const enabled = process.env.OASF_SYNC !== '0';
-    if (enabled) {
-      await syncOASF(db);
-    } else {
-      console.info('[oasf-sync] disabled (OASF_SYNC=0)');
-    }
-  } catch (e) {
-    console.warn('[oasf-sync] failed', e);
-  }
+  // OASF skill metadata sync is now done via CLI: `pnpm skills:sync`
 
   // Optional: write RDF for agents that already have agentCardJson stored.
   await maybeBackfillRdfFromStoredAgentCards(db);

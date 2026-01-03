@@ -13,6 +13,7 @@
     "import:hol": "tsx src/hol/import-cli.ts",
     "import:agentverse": "tsx src/agentverse/import-cli.ts",
     "badge:process": "tsx src/trust-ledger/badge-cli.ts",
+    "skills:sync": "tsx src/oasf/oasf-sync-cli.ts",
     "backfill:rawjson": "tsx src/backfill/rawjson-cli.ts",
     "crossref": "tsx src/crossref/cli.ts",
     "crossref:hol-agentverse": "tsx src/crossref/cli.ts hol-agentverse",
