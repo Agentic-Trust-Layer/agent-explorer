@@ -858,7 +858,9 @@ function createBatchWriter(dbInstance: any, label: string, batchSize = 50): Batc
     if (!queue.length) return;
     const statements = queue;
     queue = [];
-    console.info(`............[batch:${label}] flushing ${statements.length} statements`);
+    if (process.env.D1_BATCH_LOG === '1') {
+      console.info(`............[batch:${label}] flushing ${statements.length} statements`);
+    }
     if (supportsBatch) {
       await dbInstance.batch(statements);
     } else {

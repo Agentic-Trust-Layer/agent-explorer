@@ -26,6 +26,23 @@ class D1Database {
   private config: D1Config;
   private baseUrl: string;
 
+  private async runWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+    const concurrency = Number.isFinite(limit) && limit > 0 ? Math.trunc(limit) : 1;
+    if (concurrency <= 1 || items.length <= 1) {
+      for (const it of items) await fn(it);
+      return;
+    }
+    let idx = 0;
+    const workers = new Array(Math.min(concurrency, items.length)).fill(0).map(async () => {
+      while (true) {
+        const i = idx++;
+        if (i >= items.length) break;
+        await fn(items[i]);
+      }
+    });
+    await Promise.all(workers);
+  }
+
   constructor(config: D1Config) {
     this.config = config;
     // Validate account ID format (should be hex, not email)
@@ -205,6 +222,7 @@ class D1Database {
     if (!Array.isArray(statements) || !statements.length) return;
     const maxBatch = Number(process.env.D1_BATCH_MAX_STATEMENTS ?? 50) || 50;
     const tryBatch = process.env.D1_BATCH !== '0';
+    const fallbackConcurrency = Number(process.env.D1_BATCH_CONCURRENCY ?? 8) || 8;
 
     // Normalize to [{sql, params}] when possible (from .bind()).
     const collected: { sql: string; params: any[] }[] = [];
@@ -220,14 +238,14 @@ class D1Database {
 
     // If we can't batch them, run sequentially.
     if (!tryBatch || collected.length === 0) {
-      for (const s of statements) {
-        if (!s) continue;
-        if (typeof s.run === 'function') {
-          await s.run();
-        } else if (typeof s === 'function') {
-          await s();
-        }
-      }
+      await this.runWithConcurrency(
+        statements.filter(Boolean),
+        fallbackConcurrency,
+        async (s: any) => {
+          if (typeof s.run === 'function') return await s.run();
+          if (typeof s === 'function') return await s();
+        },
+      );
       return;
     }
 
@@ -240,20 +258,22 @@ class D1Database {
         // Fallback: if the API doesn't support batching (or rejects the payload), run sequentially.
         const msg = String(e?.message || '');
         console.warn('[d1] batch failed, falling back to sequential', { err: msg.slice(0, 300), statements: chunk.length });
-        for (const st of chunk) {
+        await this.runWithConcurrency(chunk, fallbackConcurrency, async (st) => {
           await this.execute(st.sql, st.params);
-        }
+        });
       }
     }
 
     // Execute any non-bind statements sequentially.
-    for (const s of fallback) {
-      if (!s) continue;
-      if (typeof s.run === 'function') {
-        await s.run();
-      } else if (typeof s === 'function') {
-        await s();
-      }
+    if (fallback.length) {
+      await this.runWithConcurrency(
+        fallback.filter(Boolean),
+        fallbackConcurrency,
+        async (s: any) => {
+          if (typeof s.run === 'function') return await s.run();
+          if (typeof s === 'function') return await s();
+        },
+      );
     }
   }
 
