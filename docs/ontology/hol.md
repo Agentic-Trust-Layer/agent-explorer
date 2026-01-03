@@ -85,6 +85,62 @@ ORDER BY ?agentId
 LIMIT 200
 ```
 
+#### AgentProfileHOL attributes for a specific registry (example: `erc-8004`)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX hol: <https://www.agentictrust.io/ontology/hol#>
+
+SELECT
+  ?agent ?agentId ?identity ?profile ?registry ?trustScore
+  ?uaid ?originalId ?displayName ?alias ?bio
+  ?availabilityStatus ?availabilityCheckedAt ?availabilityReason ?availabilitySource ?availabilityLatencyMs ?availabilityScore ?available
+  ?detectedLanguage ?detectedLanguageCode ?detectedLanguageConfidence
+  ?adapter ?protocol ?aiagentCreator ?aiagentModel ?communicationSupported ?routingSupported
+  ?imageStatus ?lastIndexed ?lastSeen
+WHERE {
+  ?agent a agentictrust:AIAgent ;
+    agentictrust:agentId ?agentId ;
+    agentictrust:hasIdentity ?identity ;
+    hol:hasAgentProfileHOL ?profile .
+
+  ?profile hol:registry "erc-8004" .
+  BIND("erc-8004" AS ?registry)
+
+  OPTIONAL { ?profile hol:trustScore ?trustScore . }
+  OPTIONAL { ?profile hol:uaid ?uaid . }
+  OPTIONAL { ?profile hol:originalId ?originalId . }
+  OPTIONAL { ?profile hol:displayName ?displayName . }
+  OPTIONAL { ?profile hol:alias ?alias . }
+  OPTIONAL { ?profile hol:bio ?bio . }
+
+  OPTIONAL { ?profile hol:availabilityStatus ?availabilityStatus . }
+  OPTIONAL { ?profile hol:availabilityCheckedAt ?availabilityCheckedAt . }
+  OPTIONAL { ?profile hol:availabilityReason ?availabilityReason . }
+  OPTIONAL { ?profile hol:availabilitySource ?availabilitySource . }
+  OPTIONAL { ?profile hol:availabilityLatencyMs ?availabilityLatencyMs . }
+  OPTIONAL { ?profile hol:availabilityScore ?availabilityScore . }
+  OPTIONAL { ?profile hol:available ?available . }
+
+  OPTIONAL { ?profile hol:detectedLanguage ?detectedLanguage . }
+  OPTIONAL { ?profile hol:detectedLanguageCode ?detectedLanguageCode . }
+  OPTIONAL { ?profile hol:detectedLanguageConfidence ?detectedLanguageConfidence . }
+
+  OPTIONAL { ?profile hol:adapter ?adapter . }
+  OPTIONAL { ?profile hol:protocol ?protocol . }
+  OPTIONAL { ?profile hol:aiagentCreator ?aiagentCreator . }
+  OPTIONAL { ?profile hol:aiagentModel ?aiagentModel . }
+  OPTIONAL { ?profile hol:communicationSupported ?communicationSupported . }
+  OPTIONAL { ?profile hol:routingSupported ?routingSupported . }
+
+  OPTIONAL { ?profile hol:imageStatus ?imageStatus . }
+  OPTIONAL { ?profile hol:lastIndexed ?lastIndexed . }
+  OPTIONAL { ?profile hol:lastSeen ?lastSeen . }
+}
+ORDER BY ?agentId
+LIMIT 200
+```
+
 #### Profile endpoints (safe IRIs only)
 
 ```sparql

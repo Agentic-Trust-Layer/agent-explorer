@@ -434,8 +434,8 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
       VALUES (
         (SELECT COALESCE(MAX(internalId), 0) + 1 FROM agents),
         ?, ?,
-        ?, 0, NULL, NULL,
-        NULL,
+        ?, ?, ?, ?,
+        ?,
         ?, ?, ?,
         ?, ?, ?,
         ?, ?, ?,
@@ -449,7 +449,8 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
         ?, ?, ?,
         ?, ?,
         ?, ?, ?,
-        ?, ?
+        ?, ?, ?, ?,
+        ?
       )
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         nameNorm=excluded.nameNorm,
@@ -494,6 +495,10 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
       chainId,
       agentId,
       nameNorm,
+      0, // isDuplicate
+      null, // duplicateOfInternalId
+      null, // duplicateReason
+      null, // crossrefAgentverseInternalId
       agentAddress,
       agentOwner,
       agentName,
@@ -526,7 +531,7 @@ async function upsertAgentFromHol(db: AnyDb, chainId: number, hit: HolSearchHit)
       null, // tokenUri
       0, // createdAtBlock (non-chain)
       createdAtTime,
-      createdAtTime,
+      createdAtTime, // agentCreatedAtTime
       'HOL', // type
       description,
       null, // image

@@ -10,8 +10,6 @@ import { computeAndUpsertATI } from './ati.js';
 import { trustLedgerProcessAgent } from './trust-ledger/processor.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 import { syncOASF } from './oasf-sync.js';
-import { importNandaAgentsFromEnv } from './nanda/nanda-import.js';
-import { importHolAgentsFromEnv } from './hol/hol-import.js';
 
 
 import { 
@@ -3375,64 +3373,10 @@ async function processSingleAgentId(agentId: string) {
   }
   
   // Normal indexing mode
-  // Optional: Import HOL Registry entries into the hol-indexer D1 database.
-  // Must run BEFORE ERC-8004 GraphQL backfill (transfers/tokens/etc).
-  // Disabled by default unless env vars are present; force-disable with HOL_IMPORT=0.
-  try {
-    const enabled = process.env.HOL_IMPORT !== '0';
-    const hasDbEnv =
-      !!process.env.HOL_CLOUDFLARE_ACCOUNT_ID &&
-      !!process.env.HOL_CLOUDFLARE_D1_DATABASE_ID &&
-      !!process.env.HOL_CLOUDFLARE_API_TOKEN;
-    console.info('[hol-import] preflight', { enabled, hasDbEnv });
-    if (enabled && hasDbEnv) {
-      console.info('[hol-import] starting');
-      await importHolAgentsFromEnv({
-        holBaseUrl: process.env.HOL_BASE_URL,
-        pageSize: process.env.HOL_PAGE_SIZE ? Number(process.env.HOL_PAGE_SIZE) : undefined,
-        maxPages: process.env.HOL_MAX_PAGES ? Number(process.env.HOL_MAX_PAGES) : undefined,
-        chainId: process.env.HOL_CHAIN_ID ? Number(process.env.HOL_CHAIN_ID) : undefined,
-      });
-      console.info('[hol-import] complete');
-    } else if (!enabled) {
-      console.info('[hol-import] disabled (HOL_IMPORT=0)');
-    } else {
-      console.warn('[hol-import] skipped (missing HOL_CLOUDFLARE_* env vars)');
-    }
-  } catch (e) {
-    console.warn('[hol-import] failed', e);
-  }
-
-  // Optional: Import NANDA Registry "servers" into the nanda-indexer D1 database.
-  // Must run BEFORE ERC-8004 GraphQL backfill (transfers/tokens/etc).
-  // Disabled by default unless env vars are present; force-disable with NANDA_IMPORT=0.
-  try {
-    const enabled = process.env.NANDA_IMPORT !== '0';
-    const hasDbEnv =
-      !!process.env.NANDA_CLOUDFLARE_ACCOUNT_ID &&
-      !!process.env.NANDA_CLOUDFLARE_D1_DATABASE_ID &&
-      !!process.env.NANDA_CLOUDFLARE_API_TOKEN;
-
-    console.info('[nanda-import] preflight', { enabled, hasDbEnv });
-    if (enabled && hasDbEnv) {
-      console.info('[nanda-import] starting');
-      await importNandaAgentsFromEnv({
-        nandaBaseUrl: process.env.NANDA_BASE_URL,
-        pageSize: process.env.NANDA_PAGE_SIZE ? Number(process.env.NANDA_PAGE_SIZE) : undefined,
-        maxPages: process.env.NANDA_MAX_PAGES ? Number(process.env.NANDA_MAX_PAGES) : undefined,
-        search: process.env.NANDA_SEARCH,
-        includeDetails: process.env.NANDA_INCLUDE_DETAILS === '1',
-        chainId: process.env.NANDA_CHAIN_ID ? Number(process.env.NANDA_CHAIN_ID) : undefined,
-      });
-      console.info('[nanda-import] complete abcd');
-    } else if (!enabled) {
-      console.info('[nanda-import] disabled (NANDA_IMPORT=0)');
-    } else {
-      console.warn('[nanda-import] skipped (missing NANDA_CLOUDFLARE_* env vars)');
-    }
-  } catch (e) {
-    console.warn('[nanda-import] failed', e);
-  }
+  // HOL import is intentionally NOT part of the normal indexer flow.
+  // Run it only via the CLI: `pnpm import:hol` or `pnpm graphdb:ingest-hol ...`
+  // NANDA import is intentionally NOT part of the normal indexer flow.
+  // Run it only via the CLI: `pnpm import:nanda`
 
   // Ensure our primary D1 schema is initialized (development safety checks)
   await ensureSchemaInitialized();
