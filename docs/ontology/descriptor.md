@@ -51,7 +51,9 @@ direction LR
 class Descriptor["agentictrust:Descriptor"]
 class Endpoint["agentictrust:Endpoint"]
 class EndpointType["agentictrust:EndpointType"]
+class AgentSkill["agentictrust:AgentSkill"]
 class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomain["agentictrust:AgentDomain"]
 class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 class DID["agentictrust:DID"]
 class DomainName["agentictrust:DomainName"]
@@ -59,8 +61,10 @@ class TrustType["agentictrust:TrustType"]
 
 Descriptor --> Endpoint : hasEndpoint
 Endpoint --> EndpointType : endpointType
-Descriptor --> AgentSkillClassification : hasSkill
-Descriptor --> AgentDomainClassification : hasDomain
+Descriptor --> AgentSkill : hasSkill
+AgentSkill --> AgentSkillClassification : hasSkillClassification
+Descriptor --> AgentDomain : hasDomain
+AgentDomain --> AgentDomainClassification : hasDomainClassification
 Descriptor --> DID : hasDID
 Descriptor --> DomainName : hasDomainName
 Descriptor --> TrustType : hasTrustType
@@ -97,11 +101,13 @@ direction LR
 class AIAgent["agentictrust:AIAgent"]
     class AgentIdentity8004["erc8004:AgentIdentity8004"]
 class IdentityDescriptor8004["erc8004:IdentityDescriptor8004"]
+class AgentSkill["agentictrust:AgentSkill"]
 class AgentSkillClassification["agentictrust:AgentSkillClassification"]
 
 AIAgent --> AgentIdentity8004 : hasIdentity
 AgentIdentity8004 --> IdentityDescriptor8004 : hasDescriptor
-IdentityDescriptor8004 --> AgentSkillClassification : hasSkill
+IdentityDescriptor8004 --> AgentSkill : hasSkill
+AgentSkill --> AgentSkillClassification : hasSkillClassification
 ```
 
 **SPARQL: 8004 identity and its descriptor**
@@ -110,13 +116,16 @@ IdentityDescriptor8004 --> AgentSkillClassification : hasSkill
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 
-SELECT ?agent ?identity ?descriptor ?skill
+SELECT ?agent ?identity ?descriptor ?skill ?skillClass
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:hasIdentity ?identity .
   ?identity a erc8004:AgentIdentity8004 ;
     agentictrust:hasDescriptor ?descriptor .
-  OPTIONAL { ?descriptor agentictrust:hasSkill ?skill . }
+  OPTIONAL {
+    ?descriptor agentictrust:hasSkill ?skill .
+    OPTIONAL { ?skill agentictrust:hasSkillClassification ?skillClass . }
+  }
 }
 LIMIT 200
 ```

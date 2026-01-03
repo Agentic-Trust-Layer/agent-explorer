@@ -190,6 +190,18 @@ function oasfSkillIri(skillId: string): string {
   return `<https://www.agentictrust.io/id/oasf/skill/${iriEncodePath(skillId)}>`;
 }
 
+function agentSkillIri(chainId: number, agentId: string, skillKey: string, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/agent-skill/${identifier}/${iriEncodePath(skillKey)}>`;
+}
+
+function agentDomainIri(chainId: number, agentId: string, domainKey: string, didIdentity?: string | null): string {
+  // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
+  const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
+  return `<https://www.agentictrust.io/id/agent-domain/${identifier}/${iriEncodePath(domainKey)}>`;
+}
+
 function oasfCategoryIri(kind: 'domain' | 'skill', key: string): string {
   return `<https://www.agentictrust.io/id/oasf/${kind}-category/${iriEncodeSegment(key)}>`;
 }
@@ -732,18 +744,22 @@ function renderAgentSection(
   // OASF Domains and Skills (for both ERC-8004 and non-ERC-8004)
   if (declaredOasfDomains.size) {
     for (const dom of declaredOasfDomains) {
-      const domIri = oasfDomainIri(dom);
+      const domClassIri = oasfDomainIri(dom);
+      const domIri = agentDomainIri(chainId, agentId, dom, row?.didIdentity);
       adLines.push(`  agentictrust:hasDomain ${domIri} ;`);
+      accountChunks.push(`${domIri} a agentictrust:AgentDomain, prov:Entity ; agentictrust:hasDomainClassification ${domClassIri} .\n\n`);
       // Emit a minimal OASFDomain node (full node also emitted from DB if present)
-      accountChunks.push(`${domIri} a agentictrust:OASFDomain, agentictrust:AgentDomainClassification, prov:Entity ; agentictrust:oasfDomainId "${escapeTurtleString(dom)}" .\n\n`);
+      accountChunks.push(`${domClassIri} a agentictrust:OASFDomain, agentictrust:AgentDomainClassification, prov:Entity ; agentictrust:oasfDomainId "${escapeTurtleString(dom)}" .\n\n`);
     }
   }
   if (declaredOasfSkills.size) {
     for (const sk of declaredOasfSkills) {
-      const skIri = oasfSkillIri(sk);
+      const skClassIri = oasfSkillIri(sk);
+      const skIri = agentSkillIri(chainId, agentId, sk, row?.didIdentity);
       adLines.push(`  agentictrust:hasSkill ${skIri} ;`);
+      accountChunks.push(`${skIri} a agentictrust:AgentSkill, prov:Entity ; agentictrust:hasSkillClassification ${skClassIri} .\n\n`);
       // Emit a minimal OASFSkill node (full node also emitted from DB if present)
-      accountChunks.push(`${skIri} a agentictrust:OASFSkill, agentictrust:AgentSkillClassification, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(sk)}" .\n\n`);
+      accountChunks.push(`${skClassIri} a agentictrust:OASFSkill, agentictrust:AgentSkillClassification, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(sk)}" .\n\n`);
     }
   }
   adLines.push(`  .\n`);
@@ -776,12 +792,14 @@ function renderAgentSection(
       for (const skill of tokenSkills) {
         const id = typeof skill?.id === 'string' ? skill.id.trim() : typeof skill === 'string' ? skill.trim() : '';
         if (!id) continue;
-        const sIri = skillIri(chainId, agentId, id, row.didIdentity);
+        const sClassIri = skillIri(chainId, agentId, id, row.didIdentity);
+        const sIri = agentSkillIri(chainId, agentId, id, row.didIdentity);
         descriptorLines.push(`  agentictrust:hasSkill ${sIri} ;`);
+        accountChunks.push(`${sIri} a agentictrust:AgentSkill, prov:Entity ; agentictrust:hasSkillClassification ${sClassIri} .\n\n`);
         
-        // Create Skill instance
+        // Create SkillClassification instance
         const skillLines: string[] = [];
-        skillLines.push(`${sIri} a agentictrust:AgentSkillClassification, prov:Entity ;`);
+        skillLines.push(`${sClassIri} a agentictrust:AgentSkillClassification, prov:Entity ;`);
         skillLines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
         if (typeof skill?.name === 'string' && skill.name.trim()) {
           skillLines.push(`  agentictrust:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
@@ -790,13 +808,12 @@ function renderAgentSection(
           skillLines.push(`  agentictrust:skillDescription "${escapeTurtleString(skill.description.trim())}" ;`);
         }
         
-        // Extract Domain from skill
+        // Extract Domain from skill (emit classification, but do NOT link via agentictrust:hasDomain since
+        // agentictrust:hasDomain is now Descriptor -> AgentDomain)
         if (typeof skill?.domain === 'string' && skill.domain.trim()) {
           const domainName = skill.domain.trim();
-          const domainIriValue = domainIri(domainName);
-          skillLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
-          // Emit Domain
-          accountChunks.push(`${domainIriValue} a agentictrust:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+          const domainClassIri = domainIri(domainName);
+          accountChunks.push(`${domainClassIri} a agentictrust:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
         }
         
         // Link IntentType to Skill via targetsSkill
@@ -804,7 +821,7 @@ function renderAgentSection(
         const skillDomain = typeof skill?.domain === 'string' ? skill.domain.trim() : '';
         if (skillDomain) {
           const intentTypeName = `trust.${skillDomain}`;
-          accountChunks.push(`<${intentTypeIri(intentTypeName)}> agentictrust:targetsSkill ${sIri} .\n\n`);
+          accountChunks.push(`<${intentTypeIri(intentTypeName)}> agentictrust:targetsSkill ${sClassIri} .\n\n`);
         }
         
         // Extract tags
@@ -824,9 +841,11 @@ function renderAgentSection(
       // Extract Domain from top-level tokenUri data
       if (typeof tokenUriData?.domain === 'string' && tokenUriData.domain.trim()) {
         const domainName = tokenUriData.domain.trim();
-        const domainIriValue = domainIri(domainName);
+        const domainClassIri = domainIri(domainName);
+        const domainIriValue = agentDomainIri(chainId, agentId, domainName, row.didIdentity);
         descriptorLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
-        accountChunks.push(`${domainIriValue} a agentictrust:Domain, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+        accountChunks.push(`${domainIriValue} a agentictrust:AgentDomain, prov:Entity ; agentictrust:hasDomainClassification ${domainClassIri} .\n\n`);
+        accountChunks.push(`${domainClassIri} a agentictrust:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
       }
       
       // Extract Name, Description, Image for IdentityDescriptor8004

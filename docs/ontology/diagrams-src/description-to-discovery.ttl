@@ -10,7 +10,8 @@ agentictrust:TrustDescription a owl:Class .
 
 agentictrust:AgentCardFetch a owl:Class .
 agentictrust:AgentDescriptor a owl:Class .
-agentictrust:Skill a owl:Class .
+agentictrust:AgentSkill a owl:Class .
+agentictrust:AgentSkillClassification a owl:Class .
 
 agentictrust:hadPlan a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentCardFetch ;
@@ -22,10 +23,10 @@ prov:generated a owl:ObjectProperty ;
 
 agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkill .
 
-agentictrust:declaresSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
+agentictrust:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AgentSkill ;
+  rdfs:range agentictrust:AgentSkillClassification .
 
 

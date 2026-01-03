@@ -38,7 +38,7 @@ class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class Feedback["erc8004:Feedback"]
 class FeedbackResponse["erc8004:FeedbackResponse"]
 class provAgent["prov:Agent"]
-class Skill["agentictrust:Skill"]
+class Skill["agentictrust:AgentSkillClassification"]
 class IntentType["agentictrust:IntentType"]
 
 AIAgent --> ReputationAssertion : hasReputationAssertion (agentictrust)
@@ -66,7 +66,7 @@ Feedback --> IntentType : feedbackIntentType (erc8004)
 - **`erc8004:feedbackClient`** (domain: `erc8004:Feedback`, range: `prov:Agent`)
   - Links feedback to the client/agent that provided it
 
-- **`erc8004:feedbackSkill`** (domain: `erc8004:Feedback`, range: `agentictrust:Skill`)
+- **`erc8004:feedbackSkill`** (domain: `erc8004:Feedback`, range: `agentictrust:AgentSkillClassification`)
   - Links feedback to the skill it relates to
 
 - **`erc8004:feedbackIntentType`** (domain: `erc8004:Feedback`, range: `agentictrust:IntentType`)

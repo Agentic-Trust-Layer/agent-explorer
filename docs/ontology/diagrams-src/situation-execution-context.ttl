@@ -9,7 +9,7 @@ agentictrust:Message a owl:Class .
 agentictrust:Intent a owl:Class .
 agentictrust:IntentType a owl:Class .
 agentictrust:TaskType a owl:Class .
-agentictrust:Skill a owl:Class .
+agentictrust:AgentSkillClassification a owl:Class .
 
 agentictrust:SkillInvocation a owl:Class .
 agentictrust:TaskExecution a owl:Class .
@@ -20,7 +20,7 @@ agentictrust:hasIntent a owl:ObjectProperty ;
   rdfs:range agentictrust:Intent .
 
 agentictrust:supportsIntentType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:IntentType .
 
 agentictrust:mapsToTaskType a owl:ObjectProperty ;
@@ -28,12 +28,12 @@ agentictrust:mapsToTaskType a owl:ObjectProperty ;
   rdfs:range agentictrust:TaskType .
 
 agentictrust:enablesTaskType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:TaskType .
 
 agentictrust:invokesSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:SkillInvocation ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:invocationUsedMessage a owl:ObjectProperty ;
   rdfs:domain agentictrust:SkillInvocation ;

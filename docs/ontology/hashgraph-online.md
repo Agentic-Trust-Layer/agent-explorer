@@ -37,6 +37,18 @@ This module **extends** `agentictrust-core.owl` with a concrete Descriptor type 
 
 The core idea: treat each HOL `/api/v1/search` hit as a **registry-produced descriptor** that can later be linked to an `agentictrust:AIAgent` via `agentictrust:hasDescriptor` / `hol:hasHOLAgentDescriptor`.
 
+### HOL identity + profile ontology (`hol.owl`)
+
+Source: `apps/badge-admin/public/ontology/hol.owl`
+
+This module models **HOL identity + profile descriptors** (what we export into the `holagents` GraphDB repository):
+
+- `hol:AgentIdentityHOL` + `hol:IdentityIdentifierHOL` (UAID-like identifier)
+- `hol:IdentityDescriptorHOL` (identity descriptor)
+- `hol:AgentProfileHOL` (profile descriptor extracted from HOL rawJson)
+
+Documentation: [`hol.md`](./hol.md).
+
 ### Field mapping (HOL JSON → ontology terms)
 
 Example HOL record fields map as follows (selected/high-signal fields):

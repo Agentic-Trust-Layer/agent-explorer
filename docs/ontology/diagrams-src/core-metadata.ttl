@@ -14,13 +14,16 @@ agentictrust:AIAgent a owl:Class ;
 agentictrust:AgentDescriptor a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:AgentEndpoint a owl:Class ;
-  rdfs:subClassOf prov:Entity .
-
 agentictrust:EndpointType a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:Skill a owl:Class ;
+agentictrust:Endpoint a owl:Class ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:AgentSkill a owl:Class ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:AgentSkillClassification a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
@@ -31,16 +34,20 @@ agentictrust:assembledFromMetadata a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:AgentDescriptor .
 
-agentictrust:hasEndpointEntry a owl:ObjectProperty ;
+agentictrust:hasEndpoint a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentEndpoint .
+  rdfs:range agentictrust:Endpoint .
 
 agentictrust:endpointType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentEndpoint ;
+  rdfs:domain agentictrust:Endpoint ;
   rdfs:range agentictrust:EndpointType .
 
-agentictrust:declaresSkill a owl:ObjectProperty ;
+agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkill .
+
+agentictrust:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AgentSkill ;
+  rdfs:range agentictrust:AgentSkillClassification .
 
 

@@ -383,7 +383,7 @@ direction LR
 class AIAgent["agentictrust:AIAgent"]
 class Feedback["erc8004:Feedback"]
 class provAgent["prov:Agent"]
-class Skill["agentictrust:Skill"]
+class Skill["agentictrust:AgentSkillClassification"]
 
 AIAgent --> Feedback : hasFeedback
 Feedback --> provAgent : feedbackClient

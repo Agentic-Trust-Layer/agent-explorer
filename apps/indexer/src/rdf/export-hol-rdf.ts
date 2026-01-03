@@ -154,11 +154,24 @@ function identifierDescriptorIri(identifierIri: string): string {
 }
 
 function oasfDomainIri(domainId: string): string {
-  return `<https://www.agentictrust.io/id/oasf/domain/${iriEncodeSegment(domainId)}>`;
+  return `<https://www.agentictrust.io/id/oasf/domain/${iriEncodePath(domainId)}>`;
 }
 
 function oasfSkillIri(skillId: string): string {
-  return `<https://www.agentictrust.io/id/oasf/skill/${iriEncodeSegment(skillId)}>`;
+  return `<https://www.agentictrust.io/id/oasf/skill/${iriEncodePath(skillId)}>`;
+}
+
+function iriEncodePath(pathValue: string): string {
+  return String(pathValue)
+    .split('/')
+    .filter((s) => s.length > 0)
+    .map((s) => iriEncodeSegment(s))
+    .join('/');
+}
+
+function holAgentSkillIri(agentId: string, skillKey: string): string {
+  const identifier = iriEncodeSegment(agentId);
+  return `<https://www.agentictrust.io/id/hol-agent-skill/${identifier}/${iriEncodePath(skillKey)}>`;
 }
 
 function endpointIri(agentId: string, endpointName: string, uaid?: string | null): string {
@@ -472,9 +485,11 @@ export async function exportHolAgentsRdf(db: AnyDb): Promise<{ outPath: string; 
     const oasfSkills: any[] = rawJsonData?.metadata?.oasfSkills || rawJsonData?.metadata?.oasf_skills || (row?.oasfSkillsJson ? JSON.parse(row.oasfSkillsJson) : []);
     for (const skill of oasfSkills) {
       if (typeof skill === 'string' && skill.trim()) {
-        const skillIri = oasfSkillIri(skill.trim());
-        profileLines.push(`  agentictrust:hasSkill ${skillIri} ;`);
-        chunks.push(`${skillIri} a agentictrust:OASFSkill, agentictrust:AgentSkillClassification, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(skill.trim())}" .\n\n`);
+        const skClassIri = oasfSkillIri(skill.trim());
+        const skIri = holAgentSkillIri(agentId, skill.trim());
+        profileLines.push(`  agentictrust:hasSkill ${skIri} ;`);
+        chunks.push(`${skIri} a agentictrust:AgentSkill, prov:Entity ; agentictrust:hasSkillClassification ${skClassIri} .\n\n`);
+        chunks.push(`${skClassIri} a agentictrust:OASFSkill, agentictrust:AgentSkillClassification, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(skill.trim())}" .\n\n`);
       }
     }
     

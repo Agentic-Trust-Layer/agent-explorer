@@ -72,10 +72,12 @@ class NANDAIdentityDescriptor["NANDAIdentityDescriptor"]
 class NameDescriptorENS["agentictrustEth:NameDescriptorENS"]
 class DNSNameDescriptor["DNSNameDescriptor"]
 
-class Skill["agentictrust:Skill"]
-class Domain["agentictrust:Domain"]
+class AgentSkill["agentictrust:AgentSkill"]
+class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomain["agentictrust:AgentDomain"]
+class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 class Tag["agentictrust:Tag"]
-class Endpoint["agentictrust:AgentEndpoint"]
+class Endpoint["agentictrust:Endpoint"]
 
 AIAgent --> AgentDescriptor : hasDescriptor
 Account --> AccountDescriptor : hasDescriptor
@@ -88,9 +90,11 @@ NANDAIdentity --> NANDAIdentityDescriptor : hasDescriptor
 NameENS --> NameDescriptorENS : hasDescriptor
 DNSName --> DNSNameDescriptor : hasDescriptor
 
-AgentDescriptor --> Skill : hasSkill / declaresSkill
-AgentDescriptor --> Domain : declaresDomain / (via Skill)
-AgentDescriptor --> Tag : (via Skill)
+AgentDescriptor --> AgentSkill : hasSkill
+AgentSkill --> AgentSkillClassification : hasSkillClassification
+AgentDescriptor --> AgentDomain : hasDomain
+AgentDomain --> AgentDomainClassification : hasDomainClassification
+AgentSkillClassification --> Tag : hasTag
 AgentDescriptor --> Endpoint : hasEndpoint
 ```
 
@@ -131,17 +135,13 @@ WHERE {
   # For AgentDescriptor, get discovery metadata
   OPTIONAL {
     ?descriptor a agentictrust:AgentDescriptor .
-    {
-      ?descriptor agentictrust:hasSkill ?skill .
-    }
-    UNION
-    {
-      ?descriptor agentictrust:declaresSkill ?skill .
-    }
-
     OPTIONAL {
-      ?skill agentictrust:hasDomain ?domain .
-      ?domain a agentictrust:Domain .
+      ?descriptor agentictrust:hasSkill ?agentSkill .
+      OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
+    }
+    OPTIONAL {
+      ?descriptor agentictrust:hasDomain ?agentDomain .
+      OPTIONAL { ?agentDomain agentictrust:hasDomainClassification ?domain . }
     }
   }
 }

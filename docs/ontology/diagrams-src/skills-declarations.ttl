@@ -8,7 +8,8 @@ agentictrust:Diagram_SkillsDeclarations a owl:Ontology .
 prov:Entity a owl:Class .
 
 agentictrust:AgentDescriptor a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:Skill a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:AgentSkill a owl:Class ; rdfs:subClassOf prov:Entity .
+agentictrust:AgentSkillClassification a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:Tag a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:SkillExample a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:JsonSchema a owl:Class ; rdfs:subClassOf prov:Entity .
@@ -16,30 +17,30 @@ agentictrust:IntentType a owl:Class ; rdfs:subClassOf prov:Entity .
 
 agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkill .
 
-agentictrust:declaresSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
+agentictrust:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AgentSkill ;
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:hasTag a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:Tag .
 
 agentictrust:hasExample a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:SkillExample .
 
 agentictrust:hasInputSchema a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:JsonSchema .
 
 agentictrust:hasOutputSchema a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:JsonSchema .
 
 agentictrust:supportsIntentType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:IntentType .
 
 

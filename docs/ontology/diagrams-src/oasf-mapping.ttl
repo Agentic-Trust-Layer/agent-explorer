@@ -29,7 +29,8 @@ agentictrust:recordsHasModule a owl:ObjectProperty ;
 ### AgenticTrust concepts (actual ontology nodes)
 agentictrust:AIAgent a owl:Class .
 agentictrust:AgentDescriptor a owl:Class .
-agentictrust:Skill a owl:Class .
+agentictrust:AgentSkill a owl:Class .
+agentictrust:AgentSkillClassification a owl:Class .
 agentictrust:Tag a owl:Class .
 agentictrust:IntentType a owl:Class .
 agentictrust:TaskType a owl:Class .
@@ -39,20 +40,20 @@ agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range agentictrust:AgentDescriptor .
 
-agentictrust:declaresSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
-
 agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkill .
+
+agentictrust:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:domain agentictrust:AgentSkill ;
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:hasTag a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:Tag .
 
 agentictrust:supportsIntentType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:IntentType .
 
 agentictrust:mapsToTaskType a owl:ObjectProperty ;
@@ -60,11 +61,11 @@ agentictrust:mapsToTaskType a owl:ObjectProperty ;
   rdfs:range agentictrust:TaskType .
 
 agentictrust:hasInputSchema a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:JsonSchema .
 
 agentictrust:hasOutputSchema a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:JsonSchema .
 
 ### Mapping edges (diagram overlay)
@@ -76,7 +77,7 @@ agentictrust:mapsToAgentCard a owl:ObjectProperty ;
 agentictrust:mapsToSkill a owl:ObjectProperty ;
   rdfs:label "mapsTo" ;
   rdfs:domain agentictrust:OASFSkill ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:mapsToTag a owl:ObjectProperty ;
   rdfs:label "mapsTo" ;

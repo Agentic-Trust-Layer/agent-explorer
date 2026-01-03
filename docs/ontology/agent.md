@@ -518,7 +518,7 @@ LIMIT 50
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
-SELECT ?agent ?agentId ?agentName ?descriptor ?skill ?endpoint
+SELECT ?agent ?agentId ?agentName ?descriptor ?agentSkill ?skill ?endpoint
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:agentId ?agentId ;
@@ -529,7 +529,8 @@ WHERE {
   }
   
   OPTIONAL {
-    ?descriptor agentictrust:hasSkill ?skill .
+    ?descriptor agentictrust:hasSkill ?agentSkill .
+    OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
   }
   
   OPTIONAL {

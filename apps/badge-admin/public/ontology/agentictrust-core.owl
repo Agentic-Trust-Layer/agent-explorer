@@ -777,6 +777,11 @@ agentictrust:Endpoint a owl:Class ;
   rdfs:comment "Network endpoint used by A2A/MCP." ;
   rdfs:subClassOf prov:Entity .
 
+agentictrust:AgentSkill a owl:Class ;
+  rdfs:label "AgentSkill" ;
+  rdfs:comment "An agent-declared skill instance (part of a Descriptor). This is the concrete skill node used in RDF exports, which can be classified using AgentSkillClassification (e.g., OASFSkill)." ;
+  rdfs:subClassOf prov:Entity .
+
 agentictrust:TransportBinding a owl:Class ;
   rdfs:label "TransportBinding" ;
   rdfs:comment "Transport/protocol binding (e.g., HTTP+JSON, JSON-RPC)." ;
@@ -800,6 +805,11 @@ agentictrust:SkillExample a owl:Class ;
 agentictrust:Tag a owl:Class ;
   rdfs:label "Tag" ;
   rdfs:comment "A tag value used for discovery and matching (e.g., trust.validation, ens.name.valid)." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:AgentDomain a owl:Class ;
+  rdfs:label "AgentDomain" ;
+  rdfs:comment "An agent-declared domain instance (part of a Descriptor). This is the concrete domain node used in RDF exports, which can be classified using AgentDomainClassification (e.g., OASFDomain)." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:AgentDomainClassification a owl:Class ;
@@ -991,8 +1001,14 @@ agentictrust:hasEndpoint a owl:ObjectProperty ;
 
 agentictrust:hasSkill a owl:ObjectProperty ;
   rdfs:label "hasSkill" ;
-  rdfs:comment "Links a Descriptor to an AgentSkillClassification (OASF skill/capability classification)." ;
+  rdfs:comment "Links a Descriptor to an AgentSkill (agent-declared skill instance)." ;
   rdfs:domain agentictrust:Descriptor ;
+  rdfs:range agentictrust:AgentSkill .
+
+agentictrust:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:label "hasSkillClassification" ;
+  rdfs:comment "Links an AgentSkill (concrete skill instance) to its classification (e.g., OASFSkill)." ;
+  rdfs:domain agentictrust:AgentSkill ;
   rdfs:range agentictrust:AgentSkillClassification .
 
 
@@ -1021,14 +1037,14 @@ agentictrust:hasTag a owl:ObjectProperty ;
 
 agentictrust:hasDomain a owl:ObjectProperty ;
   rdfs:label "hasDomain" ;
-  rdfs:comment "Links a Descriptor to an OASF Domain for categorization and discovery filtering." ;
+  rdfs:comment "Links a Descriptor to an AgentDomain (agent-declared domain instance)." ;
   rdfs:domain agentictrust:Descriptor ;
-  rdfs:range agentictrust:AgentDomainClassification .
+  rdfs:range agentictrust:AgentDomain .
 
-agentictrust:hasDomain a owl:ObjectProperty ;
-  rdfs:label "hasDomain" ;
-  rdfs:comment "Links a Descriptor to an OASF Domain for categorization and discovery filtering." ;
-  rdfs:domain agentictrust:Descriptor ;
+agentictrust:hasDomainClassification a owl:ObjectProperty ;
+  rdfs:label "hasDomainClassification" ;
+  rdfs:comment "Links an AgentDomain (concrete domain instance) to its classification (e.g., OASFDomain)." ;
+  rdfs:domain agentictrust:AgentDomain ;
   rdfs:range agentictrust:AgentDomainClassification .
 
 

@@ -217,7 +217,7 @@ ORDER BY ?chainId ?agentId
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
-SELECT ?agent ?chainId ?agentId ?skill ?skillId ?skillName
+SELECT ?agent ?chainId ?agentId ?agentSkill ?skill ?skillId ?skillName
 WHERE {
   ?agent a agentictrust:AIAgent ;
     agentictrust:agentId ?agentId ;
@@ -225,9 +225,10 @@ WHERE {
     agentictrust:hasAgentDescriptor ?descriptor .
   ?identifier a agentictrustEth:Account ;
     agentictrustEth:accountChainId ?chainId .
-  ?descriptor agentictrust:hasSkill ?skill .
-  ?skill a agentictrust:Skill ;
-    agentictrust:skillId ?skillId .
+  ?descriptor agentictrust:hasSkill ?agentSkill .
+  OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
+  OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }
+  OPTIONAL { ?skill agentictrust:skillId ?skillId . }
   OPTIONAL { ?skill agentictrust:skillName ?skillName . }
 }
 ORDER BY ?chainId ?agentId ?skillId
@@ -286,7 +287,7 @@ ORDER BY ?chainId ?agentId
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
-SELECT ?agent ?chainId ?agentId ?did ?agentDescriptor ?protocolDescriptor ?protocolVersion ?skill ?skillId ?skillName
+SELECT ?agent ?chainId ?agentId ?did ?agentDescriptor ?protocolDescriptor ?protocolVersion ?agentSkill ?skill ?skillId ?skillName
 WHERE {
   # Agent
   ?agent a agentictrust:AIAgent ;
@@ -309,9 +310,10 @@ WHERE {
   FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.agentictrust.io/id/protocol-descriptor/a2a/", ?didEncoded)))
   
   # Skills from AgentDescriptor (skills are declared on AgentDescriptor, not ProtocolDescriptor)
-  ?agentDescriptor agentictrust:hasSkill ?skill .
-  ?skill a agentictrust:Skill ;
-    agentictrust:skillId ?skillId .
+  ?agentDescriptor agentictrust:hasSkill ?agentSkill .
+  OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
+  OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }
+  OPTIONAL { ?skill agentictrust:skillId ?skillId . }
   OPTIONAL { ?skill agentictrust:skillName ?skillName . }
 }
 ORDER BY ?chainId ?agentId ?skillId

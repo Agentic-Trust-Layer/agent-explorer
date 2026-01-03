@@ -10,18 +10,22 @@ Source ontology: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 
 - **`agentictrust:Descriptor`**: resolver-produced description used for discovery. Base class for all descriptors.
 - **`agentictrust:AgentDescriptor`**: agent-level descriptor (inherits from `agentictrust:Descriptor`).
+- **`agentictrust:AgentSkill`**: an agent-declared skill instance (part of a Descriptor). Links to its classification.
 - **`agentictrust:AgentSkillClassification`**: a capability/tool classification used in discovery and routing. Follows OASF (Open Agent Skill Format) standards for skill classification.
+- **`agentictrust:AgentDomain`**: an agent-declared domain instance (part of a Descriptor). Links to its classification.
 - **`agentictrust:AgentDomainClassification`**: categorization classification used for discovery filtering. Follows OASF standards for domain classification.
 - **`agentictrust:OASFSkill` / `agentictrust:OASFDomain`**: OASF-synced skill/domain classifications (vocabulary instances).
 
 ### Key relationships
 
-- **Skill classification on descriptors**
-  - `agentictrust:Descriptor` → `agentictrust:hasSkill` → `agentictrust:AgentSkillClassification`
+- **Skill declaration on descriptors**
+  - `agentictrust:Descriptor` → `agentictrust:hasSkill` → `agentictrust:AgentSkill`
+  - `agentictrust:AgentSkill` → `agentictrust:hasSkillClassification` → `agentictrust:AgentSkillClassification`
   - `agentictrust:AgentDescriptor` inherits `hasSkill` from `agentictrust:Descriptor`
 
-- **Domain classification association**
-  - `agentictrust:Descriptor` → `agentictrust:hasDomain` → `agentictrust:AgentDomainClassification`
+- **Domain declaration on descriptors**
+  - `agentictrust:Descriptor` → `agentictrust:hasDomain` → `agentictrust:AgentDomain`
+  - `agentictrust:AgentDomain` → `agentictrust:hasDomainClassification` → `agentictrust:AgentDomainClassification`
   - `agentictrust:AgentDescriptor` inherits `hasDomain` from `agentictrust:Descriptor`
 
 ### Diagram: Agent Skill Classifications + Agent Domain Classifications inside discovery descriptors
@@ -33,7 +37,9 @@ direction TB
 class AIAgent["agentictrust:AIAgent"]
 class Descriptor["agentictrust:Descriptor"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
+class AgentSkill["agentictrust:AgentSkill"]
 class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomain["agentictrust:AgentDomain"]
 class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 class Tag["agentictrust:Tag"]
 class JsonSchema["agentictrust:JsonSchema"]
@@ -42,8 +48,10 @@ class IntentType["agentictrust:IntentType"]
 AIAgent --> AgentDescriptor : hasAgentDescriptor
 AgentDescriptor --|> Descriptor
 
-Descriptor --> AgentSkillClassification : hasSkill
-Descriptor --> AgentDomainClassification : hasDomain
+Descriptor --> AgentSkill : hasSkill
+AgentSkill --> AgentSkillClassification : hasSkillClassification
+Descriptor --> AgentDomain : hasDomain
+AgentDomain --> AgentDomainClassification : hasDomainClassification
 
 AgentSkillClassification --> Tag : hasTag
 AgentSkillClassification --> JsonSchema : hasInputSchema / hasOutputSchema
@@ -85,12 +93,16 @@ class OASFSkill["agentictrust:OASFSkill"]
 class OASFDomain["agentictrust:OASFDomain"]
 class Descriptor["agentictrust:Descriptor"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
+class AgentSkill["agentictrust:AgentSkill"]
 class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentDomain["agentictrust:AgentDomain"]
 class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 
 AgentDescriptor --|> Descriptor
-Descriptor --> OASFSkill : hasSkill (when card lists oasf_skills)
-Descriptor --> OASFDomain : hasDomain (when card lists oasf_domains)
+Descriptor --> AgentSkill : hasSkill (when card lists oasf_skills)
+AgentSkill --> OASFSkill : hasSkillClassification
+Descriptor --> AgentDomain : hasDomain (when card lists oasf_domains)
+AgentDomain --> OASFDomain : hasDomainClassification
 
 OASFSkill --|> AgentSkillClassification
 OASFDomain --|> AgentDomainClassification
@@ -112,7 +124,7 @@ PREFIX dcterms: <http://purl.org/dc/terms/>
 SELECT DISTINCT
   ?agent ?agentId
   ?descriptor
-  ?skill ?skillType ?skillId ?skillLabel ?skillDescription
+  ?agentSkill ?skill ?skillType ?skillId ?skillLabel ?skillDescription
   ?tag
   ?inputSchema ?outputSchema
   ?intentType
@@ -121,7 +133,8 @@ WHERE {
          agentictrust:agentId ?agentId ;
          agentictrust:hasAgentDescriptor ?descriptor .
 
-  ?descriptor agentictrust:hasSkill ?skill .
+  ?descriptor agentictrust:hasSkill ?agentSkill .
+  OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
 
   OPTIONAL { ?skill a ?skillType . }
   OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }
@@ -207,14 +220,15 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 SELECT DISTINCT
   ?agent ?agentId
   ?descriptor
-  ?domain ?domainType ?domainId ?domainLabel
-  ?skill ?skillId
+  ?agentDomain ?domain ?domainType ?domainId ?domainLabel
+  ?agentSkill ?skill ?skillId
 WHERE {
   ?agent a agentictrust:AIAgent ;
          agentictrust:agentId ?agentId ;
          agentictrust:hasAgentDescriptor ?descriptor .
 
-  ?descriptor agentictrust:hasDomain ?domain .
+  ?descriptor agentictrust:hasDomain ?agentDomain .
+  OPTIONAL { ?agentDomain agentictrust:hasDomainClassification ?domain . }
 
   OPTIONAL { ?domain a ?domainType . }
   OPTIONAL { ?domain agentictrust:oasfDomainId ?domainId . }
@@ -223,7 +237,8 @@ WHERE {
   OPTIONAL {
     # Agent Skill Classifications linked to the same domain via descriptor
     {
-      ?descriptor agentictrust:hasSkill ?skill .
+      ?descriptor agentictrust:hasSkill ?agentSkill .
+      OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
     }
     ?skill a agentictrust:AgentSkillClassification .
     OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }

@@ -90,21 +90,21 @@ class provEntity["prov:Entity"]
 
 class AIAgent["agentictrust:AIAgent"]
 class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentEndpoint["agentictrust:AgentEndpoint"]
 class EndpointType["agentictrust:EndpointType"]
+class Endpoint["agentictrust:Endpoint"]
+class AgentSkill["agentictrust:AgentSkill"]
+class AgentSkillClassification["agentictrust:AgentSkillClassification"]
 
 AIAgent --|> provSoftwareAgent
 AgentDescriptor --|> provEntity
-AgentEndpoint --|> provEntity
+Endpoint --|> provEntity
 EndpointType --|> provEntity
 
 AIAgent --> AgentDescriptor : hasAgentDescriptor
-AgentDescriptor --> AgentEndpoint : hasEndpointEntry
-AgentEndpoint --> EndpointType : endpointType
-AgentDescriptor --> Skill : hasSkill
 AgentDescriptor --> Endpoint : hasEndpoint
-class Skill["agentictrust:Skill"]
-class Endpoint["agentictrust:Endpoint"]
+Endpoint --> EndpointType : endpointType
+AgentDescriptor --> AgentSkill : hasSkill
+AgentSkill --> AgentSkillClassification : hasSkillClassification
 ```
 
 ### Reading guide

@@ -1,6 +1,6 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
 
 agentictrust:Diagram_DescriptionToExecution a owl:Ontology ;
   rdfs:label "DescriptionToExecution" .
@@ -9,7 +9,7 @@ agentictrust:TrustDescription a owl:Class .
 
 agentictrust:TaskExecution a owl:Class .
 agentictrust:SkillInvocation a owl:Class .
-agentictrust:Skill a owl:Class .
+agentictrust:AgentSkillClassification a owl:Class .
 agentictrust:TaskType a owl:Class .
 agentictrust:IntentType a owl:Class .
 
@@ -23,14 +23,14 @@ agentictrust:hasInvocation a owl:ObjectProperty ;
 
 agentictrust:invokesSkill a owl:ObjectProperty ;
   rdfs:domain agentictrust:SkillInvocation ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
 agentictrust:enablesTaskType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:TaskType .
 
 agentictrust:supportsIntentType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Skill ;
+  rdfs:domain agentictrust:AgentSkillClassification ;
   rdfs:range agentictrust:IntentType .
 
 agentictrust:mapsToTaskType a owl:ObjectProperty ;

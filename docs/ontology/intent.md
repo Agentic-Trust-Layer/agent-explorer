@@ -78,7 +78,7 @@ agentictrust:targetsSkill a owl:ObjectProperty ;
   rdfs:label "targetsSkill" ;
   rdfs:comment "Links an IntentType to an OASF Skill that can satisfy this intent. This intent can be satisfied by invoking this skill. Allows many intents to target the same skill, and one intent to target many skills. Keeps OASF skills untouched - only references them." ;
   rdfs:domain agentictrust:IntentType ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 ```
 
 **Meaning**: This intent can be satisfied by invoking this OASF skill.
@@ -135,7 +135,7 @@ classDiagram
 direction LR
 
 class IntentType["agentictrust:IntentType"]
-class Skill["agentictrust:Skill (OASF)"]
+class Skill["agentictrust:AgentSkillClassification (OASFSkill)"]
 class IntentSituation["agentictrust:IntentSituation"]
 class Activity["prov:Activity"]
 class Situation["agentictrust:Situation"]

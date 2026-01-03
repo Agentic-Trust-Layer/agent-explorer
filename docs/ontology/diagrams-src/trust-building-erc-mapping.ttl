@@ -48,9 +48,9 @@ erc8004:feedbackClient a owl:ObjectProperty ;
 
 erc8004:feedbackSkill a owl:ObjectProperty ;
   rdfs:domain erc8004:Feedback ;
-  rdfs:range agentictrust:Skill .
+  rdfs:range agentictrust:AgentSkillClassification .
 
-agentictrust:Skill a owl:Class .
+agentictrust:AgentSkillClassification a owl:Class .
 
 ### ERC-8092 associated accounts storage (relationship assertions)
 erc8092:RelationshipERC8092 a owl:Class ; rdfs:subClassOf agentictrust:Relationship .

@@ -18,7 +18,7 @@ Ontologies provide the **formal semantic foundation** for agentic trust by:
 
 ## Registry sources and aggregators
 
-- **HOL (Hashgraph Online)**: a universal registry/index that aggregates multiple registries into one searchable dataset. See [`hashgraph-online.md`](./hashgraph-online.md) for the list of underlying sources it includes.
+- **HOL (Hashgraph Online)**: a universal registry/index that aggregates multiple registries into one searchable dataset. See [`hashgraph-online.md`](./hashgraph-online.md) for registry-level notes, and [`hol.md`](./hol.md) for the `hol.owl` identity/profile ontology.
 - **Fetch.ai Agentverse**: execution/runtime-oriented directory and developer platform (uAgents + Agentverse). See [`fetchai-agentverse.md`](./fetchai-agentverse.md) for a registry concepts summary and how it maps into AgenticTrust.
 - **Agent registries inventory**: a working list of registries, discovery indexes, and directories: [`agent-registries.md`](./agent-registries.md).
 - **A2A Registry**: A2A agent directory + federation concepts: [`a2a-registry.md`](./a2a-registry.md) and A2A auth flow notes: [`a2a-authentication.md`](./a2a-authentication.md).
@@ -237,6 +237,7 @@ ERC ontologies
 
 - [`erc8004.md`](./erc8004.md): ERC-8004 registration metadata + validation + feedback (with diagram)
 - [`erc8092.md`](./erc8092.md): ERC-8092 relationships/assertions/accounts (with diagram)
+- [`hol.md`](./hol.md): HOL ontology (`hol.owl`) documentation (AgentIdentityHOL, IdentityDescriptorHOL, AgentProfileHOL)
 - [`relationshipassertion.md`](./relationshipassertion.md): focused pattern: relationship assertion → account → controlling agent
 - [`relationships-roles-participation.md`](./relationships-roles-participation.md): relationship model with participants, roles, and qualified participation (core, eth, and ERC-8092 levels)
 - [`verificationassertion.md`](./verificationassertion.md): VerificationAssertion class hierarchy and property relationships
@@ -251,9 +252,11 @@ Ontology sources live in `apps/badge-admin/public/ontology/`:
 - `agentictrust-core.owl`: Core trust model (DnS + PROV-O + P-PLAN) + common agent/intent/task/skill vocabulary
 - `agentictrust-eth.owl`: Ethereum-specific extensions (Account, ENSName)
 - `agentictrust-dns.owl`: DNS-specific extensions (DNSName)
+- `agentictrust-hol.owl`: HOL search-hit descriptor extensions (HOLAgentDescriptor)
 - `NANDA.owl`: NANDA-specific extensions (NANDAIdentity)
 - `ERC8004.owl`: ERC-8004 registration + validation + feedback layers
 - `ERC8092.owl`: ERC-8092 relationship assertions layer
+- `hol.owl`: HOL identity + profile descriptors (AgentIdentityHOL, IdentityDescriptorHOL, AgentProfileHOL)
 
 ## Protégé Note
 
