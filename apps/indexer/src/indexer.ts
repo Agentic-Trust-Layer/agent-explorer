@@ -367,9 +367,10 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
   if (tokenInfo?.metadataJson) {
     if (typeof tokenInfo.metadataJson === 'string' && tokenInfo.metadataJson.trim()) {
-      metadataJsonRaw = tokenInfo.metadataJson.trim();
+      const mj = tokenInfo.metadataJson.trim();
+      metadataJsonRaw = mj;
       try {
-        preFetchedMetadata = JSON.parse(metadataJsonRaw);
+        preFetchedMetadata = JSON.parse(mj);
       } catch (error) {
         console.warn("............upsertFromTransfer: Failed to parse token metadataJson string:", error);
       }
@@ -1552,9 +1553,10 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   let metadataRaw: string | null = null;
   try {
     if (typeof item?.metadataJson === 'string' && item.metadataJson.trim()) {
-      metadataRaw = item.metadataJson.trim();
+      const mj = item.metadataJson.trim();
+      metadataRaw = mj;
       try {
-        metadataObj = JSON.parse(metadataRaw);
+        metadataObj = JSON.parse(mj);
       } catch {}
     } else if (item?.metadataJson && typeof item.metadataJson === 'object') {
       metadataObj = item.metadataJson;
@@ -3120,44 +3122,9 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   // Badge processing is now done via CLI: `pnpm badge:process`
 
 
-  const tokenRecords = tokenItems
-    .map((item) => {
-      let mintedAt = 0n;
-      try {
-        mintedAt = BigInt(item?.mintedAt ?? item?.blockNumber ?? 0);
-      } catch {}
-      return { item, mintedAt };
-    })
-    .filter(({ mintedAt }) => mintedAt > lastToken)
-    .sort((a, b) => {
-      if (a.mintedAt === b.mintedAt) return 0;
-      return a.mintedAt < b.mintedAt ? -1 : 1;
-    });
-
-  console.info("............  process tokens: ", tokenRecords.length);
-  if (tokenRecords.length > 0) {
-    console.info(
-      '............  sample token ids:',
-      tokenRecords
-        .slice(0, 3)
-        .map(({ item, mintedAt }) => `${item?.id || 'unknown'}@${mintedAt}`)
-        .join(', '),
-    );
-  }
-
-  for (let i = 0; i < tokenRecords.length; i++) {
-    const { item, mintedAt } = tokenRecords[i];
-    try {
-      await upsertFromTokenGraph(item, chainId);
-      await updateTokenCheckpointIfNeeded(mintedAt);
-      if ((i + 1) % 25 === 0 || i === tokenRecords.length - 1) {
-        console.info(`............  token progress: ${i + 1}/${tokenRecords.length} (mintedAt ${mintedAt})`);
-      }
-    } catch (error) {
-      console.error('❌ Error processing token:', { id: item?.id, mintedAt: String(mintedAt), error });
-      throw error;
-    }
-  }
+  // Token ingestion (upsertFromTokenGraph) is intentionally NOT part of the main indexer flow.
+  // Use backfill CLIs to enrich agents from tokenUri/rawJson/agentCardJson.
+  // This avoids long-running subgraph scans and reduces blast radius on duplicate/partial backfills.
 
   // Badge processing and rankings are now done via CLI: `pnpm badge:process`
 

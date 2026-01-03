@@ -552,3 +552,54 @@ The Agent model provides a layered identity approach:
 
 All Agents inherit `hasIdentifier` from `prov:Agent`, enabling consistent identity management across all agent types.
 
+## Hashgraph Online: UAID (HCS-14) and how it differs from AID
+
+Hashgraph Online (HOL) uses the **Universal Agent ID (UAID)** concept (HCS-14) to represent a stable agent identifier across registries/protocols.
+
+How UAID differs:
+
+- **UAID is derived from a sovereign DID** — it is **not recomputed** from the six identity inputs every time.
+- **UAID stays stable** unless the underlying DID changes.
+- Implementations are encouraged to link previous vs successor identifiers using DID properties like `alsoKnownAs`, and optionally publish agent lifecycle history.
+
+This means:
+
+- **AID**: deterministic based on fixed fields
+- **UAID**: stable, DID-backed identifier encapsulating an AID (or other identity) if present
+
+### Example canonical identity object (informal)
+
+Here’s what the canonical data structure might look like **before hashing** to form an AID:
+
+```json
+{
+  "registry": "hol:hcs2:registry:example",
+  "name": "ChatAgentX",
+  "version": "1.0.0",
+  "protocol": ["xmpp", "http"],
+  "nativeId": "did:pkh:eip155:1:0x1234...abcd",
+  "skills": [
+    "sendMessage",
+    "receiveMessage",
+    "queryStatus"
+  ]
+}
+```
+
+This canonical object is sorted and then the hashing/encoding rules produce the final deterministic ID string.
+
+### How the six fields are used (AID)
+
+Field → role in AID generation:
+
+- `registry`: scopes the agent to a namespace/registry (e.g., an HCS-2 registry entry)
+- `name`: human/organizational identity component
+- `version`: ensures evolution/upgrades produce unique IDs
+- `protocol`: indicates supported protocols or messaging stacks
+- `nativeId`: ties to a native identifier (e.g., DID, wallet)
+- `skills`: defines sorted capabilities & prevents ambiguity across builds
+
+Together these establish a canonical identity fingerprint that is stable and repeatable.
+
+See also: [`hashgraph-online.md`](./hashgraph-online.md).
+

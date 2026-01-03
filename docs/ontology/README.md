@@ -5,6 +5,7 @@
 Agentic Trust requires a robust information architecture to model, discover, and reason about AI agents, their capabilities, relationships, and trust assertions across decentralized networks. This architecture combines **ontologies** (formal knowledge models), **taxonomies** (classification systems like OASF), **categories** (domain-specific groupings), and **knowledge bases** (structured data repositories) into a cohesive system.
 
 See also: [`philosophy.md`](./philosophy.md) (modeling principles and how we align ERC-8004/8092, DnS, PROV-O, p-plan, DIDs, OASF, and discovery).
+See also: [`trust-model.md`](./trust-model.md) (trust model taxonomy used by registration descriptors).
 
 ### Why Ontology Matters for Agentic Trust
 
@@ -42,7 +43,7 @@ The Agentic Trust information architecture integrates four complementary layers:
 #### 3. **Categories** (Domain-Specific Groupings)
 - **Purpose**: Flexible, context-dependent groupings for discovery and organization
 - **Technology**: Tags, labels, metadata fields
-- **Example**: Agent categories (`personal-assistant`, `trading-bot`), trust model categories (`feedback`, `validation`)
+- **Example**: Agent categories (`personal-assistant`, `trading-bot`), trust model categories (`execution-integrity`, `reputation`, `crypto-economic`, ...)
 - **Characteristics**: Extensible, user-defined, supports ad-hoc organization
 
 #### 4. **Knowledge Base** (Structured Data Repository)
@@ -223,6 +224,7 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`agentictrust-overview.md`](./agentictrust-overview.md): navigation + full diagram
 - [`agent.md`](./agent.md): Agent class hierarchy (Person, Organization, SoftwareAgent, AIAgent, Account) and relationships to Identity, Identifier, Name, and Descriptors
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly
+- [`protocols-endpoints.md`](./protocols-endpoints.md): Protocol endpoints (A2A, MCP) and why skills/domains are primarily protocol-defined
 - [`description.md`](./description.md): Plans (PROV-O + P-PLAN) and SituationDescription / TrustDescription
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")
 - [`provenance.md`](./provenance.md): PROV-O grounding + how we use provenance patterns

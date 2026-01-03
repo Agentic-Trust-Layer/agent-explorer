@@ -4,6 +4,14 @@ Ontology: `agentictrust-core.owl`
 
 This page is about **Descriptors**: resolver-produced Entities that aggregate and normalize metadata for discovery and interaction.
 
+## Protocol-first discovery: skills and domains
+
+In practice, an agent’s **skills** and **domains** are most reliably defined at the **protocol layer** (e.g., an A2A agent card, MCP server/tool metadata).
+
+The `agentictrust:AgentDescriptor` may contain skills/domains for discovery queries, but those values should be treated as **assembled from protocol descriptors** (and other sources) rather than invented independently.
+
+See: [`protocols-endpoints.md`](./protocols-endpoints.md).
+
 ### Descriptor class hierarchy (exclude AgentDescriptor)
 
 ```mermaid
@@ -58,6 +66,7 @@ class AgentDomainClassification["agentictrust:AgentDomainClassification"]
 class DID["agentictrust:DID"]
 class DomainName["agentictrust:DomainName"]
 class TrustType["agentictrust:TrustType"]
+class TrustModel["agentictrust:TrustModel"]
 
 Descriptor --> Endpoint : hasEndpoint
 Endpoint --> EndpointType : endpointType
@@ -68,6 +77,7 @@ AgentDomain --> AgentDomainClassification : hasDomainClassification
 Descriptor --> DID : hasDID
 Descriptor --> DomainName : hasDomainName
 Descriptor --> TrustType : hasTrustType
+Descriptor --> TrustModel : hasTrustModel
 Descriptor : +descriptorName (text, UTF-8)
 Descriptor : +descriptorDescription (text, UTF-8/Markdown)
 Descriptor : +descriptorImage (URI, RFC 3986)

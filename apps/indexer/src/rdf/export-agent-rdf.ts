@@ -85,6 +85,48 @@ function escapeTurtleString(value: string): string {
     .replace(/\n/g, '\\n');
 }
 
+function canonicalTrustModel(value: string): string | null {
+  const v = value.trim().toLowerCase();
+  if (!v) return null;
+  // Canonical values
+  const canon = new Set([
+    'execution-integrity',
+    'reputation',
+    'crypto-economic',
+    'social-graph',
+    'authority-institutional',
+    'identity-assurance',
+    'process-conformance',
+    'data-provenance',
+    'consensus-quorum',
+    'contextual-situational',
+  ]);
+  if (canon.has(v)) return v;
+
+  // Common aliases from ERC-8004 registration metadata
+  if (v === 'tee' || v === 'tee-attestation' || v === 'attestation') return 'execution-integrity';
+  if (v.includes('zk') || v.includes('zkvm') || v.includes('zk-vm') || v.includes('zk-wasm') || v.includes('zkwasm') || v.includes('cairo') || v.includes('sp1') || v.includes('risc0') || v.includes('risc-zero')) {
+    return 'execution-integrity';
+  }
+  if (v === 'reputation' || v === 'feedback' || v === 'validation') return 'reputation';
+  if (v === 'crypto-economic' || v === 'crypto' || v === 'staking' || v === 'stake' || v === 'bond' || v === 'bonded' || v === 'slashing') return 'crypto-economic';
+  if (v === 'social' || v === 'social-graph' || v === 'association' || v === 'associations' || v === 'erc8092') return 'social-graph';
+  if (v === 'authority' || v === 'institutional' || v === 'authority/institutional' || v === 'pki' || v === 'auditor' || v === 'certifier') return 'authority-institutional';
+  if (v === 'identity' || v === 'identity-assurance' || v === 'kyc' || v === 'kyb' || v === 'did' || v === 'proofing') return 'identity-assurance';
+  if (v === 'process' || v === 'process-conformance' || v === 'prov' || v === 'provo' || v === 'p-plan' || v === 'audit-trail') return 'process-conformance';
+  if (v === 'provenance' || v === 'data-provenance' || v === 'oracle' || v === 'signed-data' || v === 'dataset' || v === 'hash') return 'data-provenance';
+  if (v === 'consensus' || v === 'quorum' || v === 'consensus/quorum' || v === 'threshold' || v === 'multisig' || v === 'dao-vote') return 'consensus-quorum';
+  if (v === 'contextual' || v === 'situational' || v === 'contextual/situational') return 'contextual-situational';
+
+  return null;
+}
+
+function trustModelLocalName(model: string): string {
+  // Convert canonical kebab-case to ontology individual local name suffix.
+  // e.g. "execution-integrity" -> "execution_integrity"
+  return model.trim().toLowerCase().replace(/-/g, '_');
+}
+
 function isSafeAbsoluteIri(value: string): boolean {
   // Pragmatic Turtle/RDF4J-safe IRI check:
   // - must have scheme
@@ -707,15 +749,27 @@ function renderAgentSection(
       accountChunks.push(`${endpointTypeIri} a agentictrust:EndpointType, prov:Entity ; rdfs:label "${endpointType}" .\n\n`);
     }
     
-    // TrustTypes from rawJson
-    const supportedTrust = Array.isArray(tokenUriData?.supportedTrust) ? tokenUriData.supportedTrust : 
-                          (typeof tokenUriData?.supportedTrust === 'string' ? [tokenUriData.supportedTrust] : []);
-    for (const trustTypeStr of supportedTrust) {
+    // Trust types/models from rawJson (ERC-8004 registration JSON)
+    const supportedTrustRaw =
+      Array.isArray(tokenUriData?.supportedTrust) ? tokenUriData.supportedTrust :
+      Array.isArray(tokenUriData?.supportedTrusts) ? tokenUriData.supportedTrusts :
+      (typeof tokenUriData?.supportedTrust === 'string' ? [tokenUriData.supportedTrust] : []);
+
+    for (const trustTypeStr of supportedTrustRaw) {
       const trustTypeValue = String(trustTypeStr).trim();
       if (!trustTypeValue) continue;
+
+      // Keep the existing TrustType emission (verbatim)
       const trustTypeIri = `<https://www.agentictrust.io/id/trust-type/${iriEncodeSegment(trustTypeValue)}>`;
       adLines.push(`  agentictrust:hasTrustType ${trustTypeIri} ;`);
       accountChunks.push(`${trustTypeIri} a agentictrust:TrustType, prov:Entity ; agentictrust:trustTypeValue "${escapeTurtleString(trustTypeValue)}" .\n\n`);
+
+      // Also emit canonical TrustModel categories for discovery/UI
+      const model = canonicalTrustModel(trustTypeValue);
+      if (model) {
+        const trustModelIri = `<https://www.agentictrust.io/ontology/agentictrust-core#TrustModel_${trustModelLocalName(model)}>`;
+        adLines.push(`  agentictrust:hasTrustModel ${trustModelIri} ;`);
+      }
     }
     
     // DIDs from rawJson (if any additional DIDs beyond the standard ones)

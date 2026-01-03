@@ -1571,13 +1571,28 @@ agentictrust:operatorIdentifierValue a owl:DatatypeProperty ;
 
 agentictrust:TrustModel a owl:Class ;
   rdfs:label "TrustModel" ;
-  rdfs:comment "Recommended trust-model taxonomy used by ERC-8004 tools (e.g., feedback, validation, association)." ;
+  rdfs:comment "A non-overlapping taxonomy of trust models (execution-integrity, reputation, crypto-economic, etc.). This is intended to describe *why* confidence exists for an agent or claim (how trust is grounded), not to describe specific evidence artifacts (feedback/validation/etc.)." ;
   rdfs:subClassOf prov:Entity .
 
+agentictrust:hasTrustModel a owl:ObjectProperty ;
+  rdfs:label "hasTrustModel" ;
+  rdfs:comment "Links a Descriptor (especially ERC-8004 registration descriptors) to one or more TrustModel categories advertised by the agent." ;
+  rdfs:domain agentictrust:Descriptor ;
+  rdfs:range agentictrust:TrustModel .
+
+# Back-compat alias (older docs used AgentDescriptor)
 agentictrust:supportsTrustModel a owl:ObjectProperty ;
   rdfs:label "supportsTrustModel" ;
+  rdfs:comment "Backwards-compatible alias for hasTrustModel (older AgentDescriptor-focused naming)." ;
+  rdfs:subPropertyOf agentictrust:hasTrustModel ;
   rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range agentictrust:TrustModel .
+
+agentictrust:trustModelValue a owl:DatatypeProperty ;
+  rdfs:label "trustModelValue" ;
+  rdfs:comment "Trust model string value (e.g., 'execution-integrity', 'reputation', 'crypto-economic')." ;
+  rdfs:domain agentictrust:TrustModel ;
+  rdfs:range xsd:string .
 
 ########
 # ERC8004AgentMetadataProfile(recommended)
@@ -1586,12 +1601,56 @@ agentictrust:supportsTrustModel a owl:ObjectProperty ;
 agentictrust:EndpointType_a2a a agentictrust:EndpointType ; rdfs:label "a2a" .
 agentictrust:EndpointType_mcp a agentictrust:EndpointType ; rdfs:label "mcp" .
 
-# Common trust-model individuals (labels omit dashes/spaces)
-agentictrust:TrustModel_feedback a agentictrust:TrustModel ; rdfs:label "feedback" .
-agentictrust:TrustModel_validation a agentictrust:TrustModel ; rdfs:label "validation" .
-agentictrust:TrustModel_relationship a agentictrust:TrustModel ; rdfs:label "relationship" .
-agentictrust:TrustModel_membership a agentictrust:TrustModel ; rdfs:label "membership" .
-agentictrust:TrustModel_delegation a agentictrust:TrustModel ; rdfs:label "delegation" .
+# Trust model taxonomy individuals (canonical, non-overlapping)
+agentictrust:TrustModel_execution_integrity a agentictrust:TrustModel ;
+  rdfs:label "execution-integrity" ;
+  agentictrust:trustModelValue "execution-integrity" ;
+  rdfs:comment "TEE / verifiable execution. Confidence comes from how and where execution occurred (attested environments, zk-VM proofs, reproducible builds), not only who executed or past behavior." .
+
+agentictrust:TrustModel_reputation a agentictrust:TrustModel ;
+  rdfs:label "reputation" ;
+  agentictrust:trustModelValue "reputation" ;
+  rdfs:comment "Historical behavior model: confidence comes from aggregate feedback and validations over time (often weighted/decayed)." .
+
+agentictrust:TrustModel_crypto_economic a agentictrust:TrustModel ;
+  rdfs:label "crypto-economic" ;
+  agentictrust:trustModelValue "crypto-economic" ;
+  rdfs:comment "Incentive/penalty model: confidence comes from stake, bonds, slashing, escrow, insurance—misbehavior is economically punished." .
+
+agentictrust:TrustModel_social_graph a agentictrust:TrustModel ;
+  rdfs:label "social-graph" ;
+  agentictrust:trustModelValue "social-graph" ;
+  rdfs:comment "Relationship-based model: confidence comes from associations, delegations, memberships, and trust inheritance via social/organizational graphs (e.g., ERC-8092 associations)." .
+
+agentictrust:TrustModel_authority_institutional a agentictrust:TrustModel ;
+  rdfs:label "authority-institutional" ;
+  agentictrust:trustModelValue "authority-institutional" ;
+  rdfs:comment "Authority/institution model: confidence comes from a recognized authority vouching (government registries, corporate PKI, auditors/certifiers, regulated entities)." .
+
+agentictrust:TrustModel_identity_assurance a agentictrust:TrustModel ;
+  rdfs:label "identity-assurance" ;
+  agentictrust:trustModelValue "identity-assurance" ;
+  rdfs:comment "Identity proofing model: confidence comes from strength of binding between the agent and a real entity (DID method, KYC/KYB attestations, hardware-bound keys, multisig control)." .
+
+agentictrust:TrustModel_process_conformance a agentictrust:TrustModel ;
+  rdfs:label "process-conformance" ;
+  agentictrust:trustModelValue "process-conformance" ;
+  rdfs:comment "Compliance model: confidence comes from adherence to predefined workflows/plans (PROV-O traces, P-Plan alignment, audit trails)." .
+
+agentictrust:TrustModel_data_provenance a agentictrust:TrustModel ;
+  rdfs:label "data-provenance" ;
+  agentictrust:trustModelValue "data-provenance" ;
+  rdfs:comment "Input lineage model: confidence comes from provenance of inputs (signed sources, oracles, dataset attestations, content hashes)." .
+
+agentictrust:TrustModel_consensus_quorum a agentictrust:TrustModel ;
+  rdfs:label "consensus-quorum" ;
+  agentictrust:trustModelValue "consensus-quorum" ;
+  rdfs:comment "Agreement model: confidence comes from multiple independent parties agreeing (multi-validator attestations, threshold signatures, DAO votes)." .
+
+agentictrust:TrustModel_contextual_situational a agentictrust:TrustModel ;
+  rdfs:label "contextual-situational" ;
+  agentictrust:trustModelValue "contextual-situational" ;
+  rdfs:comment "Fit-for-purpose model: confidence is scoped to a situation/context (intent type, domain restrictions, temporal validity); trusted for some tasks but not others." .
 
 <https://www.agentictrust.io/ontology/agentictrust-core/intentType/trust.validation> a agentictrust:IntentType ;
   rdfs:label "trust.validation" .
