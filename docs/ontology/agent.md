@@ -552,26 +552,12 @@ The Agent model provides a layered identity approach:
 
 All Agents inherit `hasIdentifier` from `prov:Agent`, enabling consistent identity management across all agent types.
 
-## Hashgraph Online: UAID (HCS-14) and how it differs from AID
+## UAID (HCS-14): canonical identity + routing/bindings
 
-Hashgraph Online (HOL) uses the **Universal Agent ID (UAID)** concept (HCS-14) to represent a stable agent identifier across registries/protocols.
+In Agentic Trust, we use **UAID** (HCS-14) to support two complementary styles:
 
-How UAID differs:
-
-- **UAID is derived from a sovereign DID** — it is **not recomputed** from the six identity inputs every time.
-- **UAID stays stable** unless the underlying DID changes.
-- Implementations are encouraged to link previous vs successor identifiers using DID properties like `alsoKnownAs`, and optionally publish agent lifecycle history.
-
-This means:
-
-- **AID**: deterministic based on fixed fields
-- **UAID**: stable, DID-backed identifier encapsulating an AID (or other identity) if present
-
-### Example UAID string (informal)
-
-```text
-uaid:did:11155111:0x3AefD387b5BFC101936fF5B5d1A12E83A6C9a199;uid=agentic-trust-hcs-14-v2.8004-agent.eth;registry=agentic-trust;proto=a2a;nativeId=0x3aefd387b5bfc101936ff5b5d1a12e83a6c9a199
-```
+- **AID-first (canonical)**: `uaid:aid:<opaque-id>[;routing…]`
+- **DID-targeted (self-sovereign)**: `uaid:did:<id>[;routing…]`
 
 ### Canonical (AID-first) UAID form (UAID as an identity)
 
@@ -603,12 +589,39 @@ When you use this:
 - You want multi-registry, multi-DID agents
 - You are designing an identity system
 
+### UAID targeting a DID (self-sovereign identifier)
+
+HCS-14 also defines a **DID-targeted** UAID form for agents that already have (or prefer to anchor to) a self-sovereign DID. See [HCS-14: Self-Sovereign Identifiers (UAID Targeting a DID)](https://hol.org/docs/standards/hcs-14/#self-sovereign-identifiers-uaid-targeting-a-did).
+
+Shape:
+
+```text
+uaid:{target}:{id};uid={uid};registry={registry};proto={protocol};nativeId={nativeId};domain={domain}
+```
+
+In Agentic Trust, when using DID-targeted UAIDs, we typically target the agent’s **account DID** (e.g., `did:ethr:...`) derived from the controlling `agentAccount`, then attach registry/protocol bindings as routing parameters.
+
+#### Example UAID (DID-targeted)
+
+```json
+{
+  "uaid": "uaid:did:11155111:0xaFFe96485679cffa006042FE081AF30bD15c4249;registry=erc-8004;proto=a2a;nativeId=eip155:11155111:0xaFFe96485679cffa006042FE081AF30bD15c4249;uid=did:ethr:11155111:0xaFFe96485679cffa006042FE081AF30bD15c4249;domain=agentic-trust-hcs-14-v20.8004-agent.io"
+}
+```
+
+Notes:
+
+- **UAID target** (`uaid:did:...`): the DID-targeted identity anchor (the `{target}:{id}` portion).
+- **`nativeId`**: the protocol-native stable lookup anchor in the source system (here an EVM account in `eip155:<chainId>:<address>` form).
+- **`uid`**: a registry-scoped label/handle (often human-meaningful; can be an ENS name, agent id, or a DID string).
+- **`domain`**: a web domain binding useful for discovery/routing (e.g., where `/.well-known/...` resources live).
+
 ### Process of generating UAID within Agentic Trust
 
 1. Generate an ERC-8004 identity and receive an `agentId`.
 2. Build the ERC-8004 DID from the identity: `did:8004:<chainId>:<agentId>`.
 3. Create an Agentic Trust HCS-14 canonical AID for the new agent and add `did:8004` routing/bindings to it.
-4. Add the new UAID (DID-targeted form) to the ERC-8004 registration (NFT token URI JSON).
+4. Add the new UAID (AID-first form + any routing/bindings) to the ERC-8004 registration (NFT token URI JSON).
 
 ### Example canonical identity object (informal)
 
@@ -616,7 +629,7 @@ Here’s what the canonical data structure might look like **before hashing** to
 
 ```json
 {
-  "registry": "hol:hcs2:registry:example",
+  "registry": "agentic-trust",
   "name": "ChatAgentX",
   "version": "1.0.0",
   "protocol": ["xmpp", "http"],
