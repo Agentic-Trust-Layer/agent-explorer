@@ -573,6 +573,43 @@ This means:
 uaid:did:11155111:0x3AefD387b5BFC101936fF5B5d1A12E83A6C9a199;uid=agentic-trust-hcs-14-v2.8004-agent.eth;registry=agentic-trust;proto=a2a;nativeId=0x3aefd387b5bfc101936ff5b5d1a12e83a6c9a199
 ```
 
+### Canonical (AID-first) UAID form (UAID as an identity)
+
+Shape:
+
+```text
+uaid:aid:<opaque-id>[;routing…]
+```
+
+What it means:
+
+- The UAID is **born as an identity**
+- It exists independently of any **DID, chain, registry, or protocol**
+- DIDs, registries, and protocols are **attached later** as bindings
+
+Resolution flow:
+
+```text
+UAID (aid)
+  → lookup bindings
+      → DID(s)
+          → keys / accounts / endpoints
+```
+
+When you use this:
+
+- You control agent creation
+- You want maximum longevity
+- You want multi-registry, multi-DID agents
+- You are designing an identity system
+
+### Process of generating UAID within Agentic Trust
+
+1. Generate an ERC-8004 identity and receive an `agentId`.
+2. Build the ERC-8004 DID from the identity: `did:8004:<chainId>:<agentId>`.
+3. Create an Agentic Trust HCS-14 canonical AID for the new agent and add `did:8004` routing/bindings to it.
+4. Add the new UAID (DID-targeted form) to the ERC-8004 registration (NFT token URI JSON).
+
 ### Example canonical identity object (informal)
 
 Here’s what the canonical data structure might look like **before hashing** to form an AID:
