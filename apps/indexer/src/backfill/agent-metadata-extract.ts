@@ -12,17 +12,92 @@ function safeJsonParse(value: unknown): any | null {
   }
 }
 
-function uniqStrings(values: string[]): string[] {
+function uniqStrings(values: Array<string | null | undefined>): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const v of values) {
-    const t = v.trim();
+    const t = typeof v === 'string' ? v.trim() : '';
     if (!t) continue;
     if (seen.has(t)) continue;
     seen.add(t);
     out.push(t);
   }
   return out;
+}
+
+function takeStringArray(value: any): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const v of value) {
+    if (typeof v === 'string' && v.trim()) {
+      out.push(v.trim());
+      continue;
+    }
+    // Some producers use objects for skill-like entries.
+    if (v && typeof v === 'object') {
+      const id = typeof (v as any).id === 'string' ? (v as any).id.trim() : '';
+      const name = typeof (v as any).name === 'string' ? (v as any).name.trim() : '';
+      if (id) out.push(id);
+      else if (name) out.push(name);
+    }
+  }
+  return out;
+}
+
+function takeEndpointsArray(raw: any): any[] {
+  const e = raw?.endpoints;
+  if (Array.isArray(e)) return e;
+  if (e && typeof e === 'object') return Object.values(e);
+  return [];
+}
+
+function filterBogusIds(values: string[]): string[] {
+  return values.filter((v) => v && v !== '[object Object]');
+}
+
+function takeStringSetFromAgentCard(card: any): { skills: string[]; domains: string[] } {
+  const outSkills = new Set<string>();
+  const outDomains = new Set<string>();
+
+  // 1) agent card "skills" may be array of strings or array of objects ({id,name,tags,...})
+  if (Array.isArray(card?.skills)) {
+    for (const s of card.skills) {
+      if (typeof s === 'string' && s.trim()) outSkills.add(s.trim());
+      else if (s && typeof s === 'object') {
+        const id = typeof (s as any).id === 'string' ? (s as any).id.trim() : '';
+        const name = typeof (s as any).name === 'string' ? (s as any).name.trim() : '';
+        if (id) outSkills.add(id);
+        else if (name) outSkills.add(name);
+
+        // tags sometimes include osafDomain:xyz
+        if (Array.isArray((s as any).tags)) {
+          for (const t of (s as any).tags) {
+            if (typeof t !== 'string') continue;
+            const m = t.match(/^osafDomain:(.+)$/i);
+            if (m && m[1]?.trim()) outDomains.add(m[1].trim());
+          }
+        }
+      }
+    }
+  }
+
+  // 2) optional top-level domains array
+  if (Array.isArray(card?.domains)) {
+    for (const d of card.domains) {
+      if (typeof d === 'string' && d.trim()) outDomains.add(d.trim());
+    }
+  }
+
+  // 3) OASF extension payloads (common pattern)
+  const exts = Array.isArray(card?.capabilities?.extensions) ? card.capabilities.extensions : [];
+  for (const ext of exts) {
+    const params = (ext && typeof ext === 'object') ? (ext as any).params : null;
+    if (!params || typeof params !== 'object') continue;
+    for (const d of takeStringArray((params as any).domains)) outDomains.add(d);
+    for (const s of takeStringArray((params as any).skills)) outSkills.add(s);
+  }
+
+  return { skills: [...outSkills], domains: [...outDomains] };
 }
 
 function canonicalTrustModel(value: string): string | null {
@@ -65,7 +140,7 @@ function parseSupportedTrust(raw: any): string[] {
     typeof raw?.supportedTrust === 'string' ? [raw.supportedTrust] :
     typeof raw?.supportedTrusts === 'string' ? [raw.supportedTrusts] :
     [];
-  return uniqStrings(arr.map((x: any) => String(x)));
+  return uniqStrings(arr.map((x: any) => (typeof x === 'string' ? x : String(x))));
 }
 
 function parseTrustModelsFromSupportedTrust(supportedTrust: string[]): string[] {
@@ -78,18 +153,33 @@ function parseTrustModelsFromSupportedTrust(supportedTrust: string[]): string[] 
 }
 
 function parseOasfFromEndpoints(raw: any): { skills: string[]; domains: string[] } {
-  const endpoints = Array.isArray(raw?.endpoints) ? raw.endpoints : [];
-  const oasf = endpoints.find((e: any) => {
-    const n = typeof e?.name === 'string' ? e.name.trim().toLowerCase() : '';
-    return n === 'oasf' || Boolean(e?.skills) || Boolean(e?.domains);
-  });
-  const skills = Array.isArray(oasf?.skills) ? uniqStrings(oasf.skills.map((x: any) => String(x))) : [];
-  const domains = Array.isArray(oasf?.domains) ? uniqStrings(oasf.domains.map((x: any) => String(x))) : [];
-  return { skills, domains };
+  const endpoints = takeEndpointsArray(raw);
+  const skills: string[] = [];
+  const domains: string[] = [];
+
+  for (const e of endpoints) {
+    // OASF endpoint style: { name:"OASF", skills:[...], domains:[...] }
+    for (const s of takeStringArray((e as any)?.skills)) skills.push(s);
+    for (const d of takeStringArray((e as any)?.domains)) domains.push(d);
+
+    // App registration style: A2A endpoint carries a2aSkills/a2aDomains
+    for (const s of takeStringArray((e as any)?.a2aSkills)) skills.push(s);
+    for (const d of takeStringArray((e as any)?.a2aDomains)) domains.push(d);
+
+    // Some producers use oasf_skills/oasf_domains keys
+    for (const s of takeStringArray((e as any)?.oasf_skills || (e as any)?.oasfSkills)) skills.push(s);
+    for (const d of takeStringArray((e as any)?.oasf_domains || (e as any)?.oasfDomains)) domains.push(d);
+  }
+
+  // Some producers put these at the root of registration JSON.
+  for (const s of takeStringArray(raw?.oasf_skills || raw?.oasfSkills)) skills.push(s);
+  for (const d of takeStringArray(raw?.oasf_domains || raw?.oasfDomains)) domains.push(d);
+
+  return { skills: uniqStrings(filterBogusIds(skills)), domains: uniqStrings(filterBogusIds(domains)) };
 }
 
 function parseProtocolsFromRawJson(raw: any): Array<{ protocol: string; version: string }> {
-  const endpoints = Array.isArray(raw?.endpoints) ? raw.endpoints : [];
+  const endpoints = takeEndpointsArray(raw);
   const out: Array<{ protocol: string; version: string }> = [];
   for (const ep of endpoints) {
     const protocol = typeof ep?.name === 'string' ? ep.name.trim() : '';
@@ -127,10 +217,16 @@ function parseAgentCard(card: any): {
   const description = norm(card?.description) || null;
   const image = norm(card?.image) || null;
 
-  const capabilities = Array.isArray(card?.capabilities) ? uniqStrings(card.capabilities.map((x: any) => String(x))) : [];
-  const operators = Array.isArray(card?.operators) ? uniqStrings(card.operators.map((x: any) => String(x).toLowerCase())) : [];
-  const skills = Array.isArray(card?.skills) ? uniqStrings(card.skills.map((x: any) => String(x))) : [];
-  const domains = Array.isArray(card?.domains) ? uniqStrings(card.domains.map((x: any) => String(x))) : [];
+  const capabilities = Array.isArray(card?.capabilities)
+    ? uniqStrings(card.capabilities.map((x: any) => (typeof x === 'string' ? x : String(x))))
+    : [];
+  const operators = Array.isArray(card?.operators)
+    ? uniqStrings(card.operators.map((x: any) => (typeof x === 'string' ? x.toLowerCase() : String(x).toLowerCase())))
+    : [];
+
+  const oasfFromCard = takeStringSetFromAgentCard(card);
+  const skills = uniqStrings(filterBogusIds(oasfFromCard.skills));
+  const domains = uniqStrings(filterBogusIds(oasfFromCard.domains));
 
   return { a2aUrl, protocolVersion, preferredTransport, name, description, image, capabilities, operators, skills, domains };
 }
@@ -414,8 +510,22 @@ export async function runAgentMetadataExtract(
       const mergedCapabilities = uniqStrings(cardInfo?.capabilities ?? []);
       const mergedOperators = uniqStrings(cardInfo?.operators ?? []);
 
+      if (mergedSkills.includes('[object Object]') || (mergedDomains.length === 0 && typeof row?.rawJson === 'string' && row.rawJson.includes('a2aDomains'))) {
+        console.warn('[agent-meta] suspicious oasf extract', {
+          chainId,
+          agentId,
+          mergedSkillsPreview: mergedSkills.slice(0, 10),
+          mergedDomainsPreview: mergedDomains.slice(0, 10),
+          rawEndpointsType: typeof (raw as any)?.endpoints,
+          rawEndpointsIsArray: Array.isArray((raw as any)?.endpoints),
+          rawEndpointNames: Array.isArray((raw as any)?.endpoints) ? (raw as any).endpoints.map((e: any) => e?.name).slice(0, 10) : null,
+          cardSkillsIsArray: Array.isArray((card as any)?.skills),
+          cardSkillsFirstType: Array.isArray((card as any)?.skills) ? typeof (card as any).skills[0] : null,
+        });
+      }
+
       // upsertFromTokenGraph-like fields from ERC-8004 registration rawJson
-      const endpoints = Array.isArray(raw?.endpoints) ? raw.endpoints : [];
+      const endpoints = takeEndpointsArray(raw);
       const findEndpoint = (n: string): string | null => {
         const e = endpoints.find((x: any) => String(x?.name ?? '').toLowerCase() === n.toLowerCase());
         const v = e?.endpoint;

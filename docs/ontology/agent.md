@@ -567,6 +567,12 @@ This means:
 - **AID**: deterministic based on fixed fields
 - **UAID**: stable, DID-backed identifier encapsulating an AID (or other identity) if present
 
+### Example UAID string (informal)
+
+```text
+uaid:did:11155111:0x3AefD387b5BFC101936fF5B5d1A12E83A6C9a199;uid=agentic-trust-hcs-14-v2.8004-agent.eth;registry=agentic-trust;proto=a2a;nativeId=0x3aefd387b5bfc101936ff5b5d1a12e83a6c9a199
+```
+
 ### Example canonical identity object (informal)
 
 Here’s what the canonical data structure might look like **before hashing** to form an AID:

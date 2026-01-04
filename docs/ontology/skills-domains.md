@@ -111,6 +111,31 @@ note for OASFSkill "OASF standards\n(Open Agent Skill Format)"
 note for OASFDomain "OASF standards\n(Open Agent Skill Format)"
 ```
 
+## How we populate `agents.oasfSkillsJson` and `agents.oasfDomainsJson`
+
+We treat skills/domains as **protocol-derived metadata**. When we ingest agent metadata (via indexer/CLIs), we extract **string skill/domain IDs** from both the ERC-8004 registration JSON (`rawJson`) and (when available) the A2A agent card (`agentCardJson`), then store them in:
+
+- `agents.oasfSkillsJson` (JSON array of strings)
+- `agents.oasfDomainsJson` (JSON array of strings)
+
+### Registration JSON (ERC-8004 `rawJson`)
+
+We read OASF-ish arrays from:
+
+- `endpoints[].skills` / `endpoints[].domains`
+- `endpoints[].a2aSkills` / `endpoints[].a2aDomains` (app-registered format)
+- `endpoints[].oasf_skills` / `endpoints[].oasf_domains`
+- root `oasf_skills` / `oasf_domains`
+
+### Agent card JSON (`agentCardJson`)
+
+We extract string skill IDs/domains from:
+
+- `skills[]` if strings
+- `skills[]` objects via `.id` (fallback `.name`)
+- `capabilities.extensions[].params.skills` / `capabilities.extensions[].params.domains`
+- `skills[].tags` like `osafDomain:governance-and-trust`
+
 ## SPARQL: Agent Skill Classifications (with related info)
 
 ### Query: Agent Skill Classifications declared by AgentDescriptors (with tags/domains/schemas/intents)
