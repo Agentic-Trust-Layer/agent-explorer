@@ -191,6 +191,19 @@ function buildOrderByClause(orderBy?: string, orderDirection?: string): string {
   return `ORDER BY ${orderColumn} ${direction}`;
 }
 
+function buildOasfOrderByClause(args: {
+  orderBy?: string;
+  orderDirection?: string;
+  fieldToColumn: Record<string, string>;
+  validColumns: string[];
+  defaultColumn: string;
+}): string {
+  const dir = args.orderDirection?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+  const mapped = args.orderBy ? args.fieldToColumn[args.orderBy] : undefined;
+  const column = mapped && args.validColumns.includes(mapped) ? mapped : args.defaultColumn;
+  return `ORDER BY ${column} ${dir}`;
+}
+
 /**
  * Build WHERE clause using The Graph-style where input
  */
@@ -1232,6 +1245,341 @@ async function fetchTrustLedgerBadgeDefinitions(db: any, args?: { program?: stri
 export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions) {
 
   return {
+    oasfSkills: async (args: {
+      key?: string;
+      nameKey?: string;
+      category?: string;
+      extendsKey?: string;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      const { key, nameKey, category, extendsKey } = args || {};
+      const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
+      const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
+
+      // OASF schema evolved over migrations; handle both modern + legacy shapes.
+      const runModern = async () => {
+        const conditions: string[] = [];
+        const params: any[] = [];
+        if (key) {
+          conditions.push('skillId = ?');
+          params.push(key);
+        }
+        if (nameKey) {
+          conditions.push('nameKey = ?');
+          params.push(nameKey);
+        }
+        if (category) {
+          conditions.push('category = ?');
+          params.push(category);
+        }
+        if (extendsKey) {
+          conditions.push('extendsKey = ?');
+          params.push(extendsKey);
+        }
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const orderByClause = buildOasfOrderByClause({
+          orderBy: args?.orderBy,
+          orderDirection: args?.orderDirection,
+          fieldToColumn: {
+            key: 'skillId',
+            nameKey: 'nameKey',
+            uid: 'uid',
+            caption: 'caption',
+            extendsKey: 'extendsKey',
+            category: 'category',
+          },
+          validColumns: ['skillId', 'nameKey', 'uid', 'caption', 'extendsKey', 'category'],
+          defaultColumn: 'skillId',
+        });
+        const rows = await executeQuery(
+          db,
+          `
+            SELECT skillId, nameKey, uid, caption, extendsKey, category
+            FROM oasf_skills
+            ${where}
+            ${orderByClause}
+            LIMIT ? OFFSET ?
+          `,
+          [...params, limit, offset],
+        );
+        return rows.map((r) => ({
+          key: String((r as any)?.skillId ?? ''),
+          nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
+          uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
+          caption: (r as any)?.caption != null ? String((r as any).caption) : null,
+          extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
+          category: (r as any)?.category != null ? String((r as any).category) : null,
+        }));
+      };
+
+      const runLegacy = async () => {
+        const conditions: string[] = [];
+        const params: any[] = [];
+        if (key) {
+          conditions.push('skillId = ?');
+          params.push(key);
+        }
+        if (nameKey) {
+          // Legacy schema used `name` rather than `nameKey`.
+          conditions.push('name = ?');
+          params.push(nameKey);
+        }
+        if (category) {
+          conditions.push('category = ?');
+          params.push(category);
+        }
+        if (extendsKey) {
+          // Legacy schema did not have extendsKey; treat as category filter.
+          conditions.push('category = ?');
+          params.push(extendsKey);
+        }
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const orderByClause = buildOasfOrderByClause({
+          orderBy: args?.orderBy,
+          orderDirection: args?.orderDirection,
+          fieldToColumn: {
+            key: 'skillId',
+            nameKey: 'name',
+            uid: 'id',
+            caption: 'name',
+            extendsKey: 'category',
+            category: 'category',
+          },
+          validColumns: ['skillId', 'name', 'category', 'id'],
+          defaultColumn: 'skillId',
+        });
+        const rows = await executeQuery(
+          db,
+          `
+            SELECT skillId, name, category
+            FROM oasf_skills
+            ${where}
+            ${orderByClause}
+            LIMIT ? OFFSET ?
+          `,
+          [...params, limit, offset],
+        );
+        return rows.map((r) => ({
+          key: String((r as any)?.skillId ?? ''),
+          nameKey: (r as any)?.name != null ? String((r as any).name) : null,
+          uid: null,
+          caption: (r as any)?.name != null ? String((r as any).name) : null,
+          extendsKey: null,
+          category: (r as any)?.category != null ? String((r as any).category) : null,
+        }));
+      };
+
+      try {
+        return await runModern();
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        if (msg.includes('no such column')) {
+          return await runLegacy();
+        }
+        throw e;
+      }
+    },
+
+    oasfDomains: async (args: {
+      key?: string;
+      nameKey?: string;
+      category?: string;
+      extendsKey?: string;
+      limit?: number;
+      offset?: number;
+      orderBy?: string;
+      orderDirection?: string;
+    }) => {
+      const { key, nameKey, category, extendsKey } = args || {};
+      const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
+      const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
+
+      const runModern = async () => {
+        const conditions: string[] = [];
+        const params: any[] = [];
+        if (key) {
+          conditions.push('domainId = ?');
+          params.push(key);
+        }
+        if (nameKey) {
+          conditions.push('nameKey = ?');
+          params.push(nameKey);
+        }
+        // Note: older/normalized schema used extendsKey for category; newer also has category as back-compat.
+        if (category) {
+          // Prefer category if present; fallback handled by legacy path.
+          conditions.push('category = ?');
+          params.push(category);
+        }
+        if (extendsKey) {
+          conditions.push('extendsKey = ?');
+          params.push(extendsKey);
+        }
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const orderByClause = buildOasfOrderByClause({
+          orderBy: args?.orderBy,
+          orderDirection: args?.orderDirection,
+          fieldToColumn: {
+            key: 'domainId',
+            nameKey: 'nameKey',
+            uid: 'uid',
+            caption: 'caption',
+            extendsKey: 'extendsKey',
+            category: 'category',
+          },
+          validColumns: ['domainId', 'nameKey', 'uid', 'caption', 'extendsKey', 'category'],
+          defaultColumn: 'domainId',
+        });
+        const rows = await executeQuery(
+          db,
+          `
+            SELECT domainId, nameKey, uid, caption, extendsKey, category
+            FROM oasf_domains
+            ${where}
+            ${orderByClause}
+            LIMIT ? OFFSET ?
+          `,
+          [...params, limit, offset],
+        );
+        return rows.map((r) => ({
+          key: String((r as any)?.domainId ?? ''),
+          nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
+          uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
+          caption: (r as any)?.caption != null ? String((r as any).caption) : null,
+          extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
+          category: (r as any)?.category != null ? String((r as any).category) : null,
+        }));
+      };
+
+      const runSemiModernNoCategory = async () => {
+        const conditions: string[] = [];
+        const params: any[] = [];
+        if (key) {
+          conditions.push('domainId = ?');
+          params.push(key);
+        }
+        if (nameKey) {
+          conditions.push('nameKey = ?');
+          params.push(nameKey);
+        }
+        if (category) {
+          // category not present; treat category filter as extendsKey.
+          conditions.push('extendsKey = ?');
+          params.push(category);
+        }
+        if (extendsKey) {
+          conditions.push('extendsKey = ?');
+          params.push(extendsKey);
+        }
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const orderByClause = buildOasfOrderByClause({
+          orderBy: args?.orderBy === 'category' ? 'extendsKey' : args?.orderBy,
+          orderDirection: args?.orderDirection,
+          fieldToColumn: {
+            key: 'domainId',
+            nameKey: 'nameKey',
+            uid: 'uid',
+            caption: 'caption',
+            extendsKey: 'extendsKey',
+            category: 'extendsKey',
+          },
+          validColumns: ['domainId', 'nameKey', 'uid', 'caption', 'extendsKey'],
+          defaultColumn: 'domainId',
+        });
+        const rows = await executeQuery(
+          db,
+          `
+            SELECT domainId, nameKey, uid, caption, extendsKey
+            FROM oasf_domains
+            ${where}
+            ${orderByClause}
+            LIMIT ? OFFSET ?
+          `,
+          [...params, limit, offset],
+        );
+        return rows.map((r) => ({
+          key: String((r as any)?.domainId ?? ''),
+          nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
+          uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
+          caption: (r as any)?.caption != null ? String((r as any).caption) : null,
+          extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
+          category: null,
+        }));
+      };
+
+      const runLegacy = async () => {
+        const conditions: string[] = [];
+        const params: any[] = [];
+        if (key) {
+          conditions.push('domainId = ?');
+          params.push(key);
+        }
+        if (nameKey) {
+          // Legacy schema used `name` rather than `nameKey`.
+          conditions.push('name = ?');
+          params.push(nameKey);
+        }
+        if (category) {
+          conditions.push('category = ?');
+          params.push(category);
+        }
+        if (extendsKey) {
+          conditions.push('category = ?');
+          params.push(extendsKey);
+        }
+        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+        const orderByClause = buildOasfOrderByClause({
+          orderBy: args?.orderBy,
+          orderDirection: args?.orderDirection,
+          fieldToColumn: {
+            key: 'domainId',
+            nameKey: 'name',
+            uid: 'id',
+            caption: 'name',
+            extendsKey: 'category',
+            category: 'category',
+          },
+          validColumns: ['domainId', 'name', 'category', 'id'],
+          defaultColumn: 'domainId',
+        });
+        const rows = await executeQuery(
+          db,
+          `
+            SELECT domainId, name, category
+            FROM oasf_domains
+            ${where}
+            ${orderByClause}
+            LIMIT ? OFFSET ?
+          `,
+          [...params, limit, offset],
+        );
+        return rows.map((r) => ({
+          key: String((r as any)?.domainId ?? ''),
+          nameKey: (r as any)?.name != null ? String((r as any).name) : null,
+          uid: null,
+          caption: (r as any)?.name != null ? String((r as any).name) : null,
+          extendsKey: null,
+          category: (r as any)?.category != null ? String((r as any).category) : null,
+        }));
+      };
+
+      try {
+        return await runModern();
+      } catch (e: any) {
+        const msg = String(e?.message || e);
+        if (msg.includes('no such column: category')) {
+          return await runSemiModernNoCategory();
+        }
+        if (msg.includes('no such column')) {
+          return await runLegacy();
+        }
+        throw e;
+      }
+    },
+
     agents: async (args: {
       chainId?: number;
       agentId?: string;

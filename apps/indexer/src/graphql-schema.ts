@@ -5,6 +5,24 @@
 import { buildSchema, GraphQLSchema } from 'graphql';
 
 export const graphQLSchemaString = `
+  type OasfSkill {
+    key: String!
+    nameKey: String
+    uid: Int
+    caption: String
+    extendsKey: String
+    category: String
+  }
+
+  type OasfDomain {
+    key: String!
+    nameKey: String
+    uid: Int
+    caption: String
+    extendsKey: String
+    category: String
+  }
+
   type Agent {
     chainId: Int!
 
@@ -543,6 +561,28 @@ export const graphQLSchemaString = `
   }
 
   type Query {
+    oasfSkills(
+      key: String
+      nameKey: String
+      category: String
+      extendsKey: String
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [OasfSkill!]!
+
+    oasfDomains(
+      key: String
+      nameKey: String
+      category: String
+      extendsKey: String
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [OasfDomain!]!
+
     agents(
       chainId: Int
       agentId: String
