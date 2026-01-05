@@ -238,6 +238,11 @@ agentictrust:RelationshipTrustAssertionAct a owl:Class ;
   rdfs:comment "The act of asserting a relationship trust situation or constituting a relationship. Generates a RelationshipTrustAssertion record." ;
   rdfs:subClassOf agentictrust:TrustAssertionAct .
 
+agentictrust:AgentIdentityRegistration a owl:Class ;
+  rdfs:label "AgentIdentityRegistration" ;
+  rdfs:comment "A registration activity that generates or updates an AgentIdentity entity in the context of an AgentIdentityRegistry (e.g., ERC-8004 registration, HOL broker publication). Modeled as prov:Activity for auditability and lifecycle modeling." ;
+  rdfs:subClassOf prov:Activity .
+
 agentictrust:Identifier a owl:Class ;
   rdfs:label "Identifier" ;
   rdfs:comment "Abstract identifier for an agent. Protocol-specific realizations include Ethereum Account (agentictrustEth:Account), Web2 domain/email identifiers, etc. Each Agent has one primary Identifier. Modeled as prov:Entity, not prov:Agent." ;

@@ -162,10 +162,16 @@ class AgentIdentity["agentictrust:AgentIdentity (prov:Entity)"]
 class AgentIdentityRegistry["agentictrust:AgentIdentityRegistry (prov:Agent)"]
 class Registration["Registration (prov:Activity)"]
 
-AgentIdentity --> Agent : prov:wasAttributedTo
-AgentIdentity --> Registration : prov:wasGeneratedBy
-AgentIdentity --> AgentIdentityRegistry : agentictrust:identityRegistry / prov:wasAssociatedWith
+AgentIdentity --> Agent : wasAttributedTo
+AgentIdentity --> Registration : wasGeneratedBy
+AgentIdentity --> AgentIdentityRegistry : identityRegistry
 ```
+
+Mermaid note: edge labels avoid CURIEs like `prov:wasAttributedTo` (Mermaid parser limitation). The intended properties are:
+
+- `wasAttributedTo` → `prov:wasAttributedTo` (or `agentictrust:identityOf`)
+- `wasGeneratedBy` → `prov:wasGeneratedBy`
+- `identityRegistry` → `agentictrust:identityRegistry` (subPropertyOf `prov:wasAssociatedWith`)
 
 ## Optional refinements (recommended)
 

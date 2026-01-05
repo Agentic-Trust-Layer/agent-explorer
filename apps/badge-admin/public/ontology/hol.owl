@@ -19,6 +19,12 @@ hol: a owl:Ontology ;
 # Base HOL classes (derive from AgenticTrust trust model)
 ########
 
+hol:AgentIdentityRegistryHOL a owl:Class ;
+  rdfs:label "AgentIdentityRegistryHOL" ;
+  rdfs:comment "HOL agent identity registry/broker that publishes HOL AgentIdentity entities and UAID identifiers." ;
+  rdfs:subClassOf agentictrust:AgentIdentityRegistry ;
+  rdfs:subClassOf prov:Agent .
+
 hol:AgentIdentityHOL a owl:Class ;
   rdfs:label "AgentIdentityHOL" ;
   rdfs:comment "HOL agent identity. Represents the agent's identity in the HOL Universal Registry, linked to its IdentityIdentifierHOL. Inherits from agentictrust:AgentIdentity." ;

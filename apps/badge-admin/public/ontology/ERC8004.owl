@@ -20,6 +20,12 @@ erc8004: a owl:Ontology ;
 # Base ERC-8004 classes (derive from AgenticTrust trust model)
 ########
 
+erc8004:AgentIdentityRegistry8004 a owl:Class ;
+  rdfs:label "AgentIdentityRegistry8004" ;
+  rdfs:comment "ERC-8004 identity registry (the on-chain ERC-8004 Identity Registry contract or its registry abstraction) that publishes/anchors ERC-8004 AgentIdentity entities." ;
+  rdfs:subClassOf agentictrust:AgentIdentityRegistry ;
+  rdfs:subClassOf prov:Agent .
+
 erc8004:AgentRegistration8004 a owl:Class ;
   rdfs:label "AgentRegistration8004" ;
   rdfs:comment "ERC-8004 agent registration descriptor extracted from tokenUri rawJson metadata. Contains all agent registration data including endpoints, skills, domains, DIDs, names, descriptions, images, and trust types." ;
