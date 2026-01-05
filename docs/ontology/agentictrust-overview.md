@@ -1,6 +1,10 @@
 ## AgenticTrust ontology overview (`agentictrust-core.owl`)
 
-Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
+**Source**: `apps/badge-admin/public/ontology/agentictrust-core.owl`
+
+> **Quick Navigation**: See [`README.md`](./README.md) for the full information architecture overview, ontology hierarchy, and complete documentation index.
+
+This document provides a focused overview of the AgenticTrust core ontology design patterns, key classes, and relationships. For detailed documentation on specific concepts, see the [reading guide](#reading-guide) below.
 
 AgenticTrust ontology uses **design patterns** inspired by well-known foundations:
 
@@ -109,13 +113,17 @@ AgentSkill --> AgentSkillClassification : hasSkillClassification
 
 ### Reading guide
 
+- **Agent** (class hierarchy and relationships): see [`agent.md`](./agent.md)
+- **Identity vs Identifier**: see [`identity.md`](./identity.md)
 - **Descriptor** (resolver-produced metadata): see [`descriptor.md`](./descriptor.md)
+- **Protocols and Endpoints** (A2A, MCP): see [`protocols-endpoints.md`](./protocols-endpoints.md)
 - **Description / Plan** (PROV-O + P-PLAN): see [`description.md`](./description.md)
 - **Situation** (DnS / activities): see [`situation.md`](./situation.md)
 - **Provenance** (PROV-O grounding): see [`provenance.md`](./provenance.md)
-- **Skills / intents / tasks**: see [`skills-intents-tasks.md`](./skills-intents-tasks.md)
-- **Discovery** (intent-driven): see [`discovery.md`](./discovery.md)
+- **Discovery** (skills, intents, tasks, OASF alignment): see [`discovery.md`](./discovery.md)
+- **Intent** (IntentType and IntentSituation): see [`intent.md`](./intent.md)
 - **Trust building** (graph overlay): see the **Trust graph overlay** section in [`situation.md`](./situation.md)
-- **OASF mapping** (AGNTCY): see [`oasf.md`](./oasf.md)
+- **Trust graph** (PROV grounding): see [`trust-graph.md`](./trust-graph.md)
+- **Protocol-specific** (ERC-8004, ERC-8092, HOL): see [`erc8004.md`](./erc8004.md), [`erc8092.md`](./erc8092.md), [`hol.md`](./hol.md)
 
 
