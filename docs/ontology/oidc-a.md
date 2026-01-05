@@ -9,6 +9,29 @@
 - **Attestation** (evidence about integrity/origin; e.g., TEE quotes, zk proofs)
 - **Capability-based authorization** (fine-grained permissions based on agent attributes)
 
+## How AgenticTrust splits “agent” concepts (ephemeral vs durable)
+
+AgenticTrust intentionally separates:
+
+- **Ephemeral agent instance** (OIDC-A: `agent_instance_id`): the runtime/session/execution identity.
+- **Durable AI agent application**: the stable software-agent identity that is deployed at protocol endpoints and versioned.
+
+In ontology terms:
+
+- **Agent application**: `agentictrust:AIAgentApplication` (subclass of `agentictrust:AIAgent`, `prov:SoftwareAgent`)
+- **Agent instance**: `agentictrust:AgentInstance` (subclass of `prov:SoftwareAgent`) linked to its durable application via `prov:specializationOf`
+
+See also: [`agent-application.md`](./agent-application.md).
+
+## Agent identity is registry-scoped
+
+OIDC-A identity claims often refer to an identity anchored in some authority. AgenticTrust models **AgentIdentity as a prov:Entity in the context of registries**, and links it to the Agent via:
+
+- `agentictrust:hasIdentity` (Agent → AgentIdentity)
+- `agentictrust:identityRegistry` (AgentIdentity → AgentIdentityRegistry)
+
+See also: [`identity.md`](./identity.md).
+
 ## Primary references (links)
 
 - **OIDC-A proposal (GitHub)**: `https://github.com/subramanya1997/oidc-a`
@@ -23,10 +46,10 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 
 | OIDC-A concept / claim | Meaning | AgenticTrust representation (today) | Suggested alignment |
 |---|---|---|---|
-| `agent_type` | class/category of agent | `agentictrust:AIAgent` + optionally category tags | Add a descriptor property for agent “type/class” (controlled vocab), or reuse existing category fields in descriptors |
+| `agent_type` | class/category of agent | `agentictrust:AIAgent` + optional tags | Use `agentictrust:hasAgentTypeTag` (Agent → Tag) and/or descriptor taxonomy (`agentictrust:metadataAgentCategory`) |
 | `agent_model` | base model family | Not a first-class field | Add `agentictrust:modelId` (datatype) on a descriptor, or model as a `prov:Entity` “Model” and link with `agentictrust:usesModel` |
 | `agent_version` | model/version identifier | Not a first-class field | Add `agentictrust:modelVersion` on descriptor; optionally link to a `SoftwareRelease` entity |
-| `agent_provider` | org that provides/hosts agent | Partially representable as an `agentictrust:Organization` (if modeled) | Add `agentictrust:agentProvider` (object property to Organization) or `agentictrust:agentProviderValue` (datatype) on descriptor |
+| `agent_provider` | org that provides/hosts agent | Provider modeled as `agentictrust:Organization` | Use `agentictrust:agentProvider` (Application → Organization) and/or `agentictrust:agentProviderValue` (descriptor string) |
 | `agent_instance_id` / instance | runtime instance identity | AgenticTrust generally models durable agents, not ephemeral instances | Introduce `agentictrust:AgentInstance` (subclass of `prov:SoftwareAgent`) and link to the durable `AIAgent` via `prov:specializationOf` |
 | `agent_capabilities` | declared capabilities | Protocol-first: skills/domains mostly live on protocol descriptor; also OASF | Treat capabilities as **skills** (OASF ids) on protocol descriptors; define a mapping layer from capability ids → OASF skill ids |
 | `agent_attestation` | integrity evidence / attestation token | Trust-model taxonomy exists; RDF exporter maps trust models | Represent attestation evidence as an `agentictrust:TrustAssertionRecord` with `agentictrust:trustModel = execution-integrity` and link to an evidence entity/URI |
@@ -42,7 +65,7 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 Based on OIDC-A language, the following additions tend to fit AgenticTrust patterns well:
 
 1. **Agent instance vs agent (durable identity)**
-   - Add `agentictrust:AgentInstance` and connect to the durable `agentictrust:AIAgent` using `prov:specializationOf`.
+   - Add `agentictrust:AgentInstance` and connect to the durable `agentictrust:AIAgentApplication` using `prov:specializationOf`.
 
 2. **Delegation as a first-class trust process**
    - Add `agentictrust:DelegationTrustSituation` (subclass of `agentictrust:TrustSituation`, `prov:Entity`).

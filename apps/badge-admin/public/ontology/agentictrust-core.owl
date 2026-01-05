@@ -775,6 +775,40 @@ agentictrust:AIAgent a owl:Class ;
     owl:allValuesFrom agentictrust:AgentDescriptor
   ] .
 
+# Durable deployed software agent application (OIDC-A: durable agent app identity).
+agentictrust:AIAgentApplication a owl:Class ;
+  rdfs:label "AIAgentApplication" ;
+  rdfs:comment "A durable AI agent application (software agent) that is deployed at one or more protocol endpoints (A2A/MCP/etc.), versioned, and operated by a Provider. Ephemeral runtime instances can be modeled as AgentInstance and linked via prov:specializationOf." ;
+  rdfs:subClassOf agentictrust:AIAgent .
+
+# Ephemeral runtime instance (OIDC-A: agent_instance_id / instance identity).
+agentictrust:AgentInstance a owl:Class ;
+  rdfs:label "AgentInstance" ;
+  rdfs:comment "An ephemeral runtime instance of an AI agent application (e.g., a specific running deployment, session, or execution instance). Use prov:specializationOf to link it to the durable AIAgentApplication." ;
+  rdfs:subClassOf prov:SoftwareAgent ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty prov:specializationOf ;
+    owl:allValuesFrom agentictrust:AIAgentApplication
+  ] .
+
+# Provider/organization concepts (used for OIDC-A agent_provider)
+agentictrust:Organization a owl:Class ;
+  rdfs:label "Organization" ;
+  rdfs:comment "An organization (prov:Agent) such as an operator or provider." ;
+  rdfs:subClassOf prov:Agent .
+
+agentictrust:AIAgentProvider a owl:Class ;
+  rdfs:label "AIAgentProvider" ;
+  rdfs:comment "Provider responsible for an AI agent application (e.g., hosts/operates it, vouches for it, supplies attestation keys/policies)." ;
+  rdfs:subClassOf agentictrust:Organization .
+
+# Base model family (OIDC-A: agent_model)
+agentictrust:AgentModel a owl:Class ;
+  rdfs:label "AgentModel" ;
+  rdfs:comment "A base model family used by an AI agent application (e.g., 'gpt-4', 'claude-3-opus'). Modeled as a prov:Entity so it can be referenced and versioned." ;
+  rdfs:subClassOf prov:Entity .
+
 agentictrust:EndpointType a owl:Class ;
   rdfs:label "EndpointType" ;
   rdfs:comment "Recommended endpoint type taxonomy for agent metadata endpoints (e.g., a2a, mcp, ens, agentAccount)." ;
@@ -1123,6 +1157,27 @@ agentictrust:hasTrustType a owl:ObjectProperty ;
   rdfs:comment "Links a Descriptor to a TrustType indicating the types of trust mechanisms supported (e.g., reputation, crypto-economic, tee, zkml)." ;
   rdfs:domain agentictrust:Descriptor ;
   rdfs:range agentictrust:TrustType .
+
+# Optional agent type/category tag (OIDC-A: agent_type). This is a tag-like category off of the Agent itself.
+agentictrust:hasAgentTypeTag a owl:ObjectProperty ;
+  rdfs:label "hasAgentTypeTag" ;
+  rdfs:comment "Optional category tag describing the class/type of agent (controlled vocabulary recommended; e.g., 'assistant', 'retrieval', 'coding'). This is attached directly to the Agent (durable identity) rather than to a protocol descriptor." ;
+  rdfs:domain agentictrust:AIAgent ;
+  rdfs:range agentictrust:Tag .
+
+# Provider for the agent application (OIDC-A: agent_provider)
+agentictrust:agentProvider a owl:ObjectProperty ;
+  rdfs:label "agentProvider" ;
+  rdfs:comment "Links an AI agent application to the Provider (Organization) responsible for operating/hosting it." ;
+  rdfs:domain agentictrust:AIAgentApplication ;
+  rdfs:range agentictrust:Organization .
+
+# Base model used by the agent application (OIDC-A: agent_model)
+agentictrust:usesModel a owl:ObjectProperty ;
+  rdfs:label "usesModel" ;
+  rdfs:comment "Links an AI agent application to the base model family it uses." ;
+  rdfs:domain agentictrust:AIAgentApplication ;
+  rdfs:range agentictrust:AgentModel .
 
 
 agentictrust:oasfDomainId a owl:DatatypeProperty ;
@@ -1567,6 +1622,49 @@ agentictrust:metadataAgentCategory a owl:DatatypeProperty ;
   rdfs:label "metadataAgentCategory" ;
   rdfs:comment "Optional category/capability label from metadata (implementation-defined taxonomy)." ;
   rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:range xsd:string .
+
+# OIDC-A / agent-application metadata (agent_model, agent_version, agent_provider)
+agentictrust:modelId a owl:DatatypeProperty ;
+  rdfs:label "modelId" ;
+  rdfs:comment "Base model family identifier (e.g., 'gpt-4', 'claude-3-opus'). This is the descriptor-level representation of OIDC-A agent_model." ;
+  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:range xsd:string .
+
+agentictrust:modelVersion a owl:DatatypeProperty ;
+  rdfs:label "modelVersion" ;
+  rdfs:comment "Version identifier for the model or agent application (e.g., model release tag). This is the descriptor-level representation of OIDC-A agent_version." ;
+  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:range xsd:string .
+
+agentictrust:agentProviderValue a owl:DatatypeProperty ;
+  rdfs:label "agentProviderValue" ;
+  rdfs:comment "Provider string for the agent application (e.g., organization name/domain). Use agentictrust:agentProvider to link to a modeled Organization when available. This is the descriptor-level representation of OIDC-A agent_provider." ;
+  rdfs:domain agentictrust:AgentDescriptor ;
+  rdfs:range xsd:string .
+
+agentictrust:applicationVersion a owl:DatatypeProperty ;
+  rdfs:label "applicationVersion" ;
+  rdfs:comment "Version identifier of the deployed AI agent application (distinct from base model version when needed)." ;
+  rdfs:domain agentictrust:AIAgentApplication ;
+  rdfs:range xsd:string .
+
+agentictrust:agentInstanceId a owl:DatatypeProperty ;
+  rdfs:label "agentInstanceId" ;
+  rdfs:comment "Identifier for an ephemeral agent runtime instance (OIDC-A agent_instance_id). Typically scoped to a runtime/session/conversation." ;
+  rdfs:domain agentictrust:AgentInstance ;
+  rdfs:range xsd:string .
+
+agentictrust:modelIdValue a owl:DatatypeProperty ;
+  rdfs:label "modelIdValue" ;
+  rdfs:comment "Identifier for an AgentModel entity (e.g., 'gpt-4'). Use this on AgentModel nodes; use agentictrust:usesModel on applications." ;
+  rdfs:domain agentictrust:AgentModel ;
+  rdfs:range xsd:string .
+
+agentictrust:modelVersionValue a owl:DatatypeProperty ;
+  rdfs:label "modelVersionValue" ;
+  rdfs:comment "Version identifier for an AgentModel entity." ;
+  rdfs:domain agentictrust:AgentModel ;
   rdfs:range xsd:string .
 
 agentictrust:metadataActive a owl:DatatypeProperty ;
