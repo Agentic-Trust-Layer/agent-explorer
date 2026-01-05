@@ -190,6 +190,98 @@ agentictrust:identityRegistry
   rdfs:range agentictrust:AgentIdentityRegistry .
 ```
 
+## SPARQL queries
+
+### List all AgentIdentity entities
+
+```sparql
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?identity
+WHERE {
+  ?identity a agentictrust:AgentIdentity .
+}
+ORDER BY ?identity
+LIMIT 200
+```
+
+### Agent → identities (with provenance + registry)
+
+```sparql
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT DISTINCT
+  ?agent
+  ?identity
+  ?registry
+  ?registrationAct
+  ?identifier
+WHERE {
+  ?agent a prov:Agent .
+
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  OPTIONAL { ?identity agentictrust:identityOf ?agent . }
+  OPTIONAL { ?identity prov:wasAttributedTo ?agent . }
+
+  OPTIONAL { ?identity agentictrust:identityRegistry ?registry . }
+  OPTIONAL { ?identity prov:wasAssociatedWith ?registry . }
+
+  OPTIONAL { ?identity prov:wasGeneratedBy ?registrationAct . }
+  OPTIONAL { ?identity prov:identifier ?identifier . }
+}
+ORDER BY ?agent ?identity
+LIMIT 200
+```
+
+### Agents with multiple identities (no identity collapse)
+
+```sparql
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?agent (COUNT(DISTINCT ?identity) AS ?identityCount)
+WHERE {
+  ?agent a prov:Agent ;
+    agentictrust:hasIdentity ?identity .
+  ?identity a agentictrust:AgentIdentity .
+}
+GROUP BY ?agent
+HAVING (COUNT(DISTINCT ?identity) > 1)
+ORDER BY DESC(?identityCount) ?agent
+LIMIT 200
+```
+
+### Identity → DID (cryptographic anchor)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?identity ?did
+WHERE {
+  ?identity a agentictrust:AgentIdentity ;
+    agentictrust:usesDID ?did .
+}
+ORDER BY ?identity
+LIMIT 200
+```
+
+### List all AgentIdentityRegistry instances
+
+```sparql
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?registry ?type
+WHERE {
+  ?registry a agentictrust:AgentIdentityRegistry .
+  OPTIONAL { ?registry a ?type . }
+}
+ORDER BY ?registry ?type
+LIMIT 200
+```
+
 ## Where this shows up in the ontology
 
 - **Agents** (`prov:Agent`) are the *things* we reason about and attach trust assertions to.
