@@ -15,12 +15,12 @@ class provEntity["prov:Entity"]
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class AssertionAct["agentictrust:AssertionAct"]
-class AssertionRecord["agentictrust:AssertionRecord"]
+class AttestedAssertion["agentictrust:AttestedAssertion"]
 
 TrustDescription --|> provPlan
 TrustSituation --|> provEntity
 AssertionAct --|> provActivity
-AssertionRecord --|> provEntity
+AttestedAssertion --|> provEntity
 ```
 
 ### Relationship diagram (alias properties)
@@ -36,14 +36,14 @@ class provEntity["prov:Entity"]
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class AssertionAct["agentictrust:AssertionAct"]
-class AssertionRecord["agentictrust:AssertionRecord"]
+class AttestedAssertion["agentictrust:AttestedAssertion"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
 AssertionAct --> TrustSituation : assertsSituation
-AssertionAct --> AssertionRecord : generatedAssertionRecord
-AssertionRecord --> TrustSituation : recordsSituation
+AssertionAct --> AttestedAssertion : generatedAssertionRecord
+AttestedAssertion --> TrustSituation : recordsSituation
 
-note for AssertionAct "AssertionAct (prov:Activity) asserts a Situation and generates an AssertionRecord (prov:Entity)."
+note for AssertionAct "AssertionAct (prov:Activity) asserts a Situation and generates an AttestedAssertion (prov:Entity)."
 ```
 
 ### Diagram
@@ -62,7 +62,7 @@ We ground trust and execution in PROV so:
 - **`agentictrust:TrustDescription`** ⊑ `prov:Plan` and `p-plan:Plan`
 - **`agentictrust:TrustSituation`** ⊑ `prov:Entity`
 - **`agentictrust:AssertionAct`** ⊑ `prov:Activity` (the act of asserting)
-- **`agentictrust:AssertionRecord`** ⊑ `prov:Entity` (the durable record/artifact)
+- **`agentictrust:AttestedAssertion`** ⊑ `prov:Entity` (the durable record/artifact produced by an Attestation)
 
 ### Common provenance patterns in this repo
 
@@ -75,7 +75,7 @@ We ground trust and execution in PROV so:
 
 ### Where assertions land
 
-Trust claims land as subclasses of `agentictrust:AssertionRecord` (durable entities) and `agentictrust:AssertionAct` (activities):
+Trust claims land as subclasses of `agentictrust:AttestedAssertion` (durable entities) and `agentictrust:AssertionAct` (activities):
 
 - **Verification**:
   - `agentictrust:VerificationTrustAssertion` (Record) - used by ERC8004 validation responses

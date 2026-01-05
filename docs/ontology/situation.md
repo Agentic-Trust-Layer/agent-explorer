@@ -80,24 +80,51 @@ ReputationAssertionAct --|> TrustAssertionAct
 VerificationAssertionAct --|> TrustAssertionAct
 ```
 
-### AssertionRecord hierarchy (prov:Entity)
+### AttestedAssertion hierarchy (prov:Entity)
 
 ```mermaid
 classDiagram
 direction LR
 
 class provEntity["prov:Entity"]
-class AssertionRecord["agentictrust:AssertionRecord"]
+class AttestedAssertion["agentictrust:AttestedAssertion"]
 class TrustAssertion["agentictrust:TrustAssertion"]
 class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 
-AssertionRecord --|> provEntity
-TrustAssertion --|> AssertionRecord
+AttestedAssertion --|> provEntity
+TrustAssertion --|> AttestedAssertion
 RelationshipAssertion --|> TrustAssertion
 ReputationAssertion --|> TrustAssertion
 VerificationAssertion --|> TrustAssertion
+```
+
+### Assertion vs Attestation (PROV-O accountability)
+
+AgenticTrust separates **epistemic neutrality** (an *Assertion* as content) from **social accountability** (an *Attestation* as an act by an Agent).
+
+Conceptual flow (PROV-O):
+
+- **Assertion** (`agentictrust:Assertion`) is a `prov:Entity` (no agent responsibility implied)
+  - `prov:Entity` only
+- **Attestation** (`agentictrust:Attestation`) is a `prov:Activity` (agent-accountable act)
+  - `prov:Activity`
+  - `prov:wasAssociatedWith` → `prov:Agent`
+  - `prov:used` → `agentictrust:Assertion`
+  - `prov:generated` → `agentictrust:AttestedAssertion`
+- **AttestedAssertion** (`agentictrust:AttestedAssertion`) is a `prov:Entity` (durable artifact produced by attestation)
+
+```mermaid
+graph TB
+  A["Assertion (prov:Entity)"]
+  T["Attestation (prov:Activity)"]
+  AA["AttestedAssertion (prov:Entity)"]
+  Ag["Agent (prov:Agent)"]
+
+  T -->|prov:used| A
+  T -->|prov:generated| AA
+  T -->|prov:wasAssociatedWith| Ag
 ```
 
 ### SPARQL: TrustAssertion (records) + asserted situations
