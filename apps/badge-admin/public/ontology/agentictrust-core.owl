@@ -253,6 +253,11 @@ agentictrust:AgentIdentity a owl:Class ;
   rdfs:comment "Abstract identity for an agent. Protocol-specific realizations include ERC-8004 Identity (erc8004:AgentIdentity8004), Web2 identities, etc. An agent may have one or more Identities. Modeled as prov:Entity. Protocol-specific identities inherit from this class." ;
   rdfs:subClassOf prov:Entity .
 
+agentictrust:AgentIdentityRegistry a owl:Class ;
+  rdfs:label "AgentIdentityRegistry" ;
+  rdfs:comment "A registry/broker that asserts or publishes AgentIdentity entities (registry-scoped identity). Modeled as a prov:Agent to support provenance links (prov:wasAssociatedWith) and registry-scoped auditability." ;
+  rdfs:subClassOf prov:Agent .
+
 agentictrust:AgentName a owl:Class ;
   rdfs:label "AgentName" ;
   rdfs:comment "Abstract name for an agent. Protocol-specific realizations include ENS Name (agentictrustEth:AgentNameENS), DNS names, etc. An agent may have zero or more Names. Modeled as prov:Entity. For Ethereum ENS details, see agentictrust-eth.owl." ;
@@ -565,6 +570,26 @@ agentictrust:hasIdentity a owl:ObjectProperty ;
   rdfs:comment "Links an Agent (or any subclass of prov:Agent) to an AgentIdentity (e.g., erc8004:AgentIdentity8004). An agent may have one or more identities." ;
   rdfs:domain prov:Agent ;
   rdfs:range agentictrust:AgentIdentity .
+
+agentictrust:identityOf a owl:ObjectProperty ;
+  rdfs:label "identityOf" ;
+  rdfs:comment "Convenience link from an AgentIdentity (Entity) to the Agent it is attributed to. This is a domain-specific helper aligned with prov:wasAttributedTo." ;
+  rdfs:subPropertyOf prov:wasAttributedTo ;
+  rdfs:domain agentictrust:AgentIdentity ;
+  rdfs:range prov:Agent .
+
+agentictrust:identityRegistry a owl:ObjectProperty ;
+  rdfs:label "identityRegistry" ;
+  rdfs:comment "Links an AgentIdentity (Entity) to the AgentIdentityRegistry (Agent) in whose context it was asserted/published. Aligned with prov:wasAssociatedWith for registry-scoped identity." ;
+  rdfs:subPropertyOf prov:wasAssociatedWith ;
+  rdfs:domain agentictrust:AgentIdentity ;
+  rdfs:range agentictrust:AgentIdentityRegistry .
+
+agentictrust:usesDID a owl:ObjectProperty ;
+  rdfs:label "usesDID" ;
+  rdfs:comment "Links an AgentIdentity (Entity) to a DID that anchors cryptography for the asserted identity (e.g., did:ethr for a controlling account). This anchors keys/accounts/endpoints without collapsing identity into the Agent itself." ;
+  rdfs:domain agentictrust:AgentIdentity ;
+  rdfs:range agentictrust:DID .
 
 
 agentictrust:hasName a owl:ObjectProperty ;

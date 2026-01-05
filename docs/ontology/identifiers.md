@@ -2,6 +2,8 @@
 
 This document describes the complete agent identity model: how agents relate to identifiers (Account, AgentNameENS, AgentIdentity8004), identifiers to DIDs, and how Descriptors provide resolved metadata views.
 
+See also: [`identity.md`](./identity.md) (Identity vs Identifier).
+
 ## Overview
 
 The AgenticTrust ontology uses a layered identity model that separates:
