@@ -47,15 +47,15 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 | OIDC-A concept / claim | Meaning | AgenticTrust representation (today) | Suggested alignment |
 |---|---|---|---|
 | `agent_type` | class/category of agent | `agentictrust:AIAgent` + optional tags | Use `agentictrust:hasAgentTypeTag` (Agent → Tag) and/or descriptor taxonomy (`agentictrust:metadataAgentCategory`) |
-| `agent_model` | base model family | Not a first-class field | Add `agentictrust:modelId` (datatype) on a descriptor, or model as a `prov:Entity` “Model” and link with `agentictrust:usesModel` |
-| `agent_version` | model/version identifier | Not a first-class field | Add `agentictrust:modelVersion` on descriptor; optionally link to a `SoftwareRelease` entity |
-| `agent_provider` | org that provides/hosts agent | Provider modeled as `agentictrust:Organization` | Use `agentictrust:agentProvider` (Application → Organization) and/or `agentictrust:agentProviderValue` (descriptor string) |
-| `agent_instance_id` / instance | runtime instance identity | AgenticTrust generally models durable agents, not ephemeral instances | Introduce `agentictrust:AgentInstance` (subclass of `prov:SoftwareAgent`) and link to the durable `AIAgent` via `prov:specializationOf` |
+| `agent_model` | base model family | Supported at descriptor-level and entity-level | Use `agentictrust:modelId` (AgentDescriptor) and/or `agentictrust:AgentModel` (prov:Entity) + `agentictrust:usesModel` (AIAgentApplication → AgentModel) |
+| `agent_version` | model/app version identifier | Supported at descriptor-level and app-level | Use `agentictrust:modelVersion` (AgentDescriptor) and/or `agentictrust:applicationVersion` (AIAgentApplication) |
+| `agent_provider` | org that provides/hosts agent app | `agentictrust:Organization` / `agentictrust:AIAgentProvider` | Use `agentictrust:agentProvider` (AIAgentApplication → Organization) and/or `agentictrust:agentProviderValue` (AgentDescriptor string) |
+| `agent_instance_id` / instance | runtime instance identity | `agentictrust:AgentInstance` exists | Use `agentictrust:AgentInstance` + `prov:specializationOf` (Instance → AIAgentApplication) + `agentictrust:agentInstanceId` |
 | `agent_capabilities` | declared capabilities | Protocol-first: skills/domains mostly live on protocol descriptor; also OASF | Treat capabilities as **skills** (OASF ids) on protocol descriptors; define a mapping layer from capability ids → OASF skill ids |
-| `agent_attestation` | integrity evidence / attestation token | Trust-model taxonomy exists; RDF exporter maps trust models | Represent attestation evidence as an `agentictrust:TrustAssertionRecord` with `agentictrust:trustModel = execution-integrity` and link to an evidence entity/URI |
+| `agent_attestation` | integrity evidence / attestation token | Attestation/AttestedAssertion pattern exists | Model the accountable act as `agentictrust:Attestation` (prov:Activity) with the attestor via `prov:wasAssociatedWith`/`agentictrust:assertedBy`, producing an `agentictrust:AttestedAssertion` (prov:Entity). (Optionally link evidence objects.) See [`attested-assertion.md`](./attested-assertion.md). |
 | `attestation_formats_supported` | supported attestation formats | Not a first-class field | Add to protocol descriptor metadata (`agentictrust:attestationFormatValue`), or a controlled-vocab node list |
 | `delegator_sub` | delegator identity | AgenticTrust can model accounts/identifiers; assertions already use `agentictrust:assertedBy` patterns | Model delegator as a `prov:Agent` (Account or Person). Link delegation act via `prov:wasAssociatedWith` + `prov:actedOnBehalfOf` |
-| `delegation_chain[]` | chain of delegation steps | Not first-class; we do model situations + assertion acts + records | Introduce a `agentictrust:DelegationSituation` + `agentictrust:DelegationAssertionAct` + `agentictrust:DelegationRecord` pattern, aligned with existing TrustAssertion pattern |
+| `delegation_chain[]` | chain of delegation steps | Delegation trust classes exist | Use `agentictrust:DelegationTrustSituation` + `agentictrust:DelegationTrustAssertionAct` + `agentictrust:DelegationTrustAssertionRecord`, plus `prov:actedOnBehalfOf` (delegatee → delegator) / `agentictrust:delegatedBy` (delegator → delegatee) |
 | `delegation_purpose` | why delegated | DnS pattern: IntentType / SituationDescription | Represent as `agentictrust:satisfiesIntent` on the delegation situation; optionally store raw JSON |
 | `agent_attestation_endpoint` | endpoint to validate evidence | Endpoints/protocol descriptors exist | Add endpoint type for “attestation verification”; link to a protocol/service endpoint node |
 | `agent_capabilities_endpoint` | endpoint to discover capabilities | Protocol descriptors exist | Treat this as a protocol endpoint; map discovered capabilities into protocol descriptor skills/domains |
@@ -65,19 +65,20 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 Based on OIDC-A language, the following additions tend to fit AgenticTrust patterns well:
 
 1. **Agent instance vs agent (durable identity)**
-   - Add `agentictrust:AgentInstance` and connect to the durable `agentictrust:AIAgentApplication` using `prov:specializationOf`.
+   - **Implemented**: `agentictrust:AIAgentApplication` (durable) and `agentictrust:AgentInstance` (ephemeral), linked via `prov:specializationOf`.
 
 2. **Delegation as a first-class trust process**
-   - `agentictrust:DelegationTrustSituation` ⊑ `agentictrust:TrustSituation` (prov:Entity)
-   - `agentictrust:DelegationTrustAssertionAct` ⊑ `agentictrust:TrustAssertionAct` (prov:Activity)
-   - `agentictrust:DelegationTrustAssertionRecord` ⊑ `agentictrust:TrustAssertion` (prov:Entity)
-   - Reuse PROV:
-     - `prov:actedOnBehalfOf` (delegatee → delegator; PROV-native)
-     - `agentictrust:delegatedBy` (delegator → delegatee; convenience inverse)
+   - **Implemented**:
+     - `agentictrust:DelegationTrustSituation` ⊑ `agentictrust:TrustSituation` (prov:Entity)
+     - `agentictrust:DelegationTrustAssertionAct` ⊑ `agentictrust:TrustAssertionAct` (prov:Activity)
+     - `agentictrust:DelegationTrustAssertionRecord` ⊑ `agentictrust:TrustAssertion` (prov:Entity)
+     - `prov:actedOnBehalfOf` and `agentictrust:delegatedBy` (inverse)
 
 3. **Attestation evidence as evidence objects**
-   - Create `agentictrust:AttestationEvidence` (prov:Entity) and link it from assertion records.
-   - Reuse the existing trust model taxonomy: map attestation to **execution-integrity**.
+   - **Partially implemented**:
+     - **Accountability abstraction exists** via `agentictrust:Attestation` (prov:Activity) and `agentictrust:AttestedAssertion` (prov:Entity), capturing the attestor via PROV association.
+   - **Future**:
+     - Add `agentictrust:AttestationEvidence` (prov:Entity) and link it from attested assertions/records when we standardize evidence URIs/formats.
 
 4. **Capability vocabulary alignment**
    - Prefer mapping OIDC-A capabilities onto **OASF** (skills/domains), stored on protocol descriptors (A2A/MCP).
@@ -129,20 +130,20 @@ LIMIT 200
 ### Attestation as execution-integrity trust evidence
 
 ```mermaid
-graph LR
-  Agent["AIAgent"]
+graph TB
+  Agent["AIAgent / AIAgentApplication"]
   Sit["TrustSituation"]
-  Act["TrustAssertionAct"]
-  Rec["TrustAssertionRecord"]
-  Evidence["AttestationEvidence (prov:Entity)"]
-  Model["TrustModel: execution-integrity"]
+  Assertion["Assertion (prov:Entity)"]
+  Attestation["Attestation (prov:Activity)"]
+  Attested["AttestedAssertion (prov:Entity)"]
+  Attestor["Attestor (prov:Agent)"]
 
   Sit -->|agentictrust:isAboutAgent| Agent
-  Act -->|agentictrust:assertsSituation| Sit
-  Act -->|agentictrust:generatedAssertionRecord| Rec
-  Rec -->|agentictrust:recordsSituation| Sit
-  Rec -->|agentictrust:hasEvidence| Evidence
-  Rec -->|agentictrust:hasTrustModel| Model
+  Attestation -->|agentictrust:assertsSituation| Sit
+  Attestation -->|prov:used| Assertion
+  Attestation -->|prov:generated| Attested
+  Attestation -->|prov:wasAssociatedWith / agentictrust:assertedBy| Attestor
+  Attested -->|agentictrust:recordsSituation| Sit
 ```
 
 ## Practical guidance for AgenticTrust implementers
