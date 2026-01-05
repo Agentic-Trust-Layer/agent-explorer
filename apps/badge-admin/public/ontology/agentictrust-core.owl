@@ -260,8 +260,8 @@ agentictrust:AgentIdentity a owl:Class ;
 
 agentictrust:AgentIdentityRegistry a owl:Class ;
   rdfs:label "AgentIdentityRegistry" ;
-  rdfs:comment "A registry/broker that asserts or publishes AgentIdentity entities (registry-scoped identity). Modeled as a prov:Agent to support provenance links (prov:wasAssociatedWith) and registry-scoped auditability." ;
-  rdfs:subClassOf prov:Agent .
+  rdfs:comment "A registry/broker that asserts or publishes AgentIdentity entities (registry-scoped identity). Modeled as a prov:Entity (the registry-as-a-thing), not as a prov:Agent." ;
+  rdfs:subClassOf prov:Entity .
 
 agentictrust:AgentName a owl:Class ;
   rdfs:label "AgentName" ;
@@ -585,8 +585,7 @@ agentictrust:identityOf a owl:ObjectProperty ;
 
 agentictrust:identityRegistry a owl:ObjectProperty ;
   rdfs:label "identityRegistry" ;
-  rdfs:comment "Links an AgentIdentity (Entity) to the AgentIdentityRegistry (Agent) in whose context it was asserted/published. Aligned with prov:wasAssociatedWith for registry-scoped identity." ;
-  rdfs:subPropertyOf prov:wasAssociatedWith ;
+  rdfs:comment "Links an AgentIdentity (Entity) to the AgentIdentityRegistry (Entity) in whose context it was asserted/published. This is a registry-scoping relationship; for Activity provenance, model a registration act that prov:used the registry entity." ;
   rdfs:domain agentictrust:AgentIdentity ;
   rdfs:range agentictrust:AgentIdentityRegistry .
 

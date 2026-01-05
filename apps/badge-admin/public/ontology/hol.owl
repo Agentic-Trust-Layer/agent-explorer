@@ -23,7 +23,7 @@ hol:AgentIdentityRegistryHOL a owl:Class ;
   rdfs:label "AgentIdentityRegistryHOL" ;
   rdfs:comment "HOL agent identity registry/broker that publishes HOL AgentIdentity entities and UAID identifiers." ;
   rdfs:subClassOf agentictrust:AgentIdentityRegistry ;
-  rdfs:subClassOf prov:Agent .
+  rdfs:subClassOf prov:Entity .
 
 hol:AgentIdentityHOL a owl:Class ;
   rdfs:label "AgentIdentityHOL" ;

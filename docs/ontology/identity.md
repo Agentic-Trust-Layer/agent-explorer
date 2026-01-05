@@ -83,7 +83,7 @@ Instead of baking registry logic into the agent, model it explicitly:
 
 ```turtle
 :ERC8004_Registry
-  a prov:Agent ;
+  a prov:Entity ;
   a agentictrust:AgentIdentityRegistry .
 ```
 
@@ -93,7 +93,8 @@ Then:
 :Identity_ERC8004_4550
   prov:wasAttributedTo :Agent_A ;
   prov:wasGeneratedBy :ERC8004_Registration ;
-  prov:wasAssociatedWith :ERC8004_Registry .
+  agentictrust:identityRegistry :ERC8004_Registry ;
+  prov:wasGeneratedBy :ERC8004_Registration .
 ```
 
 Now you have:
@@ -159,7 +160,7 @@ direction LR
 
 class Agent["prov:Agent (Agent)"]
 class AgentIdentity["agentictrust:AgentIdentity (prov:Entity)"]
-class AgentIdentityRegistry["agentictrust:AgentIdentityRegistry (prov:Agent)"]
+class AgentIdentityRegistry["agentictrust:AgentIdentityRegistry (prov:Entity)"]
 class Registration["Registration (prov:Activity)"]
 
 AgentIdentity --> Agent : wasAttributedTo
@@ -179,7 +180,7 @@ These convenience terms keep PROV-O clean while giving you domain semantics:
 
 ```turtle
 agentictrust:AgentIdentity rdfs:subClassOf prov:Entity .
-agentictrust:AgentIdentityRegistry rdfs:subClassOf prov:Agent .
+agentictrust:AgentIdentityRegistry rdfs:subClassOf prov:Entity .
 
 agentictrust:identityOf
   rdfs:domain agentictrust:AgentIdentity ;
