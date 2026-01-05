@@ -233,6 +233,7 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`agent.md`](./agent.md): Agent class hierarchy (Person, Organization, SoftwareAgent, AIAgent, Account) and relationships to Identity, Identifier, Name, and Descriptors
 - [`identity.md`](./identity.md): Identity vs Identifier (the thing vs the reference)
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly
+- [`oidc-a.md`](./oidc-a.md): OpenID Connect for Agents (OIDC-A) vocabulary mapping and suggestions for AgenticTrust alignment
 - [`protocols-endpoints.md`](./protocols-endpoints.md): Protocol endpoints (A2A, MCP) and why skills/domains are primarily protocol-defined
 - [`description.md`](./description.md): Plans (PROV-O + P-PLAN) and SituationDescription / TrustDescription
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")
