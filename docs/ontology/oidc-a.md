@@ -68,10 +68,12 @@ Based on OIDC-A language, the following additions tend to fit AgenticTrust patte
    - Add `agentictrust:AgentInstance` and connect to the durable `agentictrust:AIAgentApplication` using `prov:specializationOf`.
 
 2. **Delegation as a first-class trust process**
-   - Add `agentictrust:DelegationTrustSituation` (subclass of `agentictrust:TrustSituation`, `prov:Entity`).
-   - Add `agentictrust:DelegationTrustAssertionAct` (subclass of `agentictrust:TrustAssertionAct`, `prov:Activity`).
-   - Add `agentictrust:DelegationTrustAssertionRecord` (subclass of `agentictrust:TrustAssertion`, `prov:Entity`).
-   - Reuse PROV: `prov:actedOnBehalfOf` and/or a dedicated property `agentictrust:delegatedBy` to connect delegator → agent.
+   - `agentictrust:DelegationTrustSituation` ⊑ `agentictrust:TrustSituation` (prov:Entity)
+   - `agentictrust:DelegationTrustAssertionAct` ⊑ `agentictrust:TrustAssertionAct` (prov:Activity)
+   - `agentictrust:DelegationTrustAssertionRecord` ⊑ `agentictrust:TrustAssertion` (prov:Entity)
+   - Reuse PROV:
+     - `prov:actedOnBehalfOf` (delegatee → delegator; PROV-native)
+     - `agentictrust:delegatedBy` (delegator → delegatee; convenience inverse)
 
 3. **Attestation evidence as evidence objects**
    - Create `agentictrust:AttestationEvidence` (prov:Entity) and link it from assertion records.
@@ -101,6 +103,27 @@ graph TB
   Act -->|agentictrust:assertsSituation| Sit
   Act -->|agentictrust:generatedAssertionRecord| Rec
   Rec -->|agentictrust:recordsSituation| Sit
+```
+
+### SPARQL: delegation situations and their delegation links
+
+```sparql
+PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+
+SELECT ?situation ?assertionAct ?assertionRecord ?delegatee ?delegator
+WHERE {
+  ?situation a agentictrust:DelegationTrustSituation .
+  OPTIONAL {
+    ?assertionAct a agentictrust:DelegationTrustAssertionAct ;
+      agentictrust:assertsSituation ?situation ;
+      agentictrust:generatedAssertionRecord ?assertionRecord .
+  }
+  # Delegation links (either direction)
+  OPTIONAL { ?delegatee prov:actedOnBehalfOf ?delegator . }
+  OPTIONAL { ?delegator agentictrust:delegatedBy ?delegatee . }
+}
+LIMIT 200
 ```
 
 ### Attestation as execution-integrity trust evidence
