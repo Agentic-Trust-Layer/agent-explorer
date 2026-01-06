@@ -307,5 +307,162 @@ Where others keep these layers inside a product/runtime, AgenticTrust keeps them
 - treat Tool‑RAG retrieval as execution (it’s classification)
 - encode orchestration “logic” as a skill/tool
 
+## Critical industry patterns we don’t model explicitly yet (and how to augment the ontology)
+
+The principles above are correct but not sufficient. Modern orchestration stacks (AgentCore-style gateways, planner frameworks, “semantic routing” products) introduce **concrete artifacts** that make systems reliable, governable, and debuggable. Today, AgenticTrust can *imply* many of these, but cannot represent them explicitly as queryable graph objects.
+
+Below are the highest-signal missing patterns and the specific ontology additions they imply.
+
+### Pattern A: “Candidate set” is a first-class artifact (Tool-RAG, toolset minimization)
+
+**What industry does**
+
+- Tool catalogs can be huge, so systems do a narrowing step (semantic retrieval, rules, allowlists) to produce a *small* set of eligible tools for this run.
+- That shortlist is frequently cached, reused across steps, and audited.
+
+**What we lack**
+
+- No explicit way to represent “these were the eligible tools considered at decision time”.
+- No place to attach ranking scores, reasons, or the index version used.
+
+**Ontology augmentation (recommended)**
+
+- `agentictrust:ToolCandidateSet` ⊑ `prov:Entity`
+- `agentictrust:hasCandidateSet` (TaskExecution or an orchestration Activity → ToolCandidateSet)
+- `agentictrust:candidateTool` (ToolCandidateSet → AgentSkillClassification)
+- Optional qualification node for score/rank (don’t overload literals onto the skill node).
+
+### Pattern B: Tool selection is a provenance step separate from invocation
+
+**What industry does**
+
+- Separates: retrieval → selection → invocation.
+- Keeps “why we picked it” distinct from “what happened when we ran it”.
+
+**What we lack**
+
+- We can log invocation (`SkillInvocation`), but not the selection decision that preceded it.
+
+**Ontology augmentation**
+
+- `agentictrust:ToolSelectionAct` ⊑ `prov:Activity`
+- `agentictrust:selectedTool` (ToolSelectionAct → AgentSkillClassification)
+- `agentictrust:selectionUsedCandidateSet` (ToolSelectionAct → ToolCandidateSet)
+- `agentictrust:selectionRationaleJson` (datatype; store model output / heuristic summary)
+
+### Pattern C: Tool “contracts” (side-effects, risk, cost) drive governance
+
+**What industry does**
+
+- Treats tools as having operational semantics beyond schema:
+  - side-effect class (read-only vs write)
+  - cost/latency budgets
+  - data sensitivity (PII, secrets)
+  - idempotency/retry safety
+  - required auth strength
+- Policy engines and planners route differently based on these contracts.
+
+**What we lack**
+
+- Schemas exist (`JsonSchema`), but not a contract surface for safe orchestration.
+
+**Ontology augmentation**
+
+- `agentictrust:ToolContract` ⊑ `prov:Entity`
+- `agentictrust:toolHasContract` (AgentSkillClassification → ToolContract)
+- Datatype properties on ToolContract (start minimal):
+  - `agentictrust:sideEffectClass` (e.g., read / write / external)
+  - `agentictrust:piiSensitivity` (none / low / high)
+  - `agentictrust:estimatedCost` / `agentictrust:estimatedLatencyMs`
+  - `agentictrust:isIdempotent` (boolean)
+
+### Pattern D: Policy decisions are objects (and are logged)
+
+**What industry does**
+
+- Policy is not just a static document; “allow/deny with reason” is logged per action.
+- These logs become the audit trail.
+
+**What we lack**
+
+- We can represent attestations, but we don’t have a neutral “policy decision record” for each invocation.
+
+**Ontology augmentation**
+
+- `agentictrust:PolicyDecision` ⊑ `prov:Entity`
+- `agentictrust:PolicyDecisionAct` ⊑ `prov:Activity`
+- `agentictrust:decisionAppliesToInvocation` (PolicyDecision → SkillInvocation)
+- `agentictrust:decisionOutcome` (allow/deny)
+- `agentictrust:decisionReasonJson` (datatype)
+
+### Pattern E: Auth context for outbound calls is structured and portable
+
+**What industry does**
+
+- Represents “who/what is calling” separately from “what tool is called”:
+  - workload identity vs user delegation
+  - audience/scopes
+  - proof-of-possession / mTLS
+  - token exchange / impersonation
+
+**What we lack**
+
+- No explicit object to attach outbound credentials/context to an invocation.
+
+**Ontology augmentation**
+
+- `agentictrust:AuthContext` ⊑ `prov:Entity`
+- `agentictrust:invocationAuthContext` (SkillInvocation → AuthContext)
+- Minimal fields:
+  - `agentictrust:authSubject` (string or Identifier)
+  - `agentictrust:authAudience` (string)
+  - `agentictrust:authScopes` (string/JSON)
+  - `agentictrust:authMethod` (e.g., oauth, mtls, apiKey)
+
+### Pattern F: Failure/compensation is part of orchestration, not an afterthought
+
+**What industry does**
+
+- Retries, fallbacks, circuit breakers, and compensating actions are explicit.
+- “Tool failed” is data, not a footnote.
+
+**What we lack**
+
+- A consistent way to represent retry attempts, failure classes, and fallback routing.
+
+**Ontology augmentation**
+
+- `agentictrust:InvocationOutcome` ⊑ `prov:Entity`
+- `agentictrust:invocationOutcome` (SkillInvocation → InvocationOutcome)
+- `agentictrust:outcomeStatus` (success/failure/timeout)
+- `agentictrust:errorClass` (transient/permanent/policyDenied)
+- `agentictrust:retryOf` (SkillInvocation → SkillInvocation) for attempt chaining
+
+### Pattern G: Orchestrator “handoff” and multi-agent dispatch are explicit events
+
+**What industry does**
+
+- Systems frequently hand off tasks between agents/workflows.
+- This is fundamental in Agentspace-like routing and multi-agent planners.
+
+**What we lack**
+
+- We have delegation (`actedOnBehalfOf`) but not a clean “dispatch/handoff” event tied to a task thread.
+
+**Ontology augmentation**
+
+- `agentictrust:HandoffAct` ⊑ `prov:Activity`
+- `agentictrust:handoffFrom` / `agentictrust:handoffTo` (Agents/Deployments)
+- `agentictrust:handoffTask` (HandoffAct → Task)
+
+### Recommendation priority (if we only do 3 things)
+
+If you want the smallest set of ontology changes that unlock most of the industry patterns:
+
+1) **CandidateSet + ToolSelectionAct** (makes tool narrowing + selection auditable)
+2) **ToolContract** (makes governance/policy meaningful beyond schemas)
+3) **PolicyDecision + AuthContext** (makes execution gateways accountable and portable)
+
+
 
 
