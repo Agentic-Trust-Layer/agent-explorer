@@ -2,7 +2,7 @@
 
 **Agent ID**: 4476  
 **Chain ID**: 11155111  
-**DID**: `did:8004:11155111:4476`  
+**ERC-8004 identity DID (identity layer)**: `did:8004:11155111:4476`  
 **Agent Name**: `movie-reviewer.8004-agent.eth` / `movie-reviewer-v2.8004-agent.eth`
 
 This document provides comprehensive SPARQL queries and diagrams for exploring agent 4476's data in the RDF knowledge base, including identity, identifiers, names, situations, and assertions.
@@ -26,7 +26,7 @@ PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 
 ### Complete Identity Model
 
-This query retrieves the agent's complete identity structure: Agent → Identity → Identifier → DID, plus any ENS names.
+This query retrieves a **tight** identity slice (no wide UNION fanout): Agent(account-anchored) → Identity8004 → IdentityIdentifier8004, plus ENS.
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -34,80 +34,52 @@ PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT DISTINCT 
-  ?agent 
-  ?agentId 
+SELECT DISTINCT
+  ?agent
+  ?agentId
+  ?chainId
+  ?accountAddress
+  ?didAccount
   ?agentName
   ?didIdentity
   ?identity
-  ?identityType
-  ?identifier
-  ?identifierType
-  ?identifierValue
-  ?did
+  ?identityIdentifier
   ?ensName
-  ?ensNameIri
 WHERE {
-  # Find agent by agentId
-  ?agent a agentictrust:AIAgent .
-  ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
-  
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+
+  # Bind the agent node once (account-anchored AIAgent)
+  {
+    SELECT ?agent ?accountAddress ?didAccount
+    WHERE {
+      ?agent a agentictrust:AIAgent, agentictrustEth:Account .
+      ?agent agentictrust:agentId ?agentId .
+      ?agent agentictrustEth:accountChainId ?chainId .
+      ?agent agentictrustEth:accountAddress ?accountAddress .
+      OPTIONAL { ?agent agentictrust:didAccount ?didAccount . }
+    }
+    LIMIT 1
+  }
+
   OPTIONAL { ?agent agentictrust:agentName ?agentName . }
   OPTIONAL { ?agent agentictrust:didIdentity ?didIdentity . }
-  
-  # Identity (ERC-8004 Identity8004)
+
+  # ERC-8004 identity (tight)
   OPTIONAL {
     ?agent agentictrust:hasIdentity ?identity .
-    ?identity a ?identityType .
+    ?identity a erc8004:AgentIdentity8004 .
+    ?identity agentictrust:hasIdentifier ?identityIdentifier .
+    ?identityIdentifier a erc8004:IdentityIdentifier8004 .
   }
-  
-  # Identifiers (via agent or via identity)
-  OPTIONAL {
-    {
-      ?agent agentictrust:hasIdentifier ?identifier .
-    }
-    UNION
-    {
-      ?agent agentictrust:hasIdentity ?identity .
-      ?identity agentictrust:hasIdentifier ?identifier .
-    }
-    ?identifier a ?identifierType .
-    
-    # Extract identifier value based on type
-    {
-      ?identifier a erc8004:IdentityIdentifier8004 .
-      OPTIONAL {
-        ?identifier agentictrust:hasDID ?didNode .
-        BIND(REPLACE(REPLACE(STR(?didNode), "^.*/([^/]+)$", "$1"), "%3A", ":") AS ?identifierValue)
-      }
-    }
-    UNION
-    {
-      ?identifier a agentictrustEth:AccountIdentifier .
-      ?account agentictrustEth:hasIdentifier ?identifier .
-      ?account agentictrustEth:accountAddress ?identifierValue .
-    }
-    UNION
-    {
-      ?identifier a agentictrustEth:NameIdentifierENS .
-      ?identifier rdfs:label ?identifierValue .
-    }
-    
-    # DID link
-    OPTIONAL {
-      ?identifier agentictrust:hasDID ?did .
-    }
-  }
-  
-  # ENS Name (if exists)
+
+  # ENS Name (tight)
   OPTIONAL {
     ?agent agentictrust:hasName ?ensNameIri .
     ?ensNameIri a agentictrustEth:AgentNameENS .
     ?ensNameIri agentictrustEth:ensName ?ensName .
   }
 }
-ORDER BY ?identifierType
+LIMIT 50
 ```
 
 ### Agent Basic Information
@@ -116,17 +88,19 @@ ORDER BY ?identifierType
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 
-SELECT ?agent ?agentId ?agentName ?didIdentity ?agentAccount ?didAccount
+SELECT DISTINCT ?agent ?agentId ?chainId ?accountAddress ?agentName ?didIdentity ?didAccount
 WHERE {
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
+  ?agent agentictrustEth:accountChainId ?chainId .
+  ?agent agentictrustEth:accountAddress ?accountAddress .
   
   OPTIONAL { ?agent agentictrust:agentName ?agentName . }
   OPTIONAL { ?agent agentictrust:didIdentity ?didIdentity . }
-  OPTIONAL { ?agent agentictrust:agentAccount ?agentAccount . }
   OPTIONAL { ?agent agentictrust:didAccount ?didAccount . }
 }
+LIMIT 1
 ```
 
 ### Agent with Account Identifier
@@ -135,26 +109,23 @@ WHERE {
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
-SELECT ?agent ?agentId ?account ?accountAddress ?chainId ?accountType
+SELECT DISTINCT ?agent ?agentId ?accountAddress ?chainId ?accountType
 WHERE {
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
-  
-  ?agent agentictrust:hasIdentifier ?accountIdentifier .
-  ?accountIdentifier a agentictrustEth:AccountIdentifier .
-  ?account agentictrustEth:hasIdentifier ?accountIdentifier .
-  ?account agentictrustEth:accountAddress ?accountAddress .
-  ?account agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?account agentictrustEth:accountType ?accountType . }
+  ?agent agentictrustEth:accountChainId ?chainId .
+  ?agent agentictrustEth:accountAddress ?accountAddress .
+  OPTIONAL { ?agent agentictrustEth:accountType ?accountType . }
 }
+LIMIT 1
 ```
 
 ## ERC-8004 Situations and Assertions
 
-### All Situations and Assertions
+### Situations and assertion counts (small result set)
 
-This query retrieves all situations (reputation, verification, relationship) and their associated assertions for agent 4476.
+This query returns **one row per situation type** with counts, instead of exploding into many rows.
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
@@ -163,53 +134,35 @@ PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
-SELECT DISTINCT 
-  ?agent 
-  ?agentId 
-  ?agentName
-  ?situation 
-  ?situationType 
-  ?assertion 
-  ?assertionType
-  ?assertionRecord
-  ?situationDescription
+SELECT
+  ?situationType
+  (COUNT(DISTINCT ?situation) AS ?situationCount)
+  (COUNT(DISTINCT ?assertionAct) AS ?assertionActCount)
+  (COUNT(DISTINCT ?assertionRecord) AS ?assertionRecordCount)
 WHERE {
-  # Find agent by agentId
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
-  
-  OPTIONAL { ?agent rdfs:label ?agentName . }
-  
-  # Find all situations about this agent
-  ?situation agentictrust:isAboutAgent ?agent .
-  ?situation a ?situationType .
-  
-  # Get situation description if available
-  OPTIONAL { ?situation rdfs:comment ?situationDescription . }
-  
-  # Find assertions that assert this situation
-  OPTIONAL {
-    ?assertion agentictrust:assertsSituation ?situation .
-    ?assertion a ?assertionType .
-    
-    # Get the assertion record (Entity) generated by the assertion act (Activity)
-    OPTIONAL {
-      ?assertion agentictrust:generatedAssertionRecord ?assertionRecord .
-    }
+  ?agent agentictrustEth:accountChainId ?chainId .
+
+  VALUES ?situationType {
+    agentictrust:ReputationTrustSituation
+    agentictrust:VerificationRequestSituation
+    agentictrust:RelationshipTrustSituation
+    agentictrust:DelegationTrustSituation
   }
-  
-  # Filter to only trust-related situation types
-  FILTER (
-    ?situationType = agentictrust:RelationshipTrustSituation ||
-    ?situationType = agentictrust:RelationshipSituation ||
-    ?situationType = agentictrust:ReputationTrustSituation ||
-    ?situationType = agentictrust:VerificationRequestSituation ||
-    ?situationType = agentictrust:VerificationTrustSituation ||
-    ?situationType = agentictrust:TrustSituation
-  )
+
+  ?situation a ?situationType ;
+            agentictrust:isAboutAgent ?agent .
+
+  OPTIONAL {
+    ?assertionAct a agentictrust:TrustAssertionAct ;
+                 agentictrust:assertsSituation ?situation ;
+                 agentictrust:generatedAssertionRecord ?assertionRecord .
+  }
 }
-ORDER BY ?situationType ?assertionType
+GROUP BY ?situationType
+ORDER BY ?situationType
 ```
 
 ### Reputation Situations and Feedback Assertions
@@ -232,9 +185,10 @@ SELECT DISTINCT
   ?isRevoked
   ?skill
 WHERE {
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
+  ?agent agentictrustEth:accountChainId ?chainId .
   
   # Reputation situation
   ?repSituation a agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity .
@@ -246,7 +200,7 @@ WHERE {
   ?feedbackRecord erc8004:feedbackIndex ?feedbackIndex .
   
   # Feedback act (Activity)
-  ?feedbackAct a erc8004:FeedbackAct, agentictrust:ReputationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity .
+  ?feedbackAct a erc8004:FeedbackAct, agentictrust:ReputationTrustAssertionAct, agentictrust:TrustAssertionAct, agentictrust:Attestation, prov:Activity .
   ?feedbackAct agentictrust:assertsSituation ?repSituation .
   ?feedbackAct agentictrust:generatedAssertionRecord ?feedbackRecord .
   
@@ -260,6 +214,7 @@ WHERE {
   OPTIONAL { ?feedbackRecord erc8004:feedbackSkill ?skillIri . ?skillIri rdfs:label ?skill . }
 }
 ORDER BY ?feedbackIndex
+LIMIT 50
 ```
 
 ### Verification Situations and Validation Assertions
@@ -282,9 +237,10 @@ SELECT DISTINCT
   ?validatorAddress
   ?tag
 WHERE {
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
+  ?agent agentictrustEth:accountChainId ?chainId .
   
   # Verification request situation (Entity)
   ?verificationSituation a agentictrust:VerificationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity .
@@ -310,12 +266,13 @@ WHERE {
   
   # Validation response act (Activity)
   OPTIONAL {
-    ?validationAct a erc8004:ValidationResponseAct, agentictrust:VerificationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity .
+    ?validationAct a erc8004:ValidationResponseAct, agentictrust:VerificationTrustAssertionAct, agentictrust:TrustAssertionAct, agentictrust:Attestation, prov:Activity .
     ?validationAct agentictrust:assertsSituation ?verificationSituation .
     ?validationAct agentictrust:generatedAssertionRecord ?validationResponse .
   }
 }
 ORDER BY ?requestHash
+LIMIT 50
 ```
 
 ### Relationship Situations and Assertions
@@ -339,9 +296,10 @@ SELECT DISTINCT
   ?validAt
   ?validUntil
 WHERE {
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
+  ?agent agentictrustEth:accountChainId ?chainId .
   
   # Relationship situation
   ?relationshipSituation a agentictrust:RelationshipTrustSituation, agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Entity .
@@ -357,7 +315,7 @@ WHERE {
   ?relationshipAssertion erc8092:assertsRelationship ?relationship .
   
   # Relationship assertion act
-  ?assertionAct a erc8092:AssociatedAccountsAct8092, agentictrust:RelationshipTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity .
+  ?assertionAct a erc8092:AssociatedAccountsAct8092, agentictrust:RelationshipTrustAssertionAct, agentictrust:TrustAssertionAct, agentictrust:Attestation, prov:Activity .
   ?assertionAct agentictrust:assertsSituation ?relationshipSituation .
   ?assertionAct agentictrust:generatedAssertionRecord ?relationshipAssertion .
   
@@ -370,6 +328,7 @@ WHERE {
   OPTIONAL { ?relationshipAssertion erc8092:validUntil ?validUntil . }
 }
 ORDER BY ?associationId
+LIMIT 50
 ```
 
 ## Agent Descriptor and Metadata
@@ -383,25 +342,26 @@ PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 SELECT DISTINCT
   ?agent
   ?agentId
-  ?agentDescriptor
+  ?agentRegistration
   ?endpoint
   ?endpointType
   ?endpointUrl
   ?agentSkill
-  ?skill
   ?skillId
   ?skillName
 WHERE {
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
-  
-  ?agent agentictrust:hasAgentDescriptor ?agentDescriptor .
-  ?agentDescriptor a agentictrust:AgentDescriptor .
+  ?agent agentictrustEth:accountChainId ?chainId .
+
+  # ERC-8004 registration descriptor (this is where endpoints/skills live for 8004 agents)
+  ?agent erc8004:hasAgentRegistration8004 ?agentRegistration .
+  ?agentRegistration a erc8004:AgentRegistration8004 .
   
   # Endpoints
   OPTIONAL {
-    ?agentDescriptor agentictrust:hasEndpoint ?endpoint .
+    ?agentRegistration agentictrust:hasEndpoint ?endpoint .
     ?endpoint a agentictrust:Endpoint .
     OPTIONAL { ?endpoint agentictrust:endpointType ?endpointType . }
     OPTIONAL { ?endpoint agentictrust:serviceUrl ?endpointUrl . }
@@ -409,7 +369,7 @@ WHERE {
   
   # Skills
   OPTIONAL {
-    ?agentDescriptor agentictrust:hasSkill ?agentSkill .
+    ?agentRegistration agentictrust:hasSkill ?agentSkill .
     ?agentSkill a agentictrust:AgentSkill .
     OPTIONAL {
       ?agentSkill agentictrust:hasSkillClassification ?skill .
@@ -419,6 +379,7 @@ WHERE {
   }
 }
 ORDER BY ?endpointType ?skillId
+LIMIT 100
 ```
 
 ### ERC-8004 Registration Metadata
@@ -434,9 +395,10 @@ SELECT DISTINCT
   ?registrationJson
   ?trustModel
 WHERE {
-  ?agent a agentictrust:AIAgent .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
-  FILTER (?agentId = "4476")
+  ?agent agentictrustEth:accountChainId ?chainId .
   
   ?agent erc8004:hasAgentRegistration8004 ?agentRegistration .
   ?agentRegistration a erc8004:AgentRegistration8004 .
@@ -444,6 +406,7 @@ WHERE {
   OPTIONAL { ?agentRegistration agentictrust:json ?registrationJson . }
   OPTIONAL { ?agentRegistration agentictrust:hasTrustModel ?trustModel . }
 }
+LIMIT 50
 ```
 
 ## Complete Agent Graph
@@ -476,7 +439,7 @@ WHERE {
   # Get all triples where agent's identity/identifier/name is subject
   {
     {
-      ?agent agentictrust:hasIdentity|agentictrust:hasIdentifier|agentictrust:hasName|agentictrust:hasAgentDescriptor ?related .
+      ?agent agentictrust:hasIdentity|agentictrust:hasIdentifier|agentictrust:hasName|erc8004:hasAgentRegistration8004 ?related .
     }
     UNION
     {
@@ -528,7 +491,7 @@ graph TB
     ENSName["AgentNameENS<br/>movie-reviewer.8004-agent.eth"]
     ENSIdentifier["NameIdentifierENS<br/>ENS Identifier"]
     
-    AgentDescriptor["AgentDescriptor<br/>Registration Metadata"]
+    AgentDescriptor["AgentRegistration8004<br/>Registration Metadata"]
     
     Agent -->|hasIdentity| Identity
     Identity -->|hasIdentifier| IdentityIdentifier
@@ -541,7 +504,7 @@ graph TB
     Agent -->|hasName| ENSName
     ENSName -->|hasIdentifier| ENSIdentifier
     
-    Agent -->|hasAgentDescriptor| AgentDescriptor
+    Agent -->|hasAgentRegistration8004| AgentDescriptor
 ```
 
 ### Situations and Assertions Model

@@ -464,18 +464,38 @@ function renderAgentSection(
   const agentId = String(row?.agentId ?? '');
   const readAt = Number(row?.agentCardReadAt ?? 0) || Math.floor(Date.now() / 1000);
 
-  const aIri = agentIri(chainId, agentId, row?.didIdentity);
+  // Identity principle (new way only):
+  // - Anchor the discoverable AIAgent node to an on-chain account address (authority).
+  // - Prefer agentAccount (SmartAccount). If missing, fall back to other on-chain address fields.
+  // - NEVER fall back to did:8004 / agentId-derived IRIs for the AIAgent subject.
+  const acctNorm =
+    normalizeHex(row?.agentAccount) ??
+    normalizeHex(row?.agentAddress) ??
+    normalizeHex(row?.agentOwner) ??
+    normalizeHex(row?.eoaOwner) ??
+    null;
+  const acctIri = acctNorm ? accountIri(chainId, acctNorm) : null;
+  if (!acctIri) return '';
+  const aIri = acctIri;
+
+  // Prefer DID-account for per-agent IRIs (descriptors/skills/domains/situations/protocol IRIs).
+  // Do not use did:8004 for these IRIs.
+  const didAccountValue =
+    typeof row?.didAccount === 'string' && row.didAccount.trim()
+      ? row.didAccount.trim()
+      : `did:ethr:${chainId}:${acctNorm.toLowerCase()}`;
 
   const lines: string[] = [];
   const afterAgent: string[] = [];
 
   // Agent
   lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
+  lines.push(`  a agentictrustEth:Account ;`);
   lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
   if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
 
   // AgentRegistration8004 (ERC-8004 registration descriptor extracted from rawJson)
-  const adIri = agentDescriptorIri(chainId, agentId, row?.didIdentity);
+  const adIri = agentDescriptorIri(chainId, agentId, didAccountValue);
   // For ERC-8004 agents, use AgentRegistration8004; otherwise use AgentDescriptor
   const isERC8004 = !!row?.didIdentity;
   if (isERC8004) {
@@ -799,7 +819,7 @@ function renderAgentSection(
   if (declaredOasfDomains.size) {
     for (const dom of declaredOasfDomains) {
       const domClassIri = oasfDomainIri(dom);
-      const domIri = agentDomainIri(chainId, agentId, dom, row?.didIdentity);
+      const domIri = agentDomainIri(chainId, agentId, dom, didAccountValue);
       adLines.push(`  agentictrust:hasDomain ${domIri} ;`);
       accountChunks.push(`${domIri} a agentictrust:AgentDomain, prov:Entity ; agentictrust:hasDomainClassification ${domClassIri} .\n\n`);
       // Emit a minimal OASFDomain node (full node also emitted from DB if present)
@@ -809,7 +829,7 @@ function renderAgentSection(
   if (declaredOasfSkills.size) {
     for (const sk of declaredOasfSkills) {
       const skClassIri = oasfSkillIri(sk);
-      const skIri = agentSkillIri(chainId, agentId, sk, row?.didIdentity);
+      const skIri = agentSkillIri(chainId, agentId, sk, didAccountValue);
       adLines.push(`  agentictrust:hasSkill ${skIri} ;`);
       accountChunks.push(`${skIri} a agentictrust:AgentSkill, prov:Entity ; agentictrust:hasSkillClassification ${skClassIri} .\n\n`);
       // Emit a minimal OASFSkill node (full node also emitted from DB if present)
@@ -846,8 +866,8 @@ function renderAgentSection(
       for (const skill of tokenSkills) {
         const id = typeof skill?.id === 'string' ? skill.id.trim() : typeof skill === 'string' ? skill.trim() : '';
         if (!id) continue;
-        const sClassIri = skillIri(chainId, agentId, id, row.didIdentity);
-        const sIri = agentSkillIri(chainId, agentId, id, row.didIdentity);
+        const sClassIri = skillIri(chainId, agentId, id, didAccountValue);
+        const sIri = agentSkillIri(chainId, agentId, id, didAccountValue);
         descriptorLines.push(`  agentictrust:hasSkill ${sIri} ;`);
         accountChunks.push(`${sIri} a agentictrust:AgentSkill, prov:Entity ; agentictrust:hasSkillClassification ${sClassIri} .\n\n`);
         
@@ -896,7 +916,7 @@ function renderAgentSection(
       if (typeof tokenUriData?.domain === 'string' && tokenUriData.domain.trim()) {
         const domainName = tokenUriData.domain.trim();
         const domainClassIri = domainIri(domainName);
-        const domainIriValue = agentDomainIri(chainId, agentId, domainName, row.didIdentity);
+        const domainIriValue = agentDomainIri(chainId, agentId, domainName, didAccountValue);
         descriptorLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
         accountChunks.push(`${domainIriValue} a agentictrust:AgentDomain, prov:Entity ; agentictrust:hasDomainClassification ${domainClassIri} .\n\n`);
         accountChunks.push(`${domainClassIri} a agentictrust:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
@@ -938,7 +958,7 @@ function renderAgentSection(
   
   if (hasProtocolProps && agentCard && typeof agentCard === 'object') {
     // Use DID for protocol descriptor IRI (protocol-agnostic, no chainId needed)
-    const didForProtocol = row?.didIdentity ? iriEncodeSegment(String(row.didIdentity)) : `${chainId}/${iriEncodeSegment(agentId)}`;
+    const didForProtocol = iriEncodeSegment(didAccountValue);
     const protocolDescriptorIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${didForProtocol}>`;
     const protocolIri = `<https://www.agentictrust.io/id/protocol/a2a/${didForProtocol}>`;
 
@@ -1041,7 +1061,7 @@ function renderAgentSection(
   for (const skill of skills) {
     const id = typeof skill?.id === 'string' ? skill.id.trim() : '';
     if (!id) continue;
-    const sIri = skillIri(chainId, agentId, id, row?.didIdentity);
+    const sIri = skillIri(chainId, agentId, id, didAccountValue);
     const afterSkill: string[] = [];
     lines.push(`${sIri} a agentictrust:AgentSkillClassification, prov:Entity ;`);
     lines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
@@ -1054,7 +1074,7 @@ function renderAgentSection(
       skill?.input_schema && typeof skill.input_schema === 'object' ? skill.input_schema :
       null;
     if (inputSchema) {
-      const schemaIri = skillSchemaIri(chainId, agentId, id, 'input', row?.didIdentity);
+      const schemaIri = skillSchemaIri(chainId, agentId, id, 'input', didAccountValue);
       lines.push(`  agentictrust:hasInputSchema ${schemaIri} ;`);
       try {
         afterSkill.push(`${schemaIri} a agentictrust:JsonSchema, prov:Entity ;`);
@@ -1070,7 +1090,7 @@ function renderAgentSection(
       skill?.output_schema && typeof skill.output_schema === 'object' ? skill.output_schema :
       null;
     if (outputSchema) {
-      const schemaIri = skillSchemaIri(chainId, agentId, id, 'output', row?.didIdentity);
+      const schemaIri = skillSchemaIri(chainId, agentId, id, 'output', didAccountValue);
       lines.push(`  agentictrust:hasOutputSchema ${schemaIri} ;`);
       try {
         afterSkill.push(`${schemaIri} a agentictrust:JsonSchema, prov:Entity ;`);
@@ -1129,10 +1149,24 @@ function renderAgentSection(
 function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   const chainId = Number(row?.chainId ?? 0) || 0;
   const agentId = String(row?.agentId ?? '');
-  const aIri = agentIri(chainId, agentId, row?.didIdentity);
+  const acctNorm =
+    normalizeHex(row?.agentAccount) ??
+    normalizeHex(row?.agentAddress) ??
+    normalizeHex(row?.agentOwner) ??
+    normalizeHex(row?.eoaOwner) ??
+    null;
+  const acctIri = acctNorm ? accountIri(chainId, acctNorm) : null;
+  if (!acctIri) return '';
+  const aIri = acctIri;
+
+  const didAccountValue =
+    typeof row?.didAccount === 'string' && row.didAccount.trim()
+      ? row.didAccount.trim()
+      : `did:ethr:${chainId}:${acctNorm.toLowerCase()}`;
 
   const lines: string[] = [];
   lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
+  lines.push(`  a agentictrustEth:Account ;`);
   lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
   if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
   
@@ -1343,7 +1377,14 @@ async function exportAgentsRdfInternal(
     if (!agentId) continue;
     const key = `${chainId}|${agentId}`;
     agentMetaByKey.set(key, { chainId, agentId, agentName: row?.agentName != null ? String(row.agentName) : null, didIdentity: row?.didIdentity != null ? String(row.didIdentity) : null });
-    const aIri = agentIri(chainId, agentId, row?.didIdentity);
+    const acctForAgent =
+      normalizeHex(row?.agentAccount) ??
+      normalizeHex(row?.agentAddress) ??
+      normalizeHex(row?.agentOwner) ??
+      normalizeHex(row?.eoaOwner) ??
+      null;
+    const aIri = acctForAgent ? accountIri(chainId, acctForAgent) : null;
+    if (!aIri) continue;
     const acct = normalizeHex(row?.agentAccount);
     const addr = normalizeHex(row?.agentAddress);
     const owner = normalizeHex(row?.agentOwner);
