@@ -64,6 +64,102 @@ AgenticTrust splits “semantic tool selection” into 3 explicit graph layers:
 
 This is the ontology-friendly way to represent “semantic tool selection” without baking model-specific heuristics into the schema.
 
+### AgentCore Gateway “Tool-RAG” (semantic retrieval over a tool catalog)
+
+AgentCore’s Gateway is described as an MCP aggregation point that can turn APIs/Lambda into MCP-compatible tools and also connect to pre-existing MCP servers ([Amazon Bedrock AgentCore overview](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html)).
+
+In practice, the pattern you described is:
+
+Intent
+  ↓
+Semantic retrieval (`x_amz_bedrock_agentcore_search`)
+  ↓
+Small candidate tool set
+  ↓
+Normal MCP tool invocation
+
+This is **Tool-RAG** (RAG over **tools**), not document RAG:
+
+- the retrieval target is **tool metadata** (descriptions/schemas), not documents/KB passages
+- the output is a **ranked shortlist of tool descriptors**, not answer text
+
+#### How tools become “searchable”
+
+When semantic tool selection is enabled on a Gateway, tools become searchable by embedding **natural-language tool metadata**, typically:
+
+- description
+- operation summary
+- parameter descriptions
+- (sometimes) tags/categories
+
+Those embeddings are stored in a Gateway-scoped index.
+
+Important implications:
+
+- **Per-gateway isolation**: tools registered in Gateway A are invisible to Gateway B.
+- **Reindexed on change**: adding/removing tools updates the index.
+- **No LLM reasoning here**: this step is retrieval, not “skill reasoning” or chain-of-thought.
+
+#### What `x_amz_bedrock_agentcore_search` does (and does not do)
+
+This built-in MCP tool performs semantic retrieval over the Gateway’s tool index.
+
+Example input:
+
+```json
+{
+  "query": "send a Slack message to the security team",
+  "max_results": 5
+}
+```
+
+Conceptual behavior:
+
+- query → embedding
+- vector similarity search against tool metadata
+- rank tools by relevance
+
+Expected output shape (conceptual):
+
+- tool name
+- description
+- input schema reference
+- invocation handle
+
+It does **not**:
+
+- call tools
+- validate permissions
+- execute tool logic
+
+It only answers:
+
+> Which tools might be relevant for this intent, within this Gateway’s curated catalog?
+
+One-sentence truth:
+
+> `x_amz_bedrock_agentcore_search` searches a gateway-local, operator-defined catalog of tools that you explicitly register, using embeddings over tool metadata — nothing more, nothing less.
+
+#### Contrast: what the Gateway *doesn’t* claim to be
+
+In the AgentCore framing, the Gateway is an execution substrate (aggregation + governance), not:
+
+- a capability ontology
+- intent semantics reasoning
+- portable agent identity mapping
+
+Those layers sit above the Gateway in AgenticTrust (Agent/Identity/Registry, IntentType, AttestedAssertions).
+
+#### Mapping Tool-RAG into AgenticTrust terms
+
+AgenticTrust can represent the same pattern with explicit graph nodes:
+
+- **Tool catalog**: `AgentSkillClassification` (+ `JsonSchema`) derived from `MCPProtocolDescriptor`
+- **Semantic retrieval**: an *index/query method* over tool metadata (not a new ontology class)
+  - store tool metadata as Descriptor fields/labels; use vector/full-text indexing as an implementation detail
+- **Candidate tool set**: the shortlist returned by retrieval is a set of candidate `AgentSkillClassification` nodes
+- **Invocation**: `SkillInvocation` Activities link to the selected skill via `agentictrust:invokesSkill`, with provenance and policy outcomes recorded as AttestedAssertions if needed
+
 ### Contrast (high-level)
 
 - AgentCore: selection is primarily an operational runtime concern (choose tools at runtime).
@@ -135,5 +231,80 @@ Based on AgentCore language, AgenticTrust is already well-positioned if we keep 
 - treat protocol tool catalogs (MCP/A2A) as **canonical sources** via `ProtocolDescriptor`
 - represent selection and permissioning outcomes as **prov traces + attested assertions**
 - keep identity registry pluralism (`AgentRegistry`) so enterprise/market registries can coexist with onchain/DNS/HCS patterns
+
+## ERC-8004 agents as AgentCore Gateway tools (what must be supported)
+
+Yes: you can *source* “tools” from ERC-8004 agent registrations and register them into an AgentCore Gateway tool catalog, so they become available for selection/invocation within that Gateway (and therefore eligible for Gateway semantic tool selection). AgentCore’s Gateway explicitly supports turning APIs/Lambda into tools and connecting to MCP servers ([Amazon Bedrock AgentCore overview](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html)).
+
+The important point: **ERC‑8004 is discovery/registry metadata**; **AgentCore Gateway is an execution catalog**. Bridging them requires that the ERC‑8004 agents expose tool-callable interfaces that can be wrapped/represented as MCP tools.
+
+### 1) A “tool-callable” interface (not just an agent identity)
+
+To be pluggable as Gateway tools, an ERC‑8004 agent (or its endpoint) must expose something that can be modeled as a tool:
+
+- **MCP server** that exposes tool definitions + invocation interface, or
+- a stable **HTTP API** (OpenAPI-like) that the Gateway can wrap into tools, or
+- an adapter that converts an A2A endpoint into callable tools (implementation-specific)
+
+If a registration only provides a chat endpoint with no tool/function surface, Gateway semantic tool selection has nothing concrete to index/invoke.
+
+### 2) Machine-readable “tool metadata” (so semantic retrieval works)
+
+AgentCore Gateway semantic selection relies on embedding/indexing natural-language tool metadata. For ERC‑8004-sourced tools, you need, at minimum, tool-level metadata that can be extracted from registration/protocol descriptors:
+
+- tool name
+- tool description / operation summary
+- parameter descriptions
+- input schema (JSON Schema) and output schema (when possible)
+- stable invocation handle (endpoint + operation id)
+
+In AgenticTrust, this corresponds to:
+
+- `AgentSkillClassification` + `JsonSchema`
+- derived from `ProtocolDescriptor` metadata (MCP tool list / A2A skills → tool mapping)
+
+### 3) Stable endpoints + versioning
+
+Gateway catalogs behave best when tool endpoints are stable and tool schemas are versioned:
+
+- stable `Endpoint` URL(s)
+- explicit version of the tool surface (or deployment version)
+- change semantics (breaking vs non-breaking)
+
+This is also needed to make “reindexed on change” meaningful and auditable.
+
+### 4) Inbound/outbound authentication + authorization story
+
+To plug an ERC‑8004-sourced tool into AgentCore in a governed way, the tool must support an auth model the Gateway can enforce:
+
+- inbound auth to the tool endpoint (API keys, OAuth, signed requests, mTLS, etc.)
+- outbound identity/credentials from the calling deployment (service identity vs user delegation)
+- explicit permission scope (what tool actions are allowed)
+
+AgentCore emphasizes Identity + Policy + Gateway governance ([Amazon Bedrock AgentCore overview](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html)). From an AgenticTrust perspective, you want those decisions recorded as provenance/evidence:
+
+- the invocation is a `SkillInvocation` activity
+- allow/deny outcomes can be AttestedAssertions for auditability
+
+### 5) Operational constraints (timeouts, quotas, safety)
+
+To behave like “tools” in a larger governed catalog, ERC‑8004 endpoints should declare:
+
+- timeouts and rate limits
+- idempotency / retry semantics
+- data handling constraints
+- safety constraints (what the tool must not do)
+
+Without these, the Gateway can still call tools, but governance/observability becomes brittle.
+
+### 6) Practical pipeline (how you’d wire this)
+
+A typical bridge looks like:
+
+- ingest ERC‑8004 registration metadata → normalize to `AgentIdentity` + descriptor graph
+- extract tool candidates from protocol descriptors (MCP tool list, A2A skills/domains, API endpoints)
+- transform into Gateway-registered tool definitions (MCP-wrapped tools or API-wrapped tools)
+- keep the Gateway catalog in sync (re-register/reindex on change)
+
 
 
