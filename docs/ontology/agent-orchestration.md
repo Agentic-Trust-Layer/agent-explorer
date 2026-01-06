@@ -173,104 +173,139 @@ Below are real solutions/patterns that implement “semantic tool discovery → 
 - [`google-agentspace.md`](./google-agentspace.md): semantic routing model
 - [`agent-registry.md`](./agent-registry.md): registries and registry-scoped identities
 
-## Recommendations: ontology additions needed (do not implement yet)
+## Ontology design principles for semantic tool discovery & governed orchestration (execute these)
 
-This document describes real orchestration innovations (Tool‑RAG gateways, semantic routing, SDK-driven tool invocation). AgenticTrust already has the **spine** (IntentType/TaskExecution/SkillInvocation/ProtocolDescriptor), but to represent these systems *as data* (auditable, queryable, portable) we should add a small set of **explicit entities and relations**.
+This section does **not** introduce new AgenticTrust classes. It sharpens the semantics of how existing classes relate, and establishes “load‑bearing beams” that keep AgenticTrust stable while implementations evolve (AgentCore, Agentspace, Claude SDK loops, etc.).
 
-### 1) Tool catalogs as first-class entities (scope + isolation)
+### 1) Separation of description vs execution (non‑negotiable)
 
-**Why**: AgentCore-style gateways make the “tool universe” explicit and *scoped* (per-gateway isolation). Today, we can infer catalogs from protocol descriptors, but we can’t represent catalog boundaries and lifecycle as a first-class object.
+**Principle**: Nothing executable should be required for discovery.
 
-**Add**
+**Rule**: Discovery operates only over **descriptive Entities**, never over `prov:Activity` or runtime artifacts.
 
-- **Class**: `agentictrust:ToolCatalog` ⊑ `prov:Entity`
-- **Property**: `agentictrust:catalogOf` (ToolCatalog → ProtocolDescriptor or Deployment)
-- **Property**: `agentictrust:catalogHasTool` (ToolCatalog → AgentSkillClassification)
-- **Property**: `agentictrust:catalogScope` (datatype or link to Registry/Organization/Deployment)
-- **Property**: `agentictrust:catalogRevision` (datatype, optional)
+**Existing mapping (keep sacred)**:
 
-### 2) Semantic retrieval over tool metadata (Tool‑RAG) as provenance
+- `AgentIdentity` is an Entity (registry-scoped representation), not execution
+- `Descriptor` / `ProtocolDescriptor` are Entities, not invocations
+- `AgentSkillClassification` is an Entity (“affordance”), not a call
+- execution is `TaskExecution` / `SkillInvocation` (Activities)
 
-**Why**: Tool‑RAG is an **Activity** (“search tools”), producing an **Entity** (“candidate set”), and optionally recording scores/ranks. Without this, we can’t reconstruct *why* a tool was chosen.
+### 2) Intent is epistemic, not operational
 
-**Add**
+**Principle**: Intent expresses belief about a desired outcome, not a command.
 
-- **Class**: `agentictrust:ToolSearch` ⊑ `prov:Activity`
-- **Class**: `agentictrust:ToolCandidateSet` ⊑ `prov:Entity`
-- **Property**: `agentictrust:searchedCatalog` (ToolSearch → ToolCatalog)
-- **Property**: `agentictrust:searchQuery` (datatype, string)
-- **Property**: `agentictrust:generatedCandidateSet` (ToolSearch → ToolCandidateSet) (or use `prov:generated`)
-- **Property**: `agentictrust:candidateTool` (ToolCandidateSet → AgentSkillClassification)
-- **Property**: `agentictrust:candidateScore` / `agentictrust:candidateRank` (attach via a qualified node if we need per-tool scores)
+**Rule**: Intent must never directly invoke a skill/tool.
 
-This cleanly models AgentCore Gateway’s “semantic tool selection” behavior as **retrieval**, not “reasoning”.
+**Existing mapping**:
 
-### 3) Intent normalization and task classification outputs (explicit, portable)
+- intent is modeled as `IntentType` (description / classification)
+- execution is modeled separately as Activities (`TaskExecution`, `SkillInvocation`)
 
-**Why**: Agentspace-style semantic routing and Claude-style SDK loops both rely on producing structured intent/task outputs, but today we mostly treat that as “inside the LLM”.
+### 3) Semantic retrieval is classification, not planning
 
-**Add**
+**Principle**: Semantic search narrows possibility space; it does not decide action.
 
-- **Class**: `agentictrust:IntentParse` ⊑ `prov:Activity`
-- **Class**: `agentictrust:IntentParseResult` ⊑ `prov:Entity`
-- **Property**: `agentictrust:parsedIntentType` (IntentParseResult → IntentType)
-- **Property**: `agentictrust:parsedTaskType` (IntentParseResult → TaskType)
-- **Property**: `agentictrust:parsedParametersJson` (datatype, JSON string)
-- **Property**: `agentictrust:parseConfidence` (datatype, numeric)
+**Rule**: Retrieval produces eligibility/candidate visibility; planning/execution are separate steps.
 
-This lets us represent “intent understanding → task class” without hardcoding a vendor ontology.
+**Existing placement**:
 
-### 4) Execution gateway as an explicit boundary (inbound/outbound auth)
+- retrieval operates over Entities (`Descriptor`, `ProtocolDescriptor`, `AgentSkillClassification`, registry context)
+- execution remains provenance (`TaskExecution` / `SkillInvocation`)
 
-**Why**: The orchestration story consistently has a boundary that authenticates inbound requests and authorizes outbound tool calls. We need to represent that boundary and its decisions as evidence.
+### 4) TaskType is the pivot concept (not tool, not intent)
 
-**Add**
+**Principle**: `TaskType` is the semantic hinge between intent and execution.
 
-- **Class**: `agentictrust:ExecutionGateway` ⊑ `prov:SoftwareAgent` (or `prov:Entity` if modeled as infrastructure artifact)
-- **Property**: `agentictrust:gatewayForDeployment` (Gateway → AgentDeployment)
-- **Property**: `agentictrust:gatewayCatalog` (Gateway → ToolCatalog)
+**Why**:
 
-AuthZ/AuthN as evidence:
+- intent is subjective/epistemic
+- tools are implementation-bound
+- `TaskType` is the stable abstraction you can standardize, govern, and route on
 
-- **Class**: `agentictrust:AuthorizationDecision` ⊑ `prov:Entity`
-- **Class**: `agentictrust:AuthorizationAct` ⊑ `prov:Activity`
-- **Property**: `agentictrust:decisionAppliesToInvocation` (Decision → SkillInvocation)
-- **Property**: `agentictrust:decisionOutcome` (allow/deny)
-- **Property**: `agentictrust:decisionReason` (string or json)
+**Existing relationships (do not weaken)**:
 
-### 5) Tool adapter / wrapper semantics (API→tool, A2A→tool, MCP aggregation)
+- `IntentType ─ mapsToTaskType → TaskType`
+- `TaskType` anchors routing/policy hooks
+- `AgentSkillClassification` is the concrete affordance that can satisfy tasks (implementation specific)
 
-**Why**: Many gateways work by *adapting* things into tools (wrapping APIs/Lambda; aggregating MCP servers). We need minimal vocabulary for “this tool is derived from that API/endpoint”.
+### 5) Registries are trust‑scoped world models
 
-**Add**
+**Principle**: A registry is not merely a directory; it is a trust boundary that defines an admissible “world model”.
 
-- **Class**: `agentictrust:ToolAdapter` ⊑ `prov:SoftwareAgent` (optional)
-- **Property**: `agentictrust:wrapsEndpoint` (ToolAdapter → Endpoint)
-- **Property**: `agentictrust:exposesTool` (ToolAdapter → AgentSkillClassification)
-- **Property**: `agentictrust:derivedFromDescriptor` (ToolAdapter or Tool → Descriptor)
+**Rule**: Registry context constrains what identities/descriptors/skills are admissible for discovery and governance.
 
-### 6) Portfolio-level orchestration policy (tool universe governance)
+**Existing mapping**:
 
-**Why**: In the open agent web, “which tools are even admissible” is often governed at a portfolio/consortium level.
+- registry is explicit: `AgentRegistry`
+- identity is scoped: `AgentIdentity` with `identityRegistry`
+- this yields multiple overlapping trust universes (“registries out there”)
 
-**Add**
+### 6) Execution gateways are accountability boundaries
 
-- **Property**: `agentictrust:portfolioPolicy` (AgentPortfolio → TrustDescription/Plan-like entity)
-- **Property**: `agentictrust:portfolioToolCatalog` (AgentPortfolio → ToolCatalog)
-- **Property**: `agentictrust:admissionCriteria` (AgentRegistry/Portfolio → Descriptor/Policy artifact)
+**Principle**: Execution is where legal/moral responsibility attaches.
 
-### 7) Minimum recommended integration points (where these attach)
+**Rule**: All side effects must cross a provenance boundary.
 
-To keep the ontology cohesive:
+**Existing mapping**:
 
-- Tool catalogs should hang off **protocol descriptors / deployments / gateways**.
-- Retrieval/classification should be captured as **Activities** producing **Entities** (PROV-native).
-- Invocations remain `SkillInvocation`; decisions/evidence link to invocations and/or tasks.
+- side effects happen in Activities (`TaskExecution`, `SkillInvocation`)
+- authority is represented via delegation (`prov:actedOnBehalfOf`)
+- outcomes/decisions can be recorded as evidence artifacts (`AttestedAssertion`)
 
-### Practical impact of the technologies in this doc
+### 7) Evidence is about claims, not truth
 
-- **AgentCore-style gateways** push us to model **ToolCatalog + ToolSearch + CandidateSet** and **authorization decisions** as first-class auditable objects.
-- **Agentspace-style routing** pushes us to model **IntentParseResult** and **TaskType** classification outputs explicitly.
-- **Claude SDK / framework ecosystems** push us to model orchestration as **portable provenance**, so the same patterns can be represented regardless of vendor runtime.
+**Principle**: Agents produce accountable claims; they do not “prove reality”.
+
+**Rule**: Evidence artifacts attach to who acted, under what authority, with what inputs/intent, using which skill, at what time.
+
+**Existing mapping**:
+
+- accountable act: `Attestation` (Activity)
+- durable record: `AttestedAssertion` (Entity)
+
+### 8) Orchestration is a meta‑activity, not a skill
+
+**Principle**: Orchestration governs Activities; it is not itself “a tool”.
+
+**Rule**: Do not model orchestration as a skill/tool/task type.
+
+**Existing placement**:
+
+- orchestration shows up as a control structure across `IntentType` mapping + `TaskExecution` + `SkillInvocation` traces
+
+### 9) Policy binds at transitions
+
+**Principle**: Policy applies at semantic boundaries, not continuously.
+
+**Choke points**:
+
+- registry inclusion (what is visible/admissible)
+- `IntentType → TaskType` mapping
+- task → eligible skills/tools (pre-execution)
+- execution authorization (tool invocation)
+- evidence publication
+
+**Rule**: Policy governs relationships (edges), not “agents in general”.
+
+### 10) AgenticTrust’s unique contribution
+
+**Principle**: AgenticTrust externalizes what other systems internalize.
+
+Where others keep these layers inside a product/runtime, AgenticTrust keeps them:
+
+- explicit
+- queryable
+- provenance-grounded
+- registry-scoped
+- portable across vendors
+
+### Anti‑patterns (what not to model)
+
+- collapse `Descriptor` into execution logs
+- let an `IntentType` directly “invoke” a tool
+- treat a registry as merely a directory (ignore scope/governance)
+- treat Tool‑RAG retrieval as execution (it’s classification)
+- encode orchestration “logic” as a skill/tool
+
 
 
