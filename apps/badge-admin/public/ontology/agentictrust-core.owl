@@ -134,7 +134,7 @@ agentictrust:SituationDescription a owl:Class ;
 
 agentictrust:AssertionAct a owl:Class ;
   rdfs:label "AssertionAct" ;
-  rdfs:comment "The time-scoped act of asserting (PROV Activity). Generates an AssertionRecord." ;
+  rdfs:comment "The time-scoped act of asserting (PROV Activity). Superclass for accountable assertion/attestation acts that prov:generated an AttestedAssertion (or subclasses like TrustAssertion). Prefer using agentictrust:Attestation or a domain-specific subclass (e.g., TrustAssertionAct) in most models." ;
   rdfs:subClassOf prov:Activity .
 
 # Attestation is the accountable act that prov:used an Assertion and prov:generated an AttestedAssertion.
@@ -240,7 +240,7 @@ agentictrust:TrustAssertion a owl:Class ;
 agentictrust:TrustAssertionAct a owl:Class ;
   rdfs:label "TrustAssertionAct" ;
   rdfs:comment "The time-scoped act of asserting a trust-relevant situation (PROV Activity). Generates a TrustAssertion record." ;
-  rdfs:subClassOf agentictrust:AssertionAct .
+  rdfs:subClassOf agentictrust:Attestation .
 
 agentictrust:VerificationTrustAssertion a owl:Class ;
   rdfs:label "VerificationTrustAssertion" ;

@@ -68,13 +68,15 @@ direction LR
 
 class provActivity["prov:Activity"]
 class AssertionAct["agentictrust:AssertionAct"]
+class Attestation["agentictrust:Attestation"]
 class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 class RelationshipAssertionAct["agentictrust:RelationshipTrustAssertionAct"]
 class ReputationAssertionAct["agentictrust:ReputationTrustAssertionAct"]
 class VerificationAssertionAct["agentictrust:VerificationTrustAssertionAct"]
 
 AssertionAct --|> provActivity
-TrustAssertionAct --|> AssertionAct
+Attestation --|> AssertionAct
+TrustAssertionAct --|> Attestation
 RelationshipAssertionAct --|> TrustAssertionAct
 ReputationAssertionAct --|> TrustAssertionAct
 VerificationAssertionAct --|> TrustAssertionAct

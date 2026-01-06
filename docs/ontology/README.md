@@ -235,7 +235,7 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly
 - [`attested-assertion.md`](./attested-assertion.md): Assertion vs Attestation (PROV-O) and AttestedAssertion pattern + SPARQL
 - [`oidc-a.md`](./oidc-a.md): OpenID Connect for Agents (OIDC-A) vocabulary mapping and suggestions for AgenticTrust alignment
-- [`agent-application.md`](./agent-application.md): AI Agent Application vs Instance, Provider responsibility, model/version, protocol endpoints
+- [`agent-application.md`](./agent-application.md): Agent (discoverable) vs AgentDeployment (executor), Provider responsibility, model/version, protocol endpoints
 - [`protocols-endpoints.md`](./protocols-endpoints.md): Protocol endpoints (A2A, MCP) and why skills/domains are primarily protocol-defined
 - [`description.md`](./description.md): Plans (PROV-O + P-PLAN) and SituationDescription / TrustDescription
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")

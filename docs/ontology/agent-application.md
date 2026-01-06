@@ -43,9 +43,7 @@ graph TB
   Deploy -->|describes / serves| Desc
 ```
 
-### Current ontology note (no OWL changes here)
-
-Right now the ontology uses:
+### Ontology terms used on this page
 
 - `agentictrust:AgentDeployment` (the endpoint-reachable executor)
 - `agentictrust:deploymentOf` (Deployment → AIAgent)

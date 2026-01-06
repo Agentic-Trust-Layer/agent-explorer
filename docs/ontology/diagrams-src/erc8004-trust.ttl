@@ -12,7 +12,7 @@ prov:SoftwareAgent a owl:Class .
 
 agentictrust:AIAgent a owl:Class ; rdfs:subClassOf prov:SoftwareAgent .
 agentictrust:TrustSituation a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:TrustAssertion a owl:Class ; rdfs:subClassOf prov:Activity .
+agentictrust:TrustAssertion a owl:Class ; rdfs:subClassOf prov:Entity .
 agentictrust:VerificationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 agentictrust:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
 

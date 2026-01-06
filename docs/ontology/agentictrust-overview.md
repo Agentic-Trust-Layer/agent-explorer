@@ -44,7 +44,8 @@ By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituat
 
 - **TrustDescription**: normative “what/why” (subclass of `prov:Plan` and `p-plan:Plan`)
 - **TrustSituation**: epistemic/social object (“what is being claimed to hold”) (subclass of `prov:Entity`)
-- **TrustAssertion**: asserting act (“who asserted what, when”) (subclass of `prov:Activity`)
+- **TrustAssertion**: durable assertion record (subclass of `agentictrust:AttestedAssertion` ⊑ `prov:Entity`)
+- **TrustAssertionAct**: asserting act (“who asserted what, when”) (subclass of `prov:Activity`)
 - **Relationship**: persistent relationship instance (subclass of `prov:Entity`)
 - **RelationshipTrustAssertion**: constitutive assertion about a `Relationship` (subclass of `TrustAssertion`)
 
@@ -61,6 +62,7 @@ class provAgent["prov:Agent"]
 class TrustDescription["agentictrust:TrustDescription"]
 class TrustSituation["agentictrust:TrustSituation"]
 class TrustAssertion["agentictrust:TrustAssertion"]
+class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class Relationship["agentictrust:Relationship"]
@@ -69,18 +71,19 @@ class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 TrustDescription --|> provPlan
 TrustDescription --|> pplanPlan
 TrustSituation --|> provEntity
-TrustAssertion --|> provActivity
+TrustAssertion --|> provEntity
+TrustAssertionAct --|> provActivity
 VerificationAssertion --|> TrustAssertion
 ReputationAssertion --|> TrustAssertion
 Relationship --|> provEntity
 RelationshipAssertion --|> TrustAssertion
 
 TrustSituation --> TrustDescription : hasSituationDescription
-TrustAssertion --> TrustSituation : assertsSituation
-TrustAssertion --> provEntity : aboutSubject
+TrustAssertionAct --> TrustSituation : assertsSituation
+TrustAssertionAct --> provEntity : aboutSubject
 RelationshipAssertion --> Relationship : assertsRelationship
-TrustAssertion --> Relationship : qualifiesRelationship
-provAgent --> TrustAssertion : hasTrustAssertion
+TrustAssertionAct --> Relationship : qualifiesRelationship
+provAgent --> TrustAssertionAct : hasTrustAssertion
 ```
 
 ### Agent identity + metadata (core)
