@@ -179,8 +179,9 @@ WHERE {
   # Relationship: ERC-8092 relationship assertions
   {
     FILTER(?bucket = "relationship")
-    ?assertionRecord a erc8092:RelationshipAssertion .
-    # these are account-centric; keep this join narrow by requiring the asserted situation to be about the agent
+    # In our export, ERC-8092 association records are typed as erc8092:AssociatedAccounts8092
+    # (plus agentictrust:TrustAssertion), and link to a RelationshipSituation via recordsSituation.
+    ?assertionRecord a erc8092:AssociatedAccounts8092 .
     ?assertionRecord agentictrust:recordsSituation ?situation .
     ?situation agentictrust:isAboutAgent ?agent .
     OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
@@ -323,7 +324,6 @@ SELECT DISTINCT
   ?agent
   ?agentId
   ?relationshipSituation
-  ?relationship
   ?relationshipAssertion
   ?assertionAct
   ?associationId
@@ -341,25 +341,20 @@ WHERE {
   # Relationship situation
   ?relationshipSituation a agentictrust:RelationshipTrustSituation, agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Entity .
   ?relationshipSituation agentictrust:isAboutAgent ?agent .
-  
-  # Relationship entity
-  ?relationship a agentictrust:Relationship, prov:Entity .
-  ?relationshipSituation agentictrust:isAboutRelationship ?relationship .
-  
-  # Relationship assertion record
-  ?relationshipAssertion a erc8092:RelationshipAssertion, agentictrust:RelationshipTrustAssertion, agentictrust:TrustAssertion, prov:Entity .
+
+  # Relationship assertion record (ERC-8092 association row)
+  ?relationshipAssertion a erc8092:AssociatedAccounts8092, agentictrust:TrustAssertion, prov:Entity .
   ?relationshipAssertion agentictrust:recordsSituation ?relationshipSituation .
-  ?relationshipAssertion erc8092:assertsRelationship ?relationship .
   
   # Relationship assertion act
-  ?assertionAct a erc8092:AssociatedAccountsAct8092, agentictrust:RelationshipTrustAssertionAct, agentictrust:TrustAssertionAct, agentictrust:Attestation, prov:Activity .
+  ?assertionAct a erc8092:AssociatedAccountsAct8092, agentictrust:TrustAssertionAct, prov:Activity .
   ?assertionAct agentictrust:assertsSituation ?relationshipSituation .
   ?assertionAct agentictrust:generatedAssertionRecord ?relationshipAssertion .
   
   # Relationship details
   ?relationshipAssertion erc8092:associationId ?associationId .
-  OPTIONAL { ?relationshipAssertion erc8092:initiatorAccount ?initiatorAccount . ?initiatorAccount agentictrustEth:accountAddress ?initiator . }
-  OPTIONAL { ?relationshipAssertion erc8092:approverAccount ?approverAccount . ?approverAccount agentictrustEth:accountAddress ?approver . }
+  OPTIONAL { ?relationshipAssertion erc8092:initiator ?initiator . }
+  OPTIONAL { ?relationshipAssertion erc8092:approver ?approver . }
   OPTIONAL { ?relationshipAssertion erc8092:interfaceId ?interfaceId . }
   OPTIONAL { ?relationshipAssertion erc8092:validAt ?validAt . }
   OPTIONAL { ?relationshipAssertion erc8092:validUntil ?validUntil . }
@@ -657,9 +652,11 @@ WHERE {
   }
   UNION
   {
-    ?agent erc8092:hasRelationship ?relationship .
-    ?assertion erc8092:assertsRelationship ?relationship .
+    # ERC-8092 association assertions: count records linked to situations about this agent
+    ?assertion agentictrust:recordsSituation ?relSituation .
+    ?relSituation agentictrust:isAboutAgent ?agent .
     ?assertion a ?assertionType .
+    FILTER EXISTS { ?assertion a erc8092:AssociatedAccounts8092 }
   }
 }
 GROUP BY ?assertionType
