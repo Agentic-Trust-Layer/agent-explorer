@@ -106,7 +106,7 @@ Instead of baking registry logic into the agent, model it explicitly:
 ```turtle
 :ERC8004_Registry
   a prov:Entity ;
-  a agentictrust:AgentIdentityRegistry .
+  a agentictrust:AgentRegistry .
 ```
 
 Then:
@@ -183,12 +183,12 @@ direction LR
 
 class Agent["prov:Agent (Agent)"]
 class AgentIdentity["agentictrust:AgentIdentity (prov:Entity)"]
-class AgentIdentityRegistry["agentictrust:AgentIdentityRegistry (prov:Entity)"]
+class AgentRegistry["agentictrust:AgentRegistry (prov:Entity)"]
 class Registration["Registration (prov:Activity)"]
 
 AgentIdentity --> Agent : wasAttributedTo
 AgentIdentity --> Registration : wasGeneratedBy
-AgentIdentity --> AgentIdentityRegistry : identityRegistry
+AgentIdentity --> AgentRegistry : identityRegistry
 ```
 
 Mermaid note: edge labels avoid CURIEs like `prov:wasAttributedTo` (Mermaid parser limitation). The intended properties are:
@@ -203,7 +203,7 @@ These convenience terms keep PROV-O clean while giving you domain semantics:
 
 ```turtle
 agentictrust:AgentIdentity rdfs:subClassOf prov:Entity .
-agentictrust:AgentIdentityRegistry rdfs:subClassOf prov:Entity .
+agentictrust:AgentRegistry rdfs:subClassOf prov:Entity .
 
 agentictrust:identityOf
   rdfs:domain agentictrust:AgentIdentity ;
@@ -211,7 +211,7 @@ agentictrust:identityOf
 
 agentictrust:identityRegistry
   rdfs:domain agentictrust:AgentIdentity ;
-  rdfs:range agentictrust:AgentIdentityRegistry .
+  rdfs:range agentictrust:AgentRegistry .
 ```
 
 ## SPARQL queries
@@ -291,7 +291,7 @@ ORDER BY ?identity
 LIMIT 200
 ```
 
-### List all AgentIdentityRegistry instances
+### List all AgentRegistry instances
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
@@ -299,7 +299,7 @@ PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?registry ?type
 WHERE {
-  ?registry a agentictrust:AgentIdentityRegistry .
+  ?registry a agentictrust:AgentRegistry .
   OPTIONAL { ?registry a ?type . }
 }
 ORDER BY ?registry ?type

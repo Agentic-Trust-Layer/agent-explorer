@@ -1,4 +1,4 @@
-# Agent registries (AgentIdentityRegistry) and their relation to agents, portfolios, and identity
+# Agent registries (AgentRegistry) and their relation to agents, portfolios, and identity
 
 This page documents the **registry layer** in AgenticTrust: how **registries** relate to **Agents**, **AgentIdentity** (registry-scoped identity representations), **Identifiers**, and **AgentPortfolios**.
 
@@ -15,7 +15,7 @@ This is why identity is modeled as **registry-scoped**: it preserves pluralism, 
 ## Key entities and relations
 
 - **Agent** (`agentictrust:AIAgent`, `prov:Agent`): the durable trust-graph anchor (“the thing that exists/acts”).
-- **Registry** (`agentictrust:AgentIdentityRegistry`, `prov:Entity`): an entity representing a registry system (its policy surface, governance, scope).
+- **Registry** (`agentictrust:AgentRegistry`, `prov:Entity`): an entity representing a registry system (its policy surface, governance, scope).
 - **Identity** (`agentictrust:AgentIdentity`, `prov:Entity`): a registry-scoped identity representation/record for an agent.
 - **Identifier** (`agentictrust:Identifier`, `agentictrust:DID`, etc.): symbolic references used for lookup and linkage (DID/UAID/ENS/etc.).
 - **Portfolio** (`agentictrust:AgentPortfolio`, `prov:Collection`): a grouping of agents (often curated/maintained by a registry, consortium, or marketplace).
@@ -23,7 +23,7 @@ This is why identity is modeled as **registry-scoped**: it preserves pluralism, 
 ### Canonical links (typical)
 
 - `agentictrust:hasIdentity` (Agent → AgentIdentity)
-- `agentictrust:identityRegistry` (AgentIdentity → AgentIdentityRegistry)
+- `agentictrust:identityRegistry` (AgentIdentity → AgentRegistry)
 - `prov:identifier` (on Identity, Identifier artifacts, or both, depending on modeling choice)
 - `prov:hadMember` (AgentPortfolio → Agent)
 
@@ -33,7 +33,7 @@ This is why identity is modeled as **registry-scoped**: it preserves pluralism, 
 graph TB
   Agent["AIAgent\nprov:Agent"]
   Identity["AgentIdentity\nprov:Entity"]
-  Registry["AgentIdentityRegistry\nprov:Entity"]
+  Registry["AgentRegistry\nprov:Entity"]
   Portfolio["AgentPortfolio\nprov:Collection"]
 
   Agent -->|agentictrust:hasIdentity| Identity
@@ -41,6 +41,32 @@ graph TB
   Portfolio -->|prov:hadMember| Agent
   Registry -. "may curate/maintain" .-> Portfolio
 ```
+
+## Hedera / HCS registries (HCS-10) and registry addressing (HCS-14)
+
+Hedera provides a concrete example of a **message-based** registry substrate:
+
+- **HCS-10 (OpenConvAI)**: defines how agents can register, be discovered, and interact via Hedera Consensus Service topics.
+  - Reference: [HCS-10 docs](https://hol.org/docs/standards/hcs-10/)
+
+AgenticTrust mapping:
+
+- An HCS-10 registry topic can be modeled as an `agentictrust:AgentRegistry` (a registry-as-an-entity).
+- Registry entries become `agentictrust:AgentIdentity` entities, scoped to that registry via `agentictrust:identityRegistry`.
+
+Separately, AgenticTrust already carries **HCS-14-inspired routing parameters** on `agentictrust:UniversalIdentifier` (registry/proto/nativeId/uid/domain) so a single identifier can encode “how to resolve” across multiple registry ecosystems.
+
+### HCS-14 relationship to HCS-10 (and HCS-2)
+
+- **HCS-10** is about *registry operations and messaging* (register/discover/operate via topics).
+- **HCS-14** is about *identifier/routing structure* (stable handle + resolution parameters), so clients can route to the right registry/protocol without hard-coding ecosystem-specific string parsing.
+
+If you treat **HCS-2** as a lower-level “registry substrate” primitive (topic-based publication/resolution), then:
+
+- **HCS-10** can be seen as a higher-level agent registry protocol on top of that substrate, and
+- **HCS-14** provides a uniform way to reference/route to the right registry/protocol instance.
+
+(If you have the canonical HCS-2 spec link you want cited, share it and we’ll wire it in here.)
 
 ## Why “ERC-8004 registry as singleton” is a problem
 

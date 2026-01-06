@@ -61,6 +61,18 @@ Why it matters for portfolios:
   - the portfolio node as an `agentictrust:AgentPortfolio`
   - membership edges via `prov:hadMember` (derived from registry agent IDs / metadata such as `agent_account`)
 
+### HCS-10 as a message-based portfolio curation substrate
+
+Hedera provides a concrete, message-based pattern for registry + discovery:
+
+- **HCS-10 (OpenConvAI)**: agents register and are discovered via consensus topics.
+  - Reference: [HCS-10 docs](https://hol.org/docs/standards/hcs-10/)
+
+Portfolio tie-in:
+
+- a registry topic can act as the **curation mechanism** that defines a portfolio’s membership set
+- an indexer can materialize those entries into `AgentPortfolio` membership edges (`prov:hadMember`)
+
 ## Diagram: portfolio + identity registries (plural, market-shaped)
 
 This is the **anti-singleton** pattern: ERC-8004 is *one* registry; vertical/market registries can coexist.
@@ -71,9 +83,9 @@ graph TB
   Agent1["AIAgent\nprov:Agent"]
   Agent2["AIAgent\nprov:Agent"]
 
-  Reg8004["ERC-8004 registry\nAgentIdentityRegistry"]
-  RegFin["Finance registry\nAgentIdentityRegistry"]
-  RegHealth["Healthcare registry\nAgentIdentityRegistry"]
+  Reg8004["ERC-8004 registry\nAgentRegistry"]
+  RegFin["Finance registry\nAgentRegistry"]
+  RegHealth["Healthcare registry\nAgentRegistry"]
 
   Id8004["Identity (in ERC-8004)\nAgentIdentity (prov:Entity)"]
   IdFin["Identity (in finance registry)\nAgentIdentity (prov:Entity)"]
@@ -104,7 +116,7 @@ AgenticTrust avoids that by modeling:
 
 - **Agent** (`agentictrust:AIAgent`) as the durable trust-graph anchor
 - **Identity** (`agentictrust:AgentIdentity`, `prov:Entity`) as **registry-scoped** representations
-- **Registries** (`agentictrust:AgentIdentityRegistry`) as explicit entities (plural, not assumed singleton)
+- **Registries** (`agentictrust:AgentRegistry`) as explicit entities (plural, not assumed singleton)
 
 Portfolios then sit *orthogonally* to registries: a portfolio can include agents with identities in many registries.
 

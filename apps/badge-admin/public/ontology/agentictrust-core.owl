@@ -289,7 +289,7 @@ agentictrust:RelationshipTrustAssertionAct a owl:Class ;
 
 agentictrust:AgentIdentityRegistration a owl:Class ;
   rdfs:label "AgentIdentityRegistration" ;
-  rdfs:comment "A registration activity that generates or updates an AgentIdentity entity in the context of an AgentIdentityRegistry (e.g., ERC-8004 registration, HOL broker publication). Modeled as prov:Activity for auditability and lifecycle modeling." ;
+  rdfs:comment "A registration activity that generates or updates an AgentIdentity entity in the context of an AgentRegistry (e.g., ERC-8004 registration, HOL broker publication, HCS-based registries). Modeled as prov:Activity for auditability and lifecycle modeling." ;
   rdfs:subClassOf prov:Activity .
 
 agentictrust:Identifier a owl:Class ;
@@ -307,9 +307,9 @@ agentictrust:AgentIdentity a owl:Class ;
   rdfs:comment "Abstract identity for an agent. Protocol-specific realizations include ERC-8004 Identity (erc8004:AgentIdentity8004), Web2 identities, etc. An agent may have one or more Identities. Modeled as prov:Entity. Protocol-specific identities inherit from this class." ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:AgentIdentityRegistry a owl:Class ;
-  rdfs:label "AgentIdentityRegistry" ;
-  rdfs:comment "A registry/broker that asserts or publishes AgentIdentity entities (registry-scoped identity). Modeled as a prov:Entity (the registry-as-a-thing), not as a prov:Agent." ;
+agentictrust:AgentRegistry a owl:Class ;
+  rdfs:label "AgentRegistry" ;
+  rdfs:comment "A registry/broker that asserts or publishes AgentIdentity entities (registry-scoped identity) and typically assigns identifiers for discovery and referencing. Examples include ERC-8004 registries, domain/vertical registries, and message-based registries (e.g., HCS topic registries). Modeled as a prov:Entity (the registry-as-a-thing), not as a prov:Agent." ;
   rdfs:subClassOf prov:Entity .
 
 agentictrust:AgentName a owl:Class ;
@@ -651,9 +651,9 @@ agentictrust:identityOf a owl:ObjectProperty ;
 
 agentictrust:identityRegistry a owl:ObjectProperty ;
   rdfs:label "identityRegistry" ;
-  rdfs:comment "Links an AgentIdentity (Entity) to the AgentIdentityRegistry (Entity) in whose context it was asserted/published. This is a registry-scoping relationship; for Activity provenance, model a registration act that prov:used the registry entity." ;
+  rdfs:comment "Links an AgentIdentity (Entity) to the AgentRegistry (Entity) in whose context it was asserted/published. This is a registry-scoping relationship; for Activity provenance, model a registration act that prov:used the registry entity." ;
   rdfs:domain agentictrust:AgentIdentity ;
-  rdfs:range agentictrust:AgentIdentityRegistry .
+  rdfs:range agentictrust:AgentRegistry .
 
 agentictrust:usesDID a owl:ObjectProperty ;
   rdfs:label "usesDID" ;
@@ -807,7 +807,7 @@ agentictrust:AIAgent a owl:Class ;
   ] .
 
 # Portfolio / fleet of agents (governance + orchestration grouping).
-# This is intentionally distinct from AgentIdentityRegistry: registries are market/vertical-shaped systems of identity assertions,
+# This is intentionally distinct from AgentRegistry: registries are market/vertical-shaped systems of identity assertions,
 # while portfolios are operational groupings (sets) of agents for routing, governance, and reporting.
 agentictrust:AgentPortfolio a owl:Class ;
   rdfs:label "AgentPortfolio" ;

@@ -30,7 +30,7 @@ See also: [`agent-application.md`](./agent-application.md).
 OIDC-A identity claims often refer to an identity anchored in some authority. AgenticTrust models **AgentIdentity as a prov:Entity in the context of registries**, and links it to the Agent via:
 
 - `agentictrust:hasIdentity` (Agent → AgentIdentity)
-- `agentictrust:identityRegistry` (AgentIdentity → AgentIdentityRegistry)
+- `agentictrust:identityRegistry` (AgentIdentity → AgentRegistry)
 
 See also: [`agent-identity.md`](./agent-identity.md).
 
