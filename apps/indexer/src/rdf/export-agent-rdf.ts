@@ -464,6 +464,17 @@ function renderAgentSection(
   const agentId = String(row?.agentId ?? '');
   const readAt = Number(row?.agentCardReadAt ?? 0) || Math.floor(Date.now() / 1000);
 
+  // Parse rawJson (tokenUri metadata) early so we can infer ERC-8004 identity even when didIdentity
+  // isn't present in the DB.
+  let tokenUriData: any = null;
+  if (row?.rawJson) {
+    try {
+      tokenUriData = JSON.parse(String(row.rawJson));
+    } catch {
+      tokenUriData = null;
+    }
+  }
+
   // Identity principle (new way only):
   // - Anchor the discoverable AIAgent node to an on-chain account address (authority).
   // - Prefer agentAccount (SmartAccount). If missing, fall back to other on-chain address fields.
@@ -497,7 +508,9 @@ function renderAgentSection(
   // AgentRegistration8004 (ERC-8004 registration descriptor extracted from rawJson)
   const adIri = agentDescriptorIri(chainId, agentId, didAccountValue);
   // For ERC-8004 agents, use AgentRegistration8004; otherwise use AgentDescriptor
-  const isERC8004 = !!row?.didIdentity;
+  const isERC8004 =
+    (typeof tokenUriData?.type === 'string' && tokenUriData.type.includes('eip-8004')) ||
+    (typeof row?.didIdentity === 'string' && row.didIdentity.trim().startsWith('did:8004:'));
   if (isERC8004) {
     // Do NOT link registration descriptor directly off the Agent.
     // Preferred path: Agent -> hasIdentity -> (AgentIdentity8004) -> hasDescriptor -> AgentRegistration8004.
@@ -506,19 +519,26 @@ function renderAgentSection(
   }
   
   // Identity8004 and IdentityIdentifier8004 for didIdentity
-  if (row?.didIdentity) {
-    lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
-    const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didIdentity))}>`;
+  const didIdentityValue =
+    typeof row?.didIdentity === 'string' && row.didIdentity.trim()
+      ? row.didIdentity.trim()
+      : isERC8004
+        ? `did:8004:${chainId}:${agentId}`
+        : null;
+
+  if (didIdentityValue) {
+    lines.push(`  agentictrust:didIdentity "${escapeTurtleString(didIdentityValue)}" ;`);
+    const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(didIdentityValue)}>`;
     
     // Create Identity8004 instance
-    const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
+    const identity8004IriValue = identity8004Iri(chainId, agentId, didIdentityValue);
     lines.push(`  agentictrust:hasIdentity ${identity8004IriValue} ;`);
 
     // Link identity -> registration descriptor (preferred discovery path)
     accountChunks.push(`${identity8004IriValue} agentictrust:hasDescriptor ${adIri} .\n\n`);
     
     // Create IdentityIdentifier8004 instance
-    const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
+    const identityIdentifierIri = identifierIri(chainId, agentId, '8004', didIdentityValue);
     
     // Emit AgentIdentity8004
     accountChunks.push(
@@ -683,16 +703,6 @@ function renderAgentSection(
   if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
   if (row?.rawJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
   lines.push(`  .\n`);
-
-  // Parse rawJson (tokenUri metadata) for ERC8004 Identity Descriptor
-  let tokenUriData: any = null;
-  if (row?.rawJson) {
-    try {
-      tokenUriData = JSON.parse(String(row.rawJson));
-    } catch {
-      // ignore parse errors
-    }
-  }
 
   // Populate AgentDescriptor with OASF skills/domains from agent card + tokenUri metadata (if present)
   // Agent card fields frequently look like:
@@ -1404,7 +1414,8 @@ async function exportAgentsRdfInternal(
     const agentId = String(row?.agentId ?? '');
     if (!agentId) continue;
     const key = `${chainId}|${agentId}`;
-    const didIdentity = row?.didIdentity != null ? String(row.didIdentity) : null;
+    const didIdentityRaw = row?.didIdentity != null ? String(row.didIdentity) : null;
+    const didIdentity = didIdentityRaw && didIdentityRaw.trim() ? didIdentityRaw.trim() : `did:8004:${chainId}:${agentId}`;
     const didAccount = row?.didAccount != null ? String(row.didAccount) : null;
     const anchorAddr =
       normalizeHex(row?.agentAccount) ??

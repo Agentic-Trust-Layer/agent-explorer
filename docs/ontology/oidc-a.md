@@ -32,7 +32,7 @@ OIDC-A identity claims often refer to an identity anchored in some authority. Ag
 - `agentictrust:hasIdentity` (Agent → AgentIdentity)
 - `agentictrust:identityRegistry` (AgentIdentity → AgentIdentityRegistry)
 
-See also: [`identity.md`](./identity.md).
+See also: [`agent-identity.md`](./agent-identity.md).
 
 ## Primary references (links)
 

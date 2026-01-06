@@ -117,7 +117,7 @@ AgentSkill --> AgentSkillClassification : hasSkillClassification
 ### Reading guide
 
 - **Agent** (class hierarchy and relationships): see [`agent.md`](./agent.md)
-- **Identity vs Identifier**: see [`identity.md`](./identity.md)
+- **Agent identity vs Identifier**: see [`agent-identity.md`](./agent-identity.md)
 - **Descriptor** (resolver-produced metadata): see [`descriptor.md`](./descriptor.md)
 - **OIDC-A mapping** (OpenID Connect for Agents): see [`oidc-a.md`](./oidc-a.md)
 - **Protocols and Endpoints** (A2A, MCP): see [`protocols-endpoints.md`](./protocols-endpoints.md)

@@ -231,11 +231,12 @@ AgenticTrust core (`agentictrust-core.owl`)
 
 - [`agentictrust-overview.md`](./agentictrust-overview.md): navigation + full diagram
 - [`agent.md`](./agent.md): Agent class hierarchy (Person, Organization, SoftwareAgent, AIAgent, Account) and relationships to Identity, Identifier, Name, and Descriptors
-- [`identity.md`](./identity.md): Identity vs Identifier (the thing vs the reference)
+- [`agent-identity.md`](./agent-identity.md): Agent vs AgentIdentity (registry-scoped) vs Identifier (the thing vs the reference)
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly
 - [`attested-assertion.md`](./attested-assertion.md): Assertion vs Attestation (PROV-O) and AttestedAssertion pattern + SPARQL
 - [`oidc-a.md`](./oidc-a.md): OpenID Connect for Agents (OIDC-A) vocabulary mapping and suggestions for AgenticTrust alignment
 - [`agent-application.md`](./agent-application.md): Agent (discoverable) vs AgentDeployment (executor), Provider responsibility, model/version, protocol endpoints
+- [`google-agentspace.md`](./google-agentspace.md): Portfolio of specialized agents; govern and orchestrate a fleet of agents (mapped to AgenticTrust patterns)
 - [`protocols-endpoints.md`](./protocols-endpoints.md): Protocol endpoints (A2A, MCP) and why skills/domains are primarily protocol-defined
 - [`description.md`](./description.md): Plans (PROV-O + P-PLAN) and SituationDescription / TrustDescription
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")

@@ -88,10 +88,13 @@ This pulls normalized ids from the registration descriptor and joins to OASF nod
 
 Note: endpoint payloads often provide `endpoints[].a2aSkills` / `endpoints[].a2aDomains`. The RDF export treats these as OASF ids and emits them as `agentictrust:oasfSkillId` / `agentictrust:oasfDomainId`.
 
+If you see an “empty row” in results, that’s usually because both Skills and Domains are in `OPTIONAL { ... }` blocks; SPARQL still returns a solution for the bound `?agent/?identity/?reg` but leaves `?skillId/?domainId` unbound. Use the `FILTER(BOUND(...))` below to suppress that.
+
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
   ?skillId ?skillLabel
@@ -121,6 +124,8 @@ WHERE {
     OPTIONAL { ?domainNode agentictrust:oasfDomainId ?domainId . }
     OPTIONAL { ?domainNode rdfs:label ?domainLabel . }
   }
+
+  FILTER(BOUND(?skillId) || BOUND(?domainId))
 }
 ORDER BY ?skillId ?domainId
 LIMIT 200
