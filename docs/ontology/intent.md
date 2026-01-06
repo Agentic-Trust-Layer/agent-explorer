@@ -12,9 +12,12 @@ The core design principle is:
 
 **Intent ≠ Skill**: Intent is about purpose or goal. Skills are capabilities.
 
-**Intent ≠ Task**: Tasks are executions (prov:Activity). Intent is contextual and ephemeral.
+**Intent ≠ Task**: Tasks are executions (`agentictrust:TaskExecution` ⊑ `prov:Activity`). Intent is epistemic and contextual.
 
-**Intent is contextual and ephemeral**: It exists at request time, not permanently.
+**IntentType is durable, IntentSituation is ephemeral**:
+
+- `agentictrust:IntentType` is a stable taxonomy/schema (a SituationDescription)
+- `agentictrust:IntentSituation` is the concrete, time-scoped epistemic context at request time
 
 ### Do Not Duplicate OASF
 
@@ -82,6 +85,13 @@ agentictrust:targetsSkill a owl:ObjectProperty ;
 ```
 
 **Meaning**: This intent can be satisfied by invoking this OASF skill.
+
+### Intent → TaskType (routing pivot)
+
+In AgenticTrust orchestration, `TaskType` is the semantic pivot between epistemic intent and executable actions:
+
+- `agentictrust:mapsToTaskType` (IntentType → TaskType)
+- skills/tools can then be related to task types using `agentictrust:enablesTaskType` (Skill → TaskType) and `agentictrust:implementedBySkill` (TaskType → Skill)
 
 **Benefits**:
 - Keeps OASF untouched
@@ -236,7 +246,7 @@ WHERE {
   
   OPTIONAL {
     ?intentType agentictrust:targetsSkill ?skill .
-    ?skill a agentictrust:Skill .
+    ?skill a agentictrust:AgentSkillClassification .
     
     OPTIONAL {
       ?skill rdfs:label ?skillLabel .
@@ -419,7 +429,7 @@ WHERE {
     ?intentType rdfs:label ?intentTypeLabel .
   }
   
-  ?skill a agentictrust:Skill .
+  ?skill a agentictrust:AgentSkillClassification .
   
   OPTIONAL {
     ?skill agentictrust:skillId ?skillId .
@@ -460,7 +470,7 @@ WHERE {
     ?intentType rdfs:label ?intentTypeLabel .
   }
   
-  ?skill a agentictrust:Skill .
+  ?skill a agentictrust:AgentSkillClassification .
   
   OPTIONAL {
     ?skill agentictrust:skillId ?skillId .
@@ -481,4 +491,9 @@ The IntentType ontology provides:
 6. **Satisfaction reasoning**: Situation → IntentType fulfillment
 
 This design keeps OASF untouched while adding a powerful intent layer for purpose-driven discovery and execution.
+
+See also:
+
+- [`agent-orchestration.md`](./agent-orchestration.md): orchestration patterns (intent → task → action) and industry tool-selection concepts
+- [`protocols-endpoints.md`](./protocols-endpoints.md): why skills/tools are primarily protocol-derived (A2A/MCP)
 
