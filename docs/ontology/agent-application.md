@@ -1,25 +1,75 @@
-# AI Agent Application and Provider
+# AI Agent Application (Deployment), Provider, and Endpoints
 
-This page centers on the **durable AI agent application** (software agent identity), its **provider**, and how protocols/endpoints relate to the deployed application.
+This page explains how to talk about:
 
-## Core idea: durable application vs ephemeral instance
+- the **discoverable Agent** (the stable node everything else points at: identity, names, trust graph, provenance)
+- the **AI Agent Application deployment** (the thing reachable at endpoints that actually executes)
+- the **Provider** responsible for that deployment
 
-- **AI Agent Application**: the durable, versioned software agent identity that is deployed at one or more protocol endpoints.
-  - Ontology: `agentictrust:AIAgentApplication` ⊑ `agentictrust:AIAgent` ⊑ `prov:SoftwareAgent`
-- **AI Agent Instance**: an ephemeral runtime identity (session/execution), linked to the durable application.
-  - Ontology: `agentictrust:AgentInstance` ⊑ `prov:SoftwareAgent`
-  - Link: `prov:specializationOf` (Instance → Application)
+We’re intentionally not changing the OWL yet; this is a documentation-first reframing.
+
+## Core idea: Agent (discoverable) vs Application deployment (executable at endpoint)
+
+You have two “real things” that matter:
+
+- **Agent (discoverable identity)**: the stable node that Identity/Name/Situations/AttestedAssertions/Descriptors attach to.
+  - This is what you mean by “the agent” in the trust graph.
+- **Application deployment (executable)**: the hosted service running at a protocol endpoint that accepts intents and produces outcomes.
+  - This is what you mean by “the application”.
+
+DnS **Descriptions** still matter (as schemas/metadata), but they are not the *primary* way to explain account/identity/application. Use DnS terms for intent/situation schemas; use PROV terms for actors/artifacts.
+
+### How the pieces connect (conceptual)
 
 ```mermaid
 graph TB
-  App["AIAgentApplication (prov:SoftwareAgent)"]
-  Inst["AgentInstance (prov:SoftwareAgent)"]
-  Inst -->|prov:specializationOf| App
+  Agent["Agent (discoverable)\nprov:SoftwareAgent"]
+  Identity["AgentIdentity (registry-scoped)\nprov:Entity"]
+  Name["AgentName\nprov:Entity"]
+  Desc["Descriptors (AgentDescriptor / ProtocolDescriptor)\nprov:Entity"]
+  Sit["TrustSituation\nprov:Entity"]
+  Attested["AttestedAssertion\nprov:Entity"]
+
+  Deploy["AI Agent Application deployment\n(reachable executable)\nprov:SoftwareAgent"]
+  Endpoint["Protocol endpoint (A2A/MCP)\nprov:Entity"]
+
+  Agent -->|agentictrust:hasIdentity| Identity
+  Agent -->|agentictrust:hasName| Name
+  Agent -->|agentictrust:hasDescriptor| Desc
+  Sit -->|agentictrust:isAboutAgent| Agent
+  Attested -->|agentictrust:recordsSituation| Sit
+
+  Deploy -->|reachable at| Endpoint
+  Deploy -->|describes / serves| Desc
+```
+
+### Current ontology note (no OWL changes here)
+
+Right now the ontology includes:
+
+- `agentictrust:AIAgentApplication` (modeled as a `prov:SoftwareAgent`)
+- `agentictrust:AgentInstance` (modeled as a `prov:SoftwareAgent`, linked via `prov:specializationOf`)
+
+If you want “application = deployment at endpoint”, you can interpret:
+
+- **Deployment** ≈ `agentictrust:AgentInstance` (the executable at the endpoint)
+- **Discoverable agent** ≈ `agentictrust:AIAgent` (what everything else references)
+
+We can later adjust naming/classes so the OWL matches this language exactly.
+
+```mermaid
+graph TB
+  Desc["Description (Descriptor / TrustDescription)\nprov:Entity (Plan-like)"]
+  Thing["Deployed agent application (hosted)\nprov:SoftwareAgent"]
+  Endpoint["Protocol Endpoint\nprov:Entity"]
+
+  Thing -->|agentictrust:hasDescriptor| Desc
+  Thing -->|reachable at| Endpoint
 ```
 
 ## Provider responsibility (OIDC-A: agent_provider)
 
-The provider is responsible for operating/hosting the **agent application** (and typically for its policy surface: keys, attestations, SLAs).
+The provider is responsible for operating/hosting the **application deployment** (and typically for its policy surface: keys, attestations, SLAs).
 
 - `agentictrust:Organization` ⊑ `prov:Agent`
 - `agentictrust:AIAgentProvider` ⊑ `agentictrust:Organization`
@@ -28,7 +78,7 @@ The provider is responsible for operating/hosting the **agent application** (and
 ```mermaid
 graph LR
   Provider["AIAgentProvider / Organization (prov:Agent)"]
-  App["AIAgentApplication (prov:SoftwareAgent)"]
+  App["Application deployment (prov:SoftwareAgent)"]
   Provider -->|responsible for| App
 ```
 
@@ -50,7 +100,7 @@ Application versioning (distinct from model release when needed):
 
 ## Protocol endpoint references the application
 
-An AI Agent Application is **reachable** via protocol endpoints (e.g., A2A, MCP). In AgenticTrust:
+The application deployment is **reachable** via protocol endpoints (e.g., A2A, MCP). In AgenticTrust:
 
 - Protocol configuration lives on **ProtocolDescriptor** (`agentictrust:A2AProtocolDescriptor`, `agentictrust:MCPProtocolDescriptor`)
 - Network addresses are modeled as **Endpoint** (`agentictrust:Endpoint`) linked from descriptors
@@ -91,7 +141,9 @@ WHERE {
 LIMIT 200
 ```
 
-### Find instances and the durable application they specialize
+### Find deployments (instances) and the stable discoverable agent they correspond to
+
+If you keep using `agentictrust:AgentInstance`, treat it as the **deployment identity** (the executable at endpoint). If you don’t want deployment identities, you can skip this and attach descriptors/endpoints to the discoverable agent node.
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
