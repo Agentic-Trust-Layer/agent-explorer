@@ -806,6 +806,19 @@ agentictrust:AIAgent a owl:Class ;
     owl:allValuesFrom agentictrust:AgentDescriptor
   ] .
 
+# Portfolio / fleet of agents (governance + orchestration grouping).
+# This is intentionally distinct from AgentIdentityRegistry: registries are market/vertical-shaped systems of identity assertions,
+# while portfolios are operational groupings (sets) of agents for routing, governance, and reporting.
+agentictrust:AgentPortfolio a owl:Class ;
+  rdfs:label "AgentPortfolio" ;
+  rdfs:comment "A portfolio (fleet) of specialized agents: an operational grouping of discoverable agents used for governance, orchestration, routing, and reporting. Model membership using prov:hadMember (Portfolio → AIAgent). This is not a registry; portfolios can span multiple registries and identity ecosystems." ;
+  rdfs:subClassOf prov:Collection ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty prov:hadMember ;
+    owl:allValuesFrom agentictrust:AIAgent
+  ] .
+
 # AI Agent application deployment (the executable reachable at endpoints).
 # This is NOT the discoverable trust-graph anchor; it is the executor that runs "on behalf of" an Operator (and indirectly a SmartAccount authority).
 agentictrust:AgentDeployment a owl:Class ;

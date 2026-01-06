@@ -18,7 +18,7 @@ Model a portfolio as a **collection** of discoverable agents:
 - **Container**: `prov:Collection` (or `prov:Entity` if you don’t want Collection semantics)
 - **Membership**: `prov:hadMember` (collection → member)
 
-If you later want a first-class term, you can define `agentictrust:AgentPortfolio ⊑ prov:Collection`, but this page keeps it as a **pattern** (no OWL change required).
+This repo now defines `agentictrust:AgentPortfolio ⊑ prov:Collection`. See [`agent-portfolio.md`](./agent-portfolio.md).
 
 ### Governance (who is responsible / who is operating)
 

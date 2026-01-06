@@ -236,6 +236,7 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`attested-assertion.md`](./attested-assertion.md): Assertion vs Attestation (PROV-O) and AttestedAssertion pattern + SPARQL
 - [`oidc-a.md`](./oidc-a.md): OpenID Connect for Agents (OIDC-A) vocabulary mapping and suggestions for AgenticTrust alignment
 - [`agent-application.md`](./agent-application.md): Agent (discoverable) vs AgentDeployment (executor), Provider responsibility, model/version, protocol endpoints
+- [`agent-portfolio.md`](./agent-portfolio.md): AgentPortfolio (fleet/portfolio of specialized agents), governance + orchestration, and why registries must not be singleton
 - [`google-agentspace.md`](./google-agentspace.md): Portfolio of specialized agents; govern and orchestrate a fleet of agents (mapped to AgenticTrust patterns)
 - [`protocols-endpoints.md`](./protocols-endpoints.md): Protocol endpoints (A2A, MCP) and why skills/domains are primarily protocol-defined
 - [`description.md`](./description.md): Plans (PROV-O + P-PLAN) and SituationDescription / TrustDescription
