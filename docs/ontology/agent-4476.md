@@ -133,9 +133,10 @@ PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
 SELECT
-  ?situationType
+  ?bucket
   (COUNT(DISTINCT ?situation) AS ?situationCount)
   (COUNT(DISTINCT ?assertionAct) AS ?assertionActCount)
   (COUNT(DISTINCT ?assertionRecord) AS ?assertionRecordCount)
@@ -144,25 +145,61 @@ WHERE {
   ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
   ?agent agentictrustEth:accountChainId ?chainId .
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
 
-  VALUES ?situationType {
-    agentictrust:ReputationTrustSituation
-    agentictrust:VerificationRequestSituation
-    agentictrust:RelationshipTrustSituation
-    agentictrust:DelegationTrustSituation
+  # Bucket by record type (avoids depending on ?situation rdf:type, which may vary)
+  VALUES ?bucket { "reputation" "verification" "relationship" "delegation" }
+
+  # Reputation: Feedback records
+  {
+    FILTER(?bucket = "reputation")
+    ?assertionRecord a erc8004:Feedback .
+    FILTER(
+      EXISTS { ?agent erc8004:hasFeedback ?assertionRecord } ||
+      EXISTS { ?identity erc8004:hasFeedback ?assertionRecord } ||
+      EXISTS { ?assertionRecord agentictrust:aboutSubject ?identity }
+    )
+    OPTIONAL { ?assertionRecord agentictrust:recordsSituation ?situation . }
+    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
   }
-
-  ?situation a ?situationType ;
-            agentictrust:isAboutAgent ?agent .
-
-  OPTIONAL {
-    ?assertionAct a agentictrust:TrustAssertionAct ;
-                 agentictrust:assertsSituation ?situation ;
-                 agentictrust:generatedAssertionRecord ?assertionRecord .
+  UNION
+  # Verification: ValidationResponse records
+  {
+    FILTER(?bucket = "verification")
+    ?assertionRecord a erc8004:ValidationResponse .
+    FILTER(
+      EXISTS { ?agent erc8004:hasValidation ?assertionRecord } ||
+      EXISTS { ?identity erc8004:hasValidation ?assertionRecord } ||
+      EXISTS { ?assertionRecord agentictrust:aboutSubject ?identity }
+    )
+    OPTIONAL { ?assertionRecord agentictrust:recordsSituation ?situation . }
+    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
+  }
+  UNION
+  # Relationship: ERC-8092 relationship assertions
+  {
+    FILTER(?bucket = "relationship")
+    ?assertionRecord a erc8092:RelationshipAssertion .
+    # these are account-centric; keep this join narrow by requiring the asserted situation to be about the agent
+    ?assertionRecord agentictrust:recordsSituation ?situation .
+    ?situation agentictrust:isAboutAgent ?agent .
+    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
+  }
+  UNION
+  # Delegation: DelegationTrustAssertionRecord (if present)
+  {
+    FILTER(?bucket = "delegation")
+    ?assertionRecord a agentictrust:DelegationTrustAssertionRecord .
+    FILTER(
+      EXISTS { ?assertionRecord agentictrust:aboutSubject ?identity } ||
+      EXISTS { ?assertionRecord agentictrust:aboutSubject ?agent }
+    )
+    OPTIONAL { ?assertionRecord agentictrust:recordsSituation ?situation . }
+    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
   }
 }
-GROUP BY ?situationType
-ORDER BY ?situationType
+GROUP BY ?bucket
+ORDER BY ?bucket
 ```
 
 ### Reputation Situations and Feedback Assertions
@@ -171,6 +208,7 @@ ORDER BY ?situationType
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
 SELECT DISTINCT
   ?agent
@@ -189,14 +227,16 @@ WHERE {
   ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
   ?agent agentictrustEth:accountChainId ?chainId .
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
   
-  # Reputation situation
-  ?repSituation a agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity .
-  ?repSituation agentictrust:isAboutAgent ?agent .
-  
-  # Feedback record (Entity)
+  # Feedback record (Entity) anchored via agent or identity (or aboutSubject)
   ?feedbackRecord a erc8004:Feedback, agentictrust:ReputationTrustAssertion, agentictrust:TrustAssertion, prov:Entity .
-  ?feedbackRecord agentictrust:recordsSituation ?repSituation .
+  FILTER(
+    EXISTS { ?agent erc8004:hasFeedback ?feedbackRecord } ||
+    EXISTS { ?identity erc8004:hasFeedback ?feedbackRecord } ||
+    EXISTS { ?feedbackRecord agentictrust:aboutSubject ?identity }
+  )
+  OPTIONAL { ?feedbackRecord agentictrust:recordsSituation ?repSituation . }
   ?feedbackRecord erc8004:feedbackIndex ?feedbackIndex .
   
   # Feedback act (Activity)
@@ -223,6 +263,7 @@ LIMIT 50
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
 
 SELECT DISTINCT
   ?agent
@@ -241,33 +282,29 @@ WHERE {
   ?agent a agentictrust:AIAgent, agentictrustEth:Account .
   ?agent agentictrust:agentId ?agentId .
   ?agent agentictrustEth:accountChainId ?chainId .
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
   
-  # Verification request situation (Entity)
-  ?verificationSituation a agentictrust:VerificationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity .
-  ?verificationSituation agentictrust:isAboutAgent ?agent .
-  
-  # Validation request (same as situation for requests)
-  ?verificationRequest = ?verificationSituation .
+  # Validation response record (Entity) anchored via agent or identity (or aboutSubject)
+  ?validationResponse a erc8004:ValidationResponse, agentictrust:VerificationTrustAssertion, agentictrust:TrustAssertion, prov:Entity .
+  FILTER(
+    EXISTS { ?agent erc8004:hasValidation ?validationResponse } ||
+    EXISTS { ?identity erc8004:hasValidation ?validationResponse } ||
+    EXISTS { ?validationResponse agentictrust:aboutSubject ?identity }
+  )
+  OPTIONAL { ?validationResponse agentictrust:recordsSituation ?verificationSituation . }
+  OPTIONAL { ?validationResponse erc8004:validationRespondsToRequest ?verificationRequest . }
   OPTIONAL { ?verificationRequest erc8004:requestHash ?requestHash . }
-  
-  # Validation response record (Entity)
+  OPTIONAL { ?validationResponse erc8004:validationResponseValue ?responseValue . }
+  OPTIONAL { ?validationResponse erc8004:responseHash ?responseHash . }
+  OPTIONAL { ?validationResponse erc8004:validationTagCheck ?tagCheck . ?tagCheck rdfs:label ?tag . }
   OPTIONAL {
-    ?validationResponse a erc8004:ValidationResponse, agentictrust:VerificationTrustAssertion, agentictrust:TrustAssertion, prov:Entity .
-    ?validationResponse erc8004:validationRespondsToRequest ?verificationRequest .
-    ?validationResponse agentictrust:recordsSituation ?verificationSituation .
-    ?validationResponse erc8004:validationResponseValue ?responseValue .
-    OPTIONAL { ?validationResponse erc8004:responseHash ?responseHash . }
-    OPTIONAL { ?validationResponse erc8004:validationTagCheck ?tagCheck . ?tagCheck rdfs:label ?tag . }
-    OPTIONAL {
-      ?validationResponse erc8004:validatorAddressForResponse ?validatorAddr .
-      BIND(STR(?validatorAddr) AS ?validatorAddress)
-    }
+    ?validationResponse erc8004:validatorAddressForResponse ?validatorAddr .
+    BIND(STR(?validatorAddr) AS ?validatorAddress)
   }
   
   # Validation response act (Activity)
   OPTIONAL {
     ?validationAct a erc8004:ValidationResponseAct, agentictrust:VerificationTrustAssertionAct, agentictrust:TrustAssertionAct, agentictrust:Attestation, prov:Activity .
-    ?validationAct agentictrust:assertsSituation ?verificationSituation .
     ?validationAct agentictrust:generatedAssertionRecord ?validationResponse .
   }
 }
@@ -600,8 +637,11 @@ PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 
 SELECT ?assertionType (COUNT(DISTINCT ?assertion) AS ?count)
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  ?agent agentictrust:agentId "4476" .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
+  ?agent agentictrust:agentId ?agentId .
+  ?agent agentictrustEth:accountChainId ?chainId .
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
   
   {
     ?situation agentictrust:isAboutAgent ?agent .
@@ -610,7 +650,9 @@ WHERE {
   }
   UNION
   {
-    ?agent erc8004:hasFeedback|erc8004:hasValidation ?assertion .
+    { ?agent erc8004:hasFeedback|erc8004:hasValidation ?assertion . }
+    UNION
+    { ?identity erc8004:hasFeedback|erc8004:hasValidation ?assertion . }
     ?assertion a ?assertionType .
   }
   UNION
@@ -637,9 +679,19 @@ SELECT
   (MAX(?score) AS ?maxScore)
   (COUNT(DISTINCT ?client) AS ?uniqueClients)
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  ?agent agentictrust:agentId "4476" .
-  ?agent erc8004:hasFeedback ?feedback .
+  VALUES (?agentId ?chainId) { ("4476" 11155111) }
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
+  ?agent agentictrust:agentId ?agentId .
+  ?agent agentictrustEth:accountChainId ?chainId .
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+
+  {
+    ?agent erc8004:hasFeedback ?feedback .
+  }
+  UNION
+  {
+    ?identity erc8004:hasFeedback ?feedback .
+  }
   ?feedback a erc8004:Feedback .
   ?feedback erc8004:feedbackScore ?score .
   OPTIONAL {

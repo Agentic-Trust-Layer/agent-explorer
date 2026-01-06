@@ -1363,10 +1363,21 @@ async function exportAgentsRdfInternal(
   };
 
   const allAgentsForMaps = await safeAll(`
-    SELECT chainId, agentId, agentName, agentAccount, agentAddress, agentOwner, eoaOwner, didIdentity
+    SELECT chainId, agentId, agentName, agentAccount, agentAddress, agentOwner, eoaOwner, didIdentity, didAccount
     FROM agents
   `);
-  const agentMetaByKey = new Map<string, { chainId: number; agentId: string; agentName?: string | null; didIdentity?: string | null }>();
+  const agentMetaByKey = new Map<
+    string,
+    {
+      chainId: number;
+      agentId: string;
+      agentName?: string | null;
+      didIdentity?: string | null;
+      didAccount?: string | null;
+      agentAnchorIri?: string | null; // Turtle IRI token like `<https://...>`
+      identity8004Iri?: string | null; // Turtle IRI token like `<https://...>`
+    }
+  >();
   const agentByAccountKey = new Map<string, string>(); // `${chainId}|${addrLower}` -> agentIri
   const agentByAccountIdentifierIri = new Map<string, string>(); // `<.../account-identifier/chainId/addr>` -> agentIri
   const agentByAccountSuffixKey = new Map<string, string>(); // `${chainId}|${last40}` -> agentIri (supports prefixed account ids)
@@ -1376,14 +1387,27 @@ async function exportAgentsRdfInternal(
     const agentId = String(row?.agentId ?? '');
     if (!agentId) continue;
     const key = `${chainId}|${agentId}`;
-    agentMetaByKey.set(key, { chainId, agentId, agentName: row?.agentName != null ? String(row.agentName) : null, didIdentity: row?.didIdentity != null ? String(row.didIdentity) : null });
-    const acctForAgent =
+    const didIdentity = row?.didIdentity != null ? String(row.didIdentity) : null;
+    const didAccount = row?.didAccount != null ? String(row.didAccount) : null;
+    const anchorAddr =
       normalizeHex(row?.agentAccount) ??
       normalizeHex(row?.agentAddress) ??
       normalizeHex(row?.agentOwner) ??
       normalizeHex(row?.eoaOwner) ??
       null;
-    const aIri = acctForAgent ? accountIri(chainId, acctForAgent) : null;
+    const agentAnchorIri = anchorAddr ? accountIri(chainId, anchorAddr) : null;
+    const identity8004 = didIdentity ? identity8004Iri(chainId, agentId, didIdentity) : null;
+    agentMetaByKey.set(key, {
+      chainId,
+      agentId,
+      agentName: row?.agentName != null ? String(row.agentName) : null,
+      didIdentity,
+      didAccount,
+      agentAnchorIri,
+      identity8004Iri: identity8004,
+    });
+    const acctForAgent = anchorAddr;
+    const aIri = agentAnchorIri;
     if (!aIri) continue;
     const acct = normalizeHex(row?.agentAccount);
     const addr = normalizeHex(row?.agentAddress);
@@ -1509,8 +1533,10 @@ async function exportAgentsRdfInternal(
     if (emittedAgents.has(key)) return;
     emittedAgents.add(key);
     const meta = agentMetaByKey.get(key);
+    const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
+    if (!ai) return;
     const lines: string[] = [];
-    lines.push(`${agentIri(chainId, agentId, meta?.didIdentity)} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
+    lines.push(`${ai} a agentictrust:AIAgent, prov:SoftwareAgent, agentictrustEth:Account ;`);
     lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
     if (meta?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(meta.agentName))}" ;`);
     lines.push(`  .\n`);
@@ -1705,8 +1731,10 @@ async function exportAgentsRdfInternal(
     const feedbackIndex = Number(f?.feedbackIndex ?? 0) || 0;
     const fi = feedbackIri(chainId, agentId, client, feedbackIndex);
     const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
-    const ai = agentIri(chainId, agentId, meta?.didIdentity);
+    const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
+    if (!ai) continue;
     chunks.push(`${ai} erc8004:hasFeedback ${fi} .\n`);
+    if (meta?.identity8004Iri) chunks.push(`${meta.identity8004Iri} erc8004:hasFeedback ${fi} .\n`);
 
     const recordLines: string[] = [];
     const actIri = actIriFromRecordIri(fi);
@@ -1721,6 +1749,7 @@ async function exportAgentsRdfInternal(
     chunks.push(`${repSituationIri} a agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     // Situation is about the agent being evaluated.
     chunks.push(`  agentictrust:isAboutAgent ${ai} ;`);
+    if (meta?.identity8004Iri) chunks.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
     chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
     chunks.push(`  .\n`);
     // Link record and act to the asserted situation.
@@ -1857,8 +1886,10 @@ async function exportAgentsRdfInternal(
     if (!id) continue;
     const ri = feedbackResponseIri(chainId, id);
     const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
-    const ai = agentIri(chainId, agentId, meta?.didIdentity);
+    const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
+    if (!ai) continue;
     chunks.push(`${ai} erc8004:hasFeedback ${ri} .\n`);
+    if (meta?.identity8004Iri) chunks.push(`${meta.identity8004Iri} erc8004:hasFeedback ${ri} .\n`);
     const lines: string[] = [];
     lines.push(`${ri} a erc8004:FeedbackResponse, agentictrust:ReputationTrustAssertion, prov:Activity ;`);
     if (r?.responseJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(r.responseJson))} ;`);
@@ -1888,9 +1919,11 @@ async function exportAgentsRdfInternal(
     // ValidationRequest is a Situation (Entity) being asserted/answered by later responses.
     // ERC8004.owl is assertion-only, so the request situation type lives in agentictrust-core as VerificationRequestSituation.
     const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
-    const ai = agentIri(chainId, agentId, meta?.didIdentity);
+    const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
+    if (!ai) continue;
     lines.push(`${vi} a agentictrust:VerificationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     lines.push(`  agentictrust:isAboutAgent ${ai} ;`);
+    if (meta?.identity8004Iri) lines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
     const validator = normalizeHex(v?.validatorAddress);
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);
@@ -1996,12 +2029,15 @@ async function exportAgentsRdfInternal(
     const vi = validationResponseIri(chainId, id);
     const actIri = actIriFromRecordIri(vi);
     const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
-    const ai = agentIri(chainId, agentId, meta?.didIdentity);
+    const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
+    if (!ai) continue;
     chunks.push(`${ai} erc8004:hasValidation ${vi} .\n`);
+    if (meta?.identity8004Iri) chunks.push(`${meta.identity8004Iri} erc8004:hasValidation ${vi} .\n`);
 
     const recordLines: string[] = [];
     // ValidationResponse is a durable assertion record (Entity) generated by a validation-response act (Activity).
     recordLines.push(`${vi} a erc8004:ValidationResponse, agentictrust:VerificationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
+    if (meta?.identity8004Iri) recordLines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
     recordLines.push(`  erc8004:validationChainIdForResponse ${chainId} ;`);
     recordLines.push(`  erc8004:requestingAgentIdForResponse "${escapeTurtleString(agentId)}" ;`);
     if (typeof v?.response === 'number' || typeof v?.response === 'string')
