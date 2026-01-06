@@ -499,7 +499,8 @@ function renderAgentSection(
   // For ERC-8004 agents, use AgentRegistration8004; otherwise use AgentDescriptor
   const isERC8004 = !!row?.didIdentity;
   if (isERC8004) {
-    lines.push(`  erc8004:hasAgentRegistration8004 ${adIri} ;`);
+    // Do NOT link registration descriptor directly off the Agent.
+    // Preferred path: Agent -> hasIdentity -> (AgentIdentity8004) -> hasDescriptor -> AgentRegistration8004.
   } else {
     lines.push(`  agentictrust:hasAgentDescriptor ${adIri} ;`);
   }
@@ -512,6 +513,9 @@ function renderAgentSection(
     // Create Identity8004 instance
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
     lines.push(`  agentictrust:hasIdentity ${identity8004IriValue} ;`);
+
+    // Link identity -> registration descriptor (preferred discovery path)
+    accountChunks.push(`${identity8004IriValue} agentictrust:hasDescriptor ${adIri} .\n\n`);
     
     // Create IdentityIdentifier8004 instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);

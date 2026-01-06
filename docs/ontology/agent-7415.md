@@ -59,7 +59,9 @@ WHERE {
   ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
          agentictrust:agentId ?agentId ;
          agentictrustEth:accountChainId ?chainId ;
-         erc8004:hasAgentRegistration8004 ?reg .
+         agentictrust:hasIdentity ?identity .
+
+  ?identity agentictrust:hasDescriptor ?reg .
 
   # Registration endpoint URL (endpointType=a2a)
   OPTIONAL {
@@ -100,7 +102,9 @@ WHERE {
   ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
          agentictrust:agentId ?agentId ;
          agentictrustEth:accountChainId ?chainId ;
-         erc8004:hasAgentRegistration8004 ?reg .
+         agentictrust:hasIdentity ?identity .
+
+  ?identity agentictrust:hasDescriptor ?reg .
 
   # Skills (OASF)
   OPTIONAL {
@@ -141,7 +145,9 @@ WHERE {
   ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
          agentictrust:agentId ?agentId ;
          agentictrustEth:accountChainId ?chainId ;
-         erc8004:hasAgentRegistration8004 ?reg .
+         agentictrust:hasIdentity ?identity .
+
+  ?identity agentictrust:hasDescriptor ?reg .
 
   # OASF skills the agent advertises
   ?reg agentictrust:hasSkill ?agentSkill .

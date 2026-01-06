@@ -63,12 +63,6 @@ erc8004:IdentityDescriptor8004 a owl:Class ;
   rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
   rdfs:subClassOf agentictrust:AgentIdentityDescriptor .
 
-erc8004:hasAgentRegistration8004 a owl:ObjectProperty ;
-  rdfs:label "hasAgentRegistration8004" ;
-  rdfs:comment "Links an ERC-8004 agent to its registration descriptor extracted from tokenUri metadata." ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range erc8004:AgentRegistration8004 .
-
 erc8004:TrustAssertion a owl:Class ;
   rdfs:label "TrustAssertion8004" ;
   rdfs:comment "Base class for ERC-8004 trust assertions (durable claims/evidence/artifacts)." ;

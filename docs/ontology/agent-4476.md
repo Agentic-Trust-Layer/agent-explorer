@@ -388,7 +388,8 @@ WHERE {
   ?agent agentictrustEth:accountChainId ?chainId .
 
   # ERC-8004 registration descriptor (this is where endpoints/skills live for 8004 agents)
-  ?agent erc8004:hasAgentRegistration8004 ?agentRegistration .
+  ?agent agentictrust:hasIdentity ?identity .
+  ?identity agentictrust:hasDescriptor ?agentRegistration .
   ?agentRegistration a erc8004:AgentRegistration8004 .
   
   # Endpoints
@@ -432,7 +433,8 @@ WHERE {
   ?agent agentictrust:agentId ?agentId .
   ?agent agentictrustEth:accountChainId ?chainId .
   
-  ?agent erc8004:hasAgentRegistration8004 ?agentRegistration .
+  ?agent agentictrust:hasIdentity ?identity .
+  ?identity agentictrust:hasDescriptor ?agentRegistration .
   ?agentRegistration a erc8004:AgentRegistration8004 .
   
   OPTIONAL { ?agentRegistration agentictrust:json ?registrationJson . }
@@ -471,7 +473,7 @@ WHERE {
   # Get all triples where agent's identity/identifier/name is subject
   {
     {
-      ?agent agentictrust:hasIdentity|agentictrust:hasIdentifier|agentictrust:hasName|erc8004:hasAgentRegistration8004 ?related .
+      ?agent agentictrust:hasIdentity|agentictrust:hasIdentifier|agentictrust:hasName ?related .
     }
     UNION
     {
@@ -536,7 +538,8 @@ graph TB
     Agent -->|hasName| ENSName
     ENSName -->|hasIdentifier| ENSIdentifier
     
-    Agent -->|hasAgentRegistration8004| AgentDescriptor
+    Agent -->|hasIdentity| Identity
+    Identity -->|hasDescriptor| AgentDescriptor
 ```
 
 ### Situations and Assertions Model
