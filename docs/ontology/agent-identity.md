@@ -306,5 +306,6 @@ See also:
 - [`identifiers.md`](./identifiers.md)
 - [`agent.md`](./agent.md)
 - [`descriptor.md`](./descriptor.md)
+- [`agent-registry.md`](./agent-registry.md)
 
 

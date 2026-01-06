@@ -2,15 +2,17 @@
 
 This page defines the **AgentPortfolio** concept and why it matters for agent discovery, governance, and orchestration.
 
+See also: [`agent-registry.md`](./agent-registry.md) (registries, identity issuance, and portfolio curation patterns).
+
 ## What a portfolio is (and is not)
 
-- **AgentPortfolio**: an **operational grouping** (“portfolio”, “fleet”) of specialized agents used for routing, governance, access control, and reporting.
-- **Not** an identity registry and not a replacement for identity registries.
+- **AgentPortfolio**: a **grouping** (“portfolio”, “fleet”) of specialized agents used for routing, governance, access control, and reporting.
+- **Orthogonal to registry**: a portfolio can be curated by many mechanisms, including a registry spun up specifically to define/maintain that portfolio.
 
 Key distinction:
 
 - **Registry** answers: “*Which identity representations exist, under what rules, and who asserts them?*”
-- **Portfolio** answers: “*Which agents are in my governed/orchestrated set for a task/vertical/business domain?*”
+- **Portfolio** answers: “*Which agents are in a governed/orchestrated set for a task/vertical/business domain (including consortium-governed portfolios)?*”
 
 ## Why portfolios matter
 
