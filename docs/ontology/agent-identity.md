@@ -88,6 +88,17 @@ Because identity information:
 
 All of that screams **`prov:Entity`**, not `prov:Agent`.
 
+## Smart Credentials (issuer-controlled records “about” an identity)
+
+Smart Credentials are a useful fit for the **registry-scoped identity** pattern because they emphasize credentials as records **about** an entity controlled by issuers (not self-asserted profile fields), and support onchain/offchain/zk proofs.
+
+- Reference implementation/spec: [Smart Credentials](https://github.com/nxt3d/smart-credentials)
+
+In AgenticTrust terms, you can treat a smart-credential instance as:
+
+- an **identity/registry-layer artifact** whose statements are *about* an `agentictrust:AgentIdentity` (or about an agent via its identity), and
+- a source of **attested assertions** (issuer accountability) rather than “the agent speaking about itself”.
+
 ### Registry context (critical)
 
 Instead of baking registry logic into the agent, model it explicitly:

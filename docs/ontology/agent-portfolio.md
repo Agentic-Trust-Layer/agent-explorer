@@ -36,6 +36,31 @@ This choice keeps portfolios:
 - compatible with existing PROV tooling
 - independent from any single registry ecosystem
 
+## ERC-8041 and portfolio membership onchain
+
+If portfolio membership/governance is represented **onchain**, an ERC like **ERC‑8041** can act as an onchain anchor that defines and updates portfolio membership and policy surface.
+
+- Reference: [`https://eips.ethereum.org/EIPS/eip-8041`](https://eips.ethereum.org/EIPS/eip-8041)
+
+In AgenticTrust terms, this typically means:
+
+- the **portfolio** is still `agentictrust:AgentPortfolio` (a `prov:Collection`)
+- the onchain contract/registry is modeled as a **Registry/Descriptor source** that *curates* that portfolio (portfolio membership is derived from its events/state)
+
+## Minimal Agent Registries (ERC-6909) as portfolio-curation infrastructure
+
+A practical onchain way to “spin up a registry for a portfolio” is a **Minimal Agent Registry** built on **ERC‑6909** tokens with **ERC‑8048/8049** metadata, where each agent is represented as a token ID and the contract itself carries registry-level metadata.
+
+- Spec (draft): [`erc-agent-registry.md`](https://github.com/nxt3d/ERCs/blob/agent-registry/ERCS/erc-agent-registry.md)
+
+Why it matters for portfolios:
+
+- **Portfolio-by-registry**: anyone can deploy a registry specialized to a curated portfolio (whitehat agents, DeFi strategy agents, enterprise-approved agents, etc.).
+- **Market-shaped registries**: multiple registries can coexist (different governance, admission criteria, vertical standards) without forcing a singleton.
+- **AgentPortfolio mapping**: index the registry and materialize:
+  - the portfolio node as an `agentictrust:AgentPortfolio`
+  - membership edges via `prov:hadMember` (derived from registry agent IDs / metadata such as `agent_account`)
+
 ## Diagram: portfolio + identity registries (plural, market-shaped)
 
 This is the **anti-singleton** pattern: ERC-8004 is *one* registry; vertical/market registries can coexist.
