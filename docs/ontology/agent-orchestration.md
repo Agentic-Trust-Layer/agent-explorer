@@ -173,4 +173,104 @@ Below are real solutions/patterns that implement “semantic tool discovery → 
 - [`google-agentspace.md`](./google-agentspace.md): semantic routing model
 - [`agent-registry.md`](./agent-registry.md): registries and registry-scoped identities
 
+## Recommendations: ontology additions needed (do not implement yet)
+
+This document describes real orchestration innovations (Tool‑RAG gateways, semantic routing, SDK-driven tool invocation). AgenticTrust already has the **spine** (IntentType/TaskExecution/SkillInvocation/ProtocolDescriptor), but to represent these systems *as data* (auditable, queryable, portable) we should add a small set of **explicit entities and relations**.
+
+### 1) Tool catalogs as first-class entities (scope + isolation)
+
+**Why**: AgentCore-style gateways make the “tool universe” explicit and *scoped* (per-gateway isolation). Today, we can infer catalogs from protocol descriptors, but we can’t represent catalog boundaries and lifecycle as a first-class object.
+
+**Add**
+
+- **Class**: `agentictrust:ToolCatalog` ⊑ `prov:Entity`
+- **Property**: `agentictrust:catalogOf` (ToolCatalog → ProtocolDescriptor or Deployment)
+- **Property**: `agentictrust:catalogHasTool` (ToolCatalog → AgentSkillClassification)
+- **Property**: `agentictrust:catalogScope` (datatype or link to Registry/Organization/Deployment)
+- **Property**: `agentictrust:catalogRevision` (datatype, optional)
+
+### 2) Semantic retrieval over tool metadata (Tool‑RAG) as provenance
+
+**Why**: Tool‑RAG is an **Activity** (“search tools”), producing an **Entity** (“candidate set”), and optionally recording scores/ranks. Without this, we can’t reconstruct *why* a tool was chosen.
+
+**Add**
+
+- **Class**: `agentictrust:ToolSearch` ⊑ `prov:Activity`
+- **Class**: `agentictrust:ToolCandidateSet` ⊑ `prov:Entity`
+- **Property**: `agentictrust:searchedCatalog` (ToolSearch → ToolCatalog)
+- **Property**: `agentictrust:searchQuery` (datatype, string)
+- **Property**: `agentictrust:generatedCandidateSet` (ToolSearch → ToolCandidateSet) (or use `prov:generated`)
+- **Property**: `agentictrust:candidateTool` (ToolCandidateSet → AgentSkillClassification)
+- **Property**: `agentictrust:candidateScore` / `agentictrust:candidateRank` (attach via a qualified node if we need per-tool scores)
+
+This cleanly models AgentCore Gateway’s “semantic tool selection” behavior as **retrieval**, not “reasoning”.
+
+### 3) Intent normalization and task classification outputs (explicit, portable)
+
+**Why**: Agentspace-style semantic routing and Claude-style SDK loops both rely on producing structured intent/task outputs, but today we mostly treat that as “inside the LLM”.
+
+**Add**
+
+- **Class**: `agentictrust:IntentParse` ⊑ `prov:Activity`
+- **Class**: `agentictrust:IntentParseResult` ⊑ `prov:Entity`
+- **Property**: `agentictrust:parsedIntentType` (IntentParseResult → IntentType)
+- **Property**: `agentictrust:parsedTaskType` (IntentParseResult → TaskType)
+- **Property**: `agentictrust:parsedParametersJson` (datatype, JSON string)
+- **Property**: `agentictrust:parseConfidence` (datatype, numeric)
+
+This lets us represent “intent understanding → task class” without hardcoding a vendor ontology.
+
+### 4) Execution gateway as an explicit boundary (inbound/outbound auth)
+
+**Why**: The orchestration story consistently has a boundary that authenticates inbound requests and authorizes outbound tool calls. We need to represent that boundary and its decisions as evidence.
+
+**Add**
+
+- **Class**: `agentictrust:ExecutionGateway` ⊑ `prov:SoftwareAgent` (or `prov:Entity` if modeled as infrastructure artifact)
+- **Property**: `agentictrust:gatewayForDeployment` (Gateway → AgentDeployment)
+- **Property**: `agentictrust:gatewayCatalog` (Gateway → ToolCatalog)
+
+AuthZ/AuthN as evidence:
+
+- **Class**: `agentictrust:AuthorizationDecision` ⊑ `prov:Entity`
+- **Class**: `agentictrust:AuthorizationAct` ⊑ `prov:Activity`
+- **Property**: `agentictrust:decisionAppliesToInvocation` (Decision → SkillInvocation)
+- **Property**: `agentictrust:decisionOutcome` (allow/deny)
+- **Property**: `agentictrust:decisionReason` (string or json)
+
+### 5) Tool adapter / wrapper semantics (API→tool, A2A→tool, MCP aggregation)
+
+**Why**: Many gateways work by *adapting* things into tools (wrapping APIs/Lambda; aggregating MCP servers). We need minimal vocabulary for “this tool is derived from that API/endpoint”.
+
+**Add**
+
+- **Class**: `agentictrust:ToolAdapter` ⊑ `prov:SoftwareAgent` (optional)
+- **Property**: `agentictrust:wrapsEndpoint` (ToolAdapter → Endpoint)
+- **Property**: `agentictrust:exposesTool` (ToolAdapter → AgentSkillClassification)
+- **Property**: `agentictrust:derivedFromDescriptor` (ToolAdapter or Tool → Descriptor)
+
+### 6) Portfolio-level orchestration policy (tool universe governance)
+
+**Why**: In the open agent web, “which tools are even admissible” is often governed at a portfolio/consortium level.
+
+**Add**
+
+- **Property**: `agentictrust:portfolioPolicy` (AgentPortfolio → TrustDescription/Plan-like entity)
+- **Property**: `agentictrust:portfolioToolCatalog` (AgentPortfolio → ToolCatalog)
+- **Property**: `agentictrust:admissionCriteria` (AgentRegistry/Portfolio → Descriptor/Policy artifact)
+
+### 7) Minimum recommended integration points (where these attach)
+
+To keep the ontology cohesive:
+
+- Tool catalogs should hang off **protocol descriptors / deployments / gateways**.
+- Retrieval/classification should be captured as **Activities** producing **Entities** (PROV-native).
+- Invocations remain `SkillInvocation`; decisions/evidence link to invocations and/or tasks.
+
+### Practical impact of the technologies in this doc
+
+- **AgentCore-style gateways** push us to model **ToolCatalog + ToolSearch + CandidateSet** and **authorization decisions** as first-class auditable objects.
+- **Agentspace-style routing** pushes us to model **IntentParseResult** and **TaskType** classification outputs explicitly.
+- **Claude SDK / framework ecosystems** push us to model orchestration as **portable provenance**, so the same patterns can be represented regardless of vendor runtime.
+
 
