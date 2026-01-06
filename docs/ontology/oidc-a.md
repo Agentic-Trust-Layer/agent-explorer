@@ -18,8 +18,8 @@ AgenticTrust intentionally separates:
 
 In ontology terms:
 
-- **Agent application**: `agentictrust:AIAgentApplication` (subclass of `agentictrust:AIAgent`, `prov:SoftwareAgent`)
-- **Agent instance**: `agentictrust:AgentInstance` (subclass of `prov:SoftwareAgent`) linked to its durable application via `prov:specializationOf`
+- **Discoverable agent**: `agentictrust:AIAgent` (stable trust-graph anchor)
+- **Executable at endpoint**: `agentictrust:AgentDeployment` (prov:SoftwareAgent) linked to the discoverable agent via `agentictrust:deploymentOf`
 
 See also: [`agent-application.md`](./agent-application.md).
 
@@ -47,10 +47,10 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 | OIDC-A concept / claim | Meaning | AgenticTrust representation (today) | Suggested alignment |
 |---|---|---|---|
 | `agent_type` | class/category of agent | `agentictrust:AIAgent` + optional tags | Use `agentictrust:hasAgentTypeTag` (Agent → Tag) and/or descriptor taxonomy (`agentictrust:metadataAgentCategory`) |
-| `agent_model` | base model family | Supported at descriptor-level and entity-level | Use `agentictrust:modelId` (AgentDescriptor) and/or `agentictrust:AgentModel` (prov:Entity) + `agentictrust:usesModel` (AIAgentApplication → AgentModel) |
-| `agent_version` | model/app version identifier | Supported at descriptor-level and app-level | Use `agentictrust:modelVersion` (AgentDescriptor) and/or `agentictrust:applicationVersion` (AIAgentApplication) |
-| `agent_provider` | org that provides/hosts agent app | `agentictrust:Organization` / `agentictrust:AIAgentProvider` | Use `agentictrust:agentProvider` (AIAgentApplication → Organization) and/or `agentictrust:agentProviderValue` (AgentDescriptor string) |
-| `agent_instance_id` / instance | runtime instance identity | `agentictrust:AgentInstance` exists | Use `agentictrust:AgentInstance` + `prov:specializationOf` (Instance → AIAgentApplication) + `agentictrust:agentInstanceId` |
+| `agent_model` | base model family | Supported at descriptor-level and entity-level | Use `agentictrust:modelId` (AgentDescriptor) and/or `agentictrust:AgentModel` (prov:Entity) + `agentictrust:usesModel` (AgentDeployment → AgentModel) |
+| `agent_version` | model/app version identifier | Supported at descriptor-level and deployment-level | Use `agentictrust:modelVersion` (AgentDescriptor) and/or `agentictrust:deploymentVersion` (AgentDeployment) |
+| `agent_provider` | org that provides/hosts the executable | `agentictrust:Organization` / `agentictrust:AIAgentProvider` | Use `agentictrust:agentProvider` (AgentDeployment → Organization) and/or `agentictrust:agentProviderValue` (AgentDescriptor string) |
+| `agent_instance_id` / instance | runtime / session identity | Prefer modeling as Activities | Map to `agentictrust:SkillInvocation` / `agentictrust:TaskExecution` identifiers (or store in `agentictrust:json` on those activities) rather than creating a new SoftwareAgent identity per session |
 | `agent_capabilities` | declared capabilities | Protocol-first: skills/domains mostly live on protocol descriptor; also OASF | Treat capabilities as **skills** (OASF ids) on protocol descriptors; define a mapping layer from capability ids → OASF skill ids |
 | `agent_attestation` | integrity evidence / attestation token | Attestation/AttestedAssertion pattern exists | Model the accountable act as `agentictrust:Attestation` (prov:Activity) with the attestor via `prov:wasAssociatedWith`/`agentictrust:assertedBy`, producing an `agentictrust:AttestedAssertion` (prov:Entity). (Optionally link evidence objects.) See [`attested-assertion.md`](./attested-assertion.md). |
 | `attestation_formats_supported` | supported attestation formats | Not a first-class field | Add to protocol descriptor metadata (`agentictrust:attestationFormatValue`), or a controlled-vocab node list |
@@ -64,8 +64,8 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 
 Based on OIDC-A language, the following additions tend to fit AgenticTrust patterns well:
 
-1. **Agent instance vs agent (durable identity)**
-   - **Implemented**: `agentictrust:AIAgentApplication` (durable) and `agentictrust:AgentInstance` (ephemeral), linked via `prov:specializationOf`.
+1. **Agent vs endpoint-executable deployment**
+   - **Implemented**: `agentictrust:AIAgent` (discoverable anchor) and `agentictrust:AgentDeployment` (executor), linked via `agentictrust:deploymentOf`.
 
 2. **Delegation as a first-class trust process**
    - **Implemented**:
@@ -92,12 +92,12 @@ Based on OIDC-A language, the following additions tend to fit AgenticTrust patte
 graph TB
   Delegator["Delegator (prov:Agent)"]
   Agent["Agent (agentictrust:AIAgent)"]
-  Instance["AgentInstance (prov:SoftwareAgent)"]
+  Deploy["AgentDeployment (prov:SoftwareAgent)"]
   Sit["DelegationTrustSituation (prov:Entity)"]
   Act["DelegationTrustAssertionAct (prov:Activity)"]
   Rec["DelegationTrustAssertionRecord (prov:Entity)"]
 
-  Instance -->|prov:specializationOf| Agent
+  Deploy -->|agentictrust:deploymentOf| Agent
   Act -->|prov:wasAssociatedWith| Delegator
   Act -->|prov:actedOnBehalfOf| Delegator
   Sit -->|agentictrust:isAboutAgent| Agent
@@ -131,7 +131,7 @@ LIMIT 200
 
 ```mermaid
 graph TB
-  Agent["AIAgent / AIAgentApplication"]
+  Agent["AIAgent (discoverable)"]
   Sit["TrustSituation"]
   Assertion["Assertion (prov:Entity)"]
   Attestation["Attestation (prov:Activity)"]

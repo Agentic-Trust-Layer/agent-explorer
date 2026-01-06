@@ -45,17 +45,12 @@ graph TB
 
 ### Current ontology note (no OWL changes here)
 
-Right now the ontology includes:
+Right now the ontology uses:
 
-- `agentictrust:AIAgentApplication` (modeled as a `prov:SoftwareAgent`)
-- `agentictrust:AgentInstance` (modeled as a `prov:SoftwareAgent`, linked via `prov:specializationOf`)
-
-If you want “application = deployment at endpoint”, you can interpret:
-
-- **Deployment** ≈ `agentictrust:AgentInstance` (the executable at the endpoint)
-- **Discoverable agent** ≈ `agentictrust:AIAgent` (what everything else references)
-
-We can later adjust naming/classes so the OWL matches this language exactly.
+- `agentictrust:AgentDeployment` (the endpoint-reachable executor)
+- `agentictrust:deploymentOf` (Deployment → AIAgent)
+- `agentictrust:agentProvider` (Deployment → Organization)
+- `agentictrust:deploymentVersion` (Deployment → string)
 
 ```mermaid
 graph TB
@@ -94,9 +89,9 @@ AgenticTrust supports both:
   - `agentictrust:AgentModel` (prov:Entity) with `agentictrust:modelIdValue`, `agentictrust:modelVersionValue`
   - `agentictrust:usesModel` (Application → AgentModel)
 
-Application versioning (distinct from model release when needed):
+Deployment versioning (distinct from model release when needed):
 
-- `agentictrust:applicationVersion` (AIAgentApplication)
+- `agentictrust:deploymentVersion` (AgentDeployment)
 
 ## Protocol endpoint references the application
 
@@ -112,27 +107,27 @@ The **A2A agent card** (agent-card.json / agent.json) is presented by the deploy
 
 ## SPARQL queries
 
-### Find the application’s provider (if modeled)
+### Find deployments and their provider (if modeled)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?app ?provider
 WHERE {
-  ?app a agentictrust:AIAgentApplication .
+  ?app a agentictrust:AgentDeployment .
   OPTIONAL { ?app agentictrust:agentProvider ?provider . }
 }
 LIMIT 200
 ```
 
-### Find applications and their model identifiers (descriptor-level)
+### Find deployments and their model identifiers (descriptor-level)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
 SELECT ?app ?descriptor ?modelId ?modelVersion ?providerValue
 WHERE {
-  ?app a agentictrust:AIAgentApplication ;
+  ?app a agentictrust:AgentDeployment ;
        agentictrust:hasDescriptor ?descriptor .
   OPTIONAL { ?descriptor agentictrust:modelId ?modelId . }
   OPTIONAL { ?descriptor agentictrust:modelVersion ?modelVersion . }
@@ -141,19 +136,18 @@ WHERE {
 LIMIT 200
 ```
 
-### Find deployments (instances) and the stable discoverable agent they correspond to
+### Find deployments and the discoverable agent they implement
 
-If you keep using `agentictrust:AgentInstance`, treat it as the **deployment identity** (the executable at endpoint). If you don’t want deployment identities, you can skip this and attach descriptors/endpoints to the discoverable agent node.
+If you don’t want deployment identities, you can skip `AgentDeployment` nodes and attach descriptors/endpoints directly to the discoverable agent node. If you do want operational modeling (operators, provenance, delegation), keep deployments explicit.
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 
-SELECT ?instance ?instanceId ?application
+SELECT ?deployment ?agent
 WHERE {
-  ?instance a agentictrust:AgentInstance ;
-            prov:specializationOf ?application .
-  OPTIONAL { ?instance agentictrust:agentInstanceId ?instanceId . }
+  ?deployment a agentictrust:AgentDeployment ;
+              agentictrust:deploymentOf ?agent .
 }
 LIMIT 200
 ```

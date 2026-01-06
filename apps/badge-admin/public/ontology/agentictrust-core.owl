@@ -450,6 +450,13 @@ agentictrust:delegatedBy a owl:ObjectProperty ;
   rdfs:domain prov:Agent ;
   rdfs:range prov:Agent .
 
+# Link an executable deployment to the discoverable agent identity it implements.
+agentictrust:deploymentOf a owl:ObjectProperty ;
+  rdfs:label "deploymentOf" ;
+  rdfs:comment "Links an AgentDeployment (the endpoint-reachable executor) to the discoverable Agent (agentictrust:AIAgent) whose identity/trust graph it implements." ;
+  rdfs:domain agentictrust:AgentDeployment ;
+  rdfs:range agentictrust:AIAgent .
+
 agentictrust:assertedBy a owl:ObjectProperty ;
   rdfs:label "assertedBy" ;
   rdfs:comment "Abstract link from an AssertionAct (Activity) to the Agent that performed the assertion. Subproperty of prov:wasAssociatedWith." ;
@@ -799,22 +806,12 @@ agentictrust:AIAgent a owl:Class ;
     owl:allValuesFrom agentictrust:AgentDescriptor
   ] .
 
-# Durable deployed software agent application (OIDC-A: durable agent app identity).
-agentictrust:AIAgentApplication a owl:Class ;
-  rdfs:label "AIAgentApplication" ;
-  rdfs:comment "A durable AI agent application (software agent) that is deployed at one or more protocol endpoints (A2A/MCP/etc.), versioned, and operated by a Provider. Ephemeral runtime instances can be modeled as AgentInstance and linked via prov:specializationOf." ;
-  rdfs:subClassOf agentictrust:AIAgent .
-
-# Ephemeral runtime instance (OIDC-A: agent_instance_id / instance identity).
-agentictrust:AgentInstance a owl:Class ;
-  rdfs:label "AgentInstance" ;
-  rdfs:comment "An ephemeral runtime instance of an AI agent application (e.g., a specific running deployment, session, or execution instance). Use prov:specializationOf to link it to the durable AIAgentApplication." ;
-  rdfs:subClassOf prov:SoftwareAgent ;
-  rdfs:subClassOf [
-    a owl:Restriction ;
-    owl:onProperty prov:specializationOf ;
-    owl:allValuesFrom agentictrust:AIAgentApplication
-  ] .
+# AI Agent application deployment (the executable reachable at endpoints).
+# This is NOT the discoverable trust-graph anchor; it is the executor that runs "on behalf of" an Operator (and indirectly a SmartAccount authority).
+agentictrust:AgentDeployment a owl:Class ;
+  rdfs:label "AgentDeployment" ;
+  rdfs:comment "An executable AI agent application deployment (service instance) reachable at protocol endpoints (A2A/MCP/etc.) that processes intents and produces outcomes. Delegated authority is typically expressed via prov:actedOnBehalfOf (Deployment → Operator) and/or agentictrust:delegatedBy (Operator → Deployment). The discoverable Agent remains agentictrust:AIAgent." ;
+  rdfs:subClassOf prov:SoftwareAgent .
 
 # Provider/organization concepts (used for OIDC-A agent_provider)
 agentictrust:Organization a owl:Class ;
@@ -1192,15 +1189,15 @@ agentictrust:hasAgentTypeTag a owl:ObjectProperty ;
 # Provider for the agent application (OIDC-A: agent_provider)
 agentictrust:agentProvider a owl:ObjectProperty ;
   rdfs:label "agentProvider" ;
-  rdfs:comment "Links an AI agent application to the Provider (Organization) responsible for operating/hosting it." ;
-  rdfs:domain agentictrust:AIAgentApplication ;
+  rdfs:comment "Links an AgentDeployment (executable service) to the Provider (Organization) responsible for operating/hosting it." ;
+  rdfs:domain agentictrust:AgentDeployment ;
   rdfs:range agentictrust:Organization .
 
 # Base model used by the agent application (OIDC-A: agent_model)
 agentictrust:usesModel a owl:ObjectProperty ;
   rdfs:label "usesModel" ;
-  rdfs:comment "Links an AI agent application to the base model family it uses." ;
-  rdfs:domain agentictrust:AIAgentApplication ;
+  rdfs:comment "Links an AgentDeployment (executable service) to the base model family it uses." ;
+  rdfs:domain agentictrust:AgentDeployment ;
   rdfs:range agentictrust:AgentModel .
 
 
@@ -1459,8 +1456,8 @@ agentictrust:Capability a owl:Class ;
 
 agentictrust:Operator a owl:Class ;
   rdfs:label "Operator" ;
-  rdfs:comment "An operator address or identifier associated with an agent. Used in A2A protocol descriptors to list authorized operators." ;
-  rdfs:subClassOf prov:Entity .
+  rdfs:comment "An operator (prov:Agent) that has delegated authority from a canonical signing authority (e.g., Smart Account) to operate an agent/deployment. Used in protocol descriptors to list authorized operators." ;
+  rdfs:subClassOf prov:Agent .
 
 agentictrust:InputMode a owl:Class ;
   rdfs:label "InputMode" ;
@@ -1667,16 +1664,10 @@ agentictrust:agentProviderValue a owl:DatatypeProperty ;
   rdfs:domain agentictrust:AgentDescriptor ;
   rdfs:range xsd:string .
 
-agentictrust:applicationVersion a owl:DatatypeProperty ;
-  rdfs:label "applicationVersion" ;
-  rdfs:comment "Version identifier of the deployed AI agent application (distinct from base model version when needed)." ;
-  rdfs:domain agentictrust:AIAgentApplication ;
-  rdfs:range xsd:string .
-
-agentictrust:agentInstanceId a owl:DatatypeProperty ;
-  rdfs:label "agentInstanceId" ;
-  rdfs:comment "Identifier for an ephemeral agent runtime instance (OIDC-A agent_instance_id). Typically scoped to a runtime/session/conversation." ;
-  rdfs:domain agentictrust:AgentInstance ;
+agentictrust:deploymentVersion a owl:DatatypeProperty ;
+  rdfs:label "deploymentVersion" ;
+  rdfs:comment "Version identifier of the executable agent deployment (distinct from base model version when needed)." ;
+  rdfs:domain agentictrust:AgentDeployment ;
   rdfs:range xsd:string .
 
 agentictrust:modelIdValue a owl:DatatypeProperty ;
