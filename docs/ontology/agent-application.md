@@ -62,7 +62,7 @@ graph TB
   Thing -->|reachable at| Endpoint
 ```
 
-## Provider responsibility (OIDC-A: agent_provider)
+## Provider responsibility
 
 The provider is responsible for operating/hosting the **application deployment** (and typically for its policy surface: keys, attestations, SLAs).
 
@@ -77,7 +77,8 @@ graph LR
   Provider -->|responsible for| App
 ```
 
-## Model and versioning (OIDC-A: agent_model, agent_version)
+## Model and versioning
+## Model and versioning
 
 AgenticTrust supports both:
 
