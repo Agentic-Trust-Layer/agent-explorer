@@ -237,6 +237,7 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`oidc-a.md`](./oidc-a.md): OpenID Connect for Agents (OIDC-A) vocabulary mapping and suggestions for AgenticTrust alignment
 - [`agent-application.md`](./agent-application.md): Agent (discoverable) vs AgentDeployment (executor), Provider responsibility, model/version, protocol endpoints
 - [`amazon-agentcore.md`](./amazon-agentcore.md): Amazon Bedrock AgentCore mapping (endpoint-centric agent application platform) to AgenticTrust (identity, semantic tool selection, intent/task context, inbound/outbound auth)
+- [`agent-orchestration.md`](./agent-orchestration.md): Agent orchestration: semantic tool discovery + execution gateways; intent → task → action mapping across many registries and tool universes
 - [`agent-registry.md`](./agent-registry.md): AgentRegistry (registries are plural and market/vertical-shaped) and how registries relate to agents, identities, and portfolios
 - [`agent-portfolio.md`](./agent-portfolio.md): AgentPortfolio (fleet/portfolio of specialized agents), governance + orchestration, and why registries must not be singleton
 - [`google-agentspace.md`](./google-agentspace.md): Portfolio of specialized agents; govern and orchestrate a fleet of agents (mapped to AgenticTrust patterns)

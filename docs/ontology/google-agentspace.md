@@ -166,4 +166,37 @@ ORDER BY DESC(?exec)
 LIMIT 200
 ```
 
+## Semantic routing (intent → task → dispatch → execute)
+
+Google hasn’t published a formal protocol or ontology for “semantic routing” in Agentspace, but publicly available product narratives consistently describe a **search → synthesis → action** shape that implies semantic understanding and dispatch.
+
+Authoritative references:
+
+- Google Cloud product blog: [Agentspace enables the agent-driven enterprise](https://cloud.google.com/blog/products/ai-machine-learning/google-agentspace-enables-the-agent-driven-enterprise)
+- Google blog feed entry: [Google Agentspace feed item](https://blog.google/feed/google-agentspace/)
+
+### Working interpretation (non-spec)
+
+The implicit architectural pipeline described in public materials looks like:
+
+1) semantic retrieval  
+2) intent understanding  
+3) task classification  
+4) workflow/agent dispatch  
+5) action execution
+
+### Mapping to AgenticTrust
+
+AgenticTrust can represent this pattern *without* requiring Google to publish a task vocabulary:
+
+- **Semantic retrieval**: an implementation method over Descriptor/knowledge artifacts (indexing detail; not an ontology primitive)
+- **Intent understanding**: model the “why” as `agentictrust:IntentType` (a SituationDescription / plan-like schema)
+- **Task classification**: map intent types to `agentictrust:TaskType` (and route via `agentictrust:mapsToTaskType`)
+- **Dispatch**: execution begins as `agentictrust:TaskExecution` (prov:Activity) with concrete tool calls as `agentictrust:SkillInvocation`
+- **Execution evidence**: outcomes and governance can be recorded as `agentictrust:AttestedAssertion` (auditability)
+
+### Contrast with AgentCore “Tool-RAG”
+
+Where AgentCore Gateway tends to form a **tool-catalog → semantic retrieval → shortlist → tool invocation** pipeline (Tool-RAG), Agentspace narratives emphasize a higher-level **task/workflow routing** layer driven by semantic enterprise search rather than iterating over a Gateway-local tool catalog.
+
 
