@@ -120,8 +120,8 @@ graph TB
   Identity["Registry-scoped Identity\n(agentictrust:AgentIdentity)"]
   Registry["Registry\n(agentictrust:AgentRegistry)"]
 
-  Client -->|inbound authN| Deploy
-  Deploy -->|tool call (outbound auth)| Tool
+  Client -->|inboundAuthN| Deploy
+  Deploy -->|outboundToolAuth| Tool
 
   Deploy -->|agentictrust:deploymentOf| Agent
   Agent -->|agentictrust:hasIdentity| Identity
