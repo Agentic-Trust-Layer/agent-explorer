@@ -703,6 +703,19 @@ function renderAgentSection(
   for (const s of takeStrings((tokenUriData as any)?.oasf_skills)) declaredOasfSkills.add(s);
   for (const d of takeStrings((tokenUriData as any)?.oasf_domains)) declaredOasfDomains.add(d);
 
+  // Also accept ERC-8004 registration endpoint-level arrays:
+  // tokenUri.endpoints[].a2aSkills / a2aDomains (common in registration-v1 payloads)
+  if (tokenUriData && Array.isArray((tokenUriData as any).endpoints)) {
+    for (const ep of (tokenUriData as any).endpoints) {
+      if (!ep || typeof ep !== 'object') continue;
+      for (const s of takeStrings((ep as any).a2aSkills)) declaredOasfSkills.add(s);
+      for (const d of takeStrings((ep as any).a2aDomains)) declaredOasfDomains.add(d);
+      // Some payloads use generic "skills/domains" in the endpoint object.
+      for (const s of takeStrings((ep as any).skills)) declaredOasfSkills.add(s);
+      for (const d of takeStrings((ep as any).domains)) declaredOasfDomains.add(d);
+    }
+  }
+
   // Emit AgentRegistration8004 or AgentDescriptor node and links
   const adLines: string[] = [];
   if (isERC8004) {

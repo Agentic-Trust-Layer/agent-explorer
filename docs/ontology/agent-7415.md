@@ -82,7 +82,9 @@ LIMIT 20
 
 ## 2) OASF skills & domains advertised for A2A (agent registration)
 
-This pulls the normalized OASF ids from the registration descriptor and joins to OASF nodes (if loaded).
+This pulls normalized ids from the registration descriptor and joins to OASF nodes (if loaded).
+
+Note: endpoint payloads often provide `endpoints[].a2aSkills` / `endpoints[].a2aDomains`. The RDF export treats these as OASF ids and emits them as `agentictrust:oasfSkillId` / `agentictrust:oasfDomainId`.
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
