@@ -9,17 +9,19 @@
 - **Attestation** (evidence about integrity/origin; e.g., TEE quotes, zk proofs)
 - **Capability-based authorization** (fine-grained permissions based on agent attributes)
 
-## How AgenticTrust splits “agent” concepts (ephemeral vs durable)
+## How AgenticTrust splits “agent” concepts (discoverable vs executor)
 
-AgenticTrust intentionally separates:
+AgenticTrust separates **what you discover and build a trust graph around** from **what actually executes at endpoints**, and also separates **authority** from **operators**:
 
-- **Ephemeral agent instance** (OIDC-A: `agent_instance_id`): the runtime/session/execution identity.
-- **Durable AI agent application**: the stable software-agent identity that is deployed at protocol endpoints and versioned.
+- **Discoverable agent (trust-graph anchor)**: `agentictrust:AIAgent`
+- **Canonical authority (e.g., smart account)**: typically modeled as an account/agent (often `agentictrustEth:Account` in `agentictrust-eth.owl`, or generically `prov:Agent`) and surfaced via `agentAccount` identifiers/endpoints
+- **Operator (delegated actor)**: `agentictrust:Operator` ⊑ `prov:Agent` (listed on protocol descriptors; can be linked via delegation relationships)
+- **Executable at endpoint**: `agentictrust:AgentDeployment` ⊑ `prov:SoftwareAgent`, linked to the discoverable agent via `agentictrust:deploymentOf`
 
-In ontology terms:
+When you want explicit delegation:
 
-- **Discoverable agent**: `agentictrust:AIAgent` (stable trust-graph anchor)
-- **Executable at endpoint**: `agentictrust:AgentDeployment` (prov:SoftwareAgent) linked to the discoverable agent via `agentictrust:deploymentOf`
+- `prov:actedOnBehalfOf` (delegatee → delegator)
+- `agentictrust:delegatedBy` (delegator → delegatee, inverse convenience)
 
 See also: [`agent-application.md`](./agent-application.md).
 
@@ -51,6 +53,8 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 | `agent_version` | model/app version identifier | Supported at descriptor-level and deployment-level | Use `agentictrust:modelVersion` (AgentDescriptor) and/or `agentictrust:deploymentVersion` (AgentDeployment) |
 | `agent_provider` | org that provides/hosts the executable | `agentictrust:Organization` / `agentictrust:AIAgentProvider` | Use `agentictrust:agentProvider` (AgentDeployment → Organization) and/or `agentictrust:agentProviderValue` (AgentDescriptor string) |
 | `agent_instance_id` / instance | runtime / session identity | Prefer modeling as Activities | Map to `agentictrust:SkillInvocation` / `agentictrust:TaskExecution` identifiers (or store in `agentictrust:json` on those activities) rather than creating a new SoftwareAgent identity per session |
+| `agent_authority` / `agent_account` | canonical signing authority (often a smart account) | Account identifiers exist in chain-specific ontologies | Represent the authority as an account agent (e.g., `agentictrustEth:Account`) and link it via identifiers/endpoints (e.g., `agentAccount` endpoint type) and/or identity controller properties (`agentictrust:identifierController`) |
+| `operator` / `operator_sub` | delegated operator identity | Operator is a `prov:Agent` | Represent as `agentictrust:Operator` and attach to protocol descriptors via `agentictrust:hasOperator` (and model delegation with `prov:actedOnBehalfOf`) |
 | `agent_capabilities` | declared capabilities | Protocol-first: skills/domains mostly live on protocol descriptor; also OASF | Treat capabilities as **skills** (OASF ids) on protocol descriptors; define a mapping layer from capability ids → OASF skill ids |
 | `agent_attestation` | integrity evidence / attestation token | Attestation/AttestedAssertion pattern exists | Model the accountable act as `agentictrust:Attestation` (prov:Activity) with the attestor via `prov:wasAssociatedWith`/`agentictrust:assertedBy`, producing an `agentictrust:AttestedAssertion` (prov:Entity). (Optionally link evidence objects.) See [`attested-assertion.md`](./attested-assertion.md). |
 | `attestation_formats_supported` | supported attestation formats | Not a first-class field | Add to protocol descriptor metadata (`agentictrust:attestationFormatValue`), or a controlled-vocab node list |
@@ -90,7 +94,8 @@ Based on OIDC-A language, the following additions tend to fit AgenticTrust patte
 
 ```mermaid
 graph TB
-  Delegator["Delegator (prov:Agent)"]
+  Authority["Authority / SmartAccount (prov:Agent)"]
+  Operator["Operator (agentictrust:Operator)"]
   Agent["Agent (agentictrust:AIAgent)"]
   Deploy["AgentDeployment (prov:SoftwareAgent)"]
   Sit["DelegationTrustSituation (prov:Entity)"]
@@ -98,8 +103,9 @@ graph TB
   Rec["DelegationTrustAssertionRecord (prov:Entity)"]
 
   Deploy -->|agentictrust:deploymentOf| Agent
-  Act -->|prov:wasAssociatedWith| Delegator
-  Act -->|prov:actedOnBehalfOf| Delegator
+  Operator -->|prov:actedOnBehalfOf| Authority
+  Deploy -->|prov:actedOnBehalfOf| Operator
+  Act -->|prov:wasAssociatedWith| Authority
   Sit -->|agentictrust:isAboutAgent| Agent
   Act -->|agentictrust:assertsSituation| Sit
   Act -->|agentictrust:generatedAssertionRecord| Rec
