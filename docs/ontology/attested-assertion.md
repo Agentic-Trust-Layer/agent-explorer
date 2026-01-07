@@ -49,6 +49,11 @@ graph TB
 - `agentictrust:AttestedAssertion` ⊑ `prov:Entity`
 - **Trust assertions** are modeled as attested assertions:
   - `agentictrust:TrustAssertion` ⊑ `agentictrust:AttestedAssertion`
+  - TrustAssertion specializations used in this repo:
+    - `agentictrust:VerificationTrustAssertion`
+    - `agentictrust:ReputationTrustAssertion`
+    - `agentictrust:RelationshipTrustAssertion`
+    - `agentictrust:DelegationTrustAssertion`
 
 ### Backward compatibility: AssertionRecord
 
@@ -63,6 +68,52 @@ AgenticTrust already uses:
 - `agentictrust:recordsSituation` (AttestedAssertion → Situation)
 
 `agentictrust:Attestation` is the **accountable specialization** of `agentictrust:AssertionAct`.
+
+## Authorization provenance: reputation assertions authorized by delegation
+
+Sometimes you want to relate:
+
+- an **attested assertion** (e.g., a Reputation / Feedback assertion), and
+- the **delegation (authorization) assertion** that granted the attestor authority to make that assertion.
+
+This is a **justification / authorization provenance** link, not:
+
+- causation
+- derivation of content
+- identity
+- mere participation
+
+It is **authority provenance**.
+
+### Canonical link (PROV-O): `prov:wasAuthorizedBy`
+
+Use `prov:wasAuthorizedBy` as the canonical authorization relationship.
+
+Conceptually:
+
+```turtle
+:FeedbackAssertion123
+  prov:wasAuthorizedBy :FeedbackDelegationAssertion456 .
+```
+
+Even though many PROV examples show Activity→Agent, the semantics support authority provenance; here we are explicitly capturing an Entity→Entity authorization justification between assertion artifacts.
+
+### AgenticTrust specialization: `agentictrust:wasAuthorizedByDelegation`
+
+To keep query precision (and explicit Entity→Entity semantics), AgenticTrust provides:
+
+- `agentictrust:wasAuthorizedByDelegation`
+  - `rdfs:subPropertyOf prov:wasAuthorizedBy`
+  - `rdfs:domain agentictrust:AttestedAssertion`
+  - `rdfs:range agentictrust:DelegationTrustAssertion`
+
+Usage:
+
+```turtle
+:FeedbackAssertion123
+  agentictrust:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
+```
+
 
 ## SPARQL queries
 

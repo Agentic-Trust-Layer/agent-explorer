@@ -162,6 +162,55 @@ Notes:
 - `AgentDiscovery` and `ToolSearch` are Activities because they are provenance-bearing “classification” steps.
 - The candidate sets are Entities because they can be audited (“what was considered?”) and reused/cached.
 
+## Intent-first execution planning (plan before selection)
+
+Some modern agent discovery and coordination solutions return a **structured execution plan** *before* choosing which agent/tool will execute. This enables:
+
+- plan negotiation / bidding across candidate agents
+- policy checks and safety review before side effects
+- clearer separation between intent understanding and execution commitment
+
+### Pattern: intent → plan → selection → execution
+
+```mermaid
+graph LR
+  NL["User input / implied intent"]
+  Intent["Intent (agentictrust:Intent)"]
+  PlanAct["PlanSynthesis (prov:Activity)"]
+  Plan["ExecutionPlan (p-plan:Plan)"]
+  Disc["AgentDiscovery / ToolSearch"]
+  Select["Tool/agent selection"]
+  Exec["TaskExecution / SkillInvocation"]
+
+  NL --> Intent
+  Intent --> PlanAct
+  PlanAct -->|generatedExecutionPlan| Plan
+  Plan --> Disc
+  Disc --> Select
+  Select --> Exec
+```
+
+### How this fits AgenticTrust (new vocabulary)
+
+We model “plan-first” without collapsing it into execution:
+
+- **`agentictrust:ExecutionPlan`**: the plan artifact (Entity, `p-plan:Plan`)
+- **`agentictrust:PlanStep`**: steps within the plan (Entity, `p-plan:Step`)
+- **`agentictrust:PlanSynthesis`**: Activity that generates the plan from an expressed/inferred Intent
+- **`agentictrust:PlanNegotiation`**: Activity for plan proposal/counterproposal/acceptance before committing to execution
+- **`agentictrust:hasPlan`**: attach a plan to a Message (plan proposal/response)
+
+### Where the industry does this (capability overview)
+
+Authoritative sources (patterns/specs):
+
+- **A2A**: plan exchange/negotiation as part of an agent lifecycle: `https://agent2agent.info/docs/concepts/agent-lifecycle`
+- **OpenAI**: planning patterns prior to tool selection: `https://platform.openai.com/docs/guides/agent-architectures`
+- **Semantic Kernel**: planner produces a plan before invoking skills: `https://learn.microsoft.com/en-us/semantic-kernel/overview/planning`
+- **LangChain / LangSmith**: plan generation + tool selection + traces: `https://github.com/langchain-ai/langchain` and `https://www.langchain.com/langsmith/overview`
+- **HCS-10** (emerging): intent broadcast / negotiation semantics: `https://hol.org/docs/standards/hcs-10/`
+- **BANDAID (IETF draft)**: DNS-based discovery with negotiation framing: `https://datatracker.ietf.org/doc/html/draft-mozleywilliams-dnsop-bandaid-00`
+
 ```mermaid
 graph TB
   Client["Client agent (prov:Agent)"]

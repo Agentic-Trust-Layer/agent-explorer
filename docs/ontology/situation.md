@@ -19,6 +19,7 @@ class Situation["agentictrust:Situation"]
 class TrustSituation["agentictrust:TrustSituation"]
 class ReputationTrustSituation["agentictrust:ReputationTrustSituation"]
 class VerificationTrustSituation["agentictrust:VerificationTrustSituation"]
+class DelegationTrustSituation["agentictrust:DelegationTrustSituation"]
 class RelationshipSituation["agentictrust:RelationshipSituation"]
 class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
 
@@ -26,6 +27,7 @@ Situation --|> provEntity
 TrustSituation --|> Situation
 ReputationTrustSituation --|> TrustSituation
 VerificationTrustSituation --|> TrustSituation
+DelegationTrustSituation --|> TrustSituation
 RelationshipSituation --|> Situation
 RelationshipTrustSituation --|> TrustSituation
 ```
@@ -73,6 +75,7 @@ class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 class RelationshipAssertionAct["agentictrust:RelationshipTrustAssertionAct"]
 class ReputationAssertionAct["agentictrust:ReputationTrustAssertionAct"]
 class VerificationAssertionAct["agentictrust:VerificationTrustAssertionAct"]
+class DelegationAssertionAct["agentictrust:DelegationTrustAssertionAct"]
 
 AssertionAct --|> provActivity
 Attestation --|> AssertionAct
@@ -80,6 +83,7 @@ TrustAssertionAct --|> Attestation
 RelationshipAssertionAct --|> TrustAssertionAct
 ReputationAssertionAct --|> TrustAssertionAct
 VerificationAssertionAct --|> TrustAssertionAct
+DelegationAssertionAct --|> TrustAssertionAct
 ```
 
 ### AttestedAssertion hierarchy (prov:Entity)
@@ -94,12 +98,14 @@ class TrustAssertion["agentictrust:TrustAssertion"]
 class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
 class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
+class DelegationAssertion["agentictrust:DelegationTrustAssertion"]
 
 AttestedAssertion --|> provEntity
 TrustAssertion --|> AttestedAssertion
 RelationshipAssertion --|> TrustAssertion
 ReputationAssertion --|> TrustAssertion
 VerificationAssertion --|> TrustAssertion
+DelegationAssertion --|> TrustAssertion
 ```
 
 ### Assertion vs Attestation (PROV-O accountability)
