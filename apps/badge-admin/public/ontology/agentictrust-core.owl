@@ -208,6 +208,25 @@ agentictrust:DelegationSituation a owl:Class ;
 # This keeps symmetry with RelationshipTrustSituation ⊑ TrustSituation and ⊑ RelationshipSituation.
 agentictrust:DelegationTrustSituation rdfs:subClassOf agentictrust:DelegationSituation .
 
+########
+# Delegation permissions / caveats (MetaMask-style delegation constraints)
+########
+
+agentictrust:DelegationPermission a owl:Class ;
+  rdfs:label "DelegationPermission" ;
+  rdfs:comment "A permission granted via delegation (e.g., allowed action/resource/scope). Modeled as a prov:Entity to support auditability and reasoning over scope." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:DelegationCaveat a owl:Class ;
+  rdfs:label "DelegationCaveat" ;
+  rdfs:comment "A constraint ('caveat') attached to a delegation, typically enforced by some evaluator/enforcer and carrying terms (often opaque bytes/structured json). Modeled as a prov:Entity." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:CaveatEnforcer a owl:Class ;
+  rdfs:label "CaveatEnforcer" ;
+  rdfs:comment "A caveat enforcer/evaluator identifier (e.g., contract address, service id, policy module id) used to interpret a DelegationCaveat's terms." ;
+  rdfs:subClassOf prov:Entity .
+
 agentictrust:RelationshipSituation a owl:Class ;
   rdfs:label "RelationshipSituation" ;
   rdfs:comment "A Situation about the status/constraints/qualification of a Relationship. This can exist independently of trust, and can be asserted/qualified by TrustAssertions." ;
@@ -466,6 +485,72 @@ agentictrust:delegatedBy a owl:ObjectProperty ;
   owl:inverseOf prov:actedOnBehalfOf ;
   rdfs:domain prov:Agent ;
   rdfs:range prov:Agent .
+
+agentictrust:delegationDelegator a owl:ObjectProperty ;
+  rdfs:label "delegationDelegator" ;
+  rdfs:comment "Links a DelegationSituation to the delegator (the authority-granting agent)." ;
+  rdfs:domain agentictrust:DelegationSituation ;
+  rdfs:range prov:Agent .
+
+agentictrust:delegationDelegatee a owl:ObjectProperty ;
+  rdfs:label "delegationDelegatee" ;
+  rdfs:comment "Links a DelegationSituation to the delegatee (the agent receiving authority to act)." ;
+  rdfs:domain agentictrust:DelegationSituation ;
+  rdfs:range prov:Agent .
+
+agentictrust:delegationGrantsPermission a owl:ObjectProperty ;
+  rdfs:label "delegationGrantsPermission" ;
+  rdfs:comment "Links a DelegationSituation to a DelegationPermission it grants." ;
+  rdfs:domain agentictrust:DelegationSituation ;
+  rdfs:range agentictrust:DelegationPermission .
+
+agentictrust:delegationHasCaveat a owl:ObjectProperty ;
+  rdfs:label "delegationHasCaveat" ;
+  rdfs:comment "Links a DelegationSituation to a DelegationCaveat constraint." ;
+  rdfs:domain agentictrust:DelegationSituation ;
+  rdfs:range agentictrust:DelegationCaveat .
+
+agentictrust:permissionAction a owl:DatatypeProperty ;
+  rdfs:label "permissionAction" ;
+  rdfs:comment "Action string for a DelegationPermission (e.g., 'transfer', 'call', 'sign', 'submitFeedback')." ;
+  rdfs:domain agentictrust:DelegationPermission ;
+  rdfs:range xsd:string .
+
+agentictrust:permissionResource a owl:DatatypeProperty ;
+  rdfs:label "permissionResource" ;
+  rdfs:comment "Resource identifier string for a DelegationPermission (e.g., contract address, endpoint, registry namespace)." ;
+  rdfs:domain agentictrust:DelegationPermission ;
+  rdfs:range xsd:string .
+
+agentictrust:permissionScopeJson a owl:DatatypeProperty ;
+  rdfs:label "permissionScopeJson" ;
+  rdfs:comment "Optional structured scope for a DelegationPermission encoded as JSON text." ;
+  rdfs:domain agentictrust:DelegationPermission ;
+  rdfs:range xsd:string .
+
+agentictrust:caveatEnforcer a owl:ObjectProperty ;
+  rdfs:label "caveatEnforcer" ;
+  rdfs:comment "Links a DelegationCaveat to its CaveatEnforcer identifier (e.g., a contract or module that interprets terms)." ;
+  rdfs:domain agentictrust:DelegationCaveat ;
+  rdfs:range agentictrust:CaveatEnforcer .
+
+agentictrust:caveatTermsJson a owl:DatatypeProperty ;
+  rdfs:label "caveatTermsJson" ;
+  rdfs:comment "Opaque/structured terms for a caveat encoded as JSON text (may be derived from bytes in onchain delegation frameworks)." ;
+  rdfs:domain agentictrust:DelegationCaveat ;
+  rdfs:range xsd:string .
+
+agentictrust:delegationAuthorityValue a owl:DatatypeProperty ;
+  rdfs:label "delegationAuthorityValue" ;
+  rdfs:comment "Optional authority identifier for delegation (e.g., an onchain 'authority' hash / parent delegation id) as a string." ;
+  rdfs:domain agentictrust:DelegationSituation ;
+  rdfs:range xsd:string .
+
+agentictrust:delegationExpiresAtTime a owl:DatatypeProperty ;
+  rdfs:label "delegationExpiresAtTime" ;
+  rdfs:comment "Optional expiration timestamp for a delegation constraint." ;
+  rdfs:domain agentictrust:DelegationSituation ;
+  rdfs:range xsd:dateTime .
 
 # Link an executable deployment to the discoverable agent identity it implements.
 agentictrust:deploymentOf a owl:ObjectProperty ;

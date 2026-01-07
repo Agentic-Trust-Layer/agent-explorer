@@ -241,6 +241,8 @@ AgenticTrust core (`agentictrust-core.owl`)
 - [`agent-registry.md`](./agent-registry.md): AgentRegistry (registries are plural and market/vertical-shaped) and how registries relate to agents, identities, and portfolios
 - [`agent-portfolio.md`](./agent-portfolio.md): AgentPortfolio (fleet/portfolio of specialized agents), governance + orchestration, and why registries must not be singleton
 - [`google-agentspace.md`](./google-agentspace.md): Portfolio of specialized agents; govern and orchestrate a fleet of agents (mapped to AgenticTrust patterns)
+- [`delegation.md`](./delegation.md): Delegation as a TrustSituation (permissions, caveats) and how it is asserted as trust evidence
+- [`attested-delegation-assertion.md`](./attested-delegation-assertion.md): Attested delegation assertions + authorization provenance (reputation/verification authorized by delegation)
 - [`protocols-endpoints.md`](./protocols-endpoints.md): Protocol endpoints (A2A, MCP) and why skills/domains are primarily protocol-defined
 - [`description.md`](./description.md): Plans (PROV-O + P-PLAN) and SituationDescription / TrustDescription
 - [`situation.md`](./situation.md): TrustSituation + activities (DnS "Situation")

@@ -114,6 +114,8 @@ Usage:
   agentictrust:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
 ```
 
+See also: [`attested-delegation-assertion.md`](./attested-delegation-assertion.md).
+
 
 ## SPARQL queries
 
