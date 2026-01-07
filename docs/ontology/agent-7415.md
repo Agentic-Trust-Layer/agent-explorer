@@ -196,9 +196,50 @@ ORDER BY DESC(?situationCount)
 LIMIT 50
 ```
 
-## 5) Delegation authorization provenance (assertions authorized by delegation) — scoped to agent 7415
+## 5) Delegation authorization provenance — scoped to agent 7415
 
-This finds reputation/verification assertions that were authorized by a delegation assertion (via `agentictrust:wasAuthorizedByDelegation`) and scopes results to agent 7415 via the account-anchored agent and optional ERC-8004 identity joins.
+Important: `erc8004:ValidationRequest` and `agentictrust:FeedbackAuthRequestSituation` are **request situations** (not assertions). The query below starts from the request situations and returns the **delegation assertion** tied to them. If/when reputation/verification assertions are later produced under those permissions, you can use the second query to find them.
+
+### 5a) Delegation grants (request situation → delegation assertion)
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT DISTINCT ?requestSituation ?requestType ?delegation ?delegatee ?action ?expires
+WHERE {
+  VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
+
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
+         agentictrust:agentId ?agentId ;
+         agentictrustEth:accountChainId ?chainId .
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+
+  ?requestSituation a ?requestType .
+  FILTER(?requestType IN (erc8004:ValidationRequest, agentictrust:FeedbackAuthRequestSituation))
+
+  # Scope request situations to this agent (directly or via aboutSubject identity)
+  FILTER(
+    EXISTS { ?requestSituation agentictrust:isAboutAgent ?agent } ||
+    EXISTS { ?requestSituation agentictrust:aboutSubject ?identity }
+  )
+
+  ?delegation a agentictrust:DelegationTrustAssertion ;
+              agentictrust:recordsSituation ?requestSituation .
+
+  OPTIONAL { ?requestSituation agentictrust:delegationDelegatee ?delegatee . }
+  OPTIONAL {
+    ?requestSituation agentictrust:delegationGrantsPermission ?perm .
+    OPTIONAL { ?perm agentictrust:permissionAction ?action . }
+  }
+  OPTIONAL { ?requestSituation agentictrust:delegationExpiresAtTime ?expires . }
+}
+ORDER BY ?requestSituation
+LIMIT 200
+```
+
+### 5b) Authorized assertions (assertion → delegation) — only returns rows when assertions exist
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
