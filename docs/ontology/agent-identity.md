@@ -2,6 +2,9 @@
 
 This page clarifies a core distinction used throughout the AgenticTrust ontology: **Agent** (the thing that exists/acts) vs **AgentIdentity** (a registry-scoped identity representation) vs **Identifier** (the reference).
 
+- **Identity (DID-backed, trustless proof)**: in many ecosystems, each participant (human, org, or AI agent) receives a **DID** anchored on a ledger (e.g., **cheqd**) that is immutable/verifiable. Identity isn’t just “this entity exists”: it means the actor can **prove** who it claims to be in a trustless environment.
+- **Why this matters for AI agents**: cryptographic identity enables attribution, auditability, and accountability for autonomous systems (who acted, under what authority, with what evidence).
+
 - **AI Agent (the thing)**: the durable, discoverable trust-graph anchor (`agentictrust:AIAgent` / `prov:Agent`)
 - **Identity (registry-scoped representation)**: what a registry asserts about that agent (`agentictrust:AgentIdentity` / `prov:Entity`)
 - **Identifier (reference)**: a string/URI/name used to point at an agent or identity (DID, UAID, ENS, etc.)
