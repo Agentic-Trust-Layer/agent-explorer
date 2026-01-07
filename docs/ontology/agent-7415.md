@@ -196,4 +196,37 @@ ORDER BY DESC(?situationCount)
 LIMIT 50
 ```
 
+## 5) Delegation authorization provenance (assertions authorized by delegation) — scoped to agent 7415
+
+This finds reputation/verification assertions that were authorized by a delegation assertion (via `agentictrust:wasAuthorizedByDelegation`) and scopes results to agent 7415 via the account-anchored agent and optional ERC-8004 identity joins.
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT DISTINCT ?assertion ?assertionType ?delegation
+WHERE {
+  VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
+
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
+         agentictrust:agentId ?agentId ;
+         agentictrustEth:accountChainId ?chainId .
+  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+
+  ?assertion agentictrust:wasAuthorizedByDelegation ?delegation .
+  ?delegation a agentictrust:DelegationTrustAssertion .
+  OPTIONAL { ?assertion a ?assertionType . }
+
+  # Scope: keep only assertions about this agent (directly, via ERC-8004 links, or via aboutSubject identity)
+  FILTER(
+    EXISTS { ?agent erc8004:hasFeedback|erc8004:hasValidation ?assertion } ||
+    EXISTS { ?identity erc8004:hasFeedback|erc8004:hasValidation ?assertion } ||
+    EXISTS { ?assertion agentictrust:aboutSubject ?identity }
+  )
+}
+ORDER BY ?assertion
+LIMIT 200
+```
+
 
