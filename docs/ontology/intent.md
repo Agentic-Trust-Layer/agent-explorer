@@ -94,6 +94,10 @@ The second diagram becomes clearer if we separate:
 
 This avoids conflating “what the client asked” with “what the provider believes the client wants”.
 
+![Agent-to-agent request with intent inference (expressed vs inferred)](./images/agent-to-agent-intent-inference.png)
+
+> Note: save the provided image as `docs/ontology/images/agent-to-agent-intent-inference.png` to render it here.
+
 ```mermaid
 graph TB
   Client["Client agent (prov:Agent)"]
