@@ -1083,6 +1083,35 @@ agentictrust:IntentInference a owl:Class ;
   rdfs:comment "A provenance-bearing activity in which an agent interprets inputs (messages, state, evidence, prior activity results) and generates an inferred Intent plan. Use prov:used for inputs and prov:generated for the inferred Intent. This captures 'intent understanding' without collapsing it into execution." ;
   rdfs:subClassOf prov:Activity .
 
+########
+# Discovery / semantic routing primitives (catalog → retrieval → candidate sets)
+########
+
+agentictrust:ToolCatalog a owl:Class ;
+  rdfs:label "ToolCatalog" ;
+  rdfs:comment "A catalog (inventory) of callable tools/skills available within a scope (e.g., a gateway, deployment, or curated tool universe). Modeled as a prov:Entity so it can be versioned, scoped, and referenced by discovery activities." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:ToolCandidateSet a owl:Class ;
+  rdfs:label "ToolCandidateSet" ;
+  rdfs:comment "A candidate set (shortlist) of tools/skills produced by semantic retrieval or policy narrowing. Modeled as a prov:Entity so it can be audited, cached, and linked to the retrieval activity that produced it." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:ToolSearch a owl:Class ;
+  rdfs:label "ToolSearch" ;
+  rdfs:comment "A semantic retrieval activity over a ToolCatalog (Tool-RAG). This is classification/narrowing, not execution. Use prov:used for inputs (intent/query, catalog) and prov:generated for the resulting ToolCandidateSet." ;
+  rdfs:subClassOf prov:Activity .
+
+agentictrust:AgentCandidateSet a owl:Class ;
+  rdfs:label "AgentCandidateSet" ;
+  rdfs:comment "A candidate set (shortlist) of agents/deployments produced by discovery over registries and descriptors. Modeled as a prov:Entity." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:AgentDiscovery a owl:Class ;
+  rdfs:label "AgentDiscovery" ;
+  rdfs:comment "A discovery/routing activity that narrows a universe of possible provider agents/deployments based on an Intent/IntentType/TaskType and available skill/tool metadata. Use prov:used for inputs (intent, registry context) and prov:generated for an AgentCandidateSet." ;
+  rdfs:subClassOf prov:Activity .
+
 agentictrust:SkillInvocation a owl:Class ;
   rdfs:label "SkillInvocation" ;
   rdfs:comment "JSON-RPC based invocation of a skill at an A2A service endpoint." ;
@@ -1355,6 +1384,56 @@ agentictrust:hasContextState a owl:ObjectProperty ;
   rdfs:comment "Links an Intent to a contextual State (epistemic object) describing the relevant situation/preconditions that inform the intent." ;
   rdfs:domain agentictrust:Intent ;
   rdfs:range agentictrust:State .
+
+agentictrust:toolCatalogHasTool a owl:ObjectProperty ;
+  rdfs:label "toolCatalogHasTool" ;
+  rdfs:comment "Links a ToolCatalog to the tools/skills it contains." ;
+  rdfs:domain agentictrust:ToolCatalog ;
+  rdfs:range agentictrust:AgentSkillClassification .
+
+agentictrust:searchedToolCatalog a owl:ObjectProperty ;
+  rdfs:label "searchedToolCatalog" ;
+  rdfs:comment "Links a ToolSearch activity to the ToolCatalog it searched." ;
+  rdfs:domain agentictrust:ToolSearch ;
+  rdfs:range agentictrust:ToolCatalog .
+
+agentictrust:generatedToolCandidateSet a owl:ObjectProperty ;
+  rdfs:label "generatedToolCandidateSet" ;
+  rdfs:comment "Links a ToolSearch activity to the ToolCandidateSet it produced (subPropertyOf prov:generated)." ;
+  rdfs:subPropertyOf prov:generated ;
+  rdfs:domain agentictrust:ToolSearch ;
+  rdfs:range agentictrust:ToolCandidateSet .
+
+agentictrust:candidateTool a owl:ObjectProperty ;
+  rdfs:label "candidateTool" ;
+  rdfs:comment "Membership link from a ToolCandidateSet to an individual candidate tool/skill." ;
+  rdfs:domain agentictrust:ToolCandidateSet ;
+  rdfs:range agentictrust:AgentSkillClassification .
+
+agentictrust:searchQuery a owl:DatatypeProperty ;
+  rdfs:label "searchQuery" ;
+  rdfs:comment "Natural language query string used for semantic retrieval (e.g., ToolSearch query)." ;
+  rdfs:domain agentictrust:ToolSearch ;
+  rdfs:range xsd:string .
+
+agentictrust:discoveredFromRegistry a owl:ObjectProperty ;
+  rdfs:label "discoveredFromRegistry" ;
+  rdfs:comment "Links an AgentDiscovery activity to the AgentRegistry context it used." ;
+  rdfs:domain agentictrust:AgentDiscovery ;
+  rdfs:range agentictrust:AgentRegistry .
+
+agentictrust:generatedAgentCandidateSet a owl:ObjectProperty ;
+  rdfs:label "generatedAgentCandidateSet" ;
+  rdfs:comment "Links an AgentDiscovery activity to the AgentCandidateSet it produced (subPropertyOf prov:generated)." ;
+  rdfs:subPropertyOf prov:generated ;
+  rdfs:domain agentictrust:AgentDiscovery ;
+  rdfs:range agentictrust:AgentCandidateSet .
+
+agentictrust:candidateAgent a owl:ObjectProperty ;
+  rdfs:label "candidateAgent" ;
+  rdfs:comment "Membership link from an AgentCandidateSet to an individual candidate provider agent/deployment." ;
+  rdfs:domain agentictrust:AgentCandidateSet ;
+  rdfs:range prov:Agent .
 
 agentictrust:hasCheck a owl:ObjectProperty ;
   rdfs:label "hasCheck" ;

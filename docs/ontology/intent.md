@@ -115,6 +115,53 @@ graph LR
   Exec -->|inResponseToMessage| Msg
 ```
 
+## Discovery (intent → candidate providers/tools)
+
+This section captures the “semantic discovery” step that happens *before* execution:
+
+- the client’s **expressed intent** (plus purpose/state) is used to **narrow** the universe of possible provider agents/tools
+- this narrowing is classification (search/retrieval), not execution
+
+In practice, discovery often follows:
+
+Intent → IntentType → TaskType → eligible skills/tools → candidate providers → execute
+
+### Conceptual flow (left-to-right)
+
+```mermaid
+graph LR
+  Expr["Expressed Intent\n(agentictrust:Intent)"]
+  Type["IntentType\n(agentictrust:IntentType)"]
+  Task["TaskType\n(agentictrust:TaskType)"]
+  Skill["Skill/Tool class\n(agentictrust:AgentSkillClassification)"]
+
+  Reg["Registry context\n(agentictrust:AgentRegistry)"]
+  Disc["AgentDiscovery\n(agentictrust:AgentDiscovery)"]
+  Agents["AgentCandidateSet\n(agentictrust:AgentCandidateSet)"]
+
+  Cat["ToolCatalog\n(agentictrust:ToolCatalog)"]
+  Search["ToolSearch\n(agentictrust:ToolSearch)"]
+  Tools["ToolCandidateSet\n(agentictrust:ToolCandidateSet)"]
+
+  Expr -->|intentHasType| Type
+  Type -->|mapsToTaskType| Task
+  Task -->|implementedBySkill / enablesTaskType| Skill
+
+  Reg --> Disc
+  Expr --> Disc
+  Disc -->|generatedAgentCandidateSet| Agents
+
+  Cat --> Search
+  Expr --> Search
+  Search -->|generatedToolCandidateSet| Tools
+  Tools -->|candidateTool| Skill
+```
+
+Notes:
+
+- `AgentDiscovery` and `ToolSearch` are Activities because they are provenance-bearing “classification” steps.
+- The candidate sets are Entities because they can be audited (“what was considered?”) and reused/cached.
+
 ```mermaid
 graph TB
   Client["Client agent (prov:Agent)"]
