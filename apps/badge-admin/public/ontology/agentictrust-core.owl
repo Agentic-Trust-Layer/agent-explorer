@@ -1004,6 +1004,16 @@ agentictrust:IntentAction a owl:Class ;
   rdfs:comment "Action/verb used within an intent." ;
   rdfs:subClassOf prov:Entity .
 
+agentictrust:Purpose a owl:Class ;
+  rdfs:label "Purpose" ;
+  rdfs:comment "A purpose/goal framing for an Intent. This is an epistemic object (prov:Entity) describing desired direction/outcome, not an executable action." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:State a owl:Class ;
+  rdfs:label "State" ;
+  rdfs:comment "A contextual state framing for an Intent (e.g., preconditions, observed state, situational context). Modeled as an epistemic object (prov:Entity), not an Activity." ;
+  rdfs:subClassOf prov:Entity .
+
 agentictrust:IntentSubject a owl:Class ;
   rdfs:label "IntentSubject" ;
   rdfs:comment "The subject of an intent (e.g., an agent ENS name)." ;
@@ -1057,6 +1067,20 @@ agentictrust:MessageSend a owl:Class ;
 
 agentictrust:MessageReceive a owl:Class ;
   rdfs:label "MessageReceive" ;
+  rdfs:subClassOf prov:Activity .
+
+# A message send that functions as an agent-to-agent request (an action taken by one agent to request execution by another).
+# This is the "requesting agent" side of the agent-to-agent flow.
+agentictrust:AgentRequest a owl:Class ;
+  rdfs:label "AgentRequest" ;
+  rdfs:comment "An agent-to-agent request action (prov:Activity) that communicates an Intent plan to another agent/deployment. Typically a specialization of MessageSend and linked to an Intent via prov:hadPlan (alias agentictrust:hadPlan) and/or by generating a Message entity that carries the Intent." ;
+  rdfs:subClassOf agentictrust:MessageSend .
+
+# An inference/interpretation step where an agent produces an inferred Intent from messages, context, and observations.
+# This is useful for modeling “intent understanding” as a provenance-bearing activity.
+agentictrust:IntentInference a owl:Class ;
+  rdfs:label "IntentInference" ;
+  rdfs:comment "A provenance-bearing activity in which an agent interprets inputs (messages, state, evidence, prior activity results) and generates an inferred Intent plan. Use prov:used for inputs and prov:generated for the inferred Intent. This captures 'intent understanding' without collapsing it into execution." ;
   rdfs:subClassOf prov:Activity .
 
 agentictrust:SkillInvocation a owl:Class ;
@@ -1314,6 +1338,24 @@ agentictrust:hasSubject a owl:ObjectProperty ;
   rdfs:domain agentictrust:Intent ;
   rdfs:range agentictrust:IntentSubject .
 
+agentictrust:intentHasType a owl:ObjectProperty ;
+  rdfs:label "intentHasType" ;
+  rdfs:comment "Links an Intent (plan instance carried in messages) to its IntentType (taxonomy/template). IntentType is the stable description; Intent is the instance used in a particular request/context." ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:IntentType .
+
+agentictrust:hasPurpose a owl:ObjectProperty ;
+  rdfs:label "hasPurpose" ;
+  rdfs:comment "Links an Intent to a Purpose/goal framing (epistemic object) that motivates the intent." ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:Purpose .
+
+agentictrust:hasContextState a owl:ObjectProperty ;
+  rdfs:label "hasContextState" ;
+  rdfs:comment "Links an Intent to a contextual State (epistemic object) describing the relevant situation/preconditions that inform the intent." ;
+  rdfs:domain agentictrust:Intent ;
+  rdfs:range agentictrust:State .
+
 agentictrust:hasCheck a owl:ObjectProperty ;
   rdfs:label "hasCheck" ;
   rdfs:domain agentictrust:Intent ;
@@ -1352,6 +1394,12 @@ agentictrust:invokesSkill a owl:ObjectProperty ;
 agentictrust:invocationUsedMessage a owl:ObjectProperty ;
   rdfs:label "invocationUsedMessage" ;
   rdfs:domain agentictrust:SkillInvocation ;
+  rdfs:range agentictrust:Message .
+
+agentictrust:inResponseToMessage a owl:ObjectProperty ;
+  rdfs:label "inResponseToMessage" ;
+  rdfs:comment "Links an execution activity (TaskExecution or SkillInvocation) to the inbound Message that triggered it. Complements prov:wasInformedBy by anchoring the specific message artifact." ;
+  rdfs:domain prov:Activity ;
   rdfs:range agentictrust:Message .
 
 agentictrust:hasInvocation a owl:ObjectProperty ;
