@@ -333,12 +333,24 @@ function feedbackResponseIri(chainId: number, id: string): string {
   return `<https://www.agentictrust.io/id/feedback-response/${chainId}/${iriEncodeSegment(id)}>`;
 }
 
+function feedbackAuthRequestIri(chainId: number, agentId: string, client: string, feedbackIndex: number): string {
+  return `<https://www.agentictrust.io/id/feedback-auth-request/${chainId}/${iriEncodeSegment(agentId)}/${iriEncodeSegment(client.toLowerCase())}/${feedbackIndex}>`;
+}
+
 function validationRequestIri(chainId: number, id: string): string {
   return `<https://www.agentictrust.io/id/validation-request/${chainId}/${iriEncodeSegment(id)}>`;
 }
 
 function validationResponseIri(chainId: number, id: string): string {
   return `<https://www.agentictrust.io/id/validation-response/${chainId}/${iriEncodeSegment(id)}>`;
+}
+
+function delegationTrustAssertionIri(chainId: number, kind: 'feedback-auth' | 'validation-request', id: string): string {
+  return `<https://www.agentictrust.io/id/delegation-trust-assertion/${kind}/${chainId}/${iriEncodeSegment(id)}>`;
+}
+
+function delegationPermissionIri(chainId: number, kind: 'feedback-auth' | 'validation-request', id: string): string {
+  return `<https://www.agentictrust.io/id/delegation-permission/${kind}/${chainId}/${iriEncodeSegment(id)}>`;
 }
 
 function associationIri(chainId: number, associationId: string): string {
@@ -1750,6 +1762,13 @@ async function exportAgentsRdfInternal(
     console.log(`[rdf-export] Loaded ${feedbacks.length} feedback records`);
   }
 
+  // Derived request/authorization artifacts (best-effort) for feedbackAuth delegation.
+  // There is no dedicated feedback-auth request table yet, so we synthesize:
+  // - a FeedbackAuthRequestSituation (DelegationSituation) and
+  // - a DelegationTrustAssertion (grant) that authorizes the Feedback assertion.
+  const feedbackAuthReqEmitted = new Set<string>(); // requestIri
+  const feedbackAuthDelegationByRequest = new Map<string, string>(); // requestIri -> delegationAssertionIri
+
   for (const f of feedbacks) {
     const chainId = Number(f?.chainId ?? 0) || 0;
     const agentId = String(f?.agentId ?? '');
@@ -1895,6 +1914,80 @@ async function exportAgentsRdfInternal(
       off.push(`  .\n`);
       chunks.push(off.join('\n'));
     }
+
+    // --- FeedbackAuth delegation (request situation + delegation assertion + authorization link) ---
+    const feedbackAuthToken =
+      typeof f?.feedbackAuth === 'string' && f.feedbackAuth.trim()
+        ? String(f.feedbackAuth).trim()
+        : fbObj && typeof (fbObj as any).feedbackAuth === 'string' && String((fbObj as any).feedbackAuth).trim()
+          ? String((fbObj as any).feedbackAuth).trim()
+          : '';
+    if (feedbackAuthToken && client) {
+      ensureAccountNode(chunks, chainId, client, 'EOA');
+      const clientIri = accountIri(chainId, client);
+
+      // One synthesized FeedbackAuthRequestSituation per feedback record (agentId/client/feedbackIndex).
+      const reqIri = feedbackAuthRequestIri(chainId, agentId, client, feedbackIndex);
+      if (!feedbackAuthReqEmitted.has(reqIri)) {
+        feedbackAuthReqEmitted.add(reqIri);
+
+        const reqLines: string[] = [];
+        reqLines.push(
+          `${reqIri} a agentictrust:FeedbackAuthRequestSituation, agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`,
+        );
+        reqLines.push(`  agentictrust:isAboutAgent ${ai} ;`);
+        if (meta?.identity8004Iri) reqLines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+        reqLines.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedbackAuth')}> ;`);
+
+        // Delegation shape: agent grants client permission to give feedback.
+        reqLines.push(`  agentictrust:delegationDelegator ${ai} ;`);
+        reqLines.push(`  agentictrust:delegationDelegatee ${clientIri} ;`);
+        reqLines.push(`  agentictrust:delegationAuthorityValue "${escapeTurtleString(feedbackAuthToken)}" ;`);
+
+        const permIri = delegationPermissionIri(chainId, 'feedback-auth', `${agentId}/${client}/${feedbackIndex}`);
+        reqLines.push(`  agentictrust:delegationGrantsPermission ${permIri} ;`);
+        reqLines.push(`  .\n`);
+        chunks.push(reqLines.join('\n'));
+
+        const permLines: string[] = [];
+        permLines.push(`${permIri} a agentictrust:DelegationPermission, prov:Entity ;`);
+        permLines.push(`  agentictrust:permissionAction "giveFeedback" ;`);
+        permLines.push(`  agentictrust:permissionResource "${escapeTurtleString(String(ai))}" ;`);
+        permLines.push(`  .\n`);
+        chunks.push(permLines.join('\n'));
+
+        // DelegationTrustAssertion (grant) + act
+        const delIri = delegationTrustAssertionIri(chainId, 'feedback-auth', `${agentId}/${client}/${feedbackIndex}`);
+        feedbackAuthDelegationByRequest.set(reqIri, delIri);
+        const delActIri = actIriFromRecordIri(delIri);
+
+        const delRec: string[] = [];
+        delRec.push(`${delIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
+        delRec.push(`  agentictrust:recordsSituation ${reqIri} ;`);
+        delRec.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
+        delRec.push(`  prov:wasAttributedTo ${ai} ;`);
+        if (meta?.identity8004Iri) delRec.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+        delRec.push(`  .\n`);
+        chunks.push(delRec.join('\n'));
+
+        const delAct: string[] = [];
+        delAct.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
+        delAct.push(`  agentictrust:assertsSituation ${reqIri} ;`);
+        delAct.push(`  agentictrust:generatedAssertionRecord ${delIri} ;`);
+        delAct.push(`  prov:wasAssociatedWith ${ai} ;`);
+        delAct.push(`  agentictrust:assertedBy ${ai} ;`);
+        delAct.push(`  .\n`);
+        chunks.push(delAct.join('\n'));
+
+        // Situation participants
+        chunks.push(`${reqIri} agentictrust:hasSituationParticipant ${clientIri} .\n`);
+        chunks.push(`${reqIri} agentictrust:hasSituationParticipant ${ai} .\n`);
+      }
+
+      // Link Feedback (GiveFeedback) to delegation grant that authorized it.
+      const del = feedbackAuthDelegationByRequest.get(reqIri);
+      if (del) recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${del} ;`);
+    }
     recordLines.push(`  .\n`);
     chunks.push(recordLines.join('\n'));
   }
@@ -1934,6 +2027,7 @@ async function exportAgentsRdfInternal(
     ...(onlyAgent ? [onlyAgent.chainId, onlyAgent.agentId] : []),
   );
   const requestByHash = new Map<string, string>(); // `${chainId}|${hash}` -> requestIri
+  const delegationByRequestIri = new Map<string, string>(); // requestIri -> delegation assertion record
   for (const v of validationRequests) {
     const chainId = Number(v?.chainId ?? 0) || 0;
     const agentId = String(v?.agentId ?? '');
@@ -1945,11 +2039,12 @@ async function exportAgentsRdfInternal(
     // No direct agent link for requests; link agent via ValidationResponse using agentictrust:hasValidation.
     const lines: string[] = [];
     // ValidationRequest is a Situation (Entity) being asserted/answered by later responses.
-    // ERC8004.owl is assertion-only, so the request situation type lives in agentictrust-core as VerificationRequestSituation.
+    // We model ERC-8004 validation requests as erc8004:ValidationRequest (a concrete subclass of
+    // agentictrust:VerificationRequestSituation) so ERC-8004 queries can stay vocabulary-native.
     const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
     const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
     if (!ai) continue;
-    lines.push(`${vi} a agentictrust:VerificationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    lines.push(`${vi} a erc8004:ValidationRequest, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     lines.push(`  agentictrust:isAboutAgent ${ai} ;`);
     if (meta?.identity8004Iri) lines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
     const validator = normalizeHex(v?.validatorAddress);
@@ -1973,6 +2068,7 @@ async function exportAgentsRdfInternal(
     if (typeof v?.requestHash === 'string' && v.requestHash.trim()) lines.push(`  erc8004:requestHash "${escapeTurtleString(String(v.requestHash))}" ;`);
     if (v?.requestJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(v.requestJson))} ;`);
     const reqObj = safeJsonObject(v?.requestJson);
+    let deadlineLit: string | null = null;
     if (reqObj) {
       const offIri = validationOffchainIri(chainId, 'request', id);
       lines.push(`  erc8004:hasOffchainData ${offIri} ;`);
@@ -1981,7 +2077,7 @@ async function exportAgentsRdfInternal(
 
       const createdAtLit = normalizeDateTimeLiteral(reqObj.createdAt);
       if (createdAtLit) off.push(`  erc8004:createdAt ${createdAtLit} ;`);
-      const deadlineLit = normalizeDateTimeLiteral(reqObj.deadline);
+      deadlineLit = normalizeDateTimeLiteral(reqObj.deadline);
       if (deadlineLit) off.push(`  erc8004:deadline ${deadlineLit} ;`);
       if (typeof reqObj.reasoning === 'string' && reqObj.reasoning.trim())
         off.push(`  erc8004:reasoning "${escapeTurtleString(reqObj.reasoning.trim())}" ;`);
@@ -2032,8 +2128,49 @@ async function exportAgentsRdfInternal(
       off.push(`  .\n`);
       chunks.push(off.join('\n'));
     }
+
+    // Delegation metadata for the validation request (requester delegates authority-to-validate to validator).
+    lines.push(`  agentictrust:delegationDelegator ${ai} ;`);
+    if (validator) {
+      const delegateTok = agentByAccountKey.get(`${chainId}|${validator}`) ?? accountIri(chainId, validator);
+      lines.push(`  agentictrust:delegationDelegatee ${delegateTok} ;`);
+    }
+    if (deadlineLit) lines.push(`  agentictrust:delegationExpiresAtTime ${deadlineLit} ;`);
+    const permIri = delegationPermissionIri(chainId, 'validation-request', id);
+    lines.push(`  agentictrust:delegationGrantsPermission ${permIri} ;`);
+
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
+
+    // Permission node
+    const permLines: string[] = [];
+    permLines.push(`${permIri} a agentictrust:DelegationPermission, prov:Entity ;`);
+    permLines.push(`  agentictrust:permissionAction "validate" ;`);
+    permLines.push(`  agentictrust:permissionResource "${escapeTurtleString(String(ai))}" ;`);
+    permLines.push(`  .\n`);
+    chunks.push(permLines.join('\n'));
+
+    // DelegationTrustAssertion (grant) + act, tied to the ValidationRequest situation.
+    const delIri = delegationTrustAssertionIri(chainId, 'validation-request', id);
+    delegationByRequestIri.set(vi, delIri);
+    const delActIri = actIriFromRecordIri(delIri);
+    const delRec: string[] = [];
+    delRec.push(`${delIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
+    delRec.push(`  agentictrust:recordsSituation ${vi} ;`);
+    delRec.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
+    delRec.push(`  prov:wasAttributedTo ${ai} ;`);
+    if (meta?.identity8004Iri) delRec.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+    delRec.push(`  .\n`);
+    chunks.push(delRec.join('\n'));
+
+    const delAct: string[] = [];
+    delAct.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
+    delAct.push(`  agentictrust:assertsSituation ${vi} ;`);
+    delAct.push(`  agentictrust:generatedAssertionRecord ${delIri} ;`);
+    delAct.push(`  prov:wasAssociatedWith ${ai} ;`);
+    delAct.push(`  agentictrust:assertedBy ${ai} ;`);
+    delAct.push(`  .\n`);
+    chunks.push(delAct.join('\n'));
 
     const rh = typeof v?.requestHash === 'string' ? v.requestHash.trim() : '';
     if (rh) requestByHash.set(`${chainId}|${rh}`, vi);
@@ -2087,6 +2224,8 @@ async function exportAgentsRdfInternal(
       recordLines.push(`  erc8004:validationRespondsToRequest ${reqIri} ;`);
       recordLines.push(`  agentictrust:recordsSituation ${reqIri} ;`);
       actLines.push(`  agentictrust:assertsSituation ${reqIri} ;`);
+      const del = delegationByRequestIri.get(reqIri);
+      if (del) recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${del} ;`);
     }
     const validator = normalizeHex(v?.validatorAddress);
     if (validator) {

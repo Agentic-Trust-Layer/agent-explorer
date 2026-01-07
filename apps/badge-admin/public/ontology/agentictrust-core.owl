@@ -247,13 +247,15 @@ agentictrust:VerificationRequestSituation a owl:Class ;
   rdfs:label "VerificationRequestSituation" ;
   rdfs:comment "ERC-8004 verification/validation request record modeled as a Situation (not defined in ERC8004.owl, which is assertion-only). Used as the asserted situation for validation responses." ;
   rdfs:subClassOf agentictrust:RequestSituation ;
-  rdfs:subClassOf agentictrust:VerificationTrustSituation .
+  rdfs:subClassOf agentictrust:VerificationTrustSituation ;
+  rdfs:subClassOf agentictrust:DelegationSituation .
 
 agentictrust:ReputationRequestSituation a owl:Class ;
   rdfs:label "ReputationRequestSituation" ;
   rdfs:comment "A request-shaped Situation in the reputation domain (e.g., a client requests feedback authorization or asks to provide feedback). This is a RequestSituation and also a ReputationTrustSituation." ;
   rdfs:subClassOf agentictrust:RequestSituation ;
-  rdfs:subClassOf agentictrust:ReputationTrustSituation .
+  rdfs:subClassOf agentictrust:ReputationTrustSituation ;
+  rdfs:subClassOf agentictrust:DelegationSituation .
 
 agentictrust:FeedbackAuthRequestSituation a owl:Class ;
   rdfs:label "FeedbackAuthRequestSituation" ;
