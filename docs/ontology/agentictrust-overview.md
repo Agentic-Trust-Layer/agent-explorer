@@ -48,6 +48,7 @@ By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituat
 - **TrustAssertionAct**: asserting act (“who asserted what, when”) (subclass of `prov:Activity`)
 - **Relationship**: persistent relationship instance (subclass of `prov:Entity`)
 - **RelationshipTrustAssertion**: constitutive assertion about a `Relationship` (subclass of `TrustAssertion`)
+- **DelegationTrustAssertion**: durable assertion about delegated authority (subclass of `TrustAssertion`), and can authorize other trust assertions
 
 ```mermaid
 classDiagram
@@ -65,6 +66,7 @@ class TrustAssertion["agentictrust:TrustAssertion"]
 class TrustAssertionAct["agentictrust:TrustAssertionAct"]
 class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
+class DelegationAssertion["agentictrust:DelegationTrustAssertion"]
 class Relationship["agentictrust:Relationship"]
 class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
 
@@ -75,6 +77,7 @@ TrustAssertion --|> provEntity
 TrustAssertionAct --|> provActivity
 VerificationAssertion --|> TrustAssertion
 ReputationAssertion --|> TrustAssertion
+DelegationAssertion --|> TrustAssertion
 Relationship --|> provEntity
 RelationshipAssertion --|> TrustAssertion
 
@@ -84,6 +87,7 @@ TrustAssertionAct --> provEntity : aboutSubject
 RelationshipAssertion --> Relationship : assertsRelationship
 TrustAssertionAct --> Relationship : qualifiesRelationship
 provAgent --> TrustAssertionAct : hasTrustAssertion
+ReputationAssertion --> DelegationAssertion : wasAuthorizedByDelegation
 ```
 
 ### Agent identity + metadata (core)
