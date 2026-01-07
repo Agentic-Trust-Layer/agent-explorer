@@ -97,6 +97,25 @@ This avoids conflating “what the client asked” with “what the provider bel
 ![Agent-to-agent request with intent inference (expressed vs inferred)](./images/intent-flow.png)
 
 ```mermaid
+graph LR
+  Client["Client Agent\n(prov:Agent)"]
+  Req["AgentRequest\n(agentictrust:AgentRequest)"]
+  Msg["Message\n(agentictrust:Message)"]
+  Exec["Provider Task Execution\n(agentictrust:TaskExecution)"]
+
+  Intent["Expressed Intent\n(agentictrust:Intent)"]
+  Purpose["Purpose\n(agentictrust:Purpose)"]
+  State["State\n(agentictrust:State)"]
+
+  Client -->|wasAssociatedWith| Req
+  Req -->|generated| Msg
+  Msg -->|hasIntent| Intent
+  Intent -->|hasPurpose| Purpose
+  Intent -->|hasContextState| State
+  Exec -->|inResponseToMessage| Msg
+```
+
+```mermaid
 graph TB
   Client["Client agent (prov:Agent)"]
   Provider["Provider agent (prov:Agent)"]
