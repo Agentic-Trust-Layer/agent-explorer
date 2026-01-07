@@ -33,7 +33,7 @@ direction LR
 class AIAgent["agentictrust:AIAgent"]
 class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
 class ValidationResponse["erc8004:ValidationResponse"]
-class ValidationRequest["agentictrust:VerificationRequestSituation"]
+class ValidationRequest["erc8004:ValidationRequestSituation"]
 class TrustSituation["agentictrust:TrustSituation"]
 class IntentCheck["agentictrust:IntentCheck"]
 class provAgent["prov:Agent"]
@@ -68,7 +68,7 @@ TrustAssertionAct --> ValidationResponse : generatedAssertionRecord (agentictrus
 - **`erc8004:validationRespondsToRequest`** (domain: `erc8004:ValidationResponse`, range: `agentictrust:VerificationRequestSituation`)
   - Links a validation response to the request it responds to
 
-- **`agentictrust:recordsSituation`** (domain: `agentictrust:AssertionRecord`, range: `agentictrust:Situation`)
+- **`agentictrust:recordsSituation`** (domain: `agentictrust:AttestedAssertion`, range: `agentictrust:Situation`)
   - Links a durable assertion record (validation response) to the situation it is a record about
 
 - **`agentictrust:assertsSituation`** (domain: `agentictrust:AssertionAct`, range: `agentictrust:Situation`)

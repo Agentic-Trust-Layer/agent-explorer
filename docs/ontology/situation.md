@@ -211,7 +211,7 @@ classDiagram
 direction LR
 
 class AIAgent["agentictrust:AIAgent"]
-class ValidationRequest["agentictrust:VerificationRequestSituation"]
+class ValidationRequest["erc8004:ValidationRequestSituation"]
 class ValidationResponse["erc8004:ValidationResponse"]
 class provAgent["prov:Agent"]
 

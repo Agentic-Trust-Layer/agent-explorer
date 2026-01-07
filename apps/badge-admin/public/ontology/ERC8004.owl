@@ -83,8 +83,8 @@ erc8004:TrustAssertionAct a owl:Class ;
 # concrete subclass of the more abstract agentictrust:VerificationRequestSituation.
 ###
 
-erc8004:ValidationRequest a owl:Class ;
-  rdfs:label "ValidationRequest" ;
+erc8004:ValidationRequestSituation a owl:Class ;
+  rdfs:label "ValidationRequestSituation" ;
   rdfs:comment "ERC-8004 validation request record modeled as a Situation (prov:Entity). This specializes agentictrust:VerificationRequestSituation for ERC-8004 and is the preferred class to emit in RDF for validation_requests rows." ;
   rdfs:subClassOf agentictrust:VerificationRequestSituation .
 
@@ -96,7 +96,7 @@ erc8004:ValidationResponse a owl:Class ;
 
 erc8004:ValidationResponseAct a owl:Class ;
   rdfs:label "ValidationResponseAct" ;
-  rdfs:comment "The act of producing an ERC-8004 validation response. Generates a ValidationResponse record and asserts a ValidationRequest (request situation)." ;
+  rdfs:comment "The act of producing an ERC-8004 validation response. Generates a ValidationResponse record and asserts a ValidationRequestSituation (request situation)." ;
   rdfs:subClassOf erc8004:TrustAssertionAct ;
   rdfs:subClassOf agentictrust:VerificationTrustAssertionAct .
 
@@ -167,13 +167,13 @@ erc8004:feedbackIntentType a owl:ObjectProperty ;
 
 erc8004:validationValidator a owl:ObjectProperty ;
   rdfs:label "validationValidator" ;
-  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:domain erc8004:ValidationRequestSituation ;
   rdfs:range prov:Agent .
 
 erc8004:validatorAgent a owl:ObjectProperty ;
   rdfs:label "validatorAgent" ;
   rdfs:comment "Optional link when validatorAddress maps to a known AIAgent account/address." ;
-  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:domain erc8004:ValidationRequestSituation ;
   rdfs:range agentictrust:AIAgent .
 
 erc8004:validatorAgentForResponse a owl:ObjectProperty ;
@@ -186,7 +186,7 @@ erc8004:validatorAgentForResponse a owl:ObjectProperty ;
 erc8004:validationRespondsToRequest a owl:ObjectProperty ;
   rdfs:label "validationRespondsToRequest" ;
   rdfs:domain erc8004:ValidationResponse ;
-  rdfs:range erc8004:ValidationRequest .
+  rdfs:range erc8004:ValidationRequestSituation .
 
 erc8004:validationTagCheck a owl:ObjectProperty ;
   rdfs:label "validationTagCheck" ;
@@ -219,7 +219,7 @@ erc8004:isRevoked a owl:DatatypeProperty ;
 
 erc8004:requestHash a owl:DatatypeProperty ;
   rdfs:label "requestHash" ;
-  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:domain erc8004:ValidationRequestSituation ;
   rdfs:range xsd:string .
 
 erc8004:validationChainId a owl:DatatypeProperty ;

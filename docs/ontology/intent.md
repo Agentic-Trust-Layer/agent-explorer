@@ -582,7 +582,7 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?verificationSituation ?intentType ?intentTypeLabel ?agentId
 WHERE {
-  ?verificationSituation a agentictrust:VerificationTrustSituation, erc8004:ValidationRequest .
+  ?verificationSituation a agentictrust:VerificationTrustSituation, erc8004:ValidationRequestSituation .
   
   OPTIONAL {
     ?verificationSituation agentictrust:satisfiesIntent ?intentType .

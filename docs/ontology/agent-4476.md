@@ -187,10 +187,10 @@ WHERE {
     OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
   }
   UNION
-  # Delegation: DelegationTrustAssertionRecord (if present)
+  # Delegation: DelegationTrustAssertion (if present)
   {
     FILTER(?bucket = "delegation")
-    ?assertionRecord a agentictrust:DelegationTrustAssertionRecord .
+    ?assertionRecord a agentictrust:DelegationTrustAssertion .
     FILTER(
       EXISTS { ?assertionRecord agentictrust:aboutSubject ?identity } ||
       EXISTS { ?assertionRecord agentictrust:aboutSubject ?agent }
@@ -555,7 +555,7 @@ graph TB
     FeedbackRecord["Feedback<br/>Feedback Record Entity"]
     FeedbackAct["FeedbackAct<br/>Feedback Activity"]
     
-    ValidationRequest["VerificationRequestSituation<br/>Validation Request"]
+    ValidationRequest["erc8004:ValidationRequestSituation<br/>Validation Request"]
     ValidationResponse["ValidationResponse<br/>Validation Response Entity"]
     ValidationAct["ValidationResponseAct<br/>Validation Activity"]
     

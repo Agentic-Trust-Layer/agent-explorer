@@ -2038,13 +2038,13 @@ async function exportAgentsRdfInternal(
     const vi = validationRequestIri(chainId, id);
     // No direct agent link for requests; link agent via ValidationResponse using agentictrust:hasValidation.
     const lines: string[] = [];
-    // ValidationRequest is a Situation (Entity) being asserted/answered by later responses.
-    // We model ERC-8004 validation requests as erc8004:ValidationRequest (a concrete subclass of
+    // ValidationRequestSituation is a Situation (Entity) being asserted/answered by later responses.
+    // We model ERC-8004 validation requests as erc8004:ValidationRequestSituation (a concrete subclass of
     // agentictrust:VerificationRequestSituation) so ERC-8004 queries can stay vocabulary-native.
     const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
     const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
     if (!ai) continue;
-    lines.push(`${vi} a erc8004:ValidationRequest, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    lines.push(`${vi} a erc8004:ValidationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
     lines.push(`  agentictrust:isAboutAgent ${ai} ;`);
     if (meta?.identity8004Iri) lines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
     const validator = normalizeHex(v?.validatorAddress);

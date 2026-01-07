@@ -57,7 +57,7 @@ graph TB
 
 ### Backward compatibility: AssertionRecord
 
-- `agentictrust:AssertionRecord` is **deprecated** and `owl:equivalentClass` to `agentictrust:AttestedAssertion`.
+- This repo removed the deprecated `agentictrust:AssertionRecord` alias. Use `agentictrust:AttestedAssertion`.
 
 ## How this integrates with existing trust graph patterns
 
@@ -171,7 +171,7 @@ ORDER BY ?trustAssertionType ?trustAssertion
 LIMIT 200
 ```
 
-### 4) Backward-compat check: resources typed as AssertionRecord
+### 4) Backward-compat check: resources typed as AssertionRecord (only if older data exists)
 
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>

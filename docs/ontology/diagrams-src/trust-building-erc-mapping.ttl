@@ -29,15 +29,15 @@ agentictrust:qualifiesRelationship a owl:ObjectProperty ;
   rdfs:range agentictrust:Relationship .
 
 ### ERC-8004 validation registry
-erc8004:ValidationRequest a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
+erc8004:ValidationRequestSituation a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
 erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:VerificationTrustAssertion .
 
 erc8004:validationRespondsToRequest a owl:ObjectProperty ;
   rdfs:domain erc8004:ValidationResponse ;
-  rdfs:range erc8004:ValidationRequest .
+  rdfs:range erc8004:ValidationRequestSituation .
 
 erc8004:validationValidator a owl:ObjectProperty ;
-  rdfs:domain erc8004:ValidationRequest ;
+  rdfs:domain erc8004:ValidationRequestSituation ;
   rdfs:range prov:Agent .
 
 ### ERC-8004 reputation registry

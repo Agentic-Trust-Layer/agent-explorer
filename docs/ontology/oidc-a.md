@@ -59,7 +59,7 @@ OIDC-A is a **protocol + claim vocabulary**; AgenticTrust is a **knowledge/ontol
 | `agent_attestation` | integrity evidence / attestation token | Attestation/AttestedAssertion pattern exists | Model the accountable act as `agentictrust:Attestation` (prov:Activity) with the attestor via `prov:wasAssociatedWith`/`agentictrust:assertedBy`, producing an `agentictrust:AttestedAssertion` (prov:Entity). (Optionally link evidence objects.) See [`attested-assertion.md`](./attested-assertion.md). |
 | `attestation_formats_supported` | supported attestation formats | Not a first-class field | Add to protocol descriptor metadata (`agentictrust:attestationFormatValue`), or a controlled-vocab node list |
 | `delegator_sub` | delegator identity | AgenticTrust can model accounts/identifiers; assertions already use `agentictrust:assertedBy` patterns | Model delegator as a `prov:Agent` (Account or Person). Link delegation act via `prov:wasAssociatedWith` + `prov:actedOnBehalfOf` |
-| `delegation_chain[]` | chain of delegation steps | Delegation trust classes exist | Use `agentictrust:DelegationTrustSituation` + `agentictrust:DelegationTrustAssertionAct` + `agentictrust:DelegationTrustAssertionRecord`, plus `prov:actedOnBehalfOf` (delegatee → delegator) / `agentictrust:delegatedBy` (delegator → delegatee) |
+| `delegation_chain[]` | chain of delegation steps | Delegation trust classes exist | Use `agentictrust:DelegationTrustSituation` + `agentictrust:DelegationTrustAssertionAct` + `agentictrust:DelegationTrustAssertion`, plus `prov:actedOnBehalfOf` (delegatee → delegator) / `agentictrust:delegatedBy` (delegator → delegatee) |
 | `delegation_purpose` | why delegated | DnS pattern: IntentType / SituationDescription | Represent as `agentictrust:satisfiesIntent` on the delegation situation; optionally store raw JSON |
 | `agent_attestation_endpoint` | endpoint to validate evidence | Endpoints/protocol descriptors exist | Add endpoint type for “attestation verification”; link to a protocol/service endpoint node |
 | `agent_capabilities_endpoint` | endpoint to discover capabilities | Protocol descriptors exist | Treat this as a protocol endpoint; map discovered capabilities into protocol descriptor skills/domains |
@@ -75,7 +75,7 @@ Based on OIDC-A language, the following additions tend to fit AgenticTrust patte
    - **Implemented**:
      - `agentictrust:DelegationTrustSituation` ⊑ `agentictrust:TrustSituation` (prov:Entity)
      - `agentictrust:DelegationTrustAssertionAct` ⊑ `agentictrust:TrustAssertionAct` (prov:Activity)
-     - `agentictrust:DelegationTrustAssertionRecord` ⊑ `agentictrust:TrustAssertion` (prov:Entity)
+    - `agentictrust:DelegationTrustAssertion` ⊑ `agentictrust:TrustAssertion` (prov:Entity)
      - `prov:actedOnBehalfOf` and `agentictrust:delegatedBy` (inverse)
 
 3. **Attestation evidence as evidence objects**
@@ -100,7 +100,7 @@ graph TB
   Deploy["AgentDeployment (prov:SoftwareAgent)"]
   Sit["DelegationTrustSituation (prov:Entity)"]
   Act["DelegationTrustAssertionAct (prov:Activity)"]
-  Rec["DelegationTrustAssertionRecord (prov:Entity)"]
+  Rec["DelegationTrustAssertion (prov:Entity)"]
 
   Deploy -->|agentictrust:deploymentOf| Agent
   Operator -->|prov:actedOnBehalfOf| Authority

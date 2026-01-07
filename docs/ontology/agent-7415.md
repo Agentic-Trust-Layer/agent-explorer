@@ -198,7 +198,7 @@ LIMIT 50
 
 ## 5) Delegation authorization provenance — scoped to agent 7415
 
-Important: `erc8004:ValidationRequest` and `agentictrust:FeedbackAuthRequestSituation` are **request situations** (not assertions). The query below starts from the request situations and returns the **delegation assertion** tied to them. If/when reputation/verification assertions are later produced under those permissions, you can use the second query to find them.
+Important: `erc8004:ValidationRequestSituation` and `agentictrust:FeedbackAuthRequestSituation` are **request situations** (not assertions). The query below starts from the request situations and returns the **delegation assertion** tied to them. If/when reputation/verification assertions are later produced under those permissions, you can use the second query to find them.
 
 ### 5a) Delegation grants (request situation → delegation assertion)
 
@@ -217,7 +217,7 @@ WHERE {
   OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
 
   ?requestSituation a ?requestType .
-  FILTER(?requestType IN (erc8004:ValidationRequest, agentictrust:FeedbackAuthRequestSituation))
+  FILTER(?requestType IN (erc8004:ValidationRequestSituation, agentictrust:FeedbackAuthRequestSituation))
 
   # Scope request situations to this agent (directly or via aboutSubject identity)
   FILTER(
