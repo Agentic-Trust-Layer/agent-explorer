@@ -202,6 +202,8 @@ Important: `erc8004:ValidationRequestSituation` and `agentictrust:FeedbackAuthRe
 
 ### 5a) Delegation grants (request situation → delegation assertion)
 
+Note: this query scopes to request situations **about agent 7415** (i.e., where 7415 is the agent being validated / the agent whose feedback is being given). If agent 7415 is acting primarily as a **validator** for other agents, use **5c**.
+
 ```sparql
 PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
 PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
@@ -267,6 +269,42 @@ WHERE {
   )
 }
 ORDER BY ?assertion
+LIMIT 200
+```
+
+### 5c) Validation requests where agent 7415 is the validator (delegatee role)
+
+This finds `erc8004:ValidationRequestSituation` records where the validator is agent 7415 (either via `erc8004:validationValidator` account IRI or via `erc8004:validatorAgent` mapping).
+
+```sparql
+PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+
+SELECT DISTINCT ?requestSituation ?requestingAgentId ?validator ?validatorAgent
+WHERE {
+  VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
+
+  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
+         agentictrust:agentId ?agentId ;
+         agentictrustEth:accountChainId ?chainId ;
+         agentictrustEth:accountAddress ?addr .
+
+  BIND(CONCAT("0x", LCASE(STR(?addr))) AS ?addrLc) # defensively normalize
+  BIND(IRI(CONCAT("https://www.agentictrust.io/id/account/", STR(?chainId), "/", ?addrLc)) AS ?acct)
+
+  ?requestSituation a erc8004:ValidationRequestSituation .
+  OPTIONAL { ?requestSituation erc8004:requestingAgentId ?requestingAgentId . }
+  OPTIONAL { ?requestSituation erc8004:validatorAddress ?validator . }
+  OPTIONAL { ?requestSituation erc8004:validationValidator ?acct . }
+  OPTIONAL { ?requestSituation erc8004:validatorAgent ?validatorAgent . }
+
+  FILTER(
+    EXISTS { ?requestSituation erc8004:validationValidator ?acct } ||
+    EXISTS { ?requestSituation erc8004:validatorAgent ?agent }
+  )
+}
+ORDER BY ?requestSituation
 LIMIT 200
 ```
 

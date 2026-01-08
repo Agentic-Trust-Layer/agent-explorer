@@ -683,6 +683,164 @@ agentictrust:VerificationMethod a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
 ########
+# Verifiable Credentials (VC) + DID-linked resources (cheqd parity, PROV-grounded)
+########
+
+# VC artifacts are modeled as prov:Entity. To preserve epistemic neutrality, treat credentials/presentations
+# as attributable assertion artifacts about identities (typically link via agentictrust:aboutSubject to an AgentIdentity).
+
+agentictrust:VerifiableCredential a owl:Class ;
+  rdfs:label "VerifiableCredential" ;
+  rdfs:comment "A Verifiable Credential (VC) artifact (prov:Entity). In AgenticTrust, a VC is treated as an attributable assertion artifact about some subject (often an AgentIdentity), preserving epistemic neutrality while enabling accountability and auditability." ;
+  rdfs:subClassOf agentictrust:AttestedAssertion ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:CredentialSchema a owl:Class ;
+  rdfs:label "CredentialSchema" ;
+  rdfs:comment "Credential schema (prov:Entity): the schema/type definition referenced by verifiable credentials (e.g., JSON schema, RDF schema, VC type taxonomy)." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:CredentialIssuer a owl:Class ;
+  rdfs:label "CredentialIssuer" ;
+  rdfs:comment "Credential issuer representation (prov:Entity). Typically used when you want to represent issuer identity/metadata separately from the acting prov:Agent (e.g., registry-scoped issuer identity, DID document, or issuer profile)." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:CredentialSubject a owl:Class ;
+  rdfs:label "CredentialSubject" ;
+  rdfs:comment "Credential subject representation (prov:Entity). Typically used when you want to represent the subject identity/metadata separately from an acting prov:Agent (e.g., registry-scoped AgentIdentity or DID document)." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:CredentialPresentation a owl:Class ;
+  rdfs:label "CredentialPresentation" ;
+  rdfs:comment "A Verifiable Presentation / credential presentation artifact (prov:Entity). Treated as an attributable assertion artifact (often holder-signed) that packages one or more VerifiableCredentials for a relying party." ;
+  rdfs:subClassOf agentictrust:AttestedAssertion ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:DIDLinkedResource a owl:Class ;
+  rdfs:label "DIDLinkedResource" ;
+  rdfs:comment "A DID-linked resource (prov:Entity): a typed resource attached to a DID/DIDDocument (e.g., trust registry entry, metadata resource, credential status list, service descriptor)." ;
+  rdfs:subClassOf prov:Entity .
+
+agentictrust:DIDLinkedResourceType a owl:Class ;
+  rdfs:label "DIDLinkedResourceType" ;
+  rdfs:comment "Type taxonomy for DID-linked resources (e.g., 'TrustRegistry', 'AgentProfile', 'CredentialStatusList', 'Schema')." ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# VC properties
+########
+
+agentictrust:credentialSchema a owl:ObjectProperty ;
+  rdfs:label "credentialSchema" ;
+  rdfs:comment "Links a VerifiableCredential to its CredentialSchema." ;
+  rdfs:domain agentictrust:VerifiableCredential ;
+  rdfs:range agentictrust:CredentialSchema .
+
+agentictrust:credentialIssuerAgent a owl:ObjectProperty ;
+  rdfs:label "credentialIssuerAgent" ;
+  rdfs:comment "Links a VerifiableCredential to the issuing Agent (prov:Agent). Prefer this when the issuer is directly representable as a prov:Agent; alternatively use credentialIssuerEntity for a richer issuer representation." ;
+  rdfs:domain agentictrust:VerifiableCredential ;
+  rdfs:range prov:Agent .
+
+agentictrust:credentialIssuerEntity a owl:ObjectProperty ;
+  rdfs:label "credentialIssuerEntity" ;
+  rdfs:comment "Links a VerifiableCredential to a CredentialIssuer entity (issuer representation)." ;
+  rdfs:domain agentictrust:VerifiableCredential ;
+  rdfs:range agentictrust:CredentialIssuer .
+
+agentictrust:credentialSubjectEntity a owl:ObjectProperty ;
+  rdfs:label "credentialSubjectEntity" ;
+  rdfs:comment "Links a VerifiableCredential to a CredentialSubject entity (subject representation). Often this will be an AgentIdentity or DIDDocument modeled as an Entity." ;
+  rdfs:domain agentictrust:VerifiableCredential ;
+  rdfs:range prov:Entity .
+
+agentictrust:presentsCredential a owl:ObjectProperty ;
+  rdfs:label "presentsCredential" ;
+  rdfs:comment "Links a CredentialPresentation artifact to a VerifiableCredential it presents." ;
+  rdfs:domain agentictrust:CredentialPresentation ;
+  rdfs:range agentictrust:VerifiableCredential .
+
+agentictrust:presentationHolder a owl:ObjectProperty ;
+  rdfs:label "presentationHolder" ;
+  rdfs:comment "Links a CredentialPresentation artifact to the holder Agent that presented it." ;
+  rdfs:domain agentictrust:CredentialPresentation ;
+  rdfs:range prov:Agent .
+
+agentictrust:credentialTypeValue a owl:DatatypeProperty ;
+  rdfs:label "credentialTypeValue" ;
+  rdfs:comment "Credential type string (VC type / profile type) for indexing and search." ;
+  rdfs:domain agentictrust:VerifiableCredential ;
+  rdfs:range xsd:string .
+
+########
+# Credential lifecycle activities (PROV Activities)
+########
+
+agentictrust:CredentialIssuance a owl:Class ;
+  rdfs:label "CredentialIssuance" ;
+  rdfs:comment "Activity that issues a VerifiableCredential. Modeled as an Attestation: accountable issuance act that generates a credential artifact." ;
+  rdfs:subClassOf agentictrust:Attestation ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty prov:generated ;
+    owl:allValuesFrom agentictrust:VerifiableCredential
+  ] .
+
+agentictrust:CredentialPresentationAct a owl:Class ;
+  rdfs:label "CredentialPresentationAct" ;
+  rdfs:comment "Activity that produces a CredentialPresentation (often holder-signed) from one or more VerifiableCredentials." ;
+  rdfs:subClassOf agentictrust:Attestation ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty prov:generated ;
+    owl:allValuesFrom agentictrust:CredentialPresentation
+  ] ;
+  rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty prov:used ;
+    owl:allValuesFrom agentictrust:VerifiableCredential
+  ] .
+
+agentictrust:CredentialVerification a owl:Class ;
+  rdfs:label "CredentialVerification" ;
+  rdfs:comment "Activity that verifies a credential or presentation (signature, schema, issuer trust chain, status). This is a PROV activity; represent outcomes as separate assertion artifacts (e.g., VerificationTrustAssertion) if you need durable evidence." ;
+  rdfs:subClassOf prov:Activity .
+
+########
+# DID-linked resources properties
+########
+
+agentictrust:didLinkedResourceOf a owl:ObjectProperty ;
+  rdfs:label "didLinkedResourceOf" ;
+  rdfs:comment "Links a DIDLinkedResource to the DID it is attached to (or discoverable from)." ;
+  rdfs:domain agentictrust:DIDLinkedResource ;
+  rdfs:range agentictrust:DID .
+
+agentictrust:didLinkedResourceType a owl:ObjectProperty ;
+  rdfs:label "didLinkedResourceType" ;
+  rdfs:comment "Links a DIDLinkedResource to its typed resource category." ;
+  rdfs:domain agentictrust:DIDLinkedResource ;
+  rdfs:range agentictrust:DIDLinkedResourceType .
+
+agentictrust:didLinkedResourceUri a owl:DatatypeProperty ;
+  rdfs:label "didLinkedResourceUri" ;
+  rdfs:comment "URI of the linked resource (string form) for retrieval." ;
+  rdfs:domain agentictrust:DIDLinkedResource ;
+  rdfs:range xsd:string .
+
+agentictrust:didLinkedResourceMediaType a owl:DatatypeProperty ;
+  rdfs:label "didLinkedResourceMediaType" ;
+  rdfs:comment "Media type (MIME type) for the linked resource." ;
+  rdfs:domain agentictrust:DIDLinkedResource ;
+  rdfs:range xsd:string .
+
+agentictrust:didLinkedResourceJson a owl:DatatypeProperty ;
+  rdfs:label "didLinkedResourceJson" ;
+  rdfs:comment "Optional embedded JSON payload for a DID-linked resource, when the resource content is stored inline." ;
+  rdfs:domain agentictrust:DIDLinkedResource ;
+  rdfs:range xsd:string .
+
+########
 # DID and Identity Properties (3-layer spine)
 ########
 

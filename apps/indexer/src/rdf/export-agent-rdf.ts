@@ -353,6 +353,18 @@ function delegationPermissionIri(chainId: number, kind: 'feedback-auth' | 'valid
   return `<https://www.agentictrust.io/id/delegation-permission/${kind}/${chainId}/${iriEncodeSegment(id)}>`;
 }
 
+function erc8092DelegationSituationIri(chainId: number, associationId: string): string {
+  return `<https://www.agentictrust.io/id/situation/delegation/erc8092/${chainId}/${iriEncodeSegment(associationId)}>`;
+}
+
+function erc8092DelegationTrustAssertionIri(chainId: number, associationId: string): string {
+  return `<https://www.agentictrust.io/id/delegation-trust-assertion/erc8092/${chainId}/${iriEncodeSegment(associationId)}>`;
+}
+
+function erc8092DelegationPermissionIri(chainId: number, associationId: string, index: number): string {
+  return `<https://www.agentictrust.io/id/delegation-permission/erc8092/${chainId}/${iriEncodeSegment(associationId)}/${index}>`;
+}
+
 function associationIri(chainId: number, associationId: string): string {
   return `<https://www.agentictrust.io/id/association/${chainId}/${iriEncodeSegment(associationId)}>`;
 }
@@ -1749,6 +1761,26 @@ async function exportAgentsRdfInternal(
   // ---- Trust registries (feedback/validation/associations) ----
   // Best-effort: if tables do not exist, skip without failing export.
 
+  // ERC-8092 delegation payloads (IPFS-backed) used to derive Delegation situations/assertions.
+  const assocDelegationsRaw = await safeAll(`
+    SELECT d.*
+    FROM association_delegations d
+  `);
+  const assocDelegationByKey = new Map<string, any>(); // `${chainId}|${associationId}` -> row
+  const delegationByFeedbackAuth = new Map<string, string>(); // feedbackAuth -> delegationAssertionIri
+  const delegationByRequestHash = new Map<string, string>(); // requestHash -> delegationAssertionIri
+  for (const d of assocDelegationsRaw) {
+    const chainId = Number(d?.chainId ?? 0) || 0;
+    const associationId = String(d?.associationId ?? '');
+    if (!associationId) continue;
+    assocDelegationByKey.set(`${chainId}|${associationId}`, d);
+    const fb = typeof d?.extractedFeedbackAuth === 'string' ? d.extractedFeedbackAuth.trim() : '';
+    const rh = typeof d?.extractedRequestHash === 'string' ? d.extractedRequestHash.trim() : '';
+    const delIri = erc8092DelegationTrustAssertionIri(chainId, associationId);
+    if (fb) delegationByFeedbackAuth.set(fb, delIri);
+    if (rh) delegationByRequestHash.set(rh, delIri);
+  }
+
   const feedbacks = await safeAll(
     `
     SELECT f.*
@@ -1915,14 +1947,18 @@ async function exportAgentsRdfInternal(
       chunks.push(off.join('\n'));
     }
 
-    // --- FeedbackAuth delegation (request situation + delegation assertion + authorization link) ---
+    // --- FeedbackAuth delegation (authorization link) ---
     const feedbackAuthToken =
       typeof f?.feedbackAuth === 'string' && f.feedbackAuth.trim()
         ? String(f.feedbackAuth).trim()
         : fbObj && typeof (fbObj as any).feedbackAuth === 'string' && String((fbObj as any).feedbackAuth).trim()
           ? String((fbObj as any).feedbackAuth).trim()
           : '';
-    if (feedbackAuthToken && client) {
+    const onchainDelegation = feedbackAuthToken ? delegationByFeedbackAuth.get(feedbackAuthToken) : undefined;
+    if (onchainDelegation) {
+      // Prefer ERC-8092 delegation assertion if present.
+      recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${onchainDelegation} ;`);
+    } else if (feedbackAuthToken && client) {
       ensureAccountNode(chunks, chainId, client, 'EOA');
       const clientIri = accountIri(chainId, client);
 
@@ -2065,7 +2101,8 @@ async function exportAgentsRdfInternal(
         if (mk) ensureAgentNode(mk.chainId, mk.agentId);
       }
     }
-    if (typeof v?.requestHash === 'string' && v.requestHash.trim()) lines.push(`  erc8004:requestHash "${escapeTurtleString(String(v.requestHash))}" ;`);
+    const requestHash = typeof v?.requestHash === 'string' ? v.requestHash.trim() : '';
+    if (requestHash) lines.push(`  erc8004:requestHash "${escapeTurtleString(String(requestHash))}" ;`);
     if (v?.requestJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(v.requestJson))} ;`);
     const reqObj = safeJsonObject(v?.requestJson);
     let deadlineLit: string | null = null;
@@ -2150,27 +2187,33 @@ async function exportAgentsRdfInternal(
     permLines.push(`  .\n`);
     chunks.push(permLines.join('\n'));
 
-    // DelegationTrustAssertion (grant) + act, tied to the ValidationRequest situation.
-    const delIri = delegationTrustAssertionIri(chainId, 'validation-request', id);
-    delegationByRequestIri.set(vi, delIri);
-    const delActIri = actIriFromRecordIri(delIri);
-    const delRec: string[] = [];
-    delRec.push(`${delIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
-    delRec.push(`  agentictrust:recordsSituation ${vi} ;`);
-    delRec.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
-    delRec.push(`  prov:wasAttributedTo ${ai} ;`);
-    if (meta?.identity8004Iri) delRec.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
-    delRec.push(`  .\n`);
-    chunks.push(delRec.join('\n'));
+    // DelegationTrustAssertion (grant) + act:
+    // Prefer onchain ERC-8092 delegation assertion if requestHash is present and mapped; otherwise synthesize.
+    const onchainDel = requestHash ? delegationByRequestHash.get(requestHash) : undefined;
+    if (onchainDel) {
+      delegationByRequestIri.set(vi, onchainDel);
+    } else {
+      const delIri = delegationTrustAssertionIri(chainId, 'validation-request', id);
+      delegationByRequestIri.set(vi, delIri);
+      const delActIri = actIriFromRecordIri(delIri);
+      const delRec: string[] = [];
+      delRec.push(`${delIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
+      delRec.push(`  agentictrust:recordsSituation ${vi} ;`);
+      delRec.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
+      delRec.push(`  prov:wasAttributedTo ${ai} ;`);
+      if (meta?.identity8004Iri) delRec.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+      delRec.push(`  .\n`);
+      chunks.push(delRec.join('\n'));
 
-    const delAct: string[] = [];
-    delAct.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
-    delAct.push(`  agentictrust:assertsSituation ${vi} ;`);
-    delAct.push(`  agentictrust:generatedAssertionRecord ${delIri} ;`);
-    delAct.push(`  prov:wasAssociatedWith ${ai} ;`);
-    delAct.push(`  agentictrust:assertedBy ${ai} ;`);
-    delAct.push(`  .\n`);
-    chunks.push(delAct.join('\n'));
+      const delAct: string[] = [];
+      delAct.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
+      delAct.push(`  agentictrust:assertsSituation ${vi} ;`);
+      delAct.push(`  agentictrust:generatedAssertionRecord ${delIri} ;`);
+      delAct.push(`  prov:wasAssociatedWith ${ai} ;`);
+      delAct.push(`  agentictrust:assertedBy ${ai} ;`);
+      delAct.push(`  .\n`);
+      chunks.push(delAct.join('\n'));
+    }
 
     const rh = typeof v?.requestHash === 'string' ? v.requestHash.trim() : '';
     if (rh) requestByHash.set(`${chainId}|${rh}`, vi);
@@ -2538,6 +2581,66 @@ async function exportAgentsRdfInternal(
     }
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
+
+    // --- ERC-8092 delegation payload → DelegationTrustSituation/Assertion (best-effort) ---
+    const drow = assocDelegationByKey.get(`${chainId}|${associationId}`);
+    const delegationJsonText = typeof drow?.delegationJson === 'string' ? drow.delegationJson.trim() : '';
+    const decodedText = typeof drow?.decodedDataText === 'string' ? drow.decodedDataText.trim() : '';
+    if (drow && (delegationJsonText || decodedText)) {
+      const delSituationIri = erc8092DelegationSituationIri(chainId, associationId);
+      const delAssertionIri = erc8092DelegationTrustAssertionIri(chainId, associationId);
+      const delActIri = actIriFromRecordIri(delAssertionIri);
+
+      // Delegation situation (state/constraints)
+      const s: string[] = [];
+      s.push(`${delSituationIri} a agentictrust:DelegationTrustSituation, agentictrust:DelegationSituation, agentictrust:TrustSituation, prov:Entity ;`);
+      s.push(`  agentictrust:assertedIn ${raIri} ;`);
+      s.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.delegation')}> ;`);
+      if (initiator) s.push(`  agentictrust:delegationDelegator ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
+      if (approver) s.push(`  agentictrust:delegationDelegatee ${approverAgent ?? accountIri(chainId, approver)} ;`);
+      if (typeof drow?.ipfsCid === 'string' && drow.ipfsCid.trim())
+        s.push(`  agentictrust:delegationAuthorityValue "${escapeTurtleString(drow.ipfsCid.trim())}" ;`);
+      if (delegationJsonText) s.push(`  agentictrust:json ${turtleJsonLiteral(delegationJsonText)} ;`);
+      else s.push(`  agentictrust:json ${turtleJsonLiteral(JSON.stringify({ raw: decodedText }))} ;`);
+      s.push(`  .\n`);
+      chunks.push(s.join('\n'));
+
+      // Minimal permission extraction: try known keys, else fall back to inferred kind.
+      let permAction = '';
+      if (typeof drow?.extractedKind === 'string') {
+        const k = drow.extractedKind.trim().toLowerCase();
+        if (k.includes('feedback')) permAction = 'giveFeedback';
+        else if (k.includes('validation')) permAction = 'validate';
+      }
+      if (!permAction && typeof drow?.extractedFeedbackAuth === 'string' && drow.extractedFeedbackAuth.trim()) permAction = 'giveFeedback';
+      if (!permAction && typeof drow?.extractedRequestHash === 'string' && drow.extractedRequestHash.trim()) permAction = 'validate';
+
+      const permIri = erc8092DelegationPermissionIri(chainId, associationId, 1);
+      const p: string[] = [];
+      p.push(`${permIri} a agentictrust:DelegationPermission, prov:Entity ;`);
+      if (permAction) p.push(`  agentictrust:permissionAction "${escapeTurtleString(permAction)}" ;`);
+      p.push(`  .\n`);
+      chunks.push(p.join('\n'));
+      chunks.push(`${delSituationIri} agentictrust:delegationGrantsPermission ${permIri} .\n`);
+
+      // Delegation assertion record + act
+      const r: string[] = [];
+      r.push(`${delAssertionIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
+      r.push(`  agentictrust:recordsSituation ${delSituationIri} ;`);
+      r.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
+      r.push(`  prov:wasDerivedFrom ${raIri} ;`);
+      if (initiator) r.push(`  prov:wasAttributedTo ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
+      r.push(`  .\n`);
+      chunks.push(r.join('\n'));
+
+      const a: string[] = [];
+      a.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
+      a.push(`  agentictrust:generatedAssertionRecord ${delAssertionIri} ;`);
+      a.push(`  agentictrust:assertsSituation ${delSituationIri} ;`);
+      if (initiator) a.push(`  prov:wasAssociatedWith ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
+      a.push(`  .\n`);
+      chunks.push(a.join('\n'));
+    }
 
     // Act: provenance-bearing activity that generated the record and asserted the situation.
     chunks.push(`${actIri} a erc8092:AssociatedAccountsAct8092, agentictrust:TrustAssertionAct, prov:Activity ;\n`);

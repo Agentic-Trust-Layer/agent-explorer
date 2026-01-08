@@ -212,6 +212,33 @@ async function initializeSchema() {
   } catch (e: any) {
     console.warn('⚠️  Could not create agent_domains/agent_protocols tables (run migrations manually if needed).', String(e?.message || e));
   }
+
+  // ERC-8092 delegation metadata (best-effort for dev; migrations should handle prod)
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS association_delegations (
+        chainId INTEGER NOT NULL,
+        associationId TEXT NOT NULL,
+        ipfsUri TEXT,
+        ipfsCid TEXT,
+        delegationJson TEXT,
+        decodedDataText TEXT,
+        extractedKind TEXT,
+        extractedFeedbackAuth TEXT,
+        extractedRequestHash TEXT,
+        fetchedAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL,
+        PRIMARY KEY (chainId, associationId)
+      );
+      CREATE INDEX IF NOT EXISTS idx_assoc_delegations_chain ON association_delegations(chainId);
+      CREATE INDEX IF NOT EXISTS idx_assoc_delegations_cid ON association_delegations(ipfsCid);
+      CREATE INDEX IF NOT EXISTS idx_assoc_delegations_feedbackAuth ON association_delegations(extractedFeedbackAuth);
+      CREATE INDEX IF NOT EXISTS idx_assoc_delegations_requestHash ON association_delegations(extractedRequestHash);
+      CREATE INDEX IF NOT EXISTS idx_assoc_delegations_decodedText ON association_delegations(decodedDataText);
+    `);
+  } catch (e: any) {
+    console.warn('⚠️  Could not create association_delegations table (run migrations manually if needed).', String(e?.message || e));
+  }
 }
 
 let schemaInitialized = false;

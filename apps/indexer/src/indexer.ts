@@ -121,6 +121,187 @@ function extractCid(tokenURI: string): string | null {
   return null;
 }
 
+function hexToUtf8(dataHex: string): string | null {
+  const h = typeof dataHex === 'string' ? dataHex.trim() : '';
+  if (!h || !h.startsWith('0x')) return null;
+  const hex = h.slice(2);
+  if (!hex || hex.length % 2 !== 0) return null;
+  try {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    const trimmed = text.replace(/\u0000/g, '').trim();
+    if (!trimmed) return null;
+    // Heuristic: require that the output is mostly printable
+    const printable = trimmed.replace(/[^\x09\x0a\x0d\x20-\x7e]/g, '');
+    if (printable.length / trimmed.length < 0.75) return null;
+    return trimmed;
+  } catch {
+    return null;
+  }
+}
+
+function decodeAbiStringFromBytesHex(dataHex: string): string | null {
+  const h = typeof dataHex === 'string' ? dataHex.trim() : '';
+  if (!h || !h.startsWith('0x')) return null;
+  const hex = h.slice(2);
+  if (!hex || hex.length % 2 !== 0) return null;
+  try {
+    const bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+    const readWord = (wordIndex: number): bigint => {
+      const off = wordIndex * 32;
+      if (off + 32 > bytes.byteLength) return 0n;
+      let v = 0n;
+      for (let i = 0; i < 32; i++) v = (v << 8n) | BigInt(bytes[off + i]);
+      return v;
+    };
+
+    const tryOffset = (off: bigint): string | null => {
+      const o = Number(off);
+      if (!Number.isFinite(o) || o < 0 || o + 32 > bytes.byteLength) return null;
+      if (o % 32 !== 0) return null;
+      // length word
+      let len = 0n;
+      for (let i = 0; i < 32; i++) len = (len << 8n) | BigInt(bytes[o + i]);
+      const n = Number(len);
+      if (!Number.isFinite(n) || n < 0 || o + 32 + n > bytes.byteLength) return null;
+      const slice = bytes.slice(o + 32, o + 32 + n);
+      const txt = new TextDecoder('utf-8', { fatal: false }).decode(slice).replace(/\u0000/g, '').trim();
+      return txt || null;
+    };
+
+    // Common patterns:
+    // 1) abi.encode(string): first word is offset (0x20)
+    // 2) abi.encode(uint256, string): second word is offset (0x40)
+    const w0 = readWord(0);
+    const w1 = readWord(1);
+    return tryOffset(w0) ?? tryOffset(w1);
+  } catch {
+    return null;
+  }
+}
+
+function extractIpfsUriFromAssociationData(dataHex: string): { ipfsUri: string; cid: string } | null {
+  // Try decode bytes->utf8 first; otherwise fall back to scanning for CID patterns.
+  const decodedAbi = decodeAbiStringFromBytesHex(dataHex) ?? '';
+  const decoded = decodedAbi || hexToUtf8(dataHex) || '';
+  const candidates: string[] = [];
+  if (decoded) candidates.push(decoded);
+  // Also include hex itself as a scan surface (some encodings embed ASCII)
+  candidates.push(dataHex);
+
+  for (const s of candidates) {
+    if (!s) continue;
+    const cid = extractCid(s);
+    if (cid) {
+      // Normalize to ipfs://CID if we don't already have an ipfs-like URI
+      const ipfsUri = s.includes('ipfs://') || s.includes('/ipfs/') || s.includes('.ipfs.')
+        ? s
+        : `ipfs://${cid}`;
+      return { ipfsUri, cid };
+    }
+  }
+  return null;
+}
+
+function deepFindString(obj: any, keys: string[]): string | null {
+  const seen = new Set<any>();
+  const maxNodes = 10_000;
+  let nodes = 0;
+  const stack: any[] = [obj];
+  while (stack.length) {
+    const cur = stack.pop();
+    nodes += 1;
+    if (nodes > maxNodes) return null;
+    if (!cur || typeof cur !== 'object') continue;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    for (const k of keys) {
+      const v = (cur as any)[k];
+      if (typeof v === 'string' && v.trim()) return v.trim();
+    }
+    if (Array.isArray(cur)) {
+      for (const v of cur) stack.push(v);
+    } else {
+      for (const v of Object.values(cur)) stack.push(v);
+    }
+  }
+  return null;
+}
+
+async function upsertAssociationDelegationFromIpfs(item: any, chainId: number, dbInstance: any): Promise<void> {
+  const associationId = normalizeHex(item?.id != null ? String(item.id) : null);
+  if (!associationId) return;
+  const dataHex = normalizeHex(item?.data != null ? String(item.data) : null) ?? '';
+  if (!dataHex) return;
+
+  const decodedText = decodeAbiStringFromBytesHex(dataHex) ?? hexToUtf8(dataHex);
+  const ptr = extractIpfsUriFromAssociationData(dataHex);
+  let json: any | null = null;
+  if (ptr) {
+    json = await fetchIpfsJson(ptr.ipfsUri);
+    if (!json || typeof json !== 'object') json = null;
+  }
+  // If we can't fetch IPFS JSON, still persist decoded text (so RDF export can materialize delegations).
+  if (!json && !decodedText) return;
+  if (!json && decodedText) json = { raw: decodedText };
+
+  const extractedFeedbackAuth = deepFindString(json, ['feedbackAuth', 'feedback_auth', 'feedbackAuthToken']);
+  const extractedRequestHash = deepFindString(json, ['requestHash', 'request_hash', 'validationRequestHash']);
+  const extractedKind =
+    extractedFeedbackAuth ? 'feedbackAuth' : extractedRequestHash ? 'validationRequest' : (deepFindString(json, ['type', '@type']) ?? 'unknown');
+
+  const now = Math.floor(Date.now() / 1000);
+  const stmt = dbInstance.prepare(`
+    INSERT INTO association_delegations(
+      chainId, associationId,
+      ipfsUri, ipfsCid, delegationJson, decodedDataText,
+      extractedKind, extractedFeedbackAuth, extractedRequestHash,
+      fetchedAt, updatedAt
+    )
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(chainId, associationId) DO UPDATE SET
+      ipfsUri=excluded.ipfsUri,
+      ipfsCid=excluded.ipfsCid,
+      delegationJson=excluded.delegationJson,
+      decodedDataText=excluded.decodedDataText,
+      extractedKind=excluded.extractedKind,
+      extractedFeedbackAuth=excluded.extractedFeedbackAuth,
+      extractedRequestHash=excluded.extractedRequestHash,
+      updatedAt=excluded.updatedAt
+  `);
+
+  await stmt.run(
+    chainId,
+    associationId,
+    ptr?.ipfsUri ?? '',
+    ptr?.cid ?? '',
+    JSON.stringify(json),
+    decodedText ?? '',
+    extractedKind,
+    extractedFeedbackAuth ?? '',
+    extractedRequestHash ?? '',
+    now,
+    now,
+  );
+
+  // Debug-friendly: confirm we wrote something for this association.
+  if (process?.env?.DEBUG_ASSOC_DELEGATIONS === '1') {
+    console.info('............association_delegations upserted', {
+      chainId,
+      associationId,
+      ipfsCid: ptr?.cid ?? '',
+      kind: extractedKind,
+      hasDecodedText: Boolean(decodedText && decodedText.trim()),
+    });
+  }
+}
+
 /**
  * Create an AbortSignal with timeout (compatible with both Node.js and Workers)
  */
@@ -3075,6 +3256,13 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const blockNum = BigInt(assoc?.lastUpdatedBlockNumber || assoc?.createdBlockNumber || 0);
     try {
       await upsertAssociationFromGraph(assoc, chainId, dbInstance, associationAccountsBatch, associationsBatch);
+      // Best-effort: if the association.data points to IPFS delegation metadata, fetch+persist it for RDF export.
+      try {
+        await upsertAssociationDelegationFromIpfs(assoc, chainId, dbInstance);
+      } catch (e) {
+        // Do not fail the full backfill on IPFS issues.
+        console.warn('⚠️  association delegation IPFS ingest failed (best-effort)', { id: assoc?.id, err: String((e as any)?.message || e) });
+      }
       await updateAssociationCheckpointIfNeeded(blockNum);
       if ((i + 1) % 50 === 0 || i === associationsOrdered.length - 1) {
         console.info(`............  associations progress: ${i + 1}/${associationsOrdered.length} (block ${blockNum})`);
