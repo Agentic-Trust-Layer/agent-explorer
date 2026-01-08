@@ -49,9 +49,9 @@ async function fetchSignals(db: DB, chainId: number, agentId: string): Promise<A
          WHERE a.chainId = ?
            AND (a.revokedAt IS NULL OR a.revokedAt = 0)
            AND (
-             substr(a.initiatorAccountId, -40) = substr(LOWER((SELECT COALESCE(agentAccount, agentAddress) FROM agents WHERE chainId = ? AND agentId = ?)), -40)
+             substr(a.initiatorAccountId, -40) = substr(LOWER((SELECT agentAccount FROM agents WHERE chainId = ? AND agentId = ?)), -40)
              OR
-             substr(a.approverAccountId, -40) = substr(LOWER((SELECT COALESCE(agentAccount, agentAddress) FROM agents WHERE chainId = ? AND agentId = ?)), -40)
+             substr(a.approverAccountId, -40) = substr(LOWER((SELECT agentAccount FROM agents WHERE chainId = ? AND agentId = ?)), -40)
            )
         ) AS approvedAssociationCount,
         (SELECT COUNT(*) FROM rep_feedbacks rf WHERE rf.chainId = ? AND rf.agentId = ?) AS feedbackCount,
@@ -111,7 +111,7 @@ async function rulePasses(
           INNER JOIN agents validator_agent ON 
             validator_agent.chainId = vr.chainId 
             AND (
-              substr(LOWER(COALESCE(validator_agent.agentAccount, validator_agent.agentAddress)), -40) = substr(LOWER(vr.validatorAddress), -40)
+              substr(LOWER(validator_agent.agentAccount), -40) = substr(LOWER(vr.validatorAddress), -40)
             )
           WHERE vr.chainId = ? 
             AND vr.agentId = ? 
@@ -153,10 +153,10 @@ async function rulePasses(
           FROM associations a
           INNER JOIN agents initiator_agent ON
             initiator_agent.chainId = a.chainId
-            AND substr(LOWER(COALESCE(initiator_agent.agentAccount, initiator_agent.agentAddress)), -40) = substr(LOWER(a.initiatorAccountId), -40)
+            AND substr(LOWER(initiator_agent.agentAccount), -40) = substr(LOWER(a.initiatorAccountId), -40)
           INNER JOIN agents approver_agent ON
             approver_agent.chainId = a.chainId
-            AND substr(LOWER(COALESCE(approver_agent.agentAccount, approver_agent.agentAddress)), -40) = substr(LOWER(a.approverAccountId), -40)
+            AND substr(LOWER(approver_agent.agentAccount), -40) = substr(LOWER(a.approverAccountId), -40)
           WHERE a.chainId = ?
             AND initiator_agent.agentId = ?
             AND (a.revokedAt IS NULL OR a.revokedAt = 0)

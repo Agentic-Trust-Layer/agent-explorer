@@ -63,13 +63,12 @@ export async function computeAndUpsertATI(db: DB, chainId: number, agentId: stri
       SELECT
         a.chainId,
         a.agentId,
-        LOWER(COALESCE(a.agentAccount, a.agentAddress)) AS agentAccountLower,
+        LOWER(a.agentAccount) AS agentAccountLower,
         a.createdAtTime,
         a.updatedAtTime,
         a.didIdentity,
         a.didAccount,
         a.didName,
-        a.ensEndpoint,
         -- existing aggregates
         (SELECT COUNT(*) FROM rep_feedbacks rf WHERE rf.chainId = a.chainId AND rf.agentId = a.agentId) AS feedbackCount,
         (SELECT AVG(score) FROM rep_feedbacks rf WHERE rf.chainId = a.chainId AND rf.agentId = a.agentId AND rf.score IS NOT NULL) AS feedbackAverageScore,
@@ -78,13 +77,13 @@ export async function computeAndUpsertATI(db: DB, chainId: number, agentId: stri
          FROM associations assoc
          WHERE assoc.chainId = a.chainId
            AND (assoc.revokedAt IS NULL OR assoc.revokedAt = 0)
-           AND substr(assoc.initiatorAccountId, -40) = substr(LOWER(COALESCE(a.agentAccount, a.agentAddress)), -40)
+           AND substr(assoc.initiatorAccountId, -40) = substr(LOWER(a.agentAccount), -40)
         ) AS initiatedAssociationCount,
         (SELECT COUNT(*)
          FROM associations assoc
          WHERE assoc.chainId = a.chainId
            AND (assoc.revokedAt IS NULL OR assoc.revokedAt = 0)
-           AND substr(assoc.approverAccountId, -40) = substr(LOWER(COALESCE(a.agentAccount, a.agentAddress)), -40)
+           AND substr(assoc.approverAccountId, -40) = substr(LOWER(a.agentAccount), -40)
         ) AS approvedAssociationCount
       FROM agents a
       WHERE a.chainId = ? AND a.agentId = ?
@@ -119,8 +118,7 @@ export async function computeAndUpsertATI(db: DB, chainId: number, agentId: stri
   // --- Provenance (0..100) ---
   // Simple: reward stable identity anchors being present.
   const hasDidName = Boolean(row.didName);
-  const hasEnsEndpoint = Boolean(row.ensEndpoint);
-  // Removed: agentAccountEndpoint (confusing/overloaded)
+  const hasEnsEndpoint = false;
   const hasAccountEndpoint = false;
   const provenanceScore = clamp100(
     100 *

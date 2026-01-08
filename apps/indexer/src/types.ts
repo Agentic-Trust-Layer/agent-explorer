@@ -2,7 +2,6 @@ import type { Address } from "viem";
 
 export type AgentRow = {
   agentId: string;           // store uint256 as DEC string for easy querying
-  agentAddress: Address;     // deprecated
   agentAccount: Address;     // the agent's canonical account address (subgraph agentWallet)
   owner?: Address;           // not in your ABI; keep optional for future
   agentUri?: string | null; // optional for future

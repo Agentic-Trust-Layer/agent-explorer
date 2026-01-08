@@ -939,6 +939,9 @@ async function attachAgentMetadataToAgents(db: any, agents: any[]): Promise<void
   }
 }
 
+// Back-compat for resolver callsites (the storage table is `agent_metadata` now).
+const attachTokenMetadataToAgents = attachAgentMetadataToAgents;
+
 function parseChainIdValue(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -1076,14 +1079,14 @@ const INITIATED_ASSOCIATION_COUNT_EXPR = `
 (SELECT COUNT(*)
  FROM associations assoc
  WHERE assoc.chainId = agents.chainId
-   AND substr(assoc.initiatorAccountId, -40) = substr(LOWER(COALESCE(agents.agentAccount, agents.agentAddress)), -40)
+   AND substr(assoc.initiatorAccountId, -40) = substr(LOWER(agents.agentAccount), -40)
    AND (assoc.revokedAt IS NULL OR assoc.revokedAt = 0))`;
 
 const APPROVED_ASSOCIATION_COUNT_EXPR = `
 (SELECT COUNT(*)
  FROM associations assoc
  WHERE assoc.chainId = agents.chainId
-   AND substr(assoc.approverAccountId, -40) = substr(LOWER(COALESCE(agents.agentAccount, agents.agentAddress)), -40)
+   AND substr(assoc.approverAccountId, -40) = substr(LOWER(agents.agentAccount), -40)
    AND (assoc.revokedAt IS NULL OR assoc.revokedAt = 0))`;
 
 const ATI_OVERALL_SCORE_EXPR = `
@@ -1733,7 +1736,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
 
         let sqlQuery = `
           SELECT ${AGENT_BASE_COLUMNS} FROM agents
-          WHERE (agentName LIKE ? OR description LIKE ? OR agentId LIKE ? OR COALESCE(agentAccount, agentAddress) LIKE ?)
+          WHERE (agentName LIKE ? OR description LIKE ? OR agentId LIKE ? OR agentAccount LIKE ?)
         `;
         const params: any[] = [searchPattern, searchPattern, searchPattern, searchPattern];
 
@@ -2492,7 +2495,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const offset = typeof args.skip === 'number' && Number.isFinite(args.skip) && args.skip >= 0 ? args.skip : 0;
 
       const agentRow = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`, [chainId, agentId]);
-      const agentAccount = normalizeHexLike((agentRow as any)?.agentAccount) || normalizeHexLike((agentRow as any)?.agentAddress);
+      const agentAccount = normalizeHexLike((agentRow as any)?.agentAccount);
       if (!agentAccount || !isAddressHex(agentAccount)) {
         return [];
       }
@@ -2556,7 +2559,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
 
       const getAccountForAgent = async (agentId: string) => {
         const row = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`, [chainId, String(agentId)]);
-        const acct = normalizeHexLike((row as any)?.agentAccount) || normalizeHexLike((row as any)?.agentAddress);
+        const acct = normalizeHexLike((row as any)?.agentAccount);
         return acct && isAddressHex(acct) ? acct : null;
       };
 
@@ -2628,7 +2631,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         };
       }
 
-      const agentAccount = normalizeHexLike((agentRow as any)?.agentAccount) || normalizeHexLike((agentRow as any)?.agentAddress);
+      const agentAccount = normalizeHexLike((agentRow as any)?.agentAccount);
       if (!agentAccount || !isAddressHex(agentAccount)) {
         reasons.push({ code: 'AGENT_ACCOUNT_NOT_ADDRESS', weight: 1, detail: 'Agent account is not an address-like association id; overlap will be 0' });
       }
@@ -2890,7 +2893,7 @@ async function hydrateAssociations(db: any, rows: any[]): Promise<any[]> {
 function computeDIDValues(agent: any): { didIdentity: string; didAccount: string; didName: string | null } {
   const chainId = agent.chainId;
   const agentId = agent.agentId;
-  const agentAccount = agent.agentAccount || agent.agentAddress;
+  const agentAccount = agent.agentAccount;
   const agentName = agent.agentName;
 
   const didIdentity = `did:8004:${chainId}:${agentId}`;

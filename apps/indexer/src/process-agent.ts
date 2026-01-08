@@ -331,50 +331,54 @@ export async function processAgentDirectly(
   if (ownerAddress !== '0x000000000000000000000000000000000000dEaD') {
     const currentTime = Math.floor(Date.now() / 1000);
     const resolvedEoaOwnerAccount = await resolveEoaOwnerSafe(chainId, ownerAddress);
-    const eoaAgentIdentityOwnerAccount = resolvedEoaOwnerAccount ?? ownerAddress;
+    const eoaAgentIdentityOwnerAccountAddr = (resolvedEoaOwnerAccount ?? ownerAddress).toLowerCase();
+    const agentAccountAddrFinal = (agentAccount ?? ownerAddress).toLowerCase();
     const resolvedEoaAgentAccount = agentAccount ? await resolveEoaOwnerSafe(chainId, agentAccount) : null;
-    const eoaAgentAccount = resolvedEoaAgentAccount ?? agentAccount;
-    const agentIdentityOwnerAccountType = resolvedEoaOwnerAccount
-      ? (resolvedEoaOwnerAccount.toLowerCase() === ownerAddress.toLowerCase() ? 'EOA' : 'SmartAccount')
-      : null;
-    const agentAccountType = resolvedEoaAgentAccount && agentAccount
-      ? (resolvedEoaAgentAccount.toLowerCase() === agentAccount.toLowerCase() ? 'EOA' : 'SmartAccount')
-      : null;
+    const eoaAgentAccountAddr = (resolvedEoaAgentAccount ?? agentAccountAddrFinal).toLowerCase();
+
+    // Canonical DB storage: "{chainId}:{0x...}"
+    const agentAccountId = `${chainId}:${agentAccountAddrFinal}`;
+    const eoaAgentAccountId = `${chainId}:${eoaAgentAccountAddr}`;
+    const agentIdentityOwnerAccountId = `${chainId}:${ownerAddress.toLowerCase()}`;
+    const eoaAgentIdentityOwnerAccountId = `${chainId}:${eoaAgentIdentityOwnerAccountAddr}`;
     
     // Compute DID values
     const didIdentity = `did:8004:${chainId}:${agentId}`;
-    const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
+    const didAccount = agentAccountAddrFinal ? `did:ethr:${chainId}:${agentAccountAddrFinal}` : '';
     const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
     
     // Insert or update agent
     console.log('********************* process-agent: inserting or updating agent: ', agentId, agentAccount, ownerAddress, agentName, tokenURI, a2aEndpoint, blockNumber, currentTime);
     await executeUpdate(db, `
-      INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, eoaAgentAccount, agentIdentityOwnerAccountType, agentAccountType, agentName, agentUri, a2aEndpoint, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO agents(
+        chainId, agentId,
+        agentAccount, eoaAgentAccount,
+        agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount,
+        agentName, agentUri, a2aEndpoint,
+        createdAtBlock, createdAtTime,
+        didIdentity, didAccount, didName,
+        updatedAtTime
+      )
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
-        agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
-        agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
-        agentIdentityOwnerAccount=excluded.agentIdentityOwnerAccount,
-        eoaAgentIdentityOwnerAccount=CASE WHEN excluded.eoaAgentIdentityOwnerAccount IS NOT NULL AND excluded.eoaAgentIdentityOwnerAccount != '' THEN excluded.eoaAgentIdentityOwnerAccount ELSE eoaAgentIdentityOwnerAccount END,
+        agentAccount=excluded.agentAccount,
         eoaAgentAccount=COALESCE(excluded.eoaAgentAccount, eoaAgentAccount),
-        agentIdentityOwnerAccountType=COALESCE(excluded.agentIdentityOwnerAccountType, agentIdentityOwnerAccountType),
-        agentAccountType=COALESCE(excluded.agentAccountType, agentAccountType),
+        agentIdentityOwnerAccount=excluded.agentIdentityOwnerAccount,
+        eoaAgentIdentityOwnerAccount=COALESCE(excluded.eoaAgentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount),
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
         a2aEndpoint=COALESCE(excluded.a2aEndpoint, a2aEndpoint),
         agentUri=COALESCE(excluded.agentUri, agentUri),
         didIdentity=COALESCE(excluded.didIdentity, didIdentity),
         didAccount=COALESCE(excluded.didAccount, didAccount),
-        didName=COALESCE(excluded.didName, didName)
+        didName=COALESCE(excluded.didName, didName),
+        updatedAtTime=COALESCE(excluded.updatedAtTime, updatedAtTime)
     `, [
       chainId,
       agentId,
-      agentAccount, // Keep agentAddress for backward compatibility
-      agentAccount,
-      ownerAddress,
-      eoaAgentIdentityOwnerAccount,
-      eoaAgentAccount,
-      agentIdentityOwnerAccountType,
-      agentAccountType,
+      agentAccountId,
+      eoaAgentAccountId,
+      agentIdentityOwnerAccountId,
+      eoaAgentIdentityOwnerAccountId,
       agentName,
       tokenURI,
       a2aEndpoint,
@@ -383,6 +387,7 @@ export async function processAgentDirectly(
       didIdentity,
       didAccount,
       didName,
+      currentTime,
     ]);
 
     // Update metadata fields if available
@@ -400,8 +405,6 @@ export async function processAgentDirectly(
           return e && typeof e.endpoint === 'string' ? e.endpoint : null;
         };
         const a2aEp = findEndpoint('A2A') || findEndpoint('a2a');
-        const ensEndpoint = findEndpoint('ENS');
-        // Removed: agentAccountEndpoint (confusing/overloaded)
         const supportedTrust = Array.isArray(meta.supportedTrust) ? meta.supportedTrust.map(String) : [];
         const did = typeof meta.did === 'string' ? meta.did : null;
         const mcp = !!(meta.mcp === true || meta.mcp === 1 || String(meta.mcp).toLowerCase() === 'true');
@@ -423,38 +426,10 @@ export async function processAgentDirectly(
         await executeUpdate(db, `
           UPDATE agents SET
             type = COALESCE(type, ?),
-            agentName = CASE 
-              WHEN ? IS NOT NULL AND ? != '' THEN ? 
-              ELSE agentName 
-            END,
-            agentAddress = CASE
-              WHEN (agentAddress IS NULL OR agentAddress = '0x0000000000000000000000000000000000000000')
-                   AND (? IS NOT NULL AND ? != '0x0000000000000000000000000000000000000000')
-              THEN ?
-              ELSE agentAddress
-            END,
-            agentAccount = CASE
-              WHEN (agentAccount IS NULL OR agentAccount = '0x0000000000000000000000000000000000000000')
-                   AND (? IS NOT NULL AND ? != '0x0000000000000000000000000000000000000000')
-              THEN ?
-              ELSE COALESCE(agentAccount, agentAddress)
-            END,
-            description = CASE 
-              WHEN ? IS NOT NULL AND ? != '' THEN ? 
-              ELSE description 
-            END,
-            image = CASE 
-              WHEN ? IS NOT NULL AND ? != '' THEN ? 
-              ELSE image 
-            END,
-            a2aEndpoint = CASE 
-              WHEN ? IS NOT NULL AND ? != '' THEN ? 
-              ELSE a2aEndpoint 
-            END,
-            ensEndpoint = CASE 
-              WHEN ? IS NOT NULL AND ? != '' THEN ? 
-              ELSE ensEndpoint 
-            END,
+            agentName = COALESCE(NULLIF(TRIM(?), ''), agentName),
+            description = COALESCE(?, description),
+            image = COALESCE(?, image),
+            a2aEndpoint = COALESCE(?, a2aEndpoint),
             supportedTrust = COALESCE(?, supportedTrust),
             did = COALESCE(?, did),
             didIdentity = COALESCE(?, didIdentity),
@@ -472,13 +447,10 @@ export async function processAgentDirectly(
           WHERE chainId = ? AND agentId = ?
         `, [
           type,
-          name, name, name,
-          agentAccount, agentAccount, agentAccount, // Keep agentAddress for backward compatibility
-          agentAccount, agentAccount, agentAccount,
-          desc, desc, desc,
-          img, img, img,
-          a2aEp, a2aEp, a2aEp,
-          ensEndpoint, ensEndpoint, ensEndpoint,
+          name,
+          desc,
+          img,
+          a2aEp,
           JSON.stringify(supportedTrust),
           did,
           didIdentity,
