@@ -69,7 +69,6 @@ export async function computeAndUpsertATI(db: DB, chainId: number, agentId: stri
         a.didIdentity,
         a.didAccount,
         a.didName,
-        a.agentAccountEndpoint,
         a.ensEndpoint,
         -- existing aggregates
         (SELECT COUNT(*) FROM rep_feedbacks rf WHERE rf.chainId = a.chainId AND rf.agentId = a.agentId) AS feedbackCount,
@@ -121,7 +120,8 @@ export async function computeAndUpsertATI(db: DB, chainId: number, agentId: stri
   // Simple: reward stable identity anchors being present.
   const hasDidName = Boolean(row.didName);
   const hasEnsEndpoint = Boolean(row.ensEndpoint);
-  const hasAccountEndpoint = Boolean(row.agentAccountEndpoint);
+  // Removed: agentAccountEndpoint (confusing/overloaded)
+  const hasAccountEndpoint = false;
   const provenanceScore = clamp100(
     100 *
       clamp01(

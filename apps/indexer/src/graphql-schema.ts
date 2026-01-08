@@ -27,25 +27,28 @@ export const graphQLSchemaString = `
     chainId: Int!
 
     agentId: String!
-    agentAccount: String!
     agentName: String!
 
     didIdentity: String!
     didAccount: String!
     didName: String
 
-    agentOwner: String!
-    eoaOwner: String
+    # Agent's configured account (signing/execution), stored as "{chainId}:{0x...}"
+    agentAccount: String!
+
+    # ERC-721 NFT owner account (identity owner), stored as "{chainId}:{0x...}"
+    agentIdentityOwnerAccount: String!
+    eoaAgentIdentityOwnerAccount: String
+
+    eoaAgentAccount: String
     agentCategory: String
-    tokenUri: String
+    agentUri: String
     createdAtBlock: Int!
     createdAtTime: Int!
     type: String
     description: String
     image: String
     a2aEndpoint: String
-    ensEndpoint: String
-    agentAccountEndpoint: String
     supportedTrust: String
     rawJson: String
     agentCardJson: String
@@ -71,7 +74,7 @@ export const graphQLSchemaString = `
     trustLedgerBadgeCount: Int
     trustLedgerOverallRank: Int
     trustLedgerCapabilityRank: Int
-    metadata: [TokenMetadata!]!
+    metadata: [AgentMetadata!]!
   }
 
   type TrustReason {
@@ -197,8 +200,9 @@ export const graphQLSchemaString = `
     agentName
     createdAtTime
     createdAtBlock
-    agentOwner
-    eoaOwner
+    agentIdentityOwnerAccount
+    eoaAgentIdentityOwnerAccount
+    eoaAgentAccount
     agentCategory
     trustLedgerScore
     trustLedgerBadgeCount
@@ -218,11 +222,17 @@ export const graphQLSchemaString = `
     agentId: String
     agentId_in: [String!]
 
-    agentOwner: String
-    agentOwner_in: [String!]
+    agentIdentityOwnerAccount: String
+    agentIdentityOwnerAccount_in: [String!]
 
-    eoaOwner: String
-    eoaOwner_in: [String!]
+    eoaAgentIdentityOwnerAccount: String
+    eoaAgentIdentityOwnerAccount_in: [String!]
+
+    agentAccount: String
+    agentAccount_in: [String!]
+
+    eoaAgentAccount: String
+    eoaAgentAccount_in: [String!]
 
     agentCategory: String
     agentCategory_in: [String!]
@@ -239,11 +249,6 @@ export const graphQLSchemaString = `
     description_contains: String
     description_contains_nocase: String
 
-    ensEndpoint_contains: String
-    ensEndpoint_contains_nocase: String
-    agentAccountEndpoint_contains: String
-    agentAccountEndpoint_contains_nocase: String
-
     did: String
     did_contains: String
     did_contains_nocase: String
@@ -254,7 +259,6 @@ export const graphQLSchemaString = `
     createdAtTime_lte: Int
 
     hasA2aEndpoint: Boolean
-    hasEnsEndpoint: Boolean
 
     mcp: Boolean
     x402support: Boolean
@@ -325,7 +329,7 @@ export const graphQLSchemaString = `
     hasMore: Boolean!
   }
 
-  type TokenMetadata {
+  type AgentMetadata {
     chainId: Int!
     agentId: String!
     id: String!
@@ -336,8 +340,8 @@ export const graphQLSchemaString = `
     updatedAtTime: Int
   }
 
-  type TokenMetadataSearchResult {
-    entries: [TokenMetadata!]!
+  type AgentMetadataSearchResult {
+    entries: [AgentMetadata!]!
     total: Int!
     hasMore: Boolean!
   }
@@ -370,13 +374,13 @@ export const graphQLSchemaString = `
     tags: [String!]
   }
 
-  enum TokenMetadataOrderBy {
+  enum AgentMetadataOrderBy {
     agentId
     key
     updatedAtTime
   }
 
-  input TokenMetadataWhereInput {
+  input AgentMetadataWhereInput {
     chainId: Int
     agentId: String
     agentId_in: [String!]
@@ -586,7 +590,7 @@ export const graphQLSchemaString = `
     agents(
       chainId: Int
       agentId: String
-      agentOwner: String
+      agentIdentityOwnerAccount: String
       agentName: String
       limit: Int
       offset: Int
@@ -600,7 +604,7 @@ export const graphQLSchemaString = `
 
     agentsByChain(chainId: Int!, limit: Int, offset: Int, orderBy: String, orderDirection: String): [Agent!]!
 
-    agentsByOwner(agentOwner: String!, chainId: Int, limit: Int, offset: Int, orderBy: String, orderDirection: String): [Agent!]!
+    agentsByOwner(agentIdentityOwnerAccount: String!, chainId: Int, limit: Int, offset: Int, orderBy: String, orderDirection: String): [Agent!]!
 
     searchAgents(query: String!, chainId: Int, limit: Int, offset: Int, orderBy: String, orderDirection: String): [Agent!]!
 
@@ -617,7 +621,7 @@ export const graphQLSchemaString = `
     countAgents(
       chainId: Int
       agentId: String
-      agentOwner: String
+      agentIdentityOwnerAccount: String
       agentName: String
     ): Int!
 
@@ -625,18 +629,18 @@ export const graphQLSchemaString = `
       input: SemanticAgentSearchInput!
     ): SemanticAgentSearchResult!
 
-    tokenMetadata(
-      where: TokenMetadataWhereInput
+    agentMetadata(
+      where: AgentMetadataWhereInput
       first: Int
       skip: Int
-      orderBy: TokenMetadataOrderBy
+      orderBy: AgentMetadataOrderBy
       orderDirection: OrderDirection
-    ): TokenMetadataSearchResult!
+    ): AgentMetadataSearchResult!
 
-    tokenMetadataById(
+    agentMetadataById(
       chainId: Int!
       id: String!
-    ): TokenMetadata
+    ): AgentMetadata
 
     associations(
       where: AssociationWhereInput

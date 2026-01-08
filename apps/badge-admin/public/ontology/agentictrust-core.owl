@@ -17,7 +17,7 @@ Descriptor strategy and resolver approach
 Goal
 ----
 Model “resolved” metadata as first-class Entities (Descriptors) produced by resolver activities.
-Raw sources (onchain events, tokenUri JSON, DID docs, agent-card.json, ENS resolution, etc.)
+Raw sources (onchain events, agentURI registration JSON, DID docs, agent-card.json, ENS resolution, etc.)
 are inputs; the Descriptor is the normalized, assembled view used for discovery, validation,
 and interaction.
 
@@ -63,7 +63,7 @@ Resolver workflow (typical)
 ---------------------------
 1) Fetch/observe sources:
    - onchain (ERC-8004 registry, ERC-8092 assertions)
-   - offchain JSON (tokenUri metadata, .well-known/agent-card.json)
+   - offchain JSON (agentURI registration metadata, .well-known/agent-card.json)
    - identifier resolution (DID resolution, ENS resolution, account bytecode/type checks)
 
 2) Normalize:
@@ -253,7 +253,7 @@ agentictrust:ReputationRequestSituation a owl:Class ;
 
 agentictrust:FeedbackAuthRequestSituation a owl:Class ;
   rdfs:label "FeedbackAuthRequestSituation" ;
-  rdfs:comment "A ReputationRequestSituation representing the request flow for issuing an ERC-8004 feedbackAuth token/signature, enabling a client to submit feedback." ;
+  rdfs:comment "A ReputationRequestSituation representing an optional permissioned-feedback flow where an agent grants a client authority to submit feedback (e.g., via ERC-8092 delegation). Note: feedbackAuth is no longer required by core ERC-8004 (Jan 2026), but can still be modeled as an extension for gated feedback." ;
   rdfs:subClassOf agentictrust:ReputationRequestSituation .
 
 ### TrustAssertion (assertion act / activity)
@@ -1869,8 +1869,8 @@ agentictrust:agentName a owl:DatatypeProperty ;
   rdfs:range xsd:string .
 
 
-agentictrust:tokenUri a owl:DatatypeProperty ;
-  rdfs:label "tokenURI" ;
+agentictrust:agentUri a owl:DatatypeProperty ;
+  rdfs:label "agentURI" ;
   rdfs:domain agentictrust:AIAgent ;
   rdfs:range xsd:anyURI .
 

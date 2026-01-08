@@ -118,8 +118,8 @@ async function executeUpdate(db: any, sql: string, params: any[]): Promise<void>
 function buildWhereClause(filters: {
   chainId?: number;
   agentId?: string;
-  agentOwner?: string;
-  eoaOwner?: string;
+  agentIdentityOwnerAccount?: string;
+  eoaAgentIdentityOwnerAccount?: string;
   agentName?: string;
 }): { where: string; params: any[] } {
   const conditions: string[] = [];
@@ -135,14 +135,14 @@ function buildWhereClause(filters: {
     params.push(filters.agentId);
   }
 
-  if (filters.agentOwner) {
-    conditions.push(`agentOwner = ?`);
-    params.push(filters.agentOwner);
+  if (filters.agentIdentityOwnerAccount) {
+    conditions.push(`agentIdentityOwnerAccount = ?`);
+    params.push(filters.agentIdentityOwnerAccount);
   }
 
-  if (filters.eoaOwner) {
-    conditions.push(`eoaOwner = ?`);
-    params.push(filters.eoaOwner);
+  if (filters.eoaAgentIdentityOwnerAccount) {
+    conditions.push(`eoaAgentIdentityOwnerAccount = ?`);
+    params.push(filters.eoaAgentIdentityOwnerAccount);
   }
 
   if (filters.agentName) {
@@ -164,8 +164,8 @@ function buildOrderByClause(orderBy?: string, orderDirection?: string): string {
     'agentName',
     'createdAtTime',
     'createdAtBlock',
-    'agentOwner',
-    'eoaOwner',
+    'agentIdentityOwnerAccount',
+    'eoaAgentIdentityOwnerAccount',
     'agentCategory',
     'trustLedgerScore',
     'trustLedgerBadgeCount',
@@ -212,10 +212,14 @@ function buildGraphWhereClause(where?: {
   chainId_in?: number[];
   agentId?: string;
   agentId_in?: string[];
-  agentOwner?: string;
-  agentOwner_in?: string[];
-  eoaOwner?: string;
-  eoaOwner_in?: string[];
+  agentIdentityOwnerAccount?: string;
+  agentIdentityOwnerAccount_in?: string[];
+  eoaAgentIdentityOwnerAccount?: string;
+  eoaAgentIdentityOwnerAccount_in?: string[];
+  agentAccount?: string;
+  agentAccount_in?: string[];
+  eoaAgentAccount?: string;
+  eoaAgentAccount_in?: string[];
   agentCategory?: string;
   agentCategory_in?: string[];
   agentCategory_contains?: string;
@@ -228,10 +232,7 @@ function buildGraphWhereClause(where?: {
   agentName_ends_with_nocase?: string;
   description_contains?: string;
   description_contains_nocase?: string;
-  ensEndpoint_contains?: string;
-  ensEndpoint_contains_nocase?: string;
-  agentAccountEndpoint_contains?: string;
-  agentAccountEndpoint_contains_nocase?: string;
+  // Removed: agentAccountEndpoint_* filters
   did?: string;
   did_contains?: string;
   did_contains_nocase?: string;
@@ -240,7 +241,6 @@ function buildGraphWhereClause(where?: {
   createdAtTime_lt?: number;
   createdAtTime_lte?: number;
   hasA2aEndpoint?: boolean;
-  hasEnsEndpoint?: boolean;
   mcp?: boolean;
   x402support?: boolean;
   active?: boolean;
@@ -322,21 +322,37 @@ function buildGraphWhereClause(where?: {
     conditions.push(`agentId IN (${where.agentId_in.map(() => '?').join(',')})`);
     params.push(...where.agentId_in);
   }
-  if (where.agentOwner) {
-    conditions.push(`agentOwner = ?`);
-    params.push(where.agentOwner);
+  if (where.agentIdentityOwnerAccount) {
+    conditions.push(`agentIdentityOwnerAccount = ?`);
+    params.push(where.agentIdentityOwnerAccount);
   }
-  if (Array.isArray(where.agentOwner_in) && where.agentOwner_in.length > 0) {
-    conditions.push(`agentOwner IN (${where.agentOwner_in.map(() => '?').join(',')})`);
-    params.push(...where.agentOwner_in);
+  if (Array.isArray(where.agentIdentityOwnerAccount_in) && where.agentIdentityOwnerAccount_in.length > 0) {
+    conditions.push(`agentIdentityOwnerAccount IN (${where.agentIdentityOwnerAccount_in.map(() => '?').join(',')})`);
+    params.push(...where.agentIdentityOwnerAccount_in);
   }
-  if (where.eoaOwner) {
-    conditions.push(`eoaOwner = ?`);
-    params.push(where.eoaOwner);
+  if (where.eoaAgentIdentityOwnerAccount) {
+    conditions.push(`eoaAgentIdentityOwnerAccount = ?`);
+    params.push(where.eoaAgentIdentityOwnerAccount);
   }
-  if (Array.isArray(where.eoaOwner_in) && where.eoaOwner_in.length > 0) {
-    conditions.push(`eoaOwner IN (${where.eoaOwner_in.map(() => '?').join(',')})`);
-    params.push(...where.eoaOwner_in);
+  if (Array.isArray(where.eoaAgentIdentityOwnerAccount_in) && where.eoaAgentIdentityOwnerAccount_in.length > 0) {
+    conditions.push(`eoaAgentIdentityOwnerAccount IN (${where.eoaAgentIdentityOwnerAccount_in.map(() => '?').join(',')})`);
+    params.push(...where.eoaAgentIdentityOwnerAccount_in);
+  }
+  if (where.agentAccount) {
+    conditions.push(`agentAccount = ?`);
+    params.push(where.agentAccount);
+  }
+  if (Array.isArray(where.agentAccount_in) && where.agentAccount_in.length > 0) {
+    conditions.push(`agentAccount IN (${where.agentAccount_in.map(() => '?').join(',')})`);
+    params.push(...where.agentAccount_in);
+  }
+  if (where.eoaAgentAccount) {
+    conditions.push(`eoaAgentAccount = ?`);
+    params.push(where.eoaAgentAccount);
+  }
+  if (Array.isArray(where.eoaAgentAccount_in) && where.eoaAgentAccount_in.length > 0) {
+    conditions.push(`eoaAgentAccount IN (${where.eoaAgentAccount_in.map(() => '?').join(',')})`);
+    params.push(...where.eoaAgentAccount_in);
   }
 
   if (where.agentCategory) {
@@ -395,22 +411,8 @@ function buildGraphWhereClause(where?: {
   }
 
   // Endpoints and DID
-  if (where.ensEndpoint_contains) {
-    conditions.push(`ensEndpoint LIKE ?`);
-    params.push(`%${where.ensEndpoint_contains}%`);
-  }
-  if (where.ensEndpoint_contains_nocase) {
-    conditions.push(`LOWER(ensEndpoint) LIKE LOWER(?)`);
-    params.push(`%${where.ensEndpoint_contains_nocase}%`);
-  }
-  if (where.agentAccountEndpoint_contains) {
-    conditions.push(`agentAccountEndpoint LIKE ?`);
-    params.push(`%${where.agentAccountEndpoint_contains}%`);
-  }
-  if (where.agentAccountEndpoint_contains_nocase) {
-    conditions.push(`LOWER(agentAccountEndpoint) LIKE LOWER(?)`);
-    params.push(`%${where.agentAccountEndpoint_contains_nocase}%`);
-  }
+  // Removed: ensEndpoint (column removed from agents schema)
+  // Removed: agentAccountEndpoint (confusing/overloaded)
   if (where.did) {
     conditions.push(`did = ?`);
     params.push(where.did);
@@ -497,11 +499,6 @@ function buildGraphWhereClause(where?: {
     conditions.push(`a2aEndpoint IS NOT NULL AND a2aEndpoint != ''`);
   } else if (where.hasA2aEndpoint === false) {
     conditions.push(`(a2aEndpoint IS NULL OR a2aEndpoint = '')`);
-  }
-  if (where.hasEnsEndpoint === true) {
-    conditions.push(`ensEndpoint IS NOT NULL AND ensEndpoint != ''`);
-  } else if (where.hasEnsEndpoint === false) {
-    conditions.push(`(ensEndpoint IS NULL OR ensEndpoint = '')`);
   }
 
   // Boolean flags
@@ -798,7 +795,7 @@ function buildValidationResponseWhereClause(filters: {
   return { where, params };
 }
 
-function buildTokenMetadataWhereClause(filters?: {
+function buildAgentMetadataWhereClause(filters?: {
   chainId?: number;
   agentId?: string;
   agentId_in?: string[];
@@ -830,22 +827,22 @@ function buildTokenMetadataWhereClause(filters?: {
   }
 
   if (filters.key) {
-    conditions.push('metadataKey = ?');
+    conditions.push('key = ?');
     params.push(filters.key);
   }
 
   if (Array.isArray(filters.key_in) && filters.key_in.length > 0) {
-    conditions.push(`metadataKey IN (${filters.key_in.map(() => '?').join(',')})`);
+    conditions.push(`key IN (${filters.key_in.map(() => '?').join(',')})`);
     params.push(...filters.key_in);
   }
 
   if (filters.key_contains) {
-    conditions.push('metadataKey LIKE ?');
+    conditions.push('key LIKE ?');
     params.push(`%${filters.key_contains}%`);
   }
 
   if (filters.key_contains_nocase) {
-    conditions.push('LOWER(metadataKey) LIKE LOWER(?)');
+    conditions.push('LOWER(key) LIKE LOWER(?)');
     params.push(`%${filters.key_contains_nocase}%`);
   }
 
@@ -868,23 +865,23 @@ function buildTokenMetadataWhereClause(filters?: {
   return { where: whereSql, params };
 }
 
-function buildTokenMetadataOrderByClause(orderBy?: string | null, orderDirection?: string | null): string {
+function buildAgentMetadataOrderByClause(orderBy?: string | null, orderDirection?: string | null): string {
   const validColumns = ['agentId', 'key', 'updatedAtTime'];
   const column = orderBy && validColumns.includes(orderBy) ? orderBy : 'agentId';
   const direction = (orderDirection?.toUpperCase() === 'DESC') ? 'DESC' : 'ASC';
-  const mappedColumn = column === 'key' ? 'metadataKey' : column;
+  const mappedColumn = column === 'key' ? 'key' : column;
   const orderColumn = mappedColumn === 'agentId' ? 'CAST(agentId AS INTEGER)' : mappedColumn;
   return `ORDER BY ${orderColumn} ${direction}`;
 }
 
-function formatTokenMetadataRow(row: any): any {
+function formatAgentMetadataRow(row: any): any {
   if (!row) return row;
   const updatedAt = row.updatedAtTime !== undefined && row.updatedAtTime !== null ? Number(row.updatedAtTime) : null;
   return {
     chainId: Number(row.chainId ?? 0),
     agentId: String(row.agentId ?? ''),
-    id: String(row.metadataId ?? row.id ?? ''),
-    key: row.metadataKey ?? row.key ?? '',
+    id: String(row.id ?? ''),
+    key: row.key ?? '',
     value: row.valueHex ?? row.value ?? null,
     valueText: row.valueText ?? null,
     indexedKey: row.indexedKey ?? null,
@@ -892,7 +889,7 @@ function formatTokenMetadataRow(row: any): any {
   };
 }
 
-async function attachTokenMetadataToAgents(db: any, agents: any[]): Promise<void> {
+async function attachAgentMetadataToAgents(db: any, agents: any[]): Promise<void> {
   if (!Array.isArray(agents) || agents.length === 0) {
     return;
   }
@@ -918,14 +915,14 @@ async function attachTokenMetadataToAgents(db: any, agents: any[]): Promise<void
       if (!chunk.length) continue;
       const placeholders = chunk.map(() => '?').join(',');
       const sql = `
-        SELECT chainId, metadataId, agentId, metadataKey, valueHex, valueText, indexedKey, updatedAtTime
-        FROM token_metadata
+        SELECT chainId, id, agentId, key, valueHex, valueText, indexedKey, updatedAtTime
+        FROM agent_metadata
         WHERE chainId = ? AND agentId IN (${placeholders})
-        ORDER BY metadataKey ASC
+        ORDER BY key ASC
       `;
       const rows = await executeQuery(db, sql, [chainId, ...chunk]);
       for (const row of rows) {
-        const formatted = formatTokenMetadataRow(row);
+        const formatted = formatAgentMetadataRow(row);
         const key = `${formatted.chainId}:${formatted.agentId}`;
         if (!metadataMap.has(key)) {
           metadataMap.set(key, []);
@@ -1017,7 +1014,7 @@ async function hydrateSemanticMatches(db: any, matches: VectorQueryMatch[]) {
   }
 
   if (agentRows.length > 0) {
-    await attachTokenMetadataToAgents(db, agentRows);
+    await attachAgentMetadataToAgents(db, agentRows);
   }
 
   const agentMap = new Map<string, any>();
@@ -1155,15 +1152,14 @@ const AGENT_SUMMARY_COLUMNS = `
 
 const AGENT_BASE_COLUMNS = `
   agents.*,
-  COALESCE(agentAccount, agentAddress) as agentAccount,
   ${AGENT_SUMMARY_COLUMNS}
 `;
 
-const TOKEN_METADATA_COLUMNS = `
+const AGENT_METADATA_COLUMNS = `
   chainId,
-  metadataId,
+  id,
   agentId,
-  metadataKey,
+  key,
   valueHex,
   valueText,
   indexedKey,
@@ -1583,8 +1579,8 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
     agents: async (args: {
       chainId?: number;
       agentId?: string;
-      agentOwner?: string;
-      eoaOwner?: string;
+      agentIdentityOwnerAccount?: string;
+      eoaAgentIdentityOwnerAccount?: string;
       agentName?: string;
       limit?: number;
       offset?: number;
@@ -1604,14 +1600,14 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
 
       try {
         
-        const { chainId, agentId, agentOwner, eoaOwner, agentName, limit = 100, offset = 0, orderBy, orderDirection } = args;
-        const { where, params } = buildWhereClause({ chainId, agentId, agentOwner, eoaOwner, agentName });
+        const { chainId, agentId, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, agentName, limit = 100, offset = 0, orderBy, orderDirection } = args;
+        const { where, params } = buildWhereClause({ chainId, agentId, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, agentName });
         const orderByClause = buildOrderByClause(execOrderBy, execOrderDirection);
         const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${where} ${orderByClause} LIMIT ? OFFSET ?`;
         const allParams = [...params, limit, offset];
         const results = await executeQuery(db, query, allParams);
         await attachTokenMetadataToAgents(db, results);
-        console.log('[agents] rows:', results.length, 'params:', { chainId, agentId, agentOwner, eoaOwner, agentName, limit, offset, execOrderBy, execOrderDirection });
+        console.log('[agents] rows:', results.length, 'params:', { chainId, agentId, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, agentName, limit, offset, execOrderBy, execOrderDirection });
         return enrichAgentRecords(results);
       } catch (error) {
         console.error('❌ Error in agents resolver:', error);
@@ -1705,11 +1701,11 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       }
     },
 
-    agentsByOwner: async (args: { agentOwner: string; chainId?: number; limit?: number; offset?: number; orderBy?: string; orderDirection?: string }) => {
+    agentsByOwner: async (args: { agentIdentityOwnerAccount: string; chainId?: number; limit?: number; offset?: number; orderBy?: string; orderDirection?: string }) => {
       try {
-        const { agentOwner, chainId, limit = 100, offset = 0, orderBy, orderDirection } = args;
-        let query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE agentOwner = ?`;
-        const params: any[] = [agentOwner];
+        const { agentIdentityOwnerAccount, chainId, limit = 100, offset = 0, orderBy, orderDirection } = args;
+        let query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE agentIdentityOwnerAccount = ?`;
+        const params: any[] = [agentIdentityOwnerAccount];
         
         if (chainId !== undefined) {
           query += ' AND chainId = ?';
@@ -1722,7 +1718,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         
         const results = await executeQuery(db, query, params);
         await attachTokenMetadataToAgents(db, results);
-        console.log('[agentsByOwner] rows:', results.length, 'agentOwner:', agentOwner, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
+        console.log('[agentsByOwner] rows:', results.length, 'agentIdentityOwnerAccount:', agentIdentityOwnerAccount, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
       } catch (error) {
         console.error('❌ Error in agentsByOwner resolver:', error);
@@ -1773,8 +1769,8 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
     countAgents: async (args: {
       chainId?: number;
       agentId?: string;
-      agentOwner?: string;
-      eoaOwner?: string;
+      agentIdentityOwnerAccount?: string;
+      eoaAgentIdentityOwnerAccount?: string;
       agentName?: string;
     }) => {
       try {
@@ -1835,7 +1831,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       }
     },
 
-    tokenMetadata: async (args: {
+    agentMetadata: async (args: {
       where?: any;
       first?: number | null;
       skip?: number | null;
@@ -1846,35 +1842,35 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         const { where, first, skip, orderBy, orderDirection } = args || {};
         const pageSize = typeof first === 'number' && Number.isFinite(first) && first > 0 ? first : 100;
         const offset = typeof skip === 'number' && Number.isFinite(skip) && skip >= 0 ? skip : 0;
-        const { where: whereSql, params } = buildTokenMetadataWhereClause(where);
-        const orderClause = buildTokenMetadataOrderByClause(orderBy || undefined, orderDirection || undefined);
+        const { where: whereSql, params } = buildAgentMetadataWhereClause(where);
+        const orderClause = buildAgentMetadataOrderByClause(orderBy || undefined, orderDirection || undefined);
         const rows = await executeQuery(
           db,
-          `SELECT ${TOKEN_METADATA_COLUMNS} FROM token_metadata ${whereSql} ${orderClause} LIMIT ? OFFSET ?`,
+          `SELECT ${AGENT_METADATA_COLUMNS} FROM agent_metadata ${whereSql} ${orderClause} LIMIT ? OFFSET ?`,
           [...params, pageSize, offset]
         );
-        const formatted = rows.map(formatTokenMetadataRow);
-        const countRow = await executeQuerySingle(db, `SELECT COUNT(*) as count FROM token_metadata ${whereSql}`, params);
+        const formatted = rows.map(formatAgentMetadataRow);
+        const countRow = await executeQuerySingle(db, `SELECT COUNT(*) as count FROM agent_metadata ${whereSql}`, params);
         const total = (countRow as any)?.count || 0;
         const hasMore = (offset + pageSize) < total;
         return { entries: formatted, total, hasMore };
       } catch (error) {
-        console.error('❌ Error in tokenMetadata resolver:', error);
+        console.error('❌ Error in agentMetadata resolver:', error);
         throw error;
       }
     },
 
-    tokenMetadataById: async (args: { chainId: number; id: string }) => {
+    agentMetadataById: async (args: { chainId: number; id: string }) => {
       try {
         const { chainId, id } = args;
         const row = await executeQuerySingle(
           db,
-          `SELECT ${TOKEN_METADATA_COLUMNS} FROM token_metadata WHERE chainId = ? AND metadataId = ?`,
+          `SELECT ${AGENT_METADATA_COLUMNS} FROM agent_metadata WHERE chainId = ? AND id = ?`,
           [chainId, id]
         );
-        return row ? formatTokenMetadataRow(row) : null;
+        return row ? formatAgentMetadataRow(row) : null;
       } catch (error) {
-        console.error('❌ Error in tokenMetadataById resolver:', error);
+        console.error('❌ Error in agentMetadataById resolver:', error);
         throw error;
       }
     },
@@ -2842,12 +2838,14 @@ async function hydrateAssociations(db: any, rows: any[]): Promise<any[]> {
     for (let i = 0; i < suffixes.length; i += chunkSize) {
       const chunk = suffixes.slice(i, i + chunkSize);
       const placeholders = chunk.map(() => '?').join(',');
-      const sql = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE substr(LOWER(COALESCE(agentAccount, agentAddress)), -40) IN (${placeholders})`;
+      const sql = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE substr(LOWER(agentAccount), -40) IN (${placeholders})`;
       const agentRows = await executeQuery(db, sql, chunk);
       await attachTokenMetadataToAgents(db, agentRows);
       for (const arow of agentRows) {
-        const acct = normalizeHexLike(arow?.agentAccount) || normalizeHexLike(arow?.agentAddress);
-        if (acct) agentByAccount.set(acct, enrichAgentRecord(arow));
+        const acctId = normalizeHexLike(arow?.agentAccount);
+        const acctAddr = acctId && acctId.includes(':') ? acctId.split(':').pop() : acctId;
+        if (acctId) agentByAccount.set(acctId, enrichAgentRecord(arow));
+        if (acctAddr) agentByAccount.set(acctAddr, enrichAgentRecord(arow));
       }
     }
   }
@@ -2892,7 +2890,7 @@ async function hydrateAssociations(db: any, rows: any[]): Promise<any[]> {
 function computeDIDValues(agent: any): { didIdentity: string; didAccount: string; didName: string | null } {
   const chainId = agent.chainId;
   const agentId = agent.agentId;
-  const agentAccount = agent.agentAccount || agent.agentAddress; // Support both during migration
+  const agentAccount = agent.agentAccount || agent.agentAddress;
   const agentName = agent.agentName;
 
   const didIdentity = `did:8004:${chainId}:${agentId}`;
@@ -2903,15 +2901,10 @@ function computeDIDValues(agent: any): { didIdentity: string; didAccount: string
 }
 
 /**
- * Enrich agent records with computed DID values and ensure agentAccount field
+ * Enrich agent records with computed DID values
  */
 function enrichAgentRecord(agent: any): any {
   if (!agent) return agent;
-
-  // Ensure agentAccount exists (use agentAddress as fallback during migration)
-  if (!agent.agentAccount && agent.agentAddress) {
-    agent.agentAccount = agent.agentAddress;
-  }
 
   // Compute DID values if not already present
   if (!agent.didIdentity || !agent.didAccount) {

@@ -376,10 +376,10 @@ export async function runAgentMetadataExtract(
     SELECT
       chainId, agentId,
       rawJson, agentCardJson,
-      tokenUri,
+      agentUri,
       a2aEndpoint,
       ensEndpoint,
-      agentAccountEndpoint,
+      -- Removed: agentAccountEndpoint
       agentName,
       description,
       image,
@@ -452,7 +452,7 @@ export async function runAgentMetadataExtract(
         agentId,
         hasRawJson: Boolean(typeof row?.rawJson === 'string' && row.rawJson.trim()),
         hasAgentCardJson: Boolean(typeof row?.agentCardJson === 'string' && row.agentCardJson.trim()),
-        tokenUri: row?.tokenUri ? String(row.tokenUri) : null,
+        agentUri: row?.agentUri ? String(row.agentUri) : null,
         a2aEndpoint: row?.a2aEndpoint ? String(row.a2aEndpoint) : null,
       });
 
@@ -533,7 +533,7 @@ export async function runAgentMetadataExtract(
       };
       const a2aFromRaw = findEndpoint('A2A') || findEndpoint('a2a') || (typeof raw?.a2aEndpoint === 'string' ? raw.a2aEndpoint.trim() : null) || (typeof raw?.chatEndpoint === 'string' ? raw.chatEndpoint.trim() : null);
       const ensFromRaw = findEndpoint('ENS') || findEndpoint('ens') || (typeof raw?.ensEndpoint === 'string' ? raw.ensEndpoint.trim() : null) || (typeof raw?.ensName === 'string' ? raw.ensName.trim() : null);
-      const agentWallet = findEndpoint('agentWallet') || findEndpoint('agentAccount') || findEndpoint('agent-account');
+      const agentWallet = findEndpoint('agentWallet') || findEndpoint('agent-wallet');
       const active = raw?.active === undefined ? null : (raw?.active === true || raw?.active === 1 || String(raw?.active).toLowerCase() === 'true' ? 1 : 0);
       const nameFromRaw = raw ? (typeof raw?.name === 'string' && raw.name.trim() ? raw.name.trim() : null) : null;
       const descFromRaw = raw ? (typeof raw?.description === 'string' && raw.description.trim() ? raw.description.trim() : null) : null;
@@ -570,9 +570,6 @@ export async function runAgentMetadataExtract(
         const a2aEndpointNew = !a2aEndpoint && a2aFromCard ? a2aFromCard : null;
         const ensEndpoint = row?.ensEndpoint ? String(row.ensEndpoint) : null;
         const ensEndpointNew = !ensEndpoint && ensFromRaw ? ensFromRaw : null;
-        const agentAccountEndpoint = row?.agentAccountEndpoint ? String(row.agentAccountEndpoint) : null;
-        const agentAccountEndpointNew = !agentAccountEndpoint && agentWallet ? agentWallet : null;
-
         const agentName = row?.agentName ? String(row.agentName) : null;
         const description = row?.description ? String(row.description) : null;
         const image = row?.image ? String(row.image) : null;
@@ -592,7 +589,6 @@ export async function runAgentMetadataExtract(
                agentCardProtocolJson = COALESCE(?, agentCardProtocolJson),
                a2aEndpoint = COALESCE(?, a2aEndpoint),
                ensEndpoint = COALESCE(?, ensEndpoint),
-               agentAccountEndpoint = COALESCE(?, agentAccountEndpoint),
                agentName = COALESCE(?, agentName),
                description = COALESCE(?, description),
                image = COALESCE(?, image),
@@ -610,7 +606,6 @@ export async function runAgentMetadataExtract(
             agentCardProtocolJson,
             a2aEndpointNew || a2aFromRaw,
             ensEndpointNew,
-            agentAccountEndpointNew,
             agentNameNew,
             descriptionNew,
             imageNew,

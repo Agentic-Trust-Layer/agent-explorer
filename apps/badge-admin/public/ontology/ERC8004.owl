@@ -28,7 +28,7 @@ erc8004:AgentIdentityRegistry8004 a owl:Class ;
 
 erc8004:AgentRegistration8004 a owl:Class ;
   rdfs:label "AgentRegistration8004" ;
-  rdfs:comment "ERC-8004 agent registration descriptor extracted from tokenUri rawJson metadata. Contains all agent registration data including endpoints, skills, domains, DIDs, names, descriptions, images, and trust types." ;
+  rdfs:comment "ERC-8004 agent registration descriptor extracted from agentURI registration JSON (rawJson metadata). Contains all agent registration data including endpoints, skills, domains, DIDs, names, descriptions, images, and trust types." ;
   rdfs:subClassOf agentictrust:AgentIdentityDescriptor ;
   rdfs:subClassOf prov:Entity .
 
@@ -60,7 +60,7 @@ erc8004:IdentifierType_8004 a agentictrust:IdentifierType ;
 
 erc8004:IdentityDescriptor8004 a owl:Class ;
   rdfs:label "IdentityDescriptor8004" ;
-  rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, tokenUri content, and linked identifiers/endpoints)." ;
+  rdfs:comment "Descriptor for an ERC-8004 identity (resolved registry/agentId/chainId metadata, agentURI registration content, and linked identifiers/endpoints)." ;
   rdfs:subClassOf agentictrust:AgentIdentityDescriptor .
 
 erc8004:TrustAssertion a owl:Class ;
@@ -423,8 +423,15 @@ erc8004:attachmentDescription a owl:DatatypeProperty ;
 
 erc8004:feedbackAuth a owl:DatatypeProperty ;
   rdfs:label "feedbackAuth" ;
+  rdfs:comment "Optional extension: permissioned feedback authorization token/signature (no longer required by core ERC-8004 as of Jan 2026). When present, can be used to link feedback assertions to delegation evidence." ;
   rdfs:domain erc8004:FeedbackOffchainData ;
   rdfs:range xsd:string .
+
+erc8004:endpoint a owl:DatatypeProperty ;
+  rdfs:label "endpoint" ;
+  rdfs:comment "Optional endpoint URI associated with a feedback submission (Jan 2026 ERC-8004 update). This can indicate which agent endpoint/domain the feedback is about." ;
+  rdfs:domain erc8004:Feedback ;
+  rdfs:range xsd:anyURI .
 
 erc8004:score a owl:DatatypeProperty ;
   rdfs:label "score" ;

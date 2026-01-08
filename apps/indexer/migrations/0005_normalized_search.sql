@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_agents_active ON agents(active);
 
 -- Expression indexes for case-insensitive filtering on endpoints and did
 CREATE INDEX IF NOT EXISTS idx_agents_lower_ensEndpoint ON agents(LOWER(ensEndpoint));
-CREATE INDEX IF NOT EXISTS idx_agents_lower_agentAccountEndpoint ON agents(LOWER(agentAccountEndpoint));
+-- Removed: agentAccountEndpoint (confusing/overloaded)
 CREATE INDEX IF NOT EXISTS idx_agents_lower_did ON agents(LOWER(did));
 
 -- Indexes on normalized tables

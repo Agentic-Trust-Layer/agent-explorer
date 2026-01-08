@@ -1,25 +1,25 @@
 -- Add agentCategory (from NFT metadata "Category")
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS agentCategory TEXT;
 
--- Backfill agentCategory from token_metadata when present
--- NOTE: token_metadata.valueText is decoded UTF-8 from valueHex, and is preferred.
+-- Backfill agentCategory from agent_metadata when present
+-- NOTE: agent_metadata.valueText is decoded UTF-8 from valueHex, and is preferred.
 UPDATE agents
 SET agentCategory = (
   SELECT NULLIF(TRIM(tm.valueText), '')
-  FROM token_metadata tm
+  FROM agent_metadata tm
   WHERE tm.chainId = agents.chainId
     AND tm.agentId = agents.agentId
-    AND LOWER(tm.metadataKey) = 'category'
+    AND LOWER(tm.key) = 'category'
   ORDER BY tm.updatedAtTime DESC
   LIMIT 1
 )
 WHERE (agents.agentCategory IS NULL OR agents.agentCategory = '')
   AND EXISTS (
     SELECT 1
-    FROM token_metadata tm2
+    FROM agent_metadata tm2
     WHERE tm2.chainId = agents.chainId
       AND tm2.agentId = agents.agentId
-      AND LOWER(tm2.metadataKey) = 'category'
+      AND LOWER(tm2.key) = 'category'
   );
 
 -- Indexes for filtering/sorting

@@ -10,8 +10,7 @@ type AgentSemanticRow = {
   type?: string | null;
   image?: string | null;
   a2aEndpoint?: string | null;
-  ensEndpoint?: string | null;
-  agentAccountEndpoint?: string | null;
+  // Removed: agentAccountEndpoint (confusing/overloaded)
   supportedTrust?: string | null;
   rawJson?: string | null;
   agentCardJson?: string | null;
@@ -21,7 +20,7 @@ type AgentSemanticRow = {
   toolsJson?: string | null;
   promptsJson?: string | null;
   resourcesJson?: string | null;
-  tokenMetadataJson?: string | null;
+  agentMetadataJson?: string | null;
 };
 
 const DEFAULT_CHUNK_SIZE = 75;
@@ -37,8 +36,7 @@ SELECT
   a.type,
   a.image,
   a.a2aEndpoint,
-  a.ensEndpoint,
-  a.agentAccountEndpoint,
+  -- Removed: a.agentAccountEndpoint
   a.supportedTrust,
   a.rawJson,
   a.agentCardJson,
@@ -50,14 +48,14 @@ SELECT
   COALESCE((SELECT json_group_array(resource) FROM agent_mcp_resources mr WHERE mr.chainId = a.chainId AND mr.agentId = a.agentId), '[]') AS resourcesJson,
   COALESCE((
     SELECT json_group_array(json_object(
-      'key', metadataKey,
+      'key', key,
       'valueText', valueText,
       'valueHex', valueHex,
       'indexedKey', indexedKey
     ))
-    FROM token_metadata tm
-    WHERE tm.chainId = a.chainId AND tm.agentId = a.agentId
-  ), '[]') AS tokenMetadataJson
+    FROM agent_metadata am
+    WHERE am.chainId = a.chainId AND am.agentId = a.agentId
+  ), '[]') AS agentMetadataJson
 FROM agents a
 WHERE
   (
@@ -141,7 +139,7 @@ function buildMetadataMap(entries: any[]): Record<string, unknown> {
   const map: Record<string, unknown> = {};
   for (const entry of entries) {
     if (!entry || typeof entry !== 'object') continue;
-    const key = typeof entry.key === 'string' ? entry.key : typeof entry.metadataKey === 'string' ? entry.metadataKey : null;
+    const key = typeof entry.key === 'string' ? entry.key : null;
     if (!key) continue;
     if (entry.valueText && typeof entry.valueText === 'string' && entry.valueText.trim().length) {
       const trimmed = entry.valueText.trim();
@@ -176,8 +174,8 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
   const tools = parseStringArray(safeJsonParse(row.toolsJson, []));
   const resources = parseStringArray(safeJsonParse(row.resourcesJson, []));
   const operators = parseStringArray(safeJsonParse(row.operatorsJson, []));
-  const tokenMetadataEntries = safeJsonParse<any[]>(row.tokenMetadataJson, []);
-  const tokenMetadataMap = buildMetadataMap(tokenMetadataEntries);
+  const tokenMetadataEntries = safeJsonParse<any[]>(row.agentMetadataJson, []);
+  const agentMetadataMap = buildMetadataMap(tokenMetadataEntries);
   const rawJson = safeJsonParse<Record<string, unknown>>(row.rawJson, {});
   const agentCardJson = safeJsonParse<Record<string, unknown>>(row.agentCardJson, {});
 
@@ -189,11 +187,11 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
 
   const tags = dedupeStrings([...skills, ...prompts]);
   const capabilities = dedupeStrings([...trustFromTable, ...trustFromColumn, ...tools, ...resources]);
-  const inputModesFromMetadata = extractStringArrayFromMetadata(tokenMetadataMap, 'defaultInputModes');
+  const inputModesFromMetadata = extractStringArrayFromMetadata(agentMetadataMap, 'defaultInputModes');
   const inputModesFromRaw = extractStringArrayFromMetadata(rawJson ?? {}, 'defaultInputModes');
   const defaultInputModes = inputModesFromMetadata.length ? inputModesFromMetadata : inputModesFromRaw;
 
-  const outputModesFromMetadata = extractStringArrayFromMetadata(tokenMetadataMap, 'defaultOutputModes');
+  const outputModesFromMetadata = extractStringArrayFromMetadata(agentMetadataMap, 'defaultOutputModes');
   const outputModesFromRaw = extractStringArrayFromMetadata(rawJson ?? {}, 'defaultOutputModes');
   const defaultOutputModes = outputModesFromMetadata.length ? outputModesFromMetadata : outputModesFromRaw;
 
@@ -204,14 +202,13 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
   if (trustFromTable.length || trustFromColumn.length) metadata.supportedTrust = dedupeStrings([...trustFromTable, ...trustFromColumn]);
   if (tools.length) metadata.mcpTools = tools;
   if (resources.length) metadata.mcpResources = resources;
-  if (tokenMetadataEntries.length) metadata.tokenMetadata = tokenMetadataEntries;
-  if (Object.keys(tokenMetadataMap).length) metadata.tokenMetadataMap = tokenMetadataMap;
+  if (tokenMetadataEntries.length) metadata.agentMetadata = tokenMetadataEntries;
+  if (Object.keys(agentMetadataMap).length) metadata.agentMetadataMap = agentMetadataMap;
   if (rawJson && Object.keys(rawJson).length) metadata.raw = rawJson;
   if (agentCardJson && Object.keys(agentCardJson).length) metadata.agentCard = agentCardJson;
   const endpoints: Record<string, string> = {};
   if (row.a2aEndpoint?.trim()) endpoints.a2aEndpoint = row.a2aEndpoint.trim();
-  if (row.ensEndpoint?.trim()) endpoints.ensEndpoint = row.ensEndpoint.trim();
-  if (row.agentAccountEndpoint?.trim()) endpoints.agentAccountEndpoint = row.agentAccountEndpoint.trim();
+  // Removed: agentAccountEndpoint (confusing/overloaded)
   if (Object.keys(endpoints).length) metadata.endpoints = endpoints;
   if (row.type) metadata.type = row.type;
   if (row.image) metadata.image = row.image;
@@ -251,7 +248,7 @@ async function fetchAgentChunk(
   ];
   if (stmt.bind && typeof stmt.bind === 'function') {
     const result = await stmt.bind(...bindParams).all();
-    return Array.isArray(result?.results) ? (result.results as AgentSemanticRow[]) : [];
+    return Array.isArray(result) ? (result as AgentSemanticRow[]) : Array.isArray(result?.results) ? (result.results as AgentSemanticRow[]) : [];
   }
   const rows = await stmt.all(...bindParams);
   return Array.isArray(rows) ? (rows as AgentSemanticRow[]) : [];

@@ -185,6 +185,16 @@ function normalizeHex(x: unknown): string | null {
   return s.startsWith('0x') ? s.toLowerCase() : s;
 }
 
+function normalizeHexFromAccountId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  if (!s) return null;
+  const last = s.includes(':') ? s.split(':').pop() ?? '' : s;
+  const hex = normalizeHex(last);
+  if (!hex) return null;
+  return /^0x[0-9a-f]{40}$/.test(hex) ? hex : null;
+}
+
 function agentIri(chainId: number, agentId: string, didIdentity?: string | null): string {
   // Use DID for protocol-agnostic IRI, fallback to chainId/agentId if DID not available
   const identifier = didIdentity ? iriEncodeSegment(didIdentity) : `${chainId}/${iriEncodeSegment(agentId)}`;
@@ -488,7 +498,7 @@ function renderAgentSection(
   const agentId = String(row?.agentId ?? '');
   const readAt = Number(row?.agentCardReadAt ?? 0) || Math.floor(Date.now() / 1000);
 
-  // Parse rawJson (tokenUri metadata) early so we can infer ERC-8004 identity even when didIdentity
+  // Parse rawJson (agentURI registration JSON) early so we can infer ERC-8004 identity even when didIdentity
   // isn't present in the DB.
   let tokenUriData: any = null;
   if (row?.rawJson) {
@@ -500,15 +510,9 @@ function renderAgentSection(
   }
 
   // Identity principle (new way only):
-  // - Anchor the discoverable AIAgent node to an on-chain account address (authority).
-  // - Prefer agentAccount (SmartAccount). If missing, fall back to other on-chain address fields.
-  // - NEVER fall back to did:8004 / agentId-derived IRIs for the AIAgent subject.
-  const acctNorm =
-    normalizeHex(row?.agentAccount) ??
-    normalizeHex(row?.agentAddress) ??
-    normalizeHex(row?.agentOwner) ??
-    normalizeHex(row?.eoaOwner) ??
-    null;
+  // - Anchor the discoverable AIAgent node to the on-chain agentAccount (SmartAccount).
+  // - If no agentAccount exists, we skip emitting this agent entirely.
+  const acctNorm = normalizeHex(row?.agentAccount) ?? null;
   const acctIri = acctNorm ? accountIri(chainId, acctNorm) : null;
   if (!acctIri) return '';
   const aIri = acctIri;
@@ -644,7 +648,7 @@ function renderAgentSection(
   if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
   if (row?.agentAccount) {
     lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
-    // Link to AccountIdentifier instance (agentAccount is the primary account, typically SmartAccount)
+    // Link to AccountIdentifier instance (agentAccount is the canonical on-chain address for the agent)
     const acctIri = accountIri(chainId, String(row.agentAccount));
     const accountIdentifierIriValue = accountIdentifierIri(chainId, String(row.agentAccount));
     // Link agent to AccountIdentifier via hasAccountIdentifier
@@ -690,9 +694,9 @@ function renderAgentSection(
     accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
     accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
     accountLines.push(`  agentictrustEth:hasIdentifier ${accountIdentifierIriValue} ;`);
-    // Link Account to EOA owner if present
-    if (row?.eoaOwner) {
-      const eoaAddr = normalizeHex(String(row.eoaOwner));
+    // Link Agent Account to EOA owner if present
+    if (row?.eoaAgentAccount) {
+      const eoaAddr = normalizeHex(String(row.eoaAgentAccount));
       if (eoaAddr) {
         const eoaIri = accountIri(chainId, eoaAddr);
         accountLines.push(`  agentictrustEth:hasEOAOwner ${eoaIri} ;`);
@@ -704,31 +708,25 @@ function renderAgentSection(
     accountLines.push(`  .\n`);
     accountChunks.push(accountLines.join('\n'));
   }
-  if (row?.agentOwner) lines.push(`  agentictrust:agentOwner "${escapeTurtleString(String(row.agentOwner))}" ;`);
-  if (row?.eoaOwner) lines.push(`  agentictrust:eoaOwner "${escapeTurtleString(String(row.eoaOwner))}" ;`);
-  if (row?.tokenUri) {
-    const tok = turtleIriOrLiteral(String(row.tokenUri));
-    if (tok) lines.push(`  agentictrust:tokenUri ${tok} ;`);
+  if (row?.agentIdentityOwnerAccount) lines.push(`  agentictrust:agentIdentityOwnerAccount "${escapeTurtleString(String(row.agentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentIdentityOwnerAccount) lines.push(`  agentictrust:eoaAgentIdentityOwnerAccount "${escapeTurtleString(String(row.eoaAgentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentAccount) lines.push(`  agentictrust:eoaAgentAccount "${escapeTurtleString(String(row.eoaAgentAccount))}" ;`);
+  if (row?.agentUri) {
+    const tok = turtleIriOrLiteral(String(row.agentUri));
+    if (tok) lines.push(`  agentictrust:agentUri ${tok} ;`);
   }
   if (row?.a2aEndpoint) {
     const tok = turtleIriOrLiteral(String(row.a2aEndpoint));
     if (tok) lines.push(`  agentictrust:a2aEndpoint ${tok} ;`);
   }
-  if (row?.ensEndpoint) {
-    const tok = turtleIriOrLiteral(String(row.ensEndpoint));
-    if (tok) lines.push(`  agentictrustEth:ensEndpoint ${tok} ;`);
-  }
-  if (row?.agentAccountEndpoint) {
-    const tok = turtleIriOrLiteral(String(row.agentAccountEndpoint));
-    if (tok) lines.push(`  agentictrust:agentAccountEndpoint ${tok} ;`);
-  }
+  // Removed: ensEndpoint / agentAccountEndpoint (columns removed; derive didName / CAIP10 when needed)
   if (row?.supportedTrust) lines.push(`  agentictrust:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
   if (row?.createdAtTime) lines.push(`  agentictrust:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
   if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
   if (row?.rawJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
   lines.push(`  .\n`);
 
-  // Populate AgentDescriptor with OASF skills/domains from agent card + tokenUri metadata (if present)
+  // Populate AgentDescriptor with OASF skills/domains from agent card + agentURI registration JSON (if present)
   // Agent card fields frequently look like:
   // - oasf_skills: ["natural_language_processing/summarization", ...]
   // - oasf_domains: ["finance_and_business/accounting", ...]
@@ -742,7 +740,7 @@ function renderAgentSection(
   for (const d of takeStrings((tokenUriData as any)?.oasf_domains)) declaredOasfDomains.add(d);
 
   // Also accept ERC-8004 registration endpoint-level arrays:
-  // tokenUri.endpoints[].a2aSkills / a2aDomains (common in registration-v1 payloads)
+  // registration.endpoints[].a2aSkills / a2aDomains (common in registration-v1 payloads)
   if (tokenUriData && Array.isArray((tokenUriData as any).endpoints)) {
     for (const ep of (tokenUriData as any).endpoints) {
       if (!ep || typeof ep !== 'object') continue;
@@ -762,7 +760,7 @@ function renderAgentSection(
     adLines.push(`${adIri} a agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
   }
   
-  // Extract and populate data from rawJson (tokenUriData) for ERC-8004 agents
+  // Extract and populate data from rawJson (registration JSON) for ERC-8004 agents
   if (isERC8004 && tokenUriData) {
     // Name, Description, Image
     if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
@@ -803,7 +801,7 @@ function renderAgentSection(
       if (epName === 'a2a' || epName === 'agent') endpointType = 'a2a';
       else if (epName === 'mcp') endpointType = 'mcp';
       else if (epName === 'ens') endpointType = 'ens';
-      else if (epName === 'agentaccount' || epName === 'agent-account') endpointType = 'agentAccount';
+      else if (epName === 'agentwallet' || epName === 'agent-wallet') endpointType = 'agentAccount';
       
       const endpointTypeIri = `<https://www.agentictrust.io/ontology/agentictrust-core/endpointType/${endpointType}>`;
       const endpointLines: string[] = [];
@@ -890,7 +888,7 @@ function renderAgentSection(
   adLines.push(`  .\n`);
   afterAgent.push(adLines.join('\n'));
 
-  // Create IdentityDescriptor8004 from tokenUri (rawJson) if we have Identity8004
+  // Create IdentityDescriptor8004 from registration JSON (rawJson) if we have Identity8004
   if (row?.didIdentity) {
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
     const identityDescriptorIri = identity8004DescriptorIri(chainId, agentId, row.didIdentity);
@@ -1200,12 +1198,7 @@ function renderAgentSection(
 function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   const chainId = Number(row?.chainId ?? 0) || 0;
   const agentId = String(row?.agentId ?? '');
-  const acctNorm =
-    normalizeHex(row?.agentAccount) ??
-    normalizeHex(row?.agentAddress) ??
-    normalizeHex(row?.agentOwner) ??
-    normalizeHex(row?.eoaOwner) ??
-    null;
+  const acctNorm = normalizeHex(row?.agentAccount) ?? null;
   const acctIri = acctNorm ? accountIri(chainId, acctNorm) : null;
   if (!acctIri) return '';
   const aIri = acctIri;
@@ -1313,7 +1306,7 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
   if (row?.agentAccount) {
     lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
-    // Link to AccountIdentifier instance (agentAccount is the primary account, typically SmartAccount)
+    // Link to AccountIdentifier instance (agentAccount is the canonical on-chain address for the agent)
     const acctIri = accountIri(chainId, String(row.agentAccount));
     const accountIdentifierIriValue = accountIdentifierIri(chainId, String(row.agentAccount));
     // Link agent to AccountIdentifier via hasAccountIdentifier
@@ -1359,9 +1352,9 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
     accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
     accountLines.push(`  agentictrustEth:hasIdentifier ${accountIdentifierIriValue} ;`);
-    // Link Account to EOA owner if present
-    if (row?.eoaOwner) {
-      const eoaAddr = normalizeHex(String(row.eoaOwner));
+    // Link Agent Account to EOA owner if present
+    if (row?.eoaAgentAccount) {
+      const eoaAddr = normalizeHex(String(row.eoaAgentAccount));
       if (eoaAddr) {
         const eoaIri = accountIri(chainId, eoaAddr);
         accountLines.push(`  agentictrustEth:hasEOAOwner ${eoaIri} ;`);
@@ -1373,24 +1366,18 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     accountLines.push(`  .\n`);
     accountChunks.push(accountLines.join('\n'));
   }
-  if (row?.agentOwner) lines.push(`  agentictrust:agentOwner "${escapeTurtleString(String(row.agentOwner))}" ;`);
-  if (row?.eoaOwner) lines.push(`  agentictrust:eoaOwner "${escapeTurtleString(String(row.eoaOwner))}" ;`);
-  if (row?.tokenUri) {
-    const tok = turtleIriOrLiteral(String(row.tokenUri));
-    if (tok) lines.push(`  agentictrust:tokenUri ${tok} ;`);
+  if (row?.agentIdentityOwnerAccount) lines.push(`  agentictrust:agentIdentityOwnerAccount "${escapeTurtleString(String(row.agentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentIdentityOwnerAccount) lines.push(`  agentictrust:eoaAgentIdentityOwnerAccount "${escapeTurtleString(String(row.eoaAgentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentAccount) lines.push(`  agentictrust:eoaAgentAccount "${escapeTurtleString(String(row.eoaAgentAccount))}" ;`);
+  if (row?.agentUri) {
+    const tok = turtleIriOrLiteral(String(row.agentUri));
+    if (tok) lines.push(`  agentictrust:agentUri ${tok} ;`);
   }
   if (row?.a2aEndpoint) {
     const tok = turtleIriOrLiteral(String(row.a2aEndpoint));
     if (tok) lines.push(`  agentictrust:a2aEndpoint ${tok} ;`);
   }
-  if (row?.ensEndpoint) {
-    const tok = turtleIriOrLiteral(String(row.ensEndpoint));
-    if (tok) lines.push(`  agentictrustEth:ensEndpoint ${tok} ;`);
-  }
-  if (row?.agentAccountEndpoint) {
-    const tok = turtleIriOrLiteral(String(row.agentAccountEndpoint));
-    if (tok) lines.push(`  agentictrust:agentAccountEndpoint ${tok} ;`);
-  }
+  // Removed: ensEndpoint / agentAccountEndpoint (columns removed; derive didName / CAIP10 when needed)
   if (row?.supportedTrust) lines.push(`  agentictrust:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
   if (row?.createdAtTime) lines.push(`  agentictrust:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
   if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
@@ -1414,7 +1401,7 @@ async function exportAgentsRdfInternal(
   };
 
   const allAgentsForMaps = await safeAll(`
-    SELECT chainId, agentId, agentName, agentAccount, agentAddress, agentOwner, eoaOwner, didIdentity, didAccount
+    SELECT chainId, agentId, agentName, agentAccount, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, eoaAgentAccount, didIdentity, didAccount
     FROM agents
   `);
   const agentMetaByKey = new Map<
@@ -1441,12 +1428,7 @@ async function exportAgentsRdfInternal(
     const didIdentityRaw = row?.didIdentity != null ? String(row.didIdentity) : null;
     const didIdentity = didIdentityRaw && didIdentityRaw.trim() ? didIdentityRaw.trim() : `did:8004:${chainId}:${agentId}`;
     const didAccount = row?.didAccount != null ? String(row.didAccount) : null;
-    const anchorAddr =
-      normalizeHex(row?.agentAccount) ??
-      normalizeHex(row?.agentAddress) ??
-      normalizeHex(row?.agentOwner) ??
-      normalizeHex(row?.eoaOwner) ??
-      null;
+    const anchorAddr = normalizeHexFromAccountId(row?.agentAccount) ?? null;
     const agentAnchorIri = anchorAddr ? accountIri(chainId, anchorAddr) : null;
     const identity8004 = didIdentity ? identity8004Iri(chainId, agentId, didIdentity) : null;
     agentMetaByKey.set(key, {
@@ -1461,10 +1443,9 @@ async function exportAgentsRdfInternal(
     const acctForAgent = anchorAddr;
     const aIri = agentAnchorIri;
     if (!aIri) continue;
-    const acct = normalizeHex(row?.agentAccount);
-    const addr = normalizeHex(row?.agentAddress);
-    const owner = normalizeHex(row?.agentOwner);
-    const eoa = normalizeHex(row?.eoaOwner);
+    const acct = normalizeHexFromAccountId(row?.agentAccount);
+    const owner = normalizeHexFromAccountId(row?.agentIdentityOwnerAccount);
+    const eoa = normalizeHexFromAccountId(row?.eoaAgentIdentityOwnerAccount);
 
     const indexAccountIdentifier = (address: string | null) => {
       if (!address) return;
@@ -1491,13 +1472,6 @@ async function exportAgentsRdfInternal(
       indexAccountIdentifier(acct);
       indexAccountSuffix(acct);
     }
-    if (addr) {
-      const k = `${chainId}|${addr}`;
-      agentByAccountKey.set(k, aIri);
-      agentKeyByAccountKey.set(k, { chainId, agentId });
-      indexAccountIdentifier(addr);
-      indexAccountSuffix(addr);
-    }
     // Bridge relationship assertions to agents even when ERC-8092 initiator/approver addresses correspond
     // to the agent's owner EOAs (not the agent account / smart account).
     if (owner) {
@@ -1519,11 +1493,10 @@ async function exportAgentsRdfInternal(
   const agentSql = onlyAgent
     ? `
       SELECT
-        chainId, agentId, agentName, agentOwner, eoaOwner, agentCategory, tokenUri,
-        a2aEndpoint, ensEndpoint, agentAccountEndpoint,
+        chainId, agentId, agentName, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, agentCategory, agentUri,
+        a2aEndpoint,
         didIdentity, didAccount, didName,
         agentAccount,
-        agentAddress,
         supportedTrust,
         rawJson,
         agentCardJson,
@@ -1538,11 +1511,10 @@ async function exportAgentsRdfInternal(
     `
     : `
       SELECT
-        chainId, agentId, agentName, agentOwner, eoaOwner, agentCategory, tokenUri,
-        a2aEndpoint, ensEndpoint, agentAccountEndpoint,
+        chainId, agentId, agentName, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, agentCategory, agentUri,
+        a2aEndpoint,
         didIdentity, didAccount, didName,
         agentAccount,
-        agentAddress,
         supportedTrust,
         rawJson,
         agentCardJson,
@@ -1769,6 +1741,7 @@ async function exportAgentsRdfInternal(
   const assocDelegationByKey = new Map<string, any>(); // `${chainId}|${associationId}` -> row
   const delegationByFeedbackAuth = new Map<string, string>(); // feedbackAuth -> delegationAssertionIri
   const delegationByRequestHash = new Map<string, string>(); // requestHash -> delegationAssertionIri
+  const delegationByAgentClientSuffix = new Map<string, string>(); // `${chainId}|${agentAnchorIri}|${clientLast40}` -> delegationAssertionIri
   for (const d of assocDelegationsRaw) {
     const chainId = Number(d?.chainId ?? 0) || 0;
     const associationId = String(d?.associationId ?? '');
@@ -1779,6 +1752,45 @@ async function exportAgentsRdfInternal(
     const delIri = erc8092DelegationTrustAssertionIri(chainId, associationId);
     if (fb) delegationByFeedbackAuth.set(fb, delIri);
     if (rh) delegationByRequestHash.set(rh, delIri);
+  }
+
+  // Optional permissioned-feedback (Jan 2026): feedbackAuth is no longer required in core ERC-8004,
+  // but we still support delegation-based gating via ERC-8092 association delegations.
+  // Best-effort: join association_delegations -> associations to map (agent, client) -> delegation assertion.
+  const associationsForDelegations = await safeAll(`
+    SELECT assoc.*
+    FROM associations assoc
+  `);
+  const last40 = (value: any): string | null => {
+    if (value === null || value === undefined) return null;
+    const s = String(value).trim();
+    if (!s) return null;
+    const hex = s.replace(/^0x/i, '');
+    if (hex.length < 40) return null;
+    const out = hex.slice(-40).toLowerCase();
+    return out.length === 40 ? out : null;
+  };
+  for (const assoc of associationsForDelegations) {
+    const chainId = Number(assoc?.chainId ?? 0) || 0;
+    const associationId = String(assoc?.associationId ?? '');
+    if (!associationId) continue;
+    const d = assocDelegationByKey.get(`${chainId}|${associationId}`);
+    if (!d) continue;
+    const kind = typeof d?.extractedKind === 'string' ? d.extractedKind.trim() : '';
+    if (kind !== 'feedbackAuth') continue;
+
+    const delIri = erc8092DelegationTrustAssertionIri(chainId, associationId);
+    const init40 = last40(assoc?.initiatorAccountId);
+    const appr40 = last40(assoc?.approverAccountId);
+    if (!init40 || !appr40) continue;
+
+    const initiatorAgent = agentByAccountSuffixKey.get(`${chainId}|${init40}`) || null;
+    const approverAgent = agentByAccountSuffixKey.get(`${chainId}|${appr40}`) || null;
+    const agentAnchor = initiatorAgent || approverAgent;
+    const client40 = agentAnchor === initiatorAgent ? appr40 : agentAnchor === approverAgent ? init40 : null;
+    if (!agentAnchor || !client40) continue;
+
+    delegationByAgentClientSuffix.set(`${chainId}|${agentAnchor}|${client40}`, delIri);
   }
 
   const feedbacks = await safeAll(
@@ -1856,6 +1868,10 @@ async function exportAgentsRdfInternal(
     if (client) {
       ensureAccountNode(chunks, chainId, client, 'EOA'); // Feedback client is typically EOA
       recordLines.push(`  erc8004:feedbackClient ${accountIri(chainId, client)} ;`);
+    }
+    if (typeof f?.endpoint === 'string' && f.endpoint.trim()) {
+      const epTok = turtleIriOrLiteral(String(f.endpoint).trim());
+      if (epTok) recordLines.push(`  erc8004:endpoint ${epTok} ;`);
     }
     if (f?.score != null) recordLines.push(`  erc8004:feedbackScore ${Number(f.score) || 0} ;`);
     if (f?.ratingPct != null) recordLines.push(`  erc8004:feedbackRatingPct ${Number(f.ratingPct) || 0} ;`);
@@ -1958,6 +1974,17 @@ async function exportAgentsRdfInternal(
     if (onchainDelegation) {
       // Prefer ERC-8092 delegation assertion if present.
       recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${onchainDelegation} ;`);
+    } else if (!feedbackAuthToken && client) {
+      // Permissioned feedback (extension): link feedback to a matching ERC-8092 delegation by (agent, client)
+      // even when feedbackAuth is absent (Jan 2026 core flow).
+      const c40 = (() => {
+        const norm = normalizeHex(client);
+        if (!norm) return null;
+        const out = norm.replace(/^0x/i, '').slice(-40).toLowerCase();
+        return out.length === 40 ? out : null;
+      })();
+      const del = c40 ? delegationByAgentClientSuffix.get(`${chainId}|${ai}|${c40}`) : undefined;
+      if (del) recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${del} ;`);
     } else if (feedbackAuthToken && client) {
       ensureAccountNode(chunks, chainId, client, 'EOA');
       const clientIri = accountIri(chainId, client);
@@ -2393,7 +2420,7 @@ async function exportAgentsRdfInternal(
     const meta = agentMetaByKey.get(key);
     const targetAgentIri = agentIri(chainId, agentId, meta?.didIdentity);
 
-    // Collect all known account keys that map to this agent (agentAccount, agentAddress, agentOwner, eoaOwner).
+    // Collect all known account keys that map to this agent (agentAccount, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount).
     const addresses = new Set<string>();
     for (const [k, v] of agentByAccountKey.entries()) {
       if (v === targetAgentIri && k.startsWith(`${chainId}|`)) {
@@ -2540,7 +2567,7 @@ async function exportAgentsRdfInternal(
     lines.push(`  agentictrust:recordsSituation ${relSituationIri} ;`);
     lines.push(`  agentictrust:assertionRecordOf ${actIri} ;`);
     if (initiator) {
-      // initiator/approver reference agentAccount, not eoaOwner
+      // initiator/approver reference agentAccount, not eoaAgentIdentityOwnerAccount
       ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
       lines.push(`  erc8092:initiator ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
     }

@@ -100,7 +100,7 @@ async function rulePasses(
         return false;
       }
       // Check if there's a validation response for this agent where the VALIDATOR's agent name matches
-      // Join with agents table to find the validator's agent record (matching validatorAddress to agentAddress/agentAccount)
+      // Join with agents table to find the validator's agent record (matching validatorAddress to agentAccount)
       const row = await executeQuerySingle(
         db,
         `

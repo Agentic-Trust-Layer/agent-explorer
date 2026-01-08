@@ -104,17 +104,7 @@ async function initializeSchema() {
   await tryAddColumn('agents', 'agentCardJson', 'TEXT');
   await tryAddColumn('agents', 'agentCardReadAt', 'INTEGER');
 
-  // Back-compat: some historical DBs used metadataURI instead of tokenUri.
-  // If both columns exist, backfill tokenUri from metadataURI once (best-effort).
-  try {
-    const cols = await db.prepare(`SELECT name FROM pragma_table_info('agents')`).all();
-    const names = new Set((Array.isArray(cols) ? cols : (cols as any)?.results || []).map((r: any) => String(r?.name || '')));
-    if (names.has('metadataURI') && names.has('tokenUri')) {
-      await db.prepare(`UPDATE agents SET tokenUri = metadataURI WHERE (tokenUri IS NULL OR tokenUri = '') AND metadataURI IS NOT NULL`).run();
-    }
-  } catch {
-    // best-effort
-  }
+  // Jan 2026 naming only (no legacy column backfills).
 
   // OASF: tables/columns used by sync + RDF export (best-effort for dev; migrations should handle prod)
   // Create auxiliary tables if missing

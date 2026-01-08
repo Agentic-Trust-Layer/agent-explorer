@@ -70,8 +70,8 @@ async function fetchTokenUriJson(tokenURI: string | null): Promise<any | null> {
   const uri = tokenURI.trim();
   if (!uri) return null;
 
-  // If tokenUri itself is a JSON string, parse it directly.
-  // This handles cases where tokenUri is stored as inline JSON rather than a URL/data URI.
+  // If agentUri itself is a JSON string, parse it directly.
+  // This handles cases where agentUri is stored as inline JSON rather than a URL/data URI.
   if (uri.startsWith('{') || uri.startsWith('[')) {
     try {
       return JSON.parse(uri);
@@ -79,7 +79,7 @@ async function fetchTokenUriJson(tokenURI: string | null): Promise<any | null> {
       return null;
     }
   }
-  // If tokenUri is percent-encoded JSON (e.g. starts with %7B), decode and parse.
+  // If agentUri is percent-encoded JSON (e.g. starts with %7B), decode and parse.
   if (uri.startsWith('%7B') || uri.startsWith('%5B')) {
     try {
       const decoded = decodeURIComponent(uri);
@@ -288,7 +288,7 @@ export async function runTokenUriBackfill(
       .prepare(
         `SELECT
            COUNT(*) as n,
-           SUM(CASE WHEN tokenUri IS NOT NULL AND tokenUri != '' THEN 1 ELSE 0 END) as withTokenUri,
+           SUM(CASE WHEN agentUri IS NOT NULL AND agentUri != '' THEN 1 ELSE 0 END) as withAgentUri,
            SUM(CASE WHEN rawJson IS NOT NULL AND rawJson != '' THEN 1 ELSE 0 END) as withRawJson
          FROM agents${chainIdFilter ? ' WHERE chainId = ?' : ''}`,
       )
@@ -329,14 +329,14 @@ export async function runTokenUriBackfill(
       params.push(cursorChainId, cursorChainId, cursorAgentId);
     }
 
-    where.push("tokenUri IS NOT NULL AND tokenUri != ''");
+    where.push("agentUri IS NOT NULL AND agentUri != ''");
     if (!overwrite) where.push("(rawJson IS NULL OR rawJson = '')");
 
     const orderBy = chainIdFilter
       ? 'ORDER BY CAST(agentId AS INTEGER) ASC, agentId ASC'
       : 'ORDER BY chainId ASC, agentId ASC';
     const sql = `
-      SELECT chainId, agentId, tokenUri, rawJson
+      SELECT chainId, agentId, agentUri, rawJson
       FROM agents
       WHERE ${where.join(' AND ')}
       ${orderBy}
@@ -359,12 +359,12 @@ export async function runTokenUriBackfill(
     for (const r of rows) {
       const chainId = Number(r?.chainId ?? 0) || 0;
       const agentId = String(r?.agentId ?? '');
-      const tokenUri = typeof r?.tokenUri === 'string' ? r.tokenUri : null;
+      const tokenUri = typeof r?.agentUri === 'string' ? r.agentUri : null;
 
       let fetched: any | null = null;
       try {
         // Log each agent processed (default-on).
-        console.log('[tokenuri-backfill] agent', { chainId, agentId, tokenUri: truncateForLog(tokenUri, 220) || null });
+        console.log('[agenturi-backfill] agent', { chainId, agentId, agentUri: truncateForLog(tokenUri, 220) || null });
         fetched = await fetchTokenUriJson(tokenUri);
       } catch {
         fetchErrors += 1;

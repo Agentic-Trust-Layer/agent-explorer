@@ -9,6 +9,12 @@ function safeJsonParse(value: unknown): any | null {
   }
 }
 
+function normalizeResults(result: any): any[] {
+  if (Array.isArray(result)) return result;
+  if (Array.isArray(result?.results)) return result.results;
+  return [];
+}
+
 export function extractRegistrationA2AEndpoint(rawJson: unknown, fallbackA2AEndpoint?: string | null): string | null {
   const parsed = safeJsonParse(rawJson);
   const normalize = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -154,10 +160,10 @@ export async function backfillAgentCards(dbInstance: any, opts?: { chunkSize?: n
     try {
       if (stmt.bind && typeof stmt.bind === 'function') {
         const result = await stmt.bind(...bindParams).all();
-        rows = Array.isArray(result?.results) ? result.results : [];
+        rows = normalizeResults(result);
       } else {
         const result = await stmt.all(...bindParams);
-        rows = Array.isArray(result) ? result : [];
+        rows = normalizeResults(result);
       }
     } catch (e) {
       console.warn('[agent-card-backfill] query failed', e);

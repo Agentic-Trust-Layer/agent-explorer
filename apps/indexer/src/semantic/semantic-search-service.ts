@@ -467,15 +467,13 @@ export class SemanticSearchService {
     handleArray('MCP tools', metadata['mcpTools']);
     handleArray('MCP resources', metadata['mcpResources']);
 
-    const tokenMetadata = metadata['tokenMetadata'];
-    if (Array.isArray(tokenMetadata)) {
-      for (const entry of tokenMetadata) {
+    const agentMetadata = metadata['agentMetadata'];
+    if (Array.isArray(agentMetadata)) {
+      for (const entry of agentMetadata) {
         if (entry && typeof entry === 'object') {
           const key = typeof (entry as any).key === 'string'
             ? (entry as any).key
-            : typeof (entry as any).metadataKey === 'string'
-              ? (entry as any).metadataKey
-              : null;
+            : null;
           const valueText = stringify(
             (entry as any).valueText ?? (entry as any).value ?? (entry as any).valueHex,
           );
@@ -486,9 +484,9 @@ export class SemanticSearchService {
       }
     }
 
-    const tokenMetadataMap = metadata['tokenMetadataMap'];
-    if (tokenMetadataMap && typeof tokenMetadataMap === 'object' && !Array.isArray(tokenMetadataMap)) {
-      for (const [key, value] of Object.entries(tokenMetadataMap as Record<string, unknown>)) {
+    const agentMetadataMap = metadata['agentMetadataMap'];
+    if (agentMetadataMap && typeof agentMetadataMap === 'object' && !Array.isArray(agentMetadataMap)) {
+      for (const [key, value] of Object.entries(agentMetadataMap as Record<string, unknown>)) {
         const text = stringify(value);
         if (key && text) {
           segments.push(`${key}: ${text}`);

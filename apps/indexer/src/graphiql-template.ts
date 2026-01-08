@@ -140,7 +140,6 @@ export const graphiqlHTML = `<!DOCTYPE html>
     type
     a2aEndpoint
     ensEndpoint
-    agentAccountEndpoint
     supportedTrust
     did
     mcp

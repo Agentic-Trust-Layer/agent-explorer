@@ -460,17 +460,20 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     throw new Error('Database instance required for upsertFromTransfer. In Workers, db must be passed via dbOverride parameter');
   }
   const agentId = toDecString(tokenId);
-  const ownerAddress = to;
-  let agentAccount = to; // mirror owner for now
-  const agentAddress = to; // keep for backward compatibility
+  const agentIdentityOwnerAccountAddr = to.toLowerCase(); // ERC-721 owner (Account.id)
+  let agentAccountAddr: string | null = null; // agent's configured account (subgraph agentWallet)
   let agentName = readAgentName(tokenInfo) || ""; // not modeled in ERC-721; leave empty
-  let resolvedTokenURI = tokenURI ?? (typeof tokenInfo?.uri === 'string' ? tokenInfo.uri : null);
+  let resolvedTokenURI =
+    tokenURI ??
+    (typeof tokenInfo?.agentUri === 'string' ? tokenInfo.agentUri : null) ??
+    (typeof tokenInfo?.agentURI === 'string' ? tokenInfo.agentURI : null) ??
+    (typeof tokenInfo?.uri === 'string' ? tokenInfo.uri : null);
   let shouldFetchAgentCard = false;
   try {
     const existing = await dbInstance
-      .prepare('SELECT tokenUri, agentCardReadAt FROM agents WHERE chainId = ? AND agentId = ?')
+      .prepare('SELECT agentUri, agentCardReadAt FROM agents WHERE chainId = ? AND agentId = ?')
       .get(chainId, agentId);
-    const prevTokenUri = (existing as any)?.tokenUri != null ? String((existing as any).tokenUri) : null;
+    const prevTokenUri = (existing as any)?.agentUri != null ? String((existing as any).agentUri) : null;
     const prevReadAt = Number((existing as any)?.agentCardReadAt ?? 0) || 0;
     if (prevTokenUri !== resolvedTokenURI) shouldFetchAgentCard = true;
     if (!prevReadAt) shouldFetchAgentCard = true;
@@ -486,15 +489,21 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       return null;
     }
   })();
-  const metadataAgentAccount = parseCaip10Address(tokenInfo?.agentAccount);
-  if (metadataAgentAccount) {
-    agentAccount = metadataAgentAccount;
+  const metadataAgentWallet = (() => {
+    const v = tokenInfo?.agentWallet;
+    if (typeof v !== 'string') return null;
+    const s = v.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(s)) return null;
+    return s.toLowerCase();
+  })();
+  if (metadataAgentWallet) {
+    agentAccountAddr = metadataAgentWallet;
   }
 
   // Extremely noisy during backfills; enable only when debugging transfers.
   if (process.env.DEBUG_TRANSFERS === '1') {
     console.info('.... processed agentId', { chainId, agentId, tokenId: tokenId.toString() });
-    console.info(".... ownerAddress", ownerAddress);
+    console.info(".... agentIdentityOwnerAccount", agentIdentityOwnerAccountAddr);
     console.info(".... chainId", chainId);
   }
 
@@ -580,51 +589,64 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
   }
 
 
-  if (ownerAddress != '0x000000000000000000000000000000000000dEaD') {
+  if (agentIdentityOwnerAccountAddr != '0x000000000000000000000000000000000000dEaD') {
     // Resolving EOA owners can be RPC-heavy; keep it opt-in.
     const resolveEoa = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
-    const resolvedEoaOwner = resolveEoa ? await resolveEoaOwnerSafe(chainId, ownerAddress) : null;
-    const eoaOwner = resolvedEoaOwner ?? ownerAddress;
+    const resolvedEoaIdentityOwnerAddr = resolveEoa ? await resolveEoaOwnerSafe(chainId, agentIdentityOwnerAccountAddr) : null;
+    const eoaAgentIdentityOwnerAccountAddr = (resolvedEoaIdentityOwnerAddr ?? agentIdentityOwnerAccountAddr)?.toLowerCase();
+    const resolvedEoaAgentAddr = resolveEoa && agentAccountAddr ? await resolveEoaOwnerSafe(chainId, agentAccountAddr) : null;
+    const eoaAgentAccountAddr = (resolvedEoaAgentAddr ?? agentAccountAddr)?.toLowerCase() ?? null;
     const createdAtTime = mintedTimestamp ?? Math.floor(Date.now() / 1000);
     
     // Compute DID values
     const didIdentity = `did:8004:${chainId}:${agentId}`;
-    const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
+    const agentAccountAddrFinal = (agentAccountAddr ?? agentIdentityOwnerAccountAddr).toLowerCase();
+    const didAccount = agentAccountAddrFinal ? `did:ethr:${chainId}:${agentAccountAddrFinal}` : '';
     const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
-    
-    await dbInstance.prepare(`
+
+    // Canonical DB storage: "{chainId}:{0x...}"
+    const agentAccount = `${chainId}:${agentAccountAddrFinal}`;
+    const eoaAgentAccount = eoaAgentAccountAddr ? `${chainId}:${eoaAgentAccountAddr}` : null;
+    const agentIdentityOwnerAccount = `${chainId}:${agentIdentityOwnerAccountAddr}`;
+    const eoaAgentIdentityOwnerAccount = eoaAgentIdentityOwnerAccountAddr ? `${chainId}:${eoaAgentIdentityOwnerAccountAddr}` : null;
+
+    // Strict schema only (no backward compatibility).
+    await dbInstance.prepare(
+      `
       INSERT INTO agents(
         chainId, agentId,
-        agentAddress, agentAccount, agentOwner, eoaOwner,
-        agentName, tokenUri, a2aEndpoint,
+        agentAccount, eoaAgentAccount,
+        agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount,
+        agentName, agentUri,
         createdAtBlock, createdAtTime,
         didIdentity, didAccount, didName,
-        rawJson, updatedAtTime
+        rawJson, updatedAtTime,
+        a2aEndpoint
       )
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
-        agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
-        agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
-        agentOwner=excluded.agentOwner,
-        eoaOwner=CASE WHEN excluded.eoaOwner IS NOT NULL AND excluded.eoaOwner != '' THEN excluded.eoaOwner ELSE eoaOwner END,
+        agentAccount=excluded.agentAccount,
+        eoaAgentAccount=COALESCE(excluded.eoaAgentAccount, eoaAgentAccount),
+        agentIdentityOwnerAccount=excluded.agentIdentityOwnerAccount,
+        eoaAgentIdentityOwnerAccount=COALESCE(excluded.eoaAgentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount),
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
-        a2aEndpoint=COALESCE(excluded.a2aEndpoint, a2aEndpoint),
-        tokenUri=COALESCE(excluded.tokenUri, tokenUri),
+        agentUri=COALESCE(excluded.agentUri, agentUri),
         didIdentity=COALESCE(excluded.didIdentity, didIdentity),
         didAccount=COALESCE(excluded.didAccount, didAccount),
         didName=COALESCE(excluded.didName, didName),
         rawJson=COALESCE(excluded.rawJson, rawJson),
-        updatedAtTime=COALESCE(excluded.updatedAtTime, updatedAtTime)
-    `).run(
+        updatedAtTime=COALESCE(excluded.updatedAtTime, updatedAtTime),
+        a2aEndpoint=COALESCE(excluded.a2aEndpoint, a2aEndpoint)
+      `,
+    ).run(
       chainId,
       agentId,
-      agentAddress, // keep for backward compatibility
       agentAccount,
-      ownerAddress,
-      eoaOwner,
+      eoaAgentAccount,
+      agentIdentityOwnerAccount,
+      eoaAgentIdentityOwnerAccount,
       agentName,
       resolvedTokenURI,
-      a2aEndpoint,
       Number(blockNumber),
       createdAtTime,
       didIdentity,
@@ -632,6 +654,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       didName,
       metadataJsonRaw,
       Math.floor(Date.now() / 1000),
+      a2aEndpoint,
     );
 
     // ATI compute is intentionally NOT part of the hot path (expensive). Use CLI only.
@@ -666,18 +689,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           return e && typeof e.endpoint === 'string' ? e.endpoint : null;
         };
         const a2aEndpoint = findEndpoint('A2A');
-        const ensEndpoint = findEndpoint('ENS');
-        let agentAccountEndpoint = findEndpoint('agentAccount');
-        // Always ensure agentAccountEndpoint reflects current owner `to`
-        if (process.env.DEBUG_METADATA === '1') {
-          console.info("............agentAccountEndpoint: ", agentAccountEndpoint);
-        }
-        if (!agentAccountEndpoint || !/^eip155:/i.test(agentAccountEndpoint)) {
-          if (process.env.DEBUG_METADATA === '1') {
-            console.info("............agentAccountEndpoint: no endpoint found, setting to: ", `eip155:${chainId}:${to}`);
-          }
-          agentAccountEndpoint = `eip155:${chainId}:${to}`;
-        }
+        // Removed: agentAccountEndpoint (confusing/overloaded; derive CAIP10 when needed)
         const supportedTrust =
           Array.isArray(meta.supportedTrust) ? meta.supportedTrust.map(String) :
           Array.isArray((meta as any).supportedTrusts) ? (meta as any).supportedTrusts.map(String) :
@@ -772,13 +784,12 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           console.info("............update into table: description: ", desc);
           console.info("............update into table: image: ", img);
           console.info("............update into table: a2aEndpoint: ", a2aEndpoint);
-          console.info("............update into table: ensEndpoint: ", ensEndpoint);
         }
         const updateTime = Math.floor(Date.now() / 1000);
         
         // Compute DID values
         const didIdentity = `did:8004:${chainId}:${agentId}`;
-        const didAccountValue = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
+        const didAccountValue = agentAccountAddrFinal ? `did:ethr:${chainId}:${agentAccountAddrFinal}` : '';
         const didNameValue = name && name.endsWith('.eth') ? `did:ens:${chainId}:${name}` : null;
         
         // Prefer storing the raw subgraph JSON (metadataJsonRaw) for agents.rawJson.
@@ -803,18 +814,6 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
               WHEN ? IS NOT NULL AND ? != '' THEN ?
               ELSE agentCategory
             END,
-            agentAddress = CASE
-              WHEN (agentAddress IS NULL OR agentAddress = '0x0000000000000000000000000000000000000000')
-                   AND (? IS NOT NULL AND ? != '0x0000000000000000000000000000000000000000')
-              THEN ?
-              ELSE agentAddress
-            END,
-            agentAccount = CASE
-              WHEN (agentAccount IS NULL OR agentAccount = '0x0000000000000000000000000000000000000000')
-                   AND (? IS NOT NULL AND ? != '0x0000000000000000000000000000000000000000')
-              THEN ?
-              ELSE COALESCE(agentAccount, agentAddress)
-            END,
             description = CASE 
               WHEN ? IS NOT NULL AND ? != '' THEN ? 
               ELSE description 
@@ -827,11 +826,6 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
               WHEN ? IS NOT NULL AND ? != '' THEN ? 
               ELSE a2aEndpoint 
             END,
-            ensEndpoint = CASE 
-              WHEN ? IS NOT NULL AND ? != '' THEN ? 
-              ELSE ensEndpoint 
-            END,
-            agentAccountEndpoint = COALESCE(?, agentAccountEndpoint),
             supportedTrust = COALESCE(?, supportedTrust),
             didIdentity = COALESCE(?, didIdentity),
             didAccount = COALESCE(?, didAccount),
@@ -843,13 +837,9 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           type,
           name, name, name,
           agentCategory, agentCategory, agentCategory,
-          agentAddress, agentAddress, agentAddress, // keep for backward compatibility
-          agentAccount, agentAccount, agentAccount,
           desc, desc, desc,
           img, img, img,
           a2aEndpoint, a2aEndpoint, a2aEndpoint,
-          ensEndpoint, ensEndpoint, ensEndpoint,
-          agentAccountEndpoint,
           JSON.stringify(supportedTrust),
           didIdentity,
           didAccountValue,
@@ -881,6 +871,13 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
         await recordEvent({ transactionHash: `token:${agentId}`, logIndex: 0, blockNumber }, 'MetadataFetched', { tokenId: agentId }, dbInstance);
       } catch (error) {
+        const msg = String((error as any)?.message || error || '');
+        if (msg.includes('no such column: agentCategory')) {
+          throw new Error(
+            `DB schema out of date: missing agents.agentCategory. ` +
+              `Apply migrations (recommended: apps/indexer/migrations/0031_agents_schema_caip10.sql) and retry.`,
+          );
+        }
         console.info("........... error updating a2aEndpoint", error)
       }
     }
@@ -1036,27 +1033,6 @@ function decodeHexToUtf8(value: string | null | undefined): string | null {
   }
 }
 
-function extractMetadataIdentifier(metadataId: string | null | undefined): { agentId: string; metadataKey: string } | null {
-  if (typeof metadataId !== 'string') return null;
-  const trimmed = metadataId.trim();
-  if (!trimmed) return null;
-  const separatorIndex = trimmed.indexOf('-');
-  if (separatorIndex <= 0) return null;
-  const agentSegment = trimmed.slice(0, separatorIndex);
-  const keySegment = trimmed.slice(separatorIndex + 1);
-  if (!agentSegment || !keySegment) return null;
-
-  let agentId = agentSegment;
-  try {
-    const numeric = BigInt(agentSegment);
-    agentId = numeric.toString();
-  } catch {
-    // keep original segment if not numeric
-  }
-
-  return { agentId, metadataKey: keySegment };
-}
-
 async function resolveFeedbackIndex(
   dbInstance: any,
   chainId: number,
@@ -1094,7 +1070,7 @@ async function upsertFeedbackFromGraph(
   }
 
   const id = String(item.id);
-  const agentId = String(item.agentId ?? '0');
+  const agentId = String(item?.agent?.id ?? '0');
   const clientAddressRaw = item.clientAddress ? String(item.clientAddress) : '';
   const clientAddress = clientAddressRaw.toLowerCase();
 
@@ -1108,7 +1084,11 @@ async function upsertFeedbackFromGraph(
   const ratingPct = item.ratingPct !== null && item.ratingPct !== undefined ? Number(item.ratingPct) : null;
   const blockNumber = item.blockNumber !== null && item.blockNumber !== undefined ? Number(item.blockNumber) : 0;
   const timestamp = item.timestamp !== null && item.timestamp !== undefined ? Number(item.timestamp) : 0;
-  const feedbackUri = item.feedbackUri != null ? String(item.feedbackUri) : null;
+  const feedbackUri =
+    item.feedbackURI != null ? String(item.feedbackURI) :
+    item.feedbackUri != null ? String(item.feedbackUri) :
+    item.fileuri != null ? String(item.fileuri) :
+    null;
   let feedbackJson: string | null = null;
   let parsedFeedbackJson: any | null = null;
   let agentRegistryFromJson: string | null = null;
@@ -1157,74 +1137,89 @@ async function upsertFeedbackFromGraph(
   const domain = item.domain != null ? String(item.domain) : null;
   const comment = item.comment != null ? String(item.comment) : null;
   const feedbackTimestamp = item.feedbackTimestamp != null ? String(item.feedbackTimestamp) : null;
-  const tag1 = normalizeHex(item.tag1);
-  const tag2 = normalizeHex(item.tag2);
-  const feedbackHash = normalizeHex(item.feedbackHash);
+  const endpoint =
+    item.endpoint != null ? String(item.endpoint).trim() :
+    (parsedFeedbackJson?.endpoint != null ? String(parsedFeedbackJson.endpoint).trim() : null);
+  const normalizeTagValue = (raw: any): string | null => {
+    if (raw === null || raw === undefined) return null;
+    const s = String(raw).trim();
+    if (!s) return null;
+    // old subgraphs used bytes32 tags (0x...)
+    if (s.startsWith('0x') && s.length === 66) return normalizeHex(s);
+    return s;
+  };
+  const tag1 = normalizeTagValue(item.tag1);
+  const tag2 = normalizeTagValue(item.tag2);
+  const feedbackHash = normalizeHex(item.feedbackHash ?? item.filehash);
   const txHash = normalizeHex(item.txHash);
   const now = Math.floor(Date.now() / 1000);
 
-  const stmt = dbInstance.prepare(`
-    INSERT INTO rep_feedbacks (
-      id, chainId, agentId, clientAddress, feedbackIndex, score, tag1, tag2,
-      feedbackUri, feedbackJson, agentRegistry, feedbackCreatedAt, feedbackAuth,
-      skill, capability, contextJson, feedbackType, domain, comment, ratingPct,
-      feedbackTimestamp, feedbackHash, txHash, blockNumber, timestamp,
-      createdAt, updatedAt
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(chainId, agentId, clientAddress, feedbackIndex) DO UPDATE SET
-      score=excluded.score,
-      tag1=excluded.tag1,
-      tag2=excluded.tag2,
-      feedbackUri=excluded.feedbackUri,
-      feedbackJson=excluded.feedbackJson,
-      agentRegistry=COALESCE(excluded.agentRegistry, agentRegistry),
-      feedbackCreatedAt=COALESCE(excluded.feedbackCreatedAt, feedbackCreatedAt),
-      feedbackAuth=COALESCE(excluded.feedbackAuth, feedbackAuth),
-      skill=COALESCE(excluded.skill, skill),
-      capability=COALESCE(excluded.capability, capability),
-      contextJson=COALESCE(excluded.contextJson, contextJson),
-      feedbackType=excluded.feedbackType,
-      domain=excluded.domain,
-      comment=excluded.comment,
-      ratingPct=excluded.ratingPct,
-      feedbackTimestamp=excluded.feedbackTimestamp,
-      feedbackHash=excluded.feedbackHash,
-      txHash=excluded.txHash,
-      blockNumber=excluded.blockNumber,
-      timestamp=excluded.timestamp,
-      updatedAt=excluded.updatedAt
-  `);
+  // Strict schema only (no backward compatibility).
+  type Cand = { col: string; value: any; update?: 'excluded' | 'coalesce'; optional?: boolean };
+  const candidates: Cand[] = [
+    // Required base columns from 0008_add_feedback_tables.sql
+    { col: 'id', value: id, optional: false, update: 'excluded' },
+    { col: 'chainId', value: chainId, optional: false, update: 'excluded' },
+    { col: 'agentId', value: agentId, optional: false, update: 'excluded' },
+    { col: 'clientAddress', value: clientAddress, optional: false, update: 'excluded' },
+    { col: 'feedbackIndex', value: feedbackIndex, optional: false, update: 'excluded' },
+    { col: 'createdAt', value: now, optional: false, update: 'excluded' },
+    { col: 'updatedAt', value: now, optional: false, update: 'excluded' },
 
-  await enqueueOrRun(batch, stmt, [
-    id,
-    chainId,
-    agentId,
-    clientAddress,
-    feedbackIndex,
-    score,
-    tag1,
-    tag2,
-    feedbackUri,
-    feedbackJson,
-    agentRegistryFromJson,
-    feedbackCreatedAt,
-    feedbackAuth,
-    skillFromJson,
-    capabilityFromJson,
-    contextJson,
-    feedbackType,
-    domain,
-    comment,
-    ratingPct,
-    feedbackTimestamp,
-    feedbackHash,
-    txHash,
-    blockNumber,
-    timestamp,
-    now,
-    now,
-  ]);
+    // Core fields (present in early schema)
+    { col: 'score', value: score, optional: true, update: 'excluded' },
+    { col: 'tag1', value: tag1, optional: true, update: 'excluded' },
+    { col: 'tag2', value: tag2, optional: true, update: 'excluded' },
+    { col: 'feedbackUri', value: feedbackUri, optional: true, update: 'excluded' },
+    { col: 'feedbackJson', value: feedbackJson, optional: true, update: 'excluded' },
+    { col: 'feedbackType', value: feedbackType, optional: true, update: 'excluded' },
+    { col: 'domain', value: domain, optional: true, update: 'excluded' },
+    { col: 'comment', value: comment, optional: true, update: 'excluded' },
+    { col: 'ratingPct', value: ratingPct, optional: true, update: 'excluded' },
+    { col: 'feedbackTimestamp', value: feedbackTimestamp, optional: true, update: 'excluded' },
+    { col: 'feedbackHash', value: feedbackHash, optional: true, update: 'excluded' },
+    { col: 'txHash', value: txHash, optional: true, update: 'excluded' },
+    { col: 'blockNumber', value: blockNumber, optional: true, update: 'excluded' },
+    { col: 'timestamp', value: timestamp, optional: true, update: 'excluded' },
+
+    { col: 'endpoint', value: endpoint, update: 'excluded' },
+    { col: 'agentRegistry', value: agentRegistryFromJson, update: 'coalesce' },
+    { col: 'feedbackCreatedAt', value: feedbackCreatedAt, update: 'coalesce' },
+    { col: 'feedbackAuth', value: feedbackAuth, update: 'coalesce' },
+    { col: 'skill', value: skillFromJson, update: 'coalesce' },
+    { col: 'capability', value: capabilityFromJson, update: 'coalesce' },
+    { col: 'contextJson', value: contextJson, update: 'coalesce' },
+  ];
+
+  const cols = candidates.map((c) => c.col);
+  const args = candidates.map((c) => c.value);
+  const placeholders = cols.map(() => '?').join(', ');
+  const updateSets: string[] = [];
+  for (const c of candidates) {
+    // Don't update unique key columns
+    if (c.col === 'chainId' || c.col === 'agentId' || c.col === 'clientAddress' || c.col === 'feedbackIndex') {
+      continue;
+    }
+    if (c.col === 'createdAt') continue;
+    if (c.col === 'updatedAt') {
+      updateSets.push(`updatedAt=excluded.updatedAt`);
+      continue;
+    }
+    if (c.update === 'coalesce') {
+      updateSets.push(`${c.col}=COALESCE(excluded.${c.col}, ${c.col})`);
+    } else {
+      updateSets.push(`${c.col}=excluded.${c.col}`);
+    }
+  }
+
+  const sql = `
+    INSERT INTO rep_feedbacks (${cols.join(', ')})
+    VALUES (${placeholders})
+    ON CONFLICT(chainId, agentId, clientAddress, feedbackIndex) DO UPDATE SET
+      ${updateSets.join(',\n      ')}
+  `;
+  const stmt = dbInstance.prepare(sql);
+  await enqueueOrRun(batch, stmt, args);
 
   // Badge processing is now done via CLI: `pnpm badge:process`
 
@@ -1242,7 +1237,7 @@ async function recordFeedbackRevocationFromGraph(
     return;
   }
   const id = String(item.id);
-  const agentId = String(item.agentId ?? '0');
+  const agentId = String(item?.agent?.id ?? '0');
   const clientAddress = item.clientAddress ? String(item.clientAddress).toLowerCase() : '';
   const feedbackIndex = item.feedbackIndex !== null && item.feedbackIndex !== undefined ? Number(item.feedbackIndex) : 0;
   if (!clientAddress || !feedbackIndex) {
@@ -1307,7 +1302,7 @@ async function recordFeedbackResponseFromGraph(
   }
 
   const id = String(item.id);
-  const agentId = String(item.agentId ?? '0');
+  const agentId = String(item?.agent?.id ?? '0');
   const clientAddress = item.clientAddress ? String(item.clientAddress).toLowerCase() : '';
   const feedbackIndex = item.feedbackIndex !== null && item.feedbackIndex !== undefined ? Number(item.feedbackIndex) : 0;
   if (!clientAddress || !feedbackIndex) {
@@ -1316,7 +1311,10 @@ async function recordFeedbackResponseFromGraph(
   }
 
   const responder = item.responder ? String(item.responder).toLowerCase() : '0x0000000000000000000000000000000000000000';
-  const responseUri = item.responseUri != null ? String(item.responseUri) : null;
+  const responseUri =
+    item.responseURI != null ? String(item.responseURI) :
+    item.responseUri != null ? String(item.responseUri) :
+    null;
   let responseJson: string | null = null;
   if (item.responseJson != null) {
     if (typeof item.responseJson === 'string') {
@@ -1399,7 +1397,7 @@ async function upsertValidationRequestFromGraph(
     return;
   }
   const id = String(item.id);
-  const agentId = String(item.agentId ?? '0');
+  const agentId = String(item?.agent?.id ?? '0');
   const validatorAddressRaw = item.validatorAddress ? String(item.validatorAddress) : '';
   const validatorAddress = validatorAddressRaw.toLowerCase();
   if (!validatorAddress) {
@@ -1471,7 +1469,7 @@ async function upsertValidationResponseFromGraph(
   }
 
   const id = String(item.id);
-  const agentId = String(item.agentId ?? '0');
+  const agentId = String(item?.agent?.id ?? '0');
   const validatorAddressRaw = item.validatorAddress ? String(item.validatorAddress) : '';
   const validatorAddress = validatorAddressRaw.toLowerCase();
   if (!validatorAddress) {
@@ -1481,7 +1479,10 @@ async function upsertValidationResponseFromGraph(
 
   const requestHash = normalizeHex(item.requestHash);
   const responseValue = item.response !== null && item.response !== undefined ? Number(item.response) : null;
-  const responseUri = item.responseUri != null ? String(item.responseUri) : null;
+  const responseUri =
+    item.responseURI != null ? String(item.responseURI) :
+    item.responseUri != null ? String(item.responseUri) :
+    null;
   let responseJson: string | null = null;
   if (item.responseJson != null) {
     if (typeof item.responseJson === 'string') {
@@ -1495,7 +1496,7 @@ async function upsertValidationResponseFromGraph(
     }
   }
   const responseHash = normalizeHex(item.responseHash);
-  const tag = normalizeHex(item.tag);
+  const tag = item.tag != null ? String(item.tag) : null;
   const txHash = normalizeHex(item.txHash);
   const blockNumber = item.blockNumber !== null && item.blockNumber !== undefined ? Number(item.blockNumber) : 0;
   const timestamp = item.timestamp !== null && item.timestamp !== undefined ? Number(item.timestamp) : 0;
@@ -1550,51 +1551,65 @@ async function upsertTokenMetadataFromGraph(
   if (!item) return;
 
   const metadataIdRaw = typeof item.id === 'string' ? item.id : null;
+  const agentIdRaw = item?.agent?.id != null ? String(item.agent.id) : null;
   const keyRaw = typeof item.key === 'string' ? item.key : null;
-  if (!metadataIdRaw || !keyRaw) {
+  if (!metadataIdRaw || !agentIdRaw || !keyRaw) {
     console.warn('⚠️  upsertTokenMetadataFromGraph: missing id or key', item);
     return;
   }
 
-  const parsedIdentifier = extractMetadataIdentifier(metadataIdRaw);
-  if (!parsedIdentifier) {
-    console.warn('⚠️  upsertTokenMetadataFromGraph: unable to parse metadata id', metadataIdRaw);
-    return;
-  }
-
-  const metadataKey = keyRaw.trim();
-  if (!metadataKey) {
+  const key = keyRaw.trim();
+  if (!key) {
     console.warn('⚠️  upsertTokenMetadataFromGraph: empty metadata key', item);
     return;
   }
 
-  const valueHex = typeof item.value === 'string' ? item.value : null;
+  const valueHex = item.value != null ? String(item.value) : null;
   const valueText = valueHex ? decodeHexToUtf8(valueHex) : null;
   const indexedKey = typeof item.indexedKey === 'string' ? item.indexedKey : null;
   const now = Math.floor(Date.now() / 1000);
 
+  const setAt = item?.setAt != null ? Number(item.setAt) : null;
+  const setBy = item?.setBy != null ? String(item.setBy).toLowerCase() : null;
+  const txHash = item?.txHash != null ? String(item.txHash).toLowerCase() : null;
+  const blockNumber = item?.blockNumber != null ? Number(item.blockNumber) : null;
+  const timestamp = item?.timestamp != null ? Number(item.timestamp) : null;
+
   const stmt = dbInstance.prepare(`
-    INSERT INTO token_metadata (
-      chainId, metadataId, agentId, metadataKey, valueHex, valueText, indexedKey, updatedAtTime
+    INSERT INTO agent_metadata (
+      chainId, id, agentId, key, valueHex, valueText, indexedKey,
+      setAt, setBy, txHash, blockNumber, timestamp,
+      updatedAtTime
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(chainId, metadataId) DO UPDATE SET
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(chainId, id) DO UPDATE SET
       agentId=excluded.agentId,
-      metadataKey=excluded.metadataKey,
+      key=excluded.key,
       valueHex=excluded.valueHex,
       valueText=excluded.valueText,
       indexedKey=excluded.indexedKey,
+      setAt=COALESCE(excluded.setAt, setAt),
+      setBy=COALESCE(excluded.setBy, setBy),
+      txHash=COALESCE(excluded.txHash, txHash),
+      blockNumber=COALESCE(excluded.blockNumber, blockNumber),
+      timestamp=COALESCE(excluded.timestamp, timestamp),
       updatedAtTime=excluded.updatedAtTime
   `);
 
   await enqueueOrRun(batch, stmt, [
     chainId,
     metadataIdRaw,
-    parsedIdentifier.agentId,
-    metadataKey,
+    agentIdRaw,
+    key,
+    key,
     valueHex,
     valueText,
     indexedKey,
+    setAt,
+    setBy,
+    txHash,
+    blockNumber,
+    timestamp,
     now,
   ]);
 }
@@ -1692,12 +1707,41 @@ function readAgentCategory(metadata: any): string | null {
 export async function upsertFromTokenGraph(item: any, chainId: number) {
   const tokenId = BigInt(item?.id || 0);
   if (tokenId <= 0n) return;
+  // Canonical: route token snapshot ingest through the transfer upsert path so all DB writes
+  // stay consistent (CAIP10-ish account strings + did* derivations).
+  const ownerAddress =
+    parseCaip10Address(item?.owner?.id) ||
+    parseCaip10Address(item?.owner) ||
+    '0x0000000000000000000000000000000000000000';
+  const mintedAt = BigInt(item?.mintedAt || 0);
+  const tokenUri =
+    (typeof item?.agentURI === 'string' ? item.agentURI : null) ??
+    (typeof item?.agentUri === 'string' ? item.agentUri : null) ??
+    (typeof item?.uri === 'string' ? item.uri : null);
+  await upsertFromTransfer(ownerAddress.toLowerCase(), tokenId, item, mintedAt, tokenUri, chainId);
+  return;
+}
+
+/* LEGACY_REMOVED (no backward compatibility needed)
   const agentId = toDecString(tokenId);
-  const ownerAddress = parseCaip10Address(item?.agentAccount) || '0x0000000000000000000000000000000000000000';
-  const agentAccount = ownerAddress;
+  const ownerAddress =
+    parseCaip10Address(item?.owner?.id) ||
+    parseCaip10Address(item?.owner) ||
+    '0x0000000000000000000000000000000000000000';
+  const agentAccount = (() => {
+    const v = item?.agentWallet;
+    if (typeof v !== 'string') return null;
+    const s = v.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(s)) return null;
+    return s.toLowerCase();
+  })() || ownerAddress;
   const agentAddress = ownerAddress; // keep for backward compatibility
   let agentName = readAgentName(item) || '';
-  const tokenUri = typeof item?.uri === 'string' ? item.uri : null;
+  const tokenUri =
+    (typeof item?.agentURI === 'string' ? item.agentURI : null) ??
+    (typeof item?.agentUri === 'string' ? item.agentUri : null) ??
+    (typeof item?.agentURI === 'string' ? item.agentURI : null) ??
+    (typeof item?.uri === 'string' ? item.uri : null);
   const mintedAtBigInt = (() => {
     try {
       const raw = item?.mintedAt ?? item?.blockNumber ?? 0;
@@ -1750,7 +1794,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   } catch {}
 
   // If name is missing but we have a tokenURI, try to fetch and infer fields
-  /*
+  //
   
   if ((!agentName || agentName.trim() === '') && tokenUri) {
     try {
@@ -1789,7 +1833,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
       console.warn("^^^^^^^^^^^^^^^^^^^^^ upsertFromTokenGraph: Failed to fetch URI metadata:", uriError);
     }
   }
-  */
+  //
 
   if (process.env.DEBUG_TOKENS === '1') {
     console.info("@@@@@@@@@@@@@@@@@@@ upsertFromTokenGraph 1: agentName: ", agentId, agentName);
@@ -1802,19 +1846,31 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
   // Resolving EOA owners can be RPC-heavy; keep it opt-in (matches upsertFromTransfer behavior).
   const resolveEoa = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
-  const resolvedEoaOwner = resolveEoa ? await resolveEoaOwnerSafe(chainId, ownerAddress) : null;
-  const eoaOwner = resolvedEoaOwner ?? ownerAddress;
-  
+  const resolvedEoaOwnerAccount = resolveEoa ? await resolveEoaOwnerSafe(chainId, ownerAddress) : null;
+  const eoaAgentIdentityOwnerAccount = resolvedEoaOwnerAccount ?? ownerAddress;
+  const resolvedEoaAgentAccount = resolveEoa && agentAccount ? await resolveEoaOwnerSafe(chainId, agentAccount) : null;
+  const eoaAgentAccount = resolvedEoaAgentAccount ?? agentAccount;
+  const agentIdentityOwnerAccountType =
+    resolvedEoaOwnerAccount && ownerAddress
+      ? ((resolvedEoaOwnerAccount ?? '').toLowerCase() === ownerAddress.toLowerCase() ? 'EOA' : 'SmartAccount')
+      : null;
+  const agentAccountType =
+    resolvedEoaAgentAccount && agentAccount
+      ? ((resolvedEoaAgentAccount ?? '').toLowerCase() === agentAccount.toLowerCase() ? 'EOA' : 'SmartAccount')
+      : null;
   await db.prepare(`
-    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, eoaAgentAccount, agentIdentityOwnerAccountType, agentAccountType, agentName, agentUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(chainId, agentId) DO UPDATE SET
       agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '0x0000000000000000000000000000000000000000' THEN excluded.agentAddress ELSE agentAddress END,
       agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '0x0000000000000000000000000000000000000000' THEN excluded.agentAccount ELSE COALESCE(agentAccount, agentAddress) END,
-      agentOwner=excluded.agentOwner,
-      eoaOwner=CASE WHEN excluded.eoaOwner IS NOT NULL AND excluded.eoaOwner != '' THEN excluded.eoaOwner ELSE eoaOwner END,
+      agentIdentityOwnerAccount=excluded.agentIdentityOwnerAccount,
+      eoaAgentIdentityOwnerAccount=CASE WHEN excluded.eoaAgentIdentityOwnerAccount IS NOT NULL AND excluded.eoaAgentIdentityOwnerAccount != '' THEN excluded.eoaAgentIdentityOwnerAccount ELSE eoaAgentIdentityOwnerAccount END,
+      eoaAgentAccount=COALESCE(excluded.eoaAgentAccount, eoaAgentAccount),
+      agentIdentityOwnerAccountType=COALESCE(excluded.agentIdentityOwnerAccountType, agentIdentityOwnerAccountType),
+      agentAccountType=COALESCE(excluded.agentAccountType, agentAccountType),
       agentName=CASE WHEN excluded.agentName IS NOT NULL AND length(excluded.agentName) > 0 THEN excluded.agentName ELSE agentName END,
-      tokenUri=COALESCE(excluded.tokenUri, tokenUri),
+      agentUri=COALESCE(excluded.agentUri, agentUri),
       didIdentity=COALESCE(excluded.didIdentity, didIdentity),
       didAccount=COALESCE(excluded.didAccount, didAccount),
       didName=COALESCE(excluded.didName, didName)
@@ -1824,7 +1880,10 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     agentAddress, // keep for backward compatibility
     agentAccount,
     ownerAddress,
-    eoaOwner,
+    eoaAgentIdentityOwnerAccount,
+    eoaAgentAccount,
+    agentIdentityOwnerAccountType,
+    agentAccountType,
     agentName,
     tokenUri,
     createdAtBlock,
@@ -1844,11 +1903,11 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   // Fill from registration JSON when GraphQL top-level fields are missing.
   try {
     if (metadataObj && typeof metadataObj === 'object') {
-      if ((!name || !name.trim())) {
+      if (!name?.trim()) {
         const inferredName = readAgentName(metadataObj);
         if (inferredName) name = inferredName;
       }
-      if ((!description || !description.trim()) && typeof metadataObj.description === 'string' && metadataObj.description.trim()) {
+      if (!description?.trim() && typeof metadataObj.description === 'string' && metadataObj.description.trim()) {
         description = metadataObj.description.trim();
       }
       if (!image && metadataObj.image != null) {
@@ -1876,37 +1935,32 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   // Fill from inferred registration JSON when missing
   if (inferred && typeof inferred === 'object') {
     try {
-      if ((!name || !name.trim())) {
+      if (!name?.trim()) {
         const inferredAgentName = readAgentName(inferred);
         if (inferredAgentName) name = inferredAgentName;
       }
-      if ((!description || !description.trim()) && typeof inferred.description === 'string') description = inferred.description;
+      if (!description?.trim() && typeof inferred.description === 'string') description = inferred.description;
       if (!image && inferred.image != null) image = String(inferred.image);
       if (!a2aEndpoint) {
         const eps = Array.isArray(inferred.endpoints) ? inferred.endpoints : [];
         const a2a = eps.find((e: any) => String(e?.name || '').toUpperCase() === 'A2A');
         const a2aUrl = (a2a?.endpoint || a2a?.url) as string | undefined;
-        if (a2aUrl) a2aEndpoint = a2aUrl;
+        a2aEndpoint = a2aUrl || null;
       }
       if (!ensEndpoint) {
         const eps = Array.isArray(inferred.endpoints) ? inferred.endpoints : [];
         const ens = eps.find((e: any) => String(e?.name || '').toUpperCase() === 'ENS');
         const ensName = (ens?.endpoint || ens?.url) as string | undefined;
-        if (ensName) ensEndpoint = ensName;
+        ensEndpoint = ensName || null;
       }
     } catch {}
   }
 
-  const agentAccountEndpoint = (() => {
-    const parsedAccount = parseCaip10Address(item?.agentAccount);
-    if (parsedAccount) return `eip155:${chainId}:${parsedAccount}`;
-    if (ownerAddress && ownerAddress !== '0x0000000000000000000000000000000000000000') return `eip155:${chainId}:${ownerAddress}`;
-    return null;
-  })();
+  // Removed: agentAccountEndpoint (confusing/overloaded)
 
   let raw: string = '{}';
   try {
-    if (metadataRaw) raw = metadataRaw;
+    if (metadataRaw != null && metadataRaw !== '') raw = metadataRaw as string;
     else if (metadataObj) raw = JSON.stringify(metadataObj);
     else if (inferred) raw = JSON.stringify(inferred);
     else {
@@ -1950,7 +2004,7 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
         }
 
       } else {
-        raw = JSON.stringify({ agentName: name, description, image, a2aEndpoint, ensEndpoint, agentAccount: agentAccountEndpoint });
+        raw = JSON.stringify({ agentName: name, description, image, a2aEndpoint, ensEndpoint, agentAccount });
       }
     }
   } catch {}
@@ -1985,7 +2039,6 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
       image = COALESCE(?, image),
       a2aEndpoint = COALESCE(?, a2aEndpoint),
       ensEndpoint = COALESCE(?, ensEndpoint),
-      agentAccountEndpoint = COALESCE(?, agentAccountEndpoint),
       supportedTrust = COALESCE(?, supportedTrust),
       active = ?,
       rawJson = COALESCE(?, rawJson),
@@ -1999,7 +2052,6 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     image,
     a2aEndpoint,
     ensEndpoint,
-    agentAccountEndpoint,
     JSON.stringify(supportedTrust),
     active ? 1 : 0,
     raw,
@@ -2017,16 +2069,12 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
     }
   } catch {}
 }
+*/
 
 async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance: any) {
-  const tokenIdRaw = update?.token?.id ?? update?.tokenId ?? update?.id;
+  const tokenIdRaw = update?.agent?.id;
   if (tokenIdRaw == null) {
     console.warn('............applyUriUpdateFromGraph: missing token id in update', update?.id);
-    return;
-  }
-  // Some subgraphs use an event-style ID like "<txHash>-<logIndex>" for uriUpdates.
-  // Without a dedicated tokenId field, we can't map the update back to a token/agent reliably.
-  if (typeof tokenIdRaw === 'string' && tokenIdRaw.startsWith('0x') && tokenIdRaw.includes('-')) {
     return;
   }
 
@@ -2064,22 +2112,22 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     return null;
   };
 
-  let tokenUri = normalizeString(update?.newUri);
-  if (!tokenUri) tokenUri = normalizeString(update?.token?.uri);
+  const tokenUri = normalizeString(update?.newAgentURI);
 
   let metadataRaw: string | null = null;
   let metadataObj: any = null;
-  if (typeof update?.newUriJson === 'string' && update.newUriJson.trim()) {
-    metadataRaw = update.newUriJson;
+  const newUriJson = update?.newAgentURIJson;
+  if (typeof newUriJson === 'string' && newUriJson.trim()) {
+    metadataRaw = newUriJson;
     try {
-      metadataObj = JSON.parse(update.newUriJson);
+      metadataObj = JSON.parse(newUriJson);
     } catch (error) {
       console.warn('............applyUriUpdateFromGraph: failed to parse newUriJson string', error);
     }
-  } else if (update?.newUriJson && typeof update.newUriJson === 'object') {
-    metadataObj = update.newUriJson;
+  } else if (newUriJson && typeof newUriJson === 'object') {
+    metadataObj = newUriJson;
     try {
-      metadataRaw = JSON.stringify(update.newUriJson);
+      metadataRaw = JSON.stringify(newUriJson);
     } catch {}
   }
 
@@ -2120,11 +2168,13 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
 
   const agentCategory = readAgentCategory(metadataObj);
 
-  const metadataAccount = normalizeString(metadataObj?.agentAccount);
-  const fallbackAccount = normalizeString(tokenData?.agentAccount);
-  const agentAccount = parseCaip10Address(metadataAccount) || parseCaip10Address(fallbackAccount);
-  const agentAccountEndpoint = agentAccount ? `eip155:${chainId}:${agentAccount}` : null;
-
+  const agentAccount = (() => {
+    const v = tokenData?.agentWallet;
+    if (typeof v !== 'string') return null;
+    const s = v.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(s)) return null;
+    return s.toLowerCase();
+  })();
   // Extract active field from metadata
   // Default to false, only set to true if explicitly set to true in tokenUri JSON
   const metadataActive = metadataObj?.active;
@@ -2148,8 +2198,8 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
         image,
         a2aEndpoint,
         ensEndpoint,
-        agentAccount: agentAccountEndpoint,
-        tokenUri,
+        agentAccount,
+        agentUri: tokenUri,
       });
     } catch {
       rawJson = null;
@@ -2160,75 +2210,56 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   const blockNumberNumeric = Number(update?.blockNumber ?? 0);
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const ownerAddress = agentAccount ?? zeroAddress;
-  const eoaOwner = (await resolveEoaOwnerSafe(chainId, ownerAddress)) ?? ownerAddress;
+  const eoaAgentIdentityOwnerAccount = (await resolveEoaOwnerSafe(chainId, ownerAddress)) ?? ownerAddress;
+  const eoaAgentAccount = agentAccount ? ((await resolveEoaOwnerSafe(chainId, agentAccount)) ?? agentAccount) : null;
+  const agentIdentityOwnerAccountType =
+    ownerAddress && eoaAgentIdentityOwnerAccount
+      ? (eoaAgentIdentityOwnerAccount.toLowerCase() === ownerAddress.toLowerCase() ? 'EOA' : 'SmartAccount')
+      : null;
+  const agentAccountType =
+    agentAccount && eoaAgentAccount
+      ? (eoaAgentAccount.toLowerCase() === agentAccount.toLowerCase() ? 'EOA' : 'SmartAccount')
+      : null;
   const didIdentity = `did:8004:${chainId}:${agentId}`;
   const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
   const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
 
-  console.info(">>>>>>>>>>. applyUriUpdateFromGraph: agentName: ", agentName)
-  await dbInstance.prepare(`
-    INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentOwner, eoaOwner, agentName, tokenUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(chainId, agentId) DO UPDATE SET
-      tokenUri=COALESCE(excluded.tokenUri, tokenUri),
-      agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
-      agentAccount=CASE WHEN excluded.agentAccount IS NOT NULL AND excluded.agentAccount != '' THEN excluded.agentAccount ELSE agentAccount END,
-      agentAddress=CASE WHEN excluded.agentAddress IS NOT NULL AND excluded.agentAddress != '' THEN excluded.agentAddress ELSE agentAddress END,
-      agentOwner=CASE WHEN excluded.agentOwner IS NOT NULL AND excluded.agentOwner != '' THEN excluded.agentOwner ELSE agentOwner END,
-      eoaOwner=CASE WHEN excluded.eoaOwner IS NOT NULL AND excluded.eoaOwner != '' THEN excluded.eoaOwner ELSE eoaOwner END,
-      didIdentity=COALESCE(excluded.didIdentity, didIdentity),
-      didAccount=COALESCE(excluded.didAccount, didAccount),
-      didName=COALESCE(excluded.didName, didName)
-  `).run(
-    chainId,
-    agentId,
-    ownerAddress,
-    ownerAddress,
-    ownerAddress,
-    eoaOwner,
-    agentName ?? '',
-    tokenUri,
-    blockNumberNumeric,
-    now,
-    didIdentity,
-    didAccount,
-    didName,
-  );
-
-  await dbInstance.prepare(`
-    UPDATE agents SET
-      tokenUri = COALESCE(?, tokenUri),
-      agentName = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE agentName END,
-      agentCategory = CASE
-        WHEN ? IS NOT NULL AND ? != '' THEN ?
-        ELSE agentCategory
-      END,
-      description = COALESCE(?, description),
-      image = COALESCE(?, image),
-      a2aEndpoint = COALESCE(?, a2aEndpoint),
-      ensEndpoint = COALESCE(?, ensEndpoint),
-      agentAccount = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE agentAccount END,
-      agentAccountEndpoint = COALESCE(?, agentAccountEndpoint),
-      active = ?,
-      rawJson = CASE WHEN ? IS NOT NULL AND ? != '' THEN ? ELSE rawJson END,
-      updatedAtTime = ?
-    WHERE chainId = ? AND agentId = ?
-  `).run(
-    tokenUri,
-    agentName, agentName, agentName,
-    agentCategory, agentCategory, agentCategory,
-    description,
-    image,
-    a2aEndpoint,
-    ensEndpoint,
-      agentAccount, agentAccount, agentAccount,
-      agentAccountEndpoint,
-      active ? 1 : 0,
-      rawJson, rawJson, rawJson,
-    now,
-    chainId,
-    agentId,
-  );
+  // IMPORTANT: Do NOT write a rigid INSERT/UPDATE here.
+  // D1 schemas vary wildly across deployments and you don't want migrations.
+  // Route through `upsertFromTransfer` so account fields and did* are computed consistently.
+  console.info(">>>>>>>>>>. applyUriUpdateFromGraph: agentName: ", agentName);
+  try {
+    const tokenId = BigInt(agentId);
+    const tokenInfoForUpsert: any = {
+      // Prefer the parsed JSON object if available (lets upsertFromTransfer extract OASF, endpoints, etc)
+      metadataJson: metadataObj ?? (metadataRaw || null),
+      agentWallet: agentAccount || undefined,
+      // Helpful fallbacks if metadataJson is missing fields
+      name: agentName || undefined,
+      description: description || undefined,
+      image: image || undefined,
+      a2aEndpoint: a2aEndpoint || undefined,
+      chatEndpoint: tokenData?.chatEndpoint || undefined,
+      ensName: ensEndpoint || undefined,
+      active: active ? 1 : 0,
+      // Some subgraphs include these directly; keep them if present
+      agentURI: tokenUri,
+      agentUri: tokenUri,
+      tokenUri: tokenUri,
+    };
+    await upsertFromTransfer(
+      (ownerAddress || zeroAddress).toLowerCase(),
+      tokenId,
+      tokenInfoForUpsert,
+      BigInt(blockNumberNumeric || 0),
+      tokenUri,
+      chainId,
+      dbInstance,
+    );
+  } catch (e) {
+    console.error('❌ Error routing uri update through upsertFromTransfer:', e);
+    throw e;
+  }
 
   // Agent-card fetch is intentionally NOT part of the hot path (network-heavy). Use CLI only.
   if (process.env.AGENT_CARD_FETCH_ON_UPDATE === '1') {
@@ -2382,7 +2413,7 @@ async function upsertAssociationFromGraph(
     const suffixA = initiatorAccountId.slice(-40);
     const suffixB = approverAccountId.slice(-40);
     const agentRows = await dbInstance
-      .prepare(`SELECT agentId FROM agents WHERE chainId = ? AND (substr(LOWER(COALESCE(agentAccount, agentAddress)), -40) = ? OR substr(LOWER(COALESCE(agentAccount, agentAddress)), -40) = ?) LIMIT 10`)
+      .prepare(`SELECT agentId FROM agents WHERE chainId = ? AND (substr(LOWER(agentAccount), -40) = ? OR substr(LOWER(agentAccount), -40) = ?) LIMIT 10`)
       .all(chainId, suffixA, suffixB);
     const results = Array.isArray((agentRows as any)?.results) ? (agentRows as any).results : Array.isArray(agentRows) ? agentRows : [];
     for (const r of results) {
@@ -2477,7 +2508,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const uriUpdateCheckpointKey = chainId ? `lastUriUpdate_${chainId}` : 'lastUriUpdate';
   const validationCheckpointKey = chainId ? `lastValidation_${chainId}` : 'lastValidation';
   const tokenCheckpointKey = chainId ? `lastToken_${chainId}` : 'lastToken';
-  const tokenMetadataCheckpointKey = chainId ? `lastTokenMetadata_${chainId}` : 'lastTokenMetadata';
+  const registrationFileCheckpointKey = chainId ? `lastAgentRegistrationFile_${chainId}` : 'lastAgentRegistrationFile';
+  const agentMetadataCheckpointKey = chainId ? `lastAgentMetadata_${chainId}` : 'lastAgentMetadata';
   const associationCheckpointKey = chainId ? `lastAssociation_${chainId}` : 'lastAssociation';
   const associationRevocationCheckpointKey = chainId ? `lastAssociationRevocation_${chainId}` : 'lastAssociationRevocation';
   const lastTransferRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(transferCheckpointKey) as { value?: string } | undefined;
@@ -2485,7 +2517,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const lastUriUpdateRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(uriUpdateCheckpointKey) as { value?: string } | undefined;
   const lastValidationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(validationCheckpointKey) as { value?: string } | undefined;
   const lastTokenRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(tokenCheckpointKey) as { value?: string } | undefined;
-  const lastTokenMetadataRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(tokenMetadataCheckpointKey) as { value?: string } | undefined;
+  const lastRegistrationFileRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(registrationFileCheckpointKey) as { value?: string } | undefined;
+  const lastTokenMetadataRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(agentMetadataCheckpointKey) as { value?: string } | undefined;
   const lastAssociationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(associationCheckpointKey) as { value?: string } | undefined;
   const lastAssociationRevocationRow = await dbInstance.prepare("SELECT value FROM checkpoints WHERE key=?").get(associationRevocationCheckpointKey) as { value?: string } | undefined;
   const lastTransfer = lastTransferRow?.value ? BigInt(lastTransferRow.value) : 0n;
@@ -2493,7 +2526,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const lastUriUpdate = lastUriUpdateRow?.value ? BigInt(lastUriUpdateRow.value) : 0n;
   const lastValidation = lastValidationRow?.value ? BigInt(lastValidationRow.value) : 0n;
   const lastToken = lastTokenRow?.value ? BigInt(lastTokenRow.value) : 0n;
-  const lastTokenMetadata = lastTokenMetadataRow?.value ? BigInt(lastTokenMetadataRow.value) : 0n;
+  const lastAgentRegistrationFile = lastRegistrationFileRow?.value ? BigInt(lastRegistrationFileRow.value) : 0n;
+  const lastAgentMetadata = lastTokenMetadataRow?.value ? BigInt(lastTokenMetadataRow.value) : 0n;
   const lastAssociation = lastAssociationRow?.value ? BigInt(lastAssociationRow.value) : 0n;
   const lastAssociationRevocation = lastAssociationRevocationRow?.value ? BigInt(lastAssociationRevocationRow.value) : 0n;
 
@@ -2561,7 +2595,45 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     return json;
   };
 
+  // ---- Subgraph schema guardrails (fail fast with a clear message) ----
+  // We require the Jan 2026 schema roots for agent ingest.
+  const fetchQueryFieldNames = async (): Promise<Set<string>> => {
+    const introspectionQuery = {
+      query: `query IntrospectQueryFields {
+        __schema {
+          queryType {
+            fields { name }
+          }
+        }
+      }`,
+      variables: {},
+    };
+    try {
+      const resp = await fetchJson(introspectionQuery);
+      const fields = (resp?.data?.__schema?.queryType?.fields || []) as any[];
+      return new Set(fields.map((f: any) => String(f?.name || '')).filter(Boolean));
+    } catch (e) {
+      // If introspection is disabled, we can't validate early. Proceed and let queries fail normally.
+      console.warn('[subgraph] Introspection failed; cannot validate schema up-front:', e);
+      return new Set<string>();
+    }
+  };
 
+  const queryFields = await fetchQueryFieldNames();
+
+  // Subgraph schema: (Jan 2026) use the new canonical names only.
+  const ROOT_AGENTS_FIELD = 'agents';
+  const ROOT_AGENT_REGISTRATION_FILES_FIELD = 'agentRegistrationFiles';
+  const ROOT_TRANSFERS_FIELD = 'agentTransfers';
+  const ROOT_URI_UPDATES_FIELD = 'agentURIUpdates';
+  const ROOT_AGENT_METADATA_FIELD = 'agentMetadatas';
+  const ROOT_FEEDBACKS_FIELD = 'repFeedbacks';
+  const ROOT_FEEDBACK_REVOKEDS_FIELD = 'repFeedbackRevokeds';
+  const ROOT_FEEDBACK_RESPONSES_FIELD = 'repResponseAppendeds';
+  const ROOT_VALIDATION_REQUESTS_FIELD = 'validationRequests';
+  const ROOT_VALIDATION_RESPONSES_FIELD = 'validationResponses';
+  const ROOT_ASSOCIATIONS_FIELD = 'associations';
+  const ROOT_ASSOCIATION_REVOCATIONS_FIELD = 'associationRevocations';
 
 
   // Keep pages relatively small to reduce load on The Graph and avoid long-running queries/timeouts.
@@ -2708,6 +2780,27 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
           resp.errors = [];
         }
 
+        // Some subgraphs also have inconsistent relations where `*.agent` is declared non-null
+        // but resolves to null for a few rows. The Graph returns errors, but can still return
+        // partial `data` with null list items. Treat these as non-fatal and drop null items later.
+        const agentRelationNullError =
+          (field === 'validationRequests' ||
+            field === 'validationResponses' ||
+            field === 'repFeedbacks' ||
+            field === 'repFeedbackRevokeds' ||
+            field === 'repResponseAppendeds') &&
+          resp.errors.every((err: any) => {
+            const msg = String(err?.message || '');
+            return msg.includes('Null value resolved for non-null field') && msg.includes('agent');
+          });
+        if (agentRelationNullError) {
+          console.warn(`............[${label}] Proceeding with partial data despite agent relation null errors (will filter null items). errors=${resp.errors.length}`);
+          // If data is missing entirely, coerce to empty list so pagination can continue safely.
+          if (!resp.data) resp.data = {};
+          if (!resp.data[field]) resp.data[field] = [];
+          resp.errors = [];
+        }
+
         // The overload retry path can replace `resp` with a successful response; re-check before failing.
         // If this fetch is optional, never abort the whole backfill on errors—log and continue.
         if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
@@ -2744,39 +2837,77 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     return allItems;
   };
 
-  const tokensQuery = `query Tokens($first: Int!, $skip: Int!) {
-    tokens(first: $first, skip: $skip, orderBy: mintedAt, orderDirection: asc) {
+  const agentsQuery = `query Agents($first: Int!, $skip: Int!) {
+    agents(first: $first, skip: $skip, orderBy: mintedAt, orderDirection: asc) {
       id
       mintedAt
-      uri
+      agentURI
       metadataJson
-      agentName
-      agentAccount
+      name
       description
       image
-      a2aEndpoint
       ensName
-    }
-  }`;
-
-  const transfersQuery = `query TokensAndTransfers($first: Int!, $skip: Int!) {
-    transfers(first: $first, skip: $skip, orderBy: timestamp, orderDirection: asc) {
-      id
-      token {
+      agentWallet
+      a2aEndpoint
+      chatEndpoint
+      registration {
         id
-        uri
-        mintedAt
-        agentName
-        agentAccount
+        agentURI
+        raw
+        type
+        name
         description
         image
+        supportedTrust
         a2aEndpoint
         chatEndpoint
         ensName
+        updatedAt
+      }
+      owner { id }
+    }
+  }`;
+
+  // Prefer agentRegistrationFiles over transfer history for driving registration/metadata ingest.
+  // NOTE: Marked optional because some subgraph deployments may not expose this root field.
+  const agentRegistrationFilesQuery = `query AgentRegistrationFiles($first: Int!, $skip: Int!) {
+    agentRegistrationFiles(first: $first, skip: $skip, orderBy: updatedAt, orderDirection: asc) {
+      id
+      agent { id owner { id } agentWallet mintedAt }
+      agentURI
+      raw
+      type
+      name
+      description
+      image
+      supportedTrust
+      a2aEndpoint
+      chatEndpoint
+      ensName
+      updatedAt
+    }
+  }`;
+
+  const transfersQuery = `query AgentTransfers($first: Int!, $skip: Int!) {
+    agentTransfers(first: $first, skip: $skip, orderBy: timestamp, orderDirection: asc) {
+      id
+      agent {
+        id
+        mintedAt
+        agentURI
         metadataJson
+        name
+        description
+        image
+        ensName
+        agentWallet
+        a2aEndpoint
+        chatEndpoint
+        owner { id }
       }
       from { id }
       to { id }
+      txHash
       blockNumber
       timestamp
     }
@@ -2785,11 +2916,13 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const feedbackQuery = `query RepFeedbacks($first: Int!, $skip: Int!) {
     repFeedbacks(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
       id
-      agentId
+      agent { id }
       clientAddress
+      feedbackIndex
       score
       tag1
       tag2
+      endpoint
       feedbackUri
       feedbackJson
       feedbackType
@@ -2807,7 +2940,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const feedbackRevokedQuery = `query RepFeedbackRevokeds($first: Int!, $skip: Int!) {
     repFeedbackRevokeds(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
       id
-      agentId
+      agent { id }
       clientAddress
       feedbackIndex
       txHash
@@ -2819,7 +2952,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const feedbackResponseQuery = `query RepResponseAppendeds($first: Int!, $skip: Int!) {
     repResponseAppendeds(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
       id
-      agentId
+      agent { id }
       clientAddress
       feedbackIndex
       responder
@@ -2832,12 +2965,16 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   }`;
 
-  const uriUpdatesQuery = `query UriUpdates($first: Int!, $skip: Int!) {
-    uriUpdates(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+  const uriUpdatesQuery = `query AgentURIUpdates($first: Int!, $skip: Int!) {
+    agentURIUpdates(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
       id
-      newUri
-      newUriJson
+      agent { id agentWallet }
+      newAgentURI
+      newAgentURIJson
+      updatedBy
+      txHash
       blockNumber
+      timestamp
     }
   }`;
 
@@ -2845,7 +2982,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     validationRequests(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
       id
       validatorAddress
-      agentId
+      agent { id }
       requestUri
       requestJson
       requestHash
@@ -2859,7 +2996,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     validationResponses(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
       id
       validatorAddress
-      agentId
+      agent { id }
       requestHash
       response
       responseUri
@@ -2908,27 +3045,37 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     }
   }`;
 
+  // Agents snapshot (authoritative current view)
+  if (queryFields.size > 0 && !queryFields.has(ROOT_AGENTS_FIELD)) {
+    const available = Array.from(queryFields).sort().slice(0, 80).join(', ');
+    throw new Error(
+      `Subgraph schema mismatch: Query has no field "agents". ` +
+        `Point ETH_SEPOLIA_GRAPHQL_URL (or chain URL) at the Jan 2026 subgraph. ` +
+        `Available query fields (first 80): ${available}`,
+    );
+  }
+  const agentItems = await fetchAllFromSubgraph('agents', agentsQuery, ROOT_AGENTS_FIELD, { lastCheckpoint: lastToken });
+  // Registration file stream (authoritative metadata records)
+  const registrationFileItems =
+    queryFields.size > 0 && !queryFields.has(ROOT_AGENT_REGISTRATION_FILES_FIELD)
+      ? []
+      : await fetchAllFromSubgraph(
+          'agentRegistrationFiles',
+          agentRegistrationFilesQuery,
+          ROOT_AGENT_REGISTRATION_FILES_FIELD,
+          { optional: true, lastCheckpoint: lastAgentRegistrationFile },
+        );
 
-  const transferItems = await fetchAllFromSubgraph('transfers', transfersQuery, 'transfers', { lastCheckpoint: lastTransfer });
-  const tokenItems = await fetchAllFromSubgraph('tokens', tokensQuery, 'tokens', { lastCheckpoint: lastToken });
-  
+  const feedbackItems = await fetchAllFromSubgraph('repFeedbacks', feedbackQuery, ROOT_FEEDBACKS_FIELD, { optional: true, lastCheckpoint: lastFeedback });
+  const feedbackRevokedItems = await fetchAllFromSubgraph('repFeedbackRevokeds', feedbackRevokedQuery, ROOT_FEEDBACK_REVOKEDS_FIELD, { optional: true, lastCheckpoint: lastFeedback });
+  const feedbackResponseItems = await fetchAllFromSubgraph('repResponseAppendeds', feedbackResponseQuery, ROOT_FEEDBACK_RESPONSES_FIELD, { optional: true, lastCheckpoint: lastFeedback });
+  const uriUpdateItems = await fetchAllFromSubgraph('agentURIUpdates', uriUpdatesQuery, ROOT_URI_UPDATES_FIELD, { optional: true, lastCheckpoint: lastUriUpdate });
+  const validationRequestItems = await fetchAllFromSubgraph('validationRequests', validationRequestQuery, ROOT_VALIDATION_REQUESTS_FIELD, { optional: true, lastCheckpoint: lastValidation });
+  const validationResponseItems = await fetchAllFromSubgraph('validationResponses', validationResponseQuery, ROOT_VALIDATION_RESPONSES_FIELD, { optional: true, lastCheckpoint: lastValidation });
+  const associationItems = await fetchAllFromSubgraph('associations', associationsQuery, ROOT_ASSOCIATIONS_FIELD, { optional: true, lastCheckpoint: lastAssociation });
+  const associationRevocationItems = await fetchAllFromSubgraph('associationRevocations', associationRevocationsQuery, ROOT_ASSOCIATION_REVOCATIONS_FIELD, { optional: true, lastCheckpoint: lastAssociationRevocation });
 
-  const feedbackItems = await fetchAllFromSubgraph('repFeedbacks', feedbackQuery, 'repFeedbacks', { optional: true, lastCheckpoint: lastFeedback });
-  const feedbackRevokedItems = await fetchAllFromSubgraph('repFeedbackRevokeds', feedbackRevokedQuery, 'repFeedbackRevokeds', { optional: true, lastCheckpoint: lastFeedback });
-  const feedbackResponseItems = await fetchAllFromSubgraph('repResponseAppendeds', feedbackResponseQuery, 'repResponseAppendeds', { optional: true, lastCheckpoint: lastFeedback });
-  const uriUpdateItems = await fetchAllFromSubgraph('uriUpdates', uriUpdatesQuery, 'uriUpdates', { optional: true, lastCheckpoint: lastUriUpdate });
-  const validationRequestItems = await fetchAllFromSubgraph('validationRequests', validationRequestQuery, 'validationRequests', { optional: true, lastCheckpoint: lastValidation });
-  const validationResponseItems = await fetchAllFromSubgraph('validationResponses', validationResponseQuery, 'validationResponses', { optional: true, lastCheckpoint: lastValidation });
-  const associationItems = await fetchAllFromSubgraph('associations', associationsQuery, 'associations', { optional: true, lastCheckpoint: lastAssociation });
-  const associationRevocationItems = await fetchAllFromSubgraph('associationRevocations', associationRevocationsQuery, 'associationRevocations', { optional: true, lastCheckpoint: lastAssociationRevocation });
-
-  let transferCheckpointBlock = lastTransfer;
-  const updateTransferCheckpointIfNeeded = async (blockNumber: bigint) => {
-    if (blockNumber > transferCheckpointBlock) {
-      transferCheckpointBlock = blockNumber;
-      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(transferCheckpointKey, String(blockNumber));
-    }
-  };
+  // Removed: transfer-driven ingestion (use agents + agentRegistrationFiles instead)
 
   let feedbackCheckpointBlock = lastFeedback;
   const updateFeedbackCheckpointIfNeeded = async (blockNumber: bigint) => {
@@ -2962,11 +3109,23 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   }
   };
 
-  let tokenMetadataCheckpointBlock = lastTokenMetadata;
-  const updateTokenMetadataCheckpointIfNeeded = async (blockNumber: bigint) => {
-    if (blockNumber > tokenMetadataCheckpointBlock) {
-      tokenMetadataCheckpointBlock = blockNumber;
-      await dbInstance.prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(tokenMetadataCheckpointKey, String(blockNumber));
+  let registrationFileCheckpoint = lastAgentRegistrationFile;
+  const updateRegistrationFileCheckpointIfNeeded = async (updatedAt: bigint) => {
+    if (updatedAt > registrationFileCheckpoint) {
+      registrationFileCheckpoint = updatedAt;
+      await dbInstance
+        .prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run(registrationFileCheckpointKey, String(updatedAt));
+    }
+  };
+
+  let agentMetadataCheckpointBlock = lastAgentMetadata;
+  const updateAgentMetadataCheckpointIfNeeded = async (blockNumber: bigint) => {
+    if (blockNumber > agentMetadataCheckpointBlock) {
+      agentMetadataCheckpointBlock = blockNumber;
+      await dbInstance
+        .prepare("INSERT INTO checkpoints(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .run(agentMetadataCheckpointKey, String(blockNumber));
     }
   };
 
@@ -2988,40 +3147,82 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
   // Upsert latest tokens metadata first (oldest-first by mintedAt)
 
-  // Apply transfers newer than checkpoint
-  const transfersOrdered = transferItems
-    .filter((t) => Number(t?.blockNumber || 0) > Number(lastTransfer))
+  // Prefer processing agents snapshots (mintedAt-ordered).
+  const agentsOrdered = agentItems
+    .filter((t) => Number(t?.mintedAt || 0) > Number(lastToken))
     .slice()
-    .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
+    .sort((a, b) => Number(a.mintedAt) - Number(b.mintedAt));
 
   const feedbackInsertBatch = createBatchWriter(dbInstance, 'rep_feedbacks');
   const feedbackRevokedBatch = createBatchWriter(dbInstance, 'rep_feedback_revoked');
   const feedbackResponseBatch = createBatchWriter(dbInstance, 'rep_feedback_responses');
   const validationRequestBatch = createBatchWriter(dbInstance, 'validation_requests');
   const validationResponseBatch = createBatchWriter(dbInstance, 'validation_responses');
-  const tokenMetadataBatch = createBatchWriter(dbInstance, 'token_metadata');
+  const agentMetadataBatch = createBatchWriter(dbInstance, 'agent_metadata');
   const associationAccountsBatch = createBatchWriter(dbInstance, 'association_accounts');
   const associationsBatch = createBatchWriter(dbInstance, 'associations');
   const associationRevocationsBatch = createBatchWriter(dbInstance, 'association_revocations');
 
-  console.info("............  process transfers: ", transfersOrdered.length);
-  for (let i = 0; i < transfersOrdered.length; i++) {
-    const tr = transfersOrdered[i];
-    
-    const tokenId = BigInt(tr?.token?.id || '0');
-    const toAddr = String(tr?.to?.id || '').toLowerCase();
-    const blockNum = BigInt(tr?.blockNumber || 0);
+  console.info("............  process agents: ", agentsOrdered.length);
+  for (let i = 0; i < agentsOrdered.length; i++) {
+    const a = agentsOrdered[i];
+    const tokenId = BigInt(a?.id || '0');
+    const toAddr = String(a?.owner?.id || '').toLowerCase();
+    // mintedAt is used as a monotonic cursor; treat it as a "block-like" bigint for checkpointing.
+    const mintedAt = BigInt(a?.mintedAt || 0);
     if (tokenId <= 0n || !toAddr) continue;
-    const transferTokenUri = typeof tr?.token?.uri === 'string' ? tr.token.uri : null;
-    await upsertFromTransfer(toAddr, tokenId, tr?.token as any, blockNum, transferTokenUri, chainId, dbInstance); 
-    await updateTransferCheckpointIfNeeded(blockNum);
-    if ((i + 1) % 25 === 0 || i === transfersOrdered.length - 1) {
-      console.info(`............  transfer progress: ${i + 1}/${transfersOrdered.length} (block ${blockNum})`);
+    const tokenUri = typeof a?.agentURI === 'string' ? a.agentURI : null;
+    await upsertFromTransfer(toAddr, tokenId, a as any, mintedAt, tokenUri, chainId, dbInstance);
+    await updateTokenCheckpointIfNeeded(mintedAt);
+    if ((i + 1) % 50 === 0 || i === agentsOrdered.length - 1) {
+      console.info(`............  agent progress: ${i + 1}/${agentsOrdered.length} (mintedAt ${mintedAt})`);
     }
   }
 
-  const tokenMetadataQuery = `query TokenMetadata($first: Int!, $skip: Int!, $minBlock: BigInt!) {
-    tokenMetadata_collection(
+  // Ingest registration file records (authoritative metadata updates).
+  if (registrationFileItems.length > 0) {
+    const regOrdered = registrationFileItems
+      .filter((rf) => Number(rf?.updatedAt || 0) > Number(lastAgentRegistrationFile))
+      .slice()
+      .sort((a, b) => Number(a?.updatedAt || 0) - Number(b?.updatedAt || 0));
+
+    console.info("............  process agentRegistrationFiles: ", regOrdered.length);
+    for (let i = 0; i < regOrdered.length; i++) {
+      const rf = regOrdered[i];
+      const agent = rf?.agent || {};
+      const tokenId = BigInt(agent?.id || rf?.id || '0');
+      const toAddr = String(agent?.owner?.id || '').toLowerCase();
+      const updatedAt = BigInt(rf?.updatedAt || 0);
+      if (tokenId <= 0n || !toAddr) continue;
+
+      // Feed registration raw JSON (if present) through the same agent upsert path.
+      // upsertFromTransfer expects `metadataJson` as a JSON string.
+      const pseudoAgent = {
+        id: String(agent?.id ?? rf?.id ?? ''),
+        mintedAt: agent?.mintedAt,
+        agentURI: rf?.agentURI ?? agent?.agentURI,
+        metadataJson: rf?.raw ?? null,
+        name: rf?.name ?? null,
+        description: rf?.description ?? null,
+        image: rf?.image ?? null,
+        ensName: rf?.ensName ?? null,
+        agentWallet: agent?.agentWallet ?? null,
+        a2aEndpoint: rf?.a2aEndpoint ?? null,
+        chatEndpoint: rf?.chatEndpoint ?? null,
+        owner: agent?.owner ?? null,
+      };
+
+      const regUri = typeof (rf?.agentURI ?? agent?.agentURI) === 'string' ? String(rf?.agentURI ?? agent?.agentURI) : null;
+      await upsertFromTransfer(toAddr, tokenId, pseudoAgent as any, updatedAt, regUri, chainId, dbInstance);
+      await updateRegistrationFileCheckpointIfNeeded(updatedAt);
+      if ((i + 1) % 100 === 0 || i === regOrdered.length - 1) {
+        console.info(`............  agentRegistrationFiles progress: ${i + 1}/${regOrdered.length} (updatedAt ${updatedAt})`);
+      }
+    }
+  }
+
+  const agentMetadataQuery = `query AgentMetadatas($first: Int!, $skip: Int!, $minBlock: BigInt!) {
+    agentMetadatas(
       first: $first,
       skip: $skip,
       orderBy: blockNumber,
@@ -3029,18 +3230,23 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       where: { blockNumber_gt: $minBlock }
     ) {
       id
+      agent { id }
       key
       value
       indexedKey
+      setAt
+      setBy
+      txHash
       blockNumber
+      timestamp
     }
   }`;
 
-  const minTokenMetadataBlock = lastTokenMetadata > 0n ? lastTokenMetadata : 0n;
+  const minTokenMetadataBlock = lastAgentMetadata > 0n ? lastAgentMetadata : 0n;
   const tokenMetadataItems = await fetchAllFromSubgraph(
-    'tokenMetadata',
-    tokenMetadataQuery,
-    'tokenMetadata_collection',
+    'agentMetadatas',
+    agentMetadataQuery,
+    ROOT_AGENT_METADATA_FIELD,
     {
       optional: true,
       buildVariables: ({ first, skip }) => ({
@@ -3048,14 +3254,14 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
         skip,
         minBlock: minTokenMetadataBlock.toString(),
       }),
-    }
+    },
   );
 
   if (tokenMetadataItems.length === 0) {
-    console.info(`............  no token metadata updates beyond block ${lastTokenMetadata}`);
+    console.info(`............  no agent metadata updates beyond block ${lastAgentMetadata}`);
   } else {
-    console.info("............  process token metadata entries: ", tokenMetadataItems.length);
-    let maxMetadataBlock = lastTokenMetadata;
+    console.info("............  process agent metadata entries: ", tokenMetadataItems.length);
+    let maxMetadataBlock = lastAgentMetadata;
     for (let i = 0; i < tokenMetadataItems.length; i++) {
       const meta = tokenMetadataItems[i];
       const metadataBlockRaw = meta?.blockNumber ?? meta?.block?.number ?? 0;
@@ -3066,12 +3272,12 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
         metadataBlock = 0n;
       }
 
-      if (metadataBlock <= lastTokenMetadata) {
+      if (metadataBlock <= lastAgentMetadata) {
         continue;
       }
 
       try {
-        await upsertTokenMetadataFromGraph(meta, chainId, dbInstance, tokenMetadataBatch);
+        await upsertTokenMetadataFromGraph(meta, chainId, dbInstance, agentMetadataBatch);
         if (metadataBlock > maxMetadataBlock) {
           maxMetadataBlock = metadataBlock;
         }
@@ -3084,8 +3290,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
       }
     }
 
-    if (maxMetadataBlock > lastTokenMetadata) {
-      await updateTokenMetadataCheckpointIfNeeded(maxMetadataBlock);
+    if (maxMetadataBlock > lastAgentMetadata) {
+      await updateAgentMetadataCheckpointIfNeeded(maxMetadataBlock);
     }
   }
 
@@ -3104,7 +3310,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     try {
       if (process.env.DEBUG_FEEDBACK === '1') {
         console.info("............  processing feedback upsert: ", fb?.id);
-        console.info(`............  processing feedback upsert: agentId=${fb?.agentId}, id=${fb?.id}`);
+        console.info(`............  processing feedback upsert: agentId=${fb?.agent?.id}, id=${fb?.id}`);
       }
       await upsertFeedbackFromGraph(fb, chainId, dbInstance, feedbackInsertBatch);
       await updateFeedbackCheckpointIfNeeded(blockNum);
@@ -3178,7 +3384,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const req = validationRequestsOrdered[i];
     const blockNum = BigInt(req?.blockNumber || 0);
     try {
-      console.info(`............  processing validation request: agentId=${req?.agentId}, id=${req?.id}`);
+      console.info(`............  processing validation request: agentId=${req?.agent?.id}, id=${req?.id}`);
       await upsertValidationRequestFromGraph(req, chainId, dbInstance, validationRequestBatch);
       await updateValidationCheckpointIfNeeded(blockNum);
       if ((i + 1) % 25 === 0 || i === validationRequestsOrdered.length - 1) {
@@ -3205,8 +3411,8 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     const blockNum = BigInt(resp?.blockNumber || 0);
     try {
       await upsertValidationResponseFromGraph(resp, chainId, dbInstance, validationResponseBatch);
-      if (resp?.agentId != null) {
-        validationAgentsToProcess.set(String(resp.agentId), String(resp?.id ?? ''));
+      if (resp?.agent?.id != null) {
+        validationAgentsToProcess.set(String(resp.agent.id), String(resp?.id ?? ''));
       }
       await updateValidationCheckpointIfNeeded(blockNum);
       if ((i + 1) % 25 === 0 || i === validationResponsesOrdered.length - 1) {
@@ -3302,7 +3508,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   await feedbackResponseBatch.flush();
   await validationRequestBatch.flush();
   await validationResponseBatch.flush();
-  await tokenMetadataBatch.flush();
+  await agentMetadataBatch.flush();
   await associationAccountsBatch.flush();
   await associationsBatch.flush();
   await associationRevocationsBatch.flush();
@@ -3348,8 +3554,8 @@ async function backfillByIds(client: ERC8004Client) {
   if (max === 0n) {
     console.log('No tokens found via ID scan.');
     try {
-      console.info('Clearing database rows: agents, token_metadata, events');
-      try { db.prepare('DELETE FROM token_metadata').run(); } catch {}
+      console.info('Clearing database rows: agents, agent_metadata, events');
+      try { db.prepare('DELETE FROM agent_metadata').run(); } catch {}
       try { db.prepare('DELETE FROM agents').run(); } catch {}
       try { db.prepare('DELETE FROM events').run(); } catch {}
     } catch {}
@@ -3510,19 +3716,28 @@ async function processSingleAgentId(agentId: string) {
   }
 
   // Initial run (don't crash on failure)
+  // Default: run only ETH Sepolia. To run multiple, set INDEXER_CHAIN_IDS="11155111,84532,11155420".
+  const chainIdsRaw = (process.env.INDEXER_CHAIN_IDS || '11155111').trim();
+  const chainIds = chainIdsRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const clientsByChainId: Record<string, any> = {
+    '11155111': erc8004EthSepoliaClient,
+    '84532': erc8004BaseSepoliaClient,
+  };
+  if (erc8004OpSepoliaClient) clientsByChainId['11155420'] = erc8004OpSepoliaClient;
+
   try {
-    await backfill(erc8004EthSepoliaClient);
-    await backfill(erc8004BaseSepoliaClient);
-    
-    /*
-    //await backfillByIds(erc8004EthSepoliaClient)
-    await backfill(erc8004BaseSepoliaClient);
-    //await backfillByIds(erc8004BaseSepoliaClient)
-    if (erc8004OpSepoliaClient) {
-      await backfill(erc8004OpSepoliaClient);
-      //await backfillByIds(erc8004OpSepoliaClient)
+    for (const cid of chainIds) {
+      const c = clientsByChainId[cid];
+      if (!c) {
+        console.warn(`Skipping unknown INDEXER_CHAIN_ID=${cid}`);
+        continue;
+      }
+      await backfill(c);
     }
-      */
   } catch (e) {
     console.error('Initial GraphQL backfill failed:', e);
   }
