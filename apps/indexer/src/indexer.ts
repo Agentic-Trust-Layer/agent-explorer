@@ -3,8 +3,10 @@ import { db, getCheckpoint, setCheckpoint, ensureSchemaInitialized } from "./db"
 import { RPC_WS_URL, CONFIRMATIONS, START_BLOCK, LOGS_CHUNK_SIZE, BACKFILL_MODE, ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY, GRAPHQL_POLL_MS } from "./env";
 import { ethers } from 'ethers';
 import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
+import { fileURLToPath } from 'node:url';
+import { resolve as pathResolve } from 'node:path';
 // Semantic ingest is intentionally NOT part of the indexer runtime. Use CLI only.
-import { resolveEoaOwner } from './ownership.js';
+import { resolveEoaInfo, resolveEoaOwner } from './ownership.js';
 import { computeAndUpsertATI } from './ati.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 
@@ -459,8 +461,15 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
   if (!dbInstance) {
     throw new Error('Database instance required for upsertFromTransfer. In Workers, db must be passed via dbOverride parameter');
   }
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
   const agentId = toDecString(tokenId);
   const agentIdentityOwnerAccountAddr = to.toLowerCase(); // ERC-721 owner (Account.id)
+  // Never allow an "unknown" owner from the subgraph to clobber a previously-correct row.
+  // Some subgraph deployments can temporarily emit zero-address owners; treat those rows as invalid updates.
+  if (agentIdentityOwnerAccountAddr === ZERO_ADDRESS) {
+    console.warn(`[upsertFromTransfer] skip zero-owner update (chainId=${chainId} agentId=${agentId})`);
+    return;
+  }
   let agentAccountAddr: string | null = null; // agent's configured account (subgraph agentWallet)
   let agentName = readAgentName(tokenInfo) || ""; // not modeled in ERC-721; leave empty
   let resolvedTokenURI =
@@ -494,7 +503,8 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     if (typeof v !== 'string') return null;
     const s = v.trim();
     if (!/^0x[a-fA-F0-9]{40}$/.test(s)) return null;
-    return s.toLowerCase();
+    const addr = s.toLowerCase();
+    return addr === ZERO_ADDRESS ? null : addr;
   })();
   if (metadataAgentWallet) {
     agentAccountAddr = metadataAgentWallet;
@@ -594,36 +604,29 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     // - if resolve(addr) == addr => 'eoa'
     // - else => 'aa'
     //
-    // Populating the actual `eoa*` fields can be RPC-heavy; keep that opt-in.
-    const resolveEoaWrites = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
-    const resolvedEoaIdentityOwnerAddrForType = await resolveEoaOwnerSafe(chainId, agentIdentityOwnerAccountAddr);
-    const eoaAgentIdentityOwnerAccountAddr =
-      resolveEoaWrites ? (resolvedEoaIdentityOwnerAddrForType ?? agentIdentityOwnerAccountAddr)?.toLowerCase() : null;
-    const resolvedEoaAgentAddrForType = agentAccountAddr ? await resolveEoaOwnerSafe(chainId, agentAccountAddr) : null;
-    const eoaAgentAccountAddr =
-      resolveEoaWrites ? ((resolvedEoaAgentAddrForType ?? agentAccountAddr)?.toLowerCase() ?? null) : null;
+    const ownerInfo = await resolveEoaInfo(chainId, agentIdentityOwnerAccountAddr);
     const createdAtTime = mintedTimestamp ?? Math.floor(Date.now() / 1000);
     
     // Compute DID values
     const didIdentity = `did:8004:${chainId}:${agentId}`;
     const agentAccountAddrFinal = (agentAccountAddr ?? agentIdentityOwnerAccountAddr).toLowerCase();
+    if (agentAccountAddrFinal === ZERO_ADDRESS) {
+      console.warn(`[upsertFromTransfer] skip zero-agentAccount update (chainId=${chainId} agentId=${agentId})`);
+      return;
+    }
+    const agentInfo = await resolveEoaInfo(chainId, agentAccountAddrFinal);
     const didAccount = agentAccountAddrFinal ? `did:ethr:${chainId}:${agentAccountAddrFinal}` : '';
     const didName = agentName && agentName.endsWith('.eth') ? `did:ens:${chainId}:${agentName}` : null;
 
     // Canonical DB storage: "{chainId}:{0x...}"
     const agentAccount = `${chainId}:${agentAccountAddrFinal}`;
-    const eoaAgentAccount = eoaAgentAccountAddr ? `${chainId}:${eoaAgentAccountAddr}` : null;
+    const eoaAgentAccount = agentInfo ? `${chainId}:${agentInfo.eoaAddress}` : `${chainId}:${agentAccountAddrFinal}`;
+    console.log(`[upsertFromTransfer] agentAccount=${agentAccount}, agentInfo=${JSON.stringify(agentInfo)}, eoaAgentAccount=${eoaAgentAccount}`);
     const agentIdentityOwnerAccount = `${chainId}:${agentIdentityOwnerAccountAddr}`;
-    const eoaAgentIdentityOwnerAccount = eoaAgentIdentityOwnerAccountAddr ? `${chainId}:${eoaAgentIdentityOwnerAccountAddr}` : null;
+    const eoaAgentIdentityOwnerAccount = ownerInfo ? `${chainId}:${ownerInfo.eoaAddress}` : `${chainId}:${agentIdentityOwnerAccountAddr}`;
 
-    const agentIdentityOwnerAccountType =
-      resolvedEoaIdentityOwnerAddrForType && agentIdentityOwnerAccountAddr
-        ? (resolvedEoaIdentityOwnerAddrForType.toLowerCase() === agentIdentityOwnerAccountAddr.toLowerCase() ? 'eoa' : 'aa')
-        : null;
-    const agentAccountType =
-      agentAccountAddrFinal && resolvedEoaAgentAddrForType
-        ? (resolvedEoaAgentAddrForType.toLowerCase() === agentAccountAddrFinal.toLowerCase() ? 'eoa' : 'aa')
-        : null;
+    const agentIdentityOwnerAccountType = ownerInfo ? ownerInfo.accountType : 'eoa';
+    const agentAccountType = agentInfo ? agentInfo.accountType : 'eoa';
 
     // Strict schema only (no backward compatibility).
     await dbInstance.prepare(
@@ -641,16 +644,36 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       )
       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
-        agentAccount=excluded.agentAccount,
-        eoaAgentAccount=COALESCE(excluded.eoaAgentAccount, eoaAgentAccount),
-        agentIdentityOwnerAccount=excluded.agentIdentityOwnerAccount,
-        eoaAgentIdentityOwnerAccount=COALESCE(excluded.eoaAgentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount),
+        agentAccount=CASE
+          WHEN excluded.agentAccount IS NOT NULL AND substr(excluded.agentAccount, -40) != substr('0000000000000000000000000000000000000000', -40)
+          THEN excluded.agentAccount
+          ELSE agentAccount
+        END,
+        eoaAgentAccount=CASE
+          WHEN excluded.eoaAgentAccount IS NOT NULL AND substr(excluded.eoaAgentAccount, -40) != substr('0000000000000000000000000000000000000000', -40)
+          THEN excluded.eoaAgentAccount
+          ELSE eoaAgentAccount
+        END,
+        agentIdentityOwnerAccount=CASE
+          WHEN excluded.agentIdentityOwnerAccount IS NOT NULL AND substr(excluded.agentIdentityOwnerAccount, -40) != substr('0000000000000000000000000000000000000000', -40)
+          THEN excluded.agentIdentityOwnerAccount
+          ELSE agentIdentityOwnerAccount
+        END,
+        eoaAgentIdentityOwnerAccount=CASE
+          WHEN excluded.eoaAgentIdentityOwnerAccount IS NOT NULL AND substr(excluded.eoaAgentIdentityOwnerAccount, -40) != substr('0000000000000000000000000000000000000000', -40)
+          THEN excluded.eoaAgentIdentityOwnerAccount
+          ELSE eoaAgentIdentityOwnerAccount
+        END,
         agentAccountType=COALESCE(excluded.agentAccountType, agentAccountType),
         agentIdentityOwnerAccountType=COALESCE(excluded.agentIdentityOwnerAccountType, agentIdentityOwnerAccountType),
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
         agentUri=COALESCE(excluded.agentUri, agentUri),
         didIdentity=COALESCE(excluded.didIdentity, didIdentity),
-        didAccount=COALESCE(excluded.didAccount, didAccount),
+        didAccount=CASE
+          WHEN excluded.didAccount IS NOT NULL AND excluded.didAccount NOT LIKE '%:0x0000000000000000000000000000000000000000'
+          THEN excluded.didAccount
+          ELSE didAccount
+        END,
         didName=COALESCE(excluded.didName, didName),
         rawJson=COALESCE(excluded.rawJson, rawJson),
         updatedAtTime=COALESCE(excluded.updatedAtTime, updatedAtTime),
@@ -1569,6 +1592,7 @@ async function upsertTokenMetadataFromGraph(
   batch?: BatchWriter
 ): Promise<void> {
   if (!item) return;
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
   const metadataIdRaw = typeof item.id === 'string' ? item.id : null;
   const keyRaw = typeof item.key === 'string' ? item.key : null;
@@ -1669,17 +1693,17 @@ async function upsertTokenMetadataFromGraph(
 
     if (candidate) {
       const addr = candidate.toLowerCase();
+      if (addr === ZERO_ADDRESS) return;
       const agentAccountValue = `${chainId}:${addr}`;
       const didAccountValue = `did:ethr:${chainId}:${addr}`;
-      const resolved = await resolveEoaOwnerSafe(chainId, addr);
-      const resolvedLower = resolved ? resolved.toLowerCase() : addr;
-      const agentAccountType = resolvedLower === addr ? 'eoa' : 'aa';
-      const eoaAgentAccountValue = `${chainId}:${resolvedLower}`;
+      const info = await resolveEoaInfo(chainId, addr);
+      const agentAccountType = info ? info.accountType : 'eoa';
+      const eoaAgentAccountValue = info ? `${chainId}:${info.eoaAddress}` : `${chainId}:${addr}`;
       const updateStmt = dbInstance.prepare(`
         UPDATE agents
         SET agentAccount = ?,
             didAccount = ?,
-            eoaAgentAccount = COALESCE(?, eoaAgentAccount),
+            eoaAgentAccount = ?,
             agentAccountType = COALESCE(?, agentAccountType),
             updatedAtTime = ?
         WHERE chainId = ? AND agentId = ?
@@ -1955,9 +1979,9 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   // Resolving EOA owners can be RPC-heavy; keep it opt-in (matches upsertFromTransfer behavior).
   const resolveEoa = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
   const resolvedEoaOwnerAccount = resolveEoa ? await resolveEoaOwnerSafe(chainId, ownerAddress) : null;
-  const eoaAgentIdentityOwnerAccount = resolvedEoaOwnerAccount ?? ownerAddress;
+  const eoaAgentIdentityOwnerAccount = resolvedEoaOwnerAccount;
   const resolvedEoaAgentAccount = resolveEoa && agentAccount ? await resolveEoaOwnerSafe(chainId, agentAccount) : null;
-  const eoaAgentAccount = resolvedEoaAgentAccount ?? agentAccount;
+  const eoaAgentAccount = resolvedEoaAgentAccount;
   const agentIdentityOwnerAccountType =
     resolvedEoaOwnerAccount && ownerAddress
       ? ((resolvedEoaOwnerAccount ?? '').toLowerCase() === ownerAddress.toLowerCase() ? 'eoa' : 'aa')
@@ -2318,8 +2342,8 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   const blockNumberNumeric = Number(update?.blockNumber ?? 0);
   const zeroAddress = '0x0000000000000000000000000000000000000000';
   const ownerAddress = agentAccount ?? zeroAddress;
-  const eoaAgentIdentityOwnerAccount = (await resolveEoaOwnerSafe(chainId, ownerAddress)) ?? ownerAddress;
-  const eoaAgentAccount = agentAccount ? ((await resolveEoaOwnerSafe(chainId, agentAccount)) ?? agentAccount) : null;
+  const eoaAgentIdentityOwnerAccount = await resolveEoaOwnerSafe(chainId, ownerAddress);
+  const eoaAgentAccount = agentAccount ? (await resolveEoaOwnerSafe(chainId, agentAccount)) : null;
   const agentIdentityOwnerAccountType =
     ownerAddress && eoaAgentIdentityOwnerAccount
       ? (eoaAgentIdentityOwnerAccount.toLowerCase() === ownerAddress.toLowerCase() ? 'eoa' : 'aa')
@@ -2578,10 +2602,53 @@ async function recordAssociationRevocationFromGraph(
   ]);
 }
 
-export async function backfill(client: ERC8004Client, dbOverride?: any) {
-  // Use provided db override (for Workers) or fall back to module-level db (for local)
-  const dbInstance = dbOverride || db;
-  
+// Sections: allow running only parts of the ingest flow without duplicating code.
+export type BackfillSection =
+  | 'agents'
+  | 'registrationFiles'
+  | 'agentMetadata'
+  | 'feedbacks'
+  | 'feedbackRevocations'
+  | 'feedbackResponses'
+  | 'validationRequests'
+  | 'validationResponses'
+  | 'uriUpdates'
+  | 'associations'
+  | 'associationRevocations';
+
+export const ALL_BACKFILL_SECTIONS: BackfillSection[] = [
+  'agents',
+  'registrationFiles',
+  'agentMetadata',
+  'feedbacks',
+  'feedbackRevocations',
+  'feedbackResponses',
+  'validationRequests',
+  'validationResponses',
+  'uriUpdates',
+  'associations',
+  'associationRevocations',
+];
+
+export async function backfill(
+  client: ERC8004Client,
+  dbOverrideOrOptions?:
+    | any
+    | {
+        dbOverride?: any;
+        sections?: BackfillSection[];
+      },
+) {
+  // Backwards compatible arg shape: backfill(client, dbOverride) or backfill(client, { dbOverride, sections }).
+  const opts =
+    dbOverrideOrOptions && typeof dbOverrideOrOptions === 'object' && ('sections' in dbOverrideOrOptions || 'dbOverride' in dbOverrideOrOptions)
+      ? (dbOverrideOrOptions as any)
+      : { dbOverride: dbOverrideOrOptions };
+  const dbInstance = opts.dbOverride || db;
+  const selectedSectionsRaw =
+    Array.isArray(opts.sections) && opts.sections.length ? (opts.sections as BackfillSection[]) : ALL_BACKFILL_SECTIONS;
+  const selected = new Set<BackfillSection>(selectedSectionsRaw);
+
   if (!dbInstance) {
     throw new Error('Database instance required for backfill. In Workers, db must be passed via env.DB');
   }
@@ -3271,24 +3338,26 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   const associationsBatch = createBatchWriter(dbInstance, 'associations');
   const associationRevocationsBatch = createBatchWriter(dbInstance, 'association_revocations');
 
-  console.info("............  process agents: ", agentsOrdered.length);
-  for (let i = 0; i < agentsOrdered.length; i++) {
-    const a = agentsOrdered[i];
-    const tokenId = BigInt(a?.id || '0');
-    const toAddr = String(a?.owner?.id || '').toLowerCase();
-    // mintedAt is used as a monotonic cursor; treat it as a "block-like" bigint for checkpointing.
-    const mintedAt = BigInt(a?.mintedAt || 0);
-    if (tokenId <= 0n || !toAddr) continue;
-    const tokenUri = typeof a?.agentURI === 'string' ? a.agentURI : null;
-    await upsertFromTransfer(toAddr, tokenId, a as any, mintedAt, tokenUri, chainId, dbInstance);
-    await updateTokenCheckpointIfNeeded(mintedAt);
-    if ((i + 1) % 50 === 0 || i === agentsOrdered.length - 1) {
-      console.info(`............  agent progress: ${i + 1}/${agentsOrdered.length} (mintedAt ${mintedAt})`);
+  if (selected.has('agents')) {
+    console.info("............  process agents: ", agentsOrdered.length);
+    for (let i = 0; i < agentsOrdered.length; i++) {
+      const a = agentsOrdered[i];
+      const tokenId = BigInt(a?.id || '0');
+      const toAddr = String(a?.owner?.id || '').toLowerCase();
+      // mintedAt is used as a monotonic cursor; treat it as a "block-like" bigint for checkpointing.
+      const mintedAt = BigInt(a?.mintedAt || 0);
+      if (tokenId <= 0n || !toAddr) continue;
+      const tokenUri = typeof a?.agentURI === 'string' ? a.agentURI : null;
+      await upsertFromTransfer(toAddr, tokenId, a as any, mintedAt, tokenUri, chainId, dbInstance);
+      await updateTokenCheckpointIfNeeded(mintedAt);
+      if ((i + 1) % 50 === 0 || i === agentsOrdered.length - 1) {
+        console.info(`............  agent progress: ${i + 1}/${agentsOrdered.length} (mintedAt ${mintedAt})`);
+      }
     }
   }
 
   // Ingest registration file records (authoritative metadata updates).
-  if (registrationFileItems.length > 0) {
+  if (selected.has('registrationFiles') && registrationFileItems.length > 0) {
     const regOrdered = registrationFileItems
       .filter((rf) => Number(rf?.updatedAt || 0) > Number(lastAgentRegistrationFile))
       .slice()
@@ -3365,7 +3434,9 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     },
   );
 
-  if (tokenMetadataItems.length === 0) {
+  if (!selected.has('agentMetadata')) {
+    // skip
+  } else if (tokenMetadataItems.length === 0) {
     console.info(`............  no agent metadata updates beyond block ${lastAgentMetadata}`);
   } else {
     console.info("............  process agent metadata entries: ", tokenMetadataItems.length);
@@ -3408,26 +3479,28 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
-  console.info("............  process feedbacks: ", feedbacksOrdered.length);
-  if (feedbacksOrdered.length > 0) {
-    console.info('............  sample feedback ids:', feedbacksOrdered.slice(0, 3).map((fb) => `${fb?.id || 'unknown'}@${fb?.blockNumber || '0'}`).join(', '));
-  }
-  for (let i = 0; i < feedbacksOrdered.length; i++) {
-    const fb = feedbacksOrdered[i];
-    const blockNum = BigInt(fb?.blockNumber || 0);
-    try {
-      if (process.env.DEBUG_FEEDBACK === '1') {
-        console.info("............  processing feedback upsert: ", fb?.id);
-        console.info(`............  processing feedback upsert: agentId=${fb?.agent?.id}, id=${fb?.id}`);
+  if (selected.has('feedbacks')) {
+    console.info("............  process feedbacks: ", feedbacksOrdered.length);
+    if (feedbacksOrdered.length > 0) {
+      console.info('............  sample feedback ids:', feedbacksOrdered.slice(0, 3).map((fb) => `${fb?.id || 'unknown'}@${fb?.blockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < feedbacksOrdered.length; i++) {
+      const fb = feedbacksOrdered[i];
+      const blockNum = BigInt(fb?.blockNumber || 0);
+      try {
+        if (process.env.DEBUG_FEEDBACK === '1') {
+          console.info("............  processing feedback upsert: ", fb?.id);
+          console.info(`............  processing feedback upsert: agentId=${fb?.agent?.id}, id=${fb?.id}`);
+        }
+        await upsertFeedbackFromGraph(fb, chainId, dbInstance, feedbackInsertBatch);
+        await updateFeedbackCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 25 === 0 || i === feedbacksOrdered.length - 1) {
+          console.info(`............  feedback progress: ${i + 1}/${feedbacksOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing feedback from Graph:', { id: fb?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-      await upsertFeedbackFromGraph(fb, chainId, dbInstance, feedbackInsertBatch);
-      await updateFeedbackCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 25 === 0 || i === feedbacksOrdered.length - 1) {
-        console.info(`............  feedback progress: ${i + 1}/${feedbacksOrdered.length} (block ${blockNum})`);
-      }
-    } catch (error) {
-      console.error('❌ Error processing feedback from Graph:', { id: fb?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3436,22 +3509,24 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
-  console.info("............  process feedback revocations: ", feedbackRevokedOrdered.length);
-  if (feedbackRevokedOrdered.length > 0) {
-    console.info('............  sample revocation ids:', feedbackRevokedOrdered.slice(0, 3).map((rev) => `${rev?.id || 'unknown'}@${rev?.blockNumber || '0'}`).join(', '));
-  }
-  for (let i = 0; i < feedbackRevokedOrdered.length; i++) {
-    const rev = feedbackRevokedOrdered[i];
-    const blockNum = BigInt(rev?.blockNumber || 0);
-    try {
-      await recordFeedbackRevocationFromGraph(rev, chainId, dbInstance, feedbackRevokedBatch);
-      await updateFeedbackCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 25 === 0 || i === feedbackRevokedOrdered.length - 1) {
-        console.info(`............  feedback revocation progress: ${i + 1}/${feedbackRevokedOrdered.length} (block ${blockNum})`);
+  if (selected.has('feedbackRevocations')) {
+    console.info("............  process feedback revocations: ", feedbackRevokedOrdered.length);
+    if (feedbackRevokedOrdered.length > 0) {
+      console.info('............  sample revocation ids:', feedbackRevokedOrdered.slice(0, 3).map((rev) => `${rev?.id || 'unknown'}@${rev?.blockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < feedbackRevokedOrdered.length; i++) {
+      const rev = feedbackRevokedOrdered[i];
+      const blockNum = BigInt(rev?.blockNumber || 0);
+      try {
+        await recordFeedbackRevocationFromGraph(rev, chainId, dbInstance, feedbackRevokedBatch);
+        await updateFeedbackCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 25 === 0 || i === feedbackRevokedOrdered.length - 1) {
+          console.info(`............  feedback revocation progress: ${i + 1}/${feedbackRevokedOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing feedback revocation:', { id: rev?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-    } catch (error) {
-      console.error('❌ Error processing feedback revocation:', { id: rev?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3460,22 +3535,24 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
   .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
-  console.info("............  process feedback responses: ", feedbackResponsesOrdered.length);
-  if (feedbackResponsesOrdered.length > 0) {
-    console.info('............  sample response ids:', feedbackResponsesOrdered.slice(0, 3).map((resp) => `${resp?.id || 'unknown'}@${resp?.blockNumber || '0'}`).join(', '));
-  }
-  for (let i = 0; i < feedbackResponsesOrdered.length; i++) {
-    const resp = feedbackResponsesOrdered[i];
-    const blockNum = BigInt(resp?.blockNumber || 0);
-    try {
-      await recordFeedbackResponseFromGraph(resp, chainId, dbInstance, feedbackResponseBatch);
-      await updateFeedbackCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 25 === 0 || i === feedbackResponsesOrdered.length - 1) {
-        console.info(`............  feedback response progress: ${i + 1}/${feedbackResponsesOrdered.length} (block ${blockNum})`);
+  if (selected.has('feedbackResponses')) {
+    console.info("............  process feedback responses: ", feedbackResponsesOrdered.length);
+    if (feedbackResponsesOrdered.length > 0) {
+      console.info('............  sample response ids:', feedbackResponsesOrdered.slice(0, 3).map((resp) => `${resp?.id || 'unknown'}@${resp?.blockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < feedbackResponsesOrdered.length; i++) {
+      const resp = feedbackResponsesOrdered[i];
+      const blockNum = BigInt(resp?.blockNumber || 0);
+      try {
+        await recordFeedbackResponseFromGraph(resp, chainId, dbInstance, feedbackResponseBatch);
+        await updateFeedbackCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 25 === 0 || i === feedbackResponsesOrdered.length - 1) {
+          console.info(`............  feedback response progress: ${i + 1}/${feedbackResponsesOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing feedback response:', { id: resp?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-    } catch (error) {
-      console.error('❌ Error processing feedback response:', { id: resp?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3484,23 +3561,25 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
-  console.info("............  process validation requests: ", validationRequestsOrdered.length);
-  if (validationRequestsOrdered.length > 0) {
-    console.info('............  sample validation request ids:', validationRequestsOrdered.slice(0, 3).map((req) => `${req?.id || 'unknown'}@${req?.blockNumber || '0'}`).join(', '));
-  }
-  for (let i = 0; i < validationRequestsOrdered.length; i++) {
-    const req = validationRequestsOrdered[i];
-    const blockNum = BigInt(req?.blockNumber || 0);
-    try {
-      console.info(`............  processing validation request: agentId=${req?.agent?.id}, id=${req?.id}`);
-      await upsertValidationRequestFromGraph(req, chainId, dbInstance, validationRequestBatch);
-      await updateValidationCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 25 === 0 || i === validationRequestsOrdered.length - 1) {
-        console.info(`............  validation request progress: ${i + 1}/${validationRequestsOrdered.length} (block ${blockNum})`);
+  if (selected.has('validationRequests')) {
+    console.info("............  process validation requests: ", validationRequestsOrdered.length);
+    if (validationRequestsOrdered.length > 0) {
+      console.info('............  sample validation request ids:', validationRequestsOrdered.slice(0, 3).map((req) => `${req?.id || 'unknown'}@${req?.blockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < validationRequestsOrdered.length; i++) {
+      const req = validationRequestsOrdered[i];
+      const blockNum = BigInt(req?.blockNumber || 0);
+      try {
+        console.info(`............  processing validation request: agentId=${req?.agent?.id}, id=${req?.id}`);
+        await upsertValidationRequestFromGraph(req, chainId, dbInstance, validationRequestBatch);
+        await updateValidationCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 25 === 0 || i === validationRequestsOrdered.length - 1) {
+          console.info(`............  validation request progress: ${i + 1}/${validationRequestsOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing validation request:', { id: req?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-    } catch (error) {
-      console.error('❌ Error processing validation request:', { id: req?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3509,26 +3588,28 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
-  console.info("............  process validation responses: ", validationResponsesOrdered.length);
-  if (validationResponsesOrdered.length > 0) {
-    console.info('............  sample validation response ids:', validationResponsesOrdered.slice(0, 3).map((resp) => `${resp?.id || 'unknown'}@${resp?.blockNumber || '0'}`).join(', '));
-  }
   const validationAgentsToProcess = new Map<string, string>();
-  for (let i = 0; i < validationResponsesOrdered.length; i++) {
-    const resp = validationResponsesOrdered[i];
-    const blockNum = BigInt(resp?.blockNumber || 0);
-    try {
-      await upsertValidationResponseFromGraph(resp, chainId, dbInstance, validationResponseBatch);
-      if (resp?.agent?.id != null) {
-        validationAgentsToProcess.set(String(resp.agent.id), String(resp?.id ?? ''));
+  if (selected.has('validationResponses')) {
+    console.info("............  process validation responses: ", validationResponsesOrdered.length);
+    if (validationResponsesOrdered.length > 0) {
+      console.info('............  sample validation response ids:', validationResponsesOrdered.slice(0, 3).map((resp) => `${resp?.id || 'unknown'}@${resp?.blockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < validationResponsesOrdered.length; i++) {
+      const resp = validationResponsesOrdered[i];
+      const blockNum = BigInt(resp?.blockNumber || 0);
+      try {
+        await upsertValidationResponseFromGraph(resp, chainId, dbInstance, validationResponseBatch);
+        if (resp?.agent?.id != null) {
+          validationAgentsToProcess.set(String(resp.agent.id), String(resp?.id ?? ''));
+        }
+        await updateValidationCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 25 === 0 || i === validationResponsesOrdered.length - 1) {
+          console.info(`............  validation response progress: ${i + 1}/${validationResponsesOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing validation response:', { id: resp?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-      await updateValidationCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 25 === 0 || i === validationResponsesOrdered.length - 1) {
-        console.info(`............  validation response progress: ${i + 1}/${validationResponsesOrdered.length} (block ${blockNum})`);
-      }
-    } catch (error) {
-      console.error('❌ Error processing validation response:', { id: resp?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3537,22 +3618,24 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     .slice()
     .sort((a, b) => Number(a.blockNumber) - Number(b.blockNumber));
 
-  console.info("............  process uri updates: ", uriUpdatesOrdered.length);
-  if (uriUpdatesOrdered.length > 0) {
-    console.info('............  sample uri update ids:', uriUpdatesOrdered.slice(0, 3).map((u) => `${u?.id || 'unknown'}@${u?.blockNumber || '0'}`).join(', '));
-  }
-  for (let i = 0; i < uriUpdatesOrdered.length; i++) {
-    const update = uriUpdatesOrdered[i];
-    const blockNum = BigInt(update?.blockNumber || 0);
-    try {
-      await applyUriUpdateFromGraph(update, chainId, dbInstance);
-      await updateUriCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 25 === 0 || i === uriUpdatesOrdered.length - 1) {
-        console.info(`............  uri update progress: ${i + 1}/${uriUpdatesOrdered.length} (block ${blockNum})`);
+  if (selected.has('uriUpdates')) {
+    console.info("............  process uri updates: ", uriUpdatesOrdered.length);
+    if (uriUpdatesOrdered.length > 0) {
+      console.info('............  sample uri update ids:', uriUpdatesOrdered.slice(0, 3).map((u) => `${u?.id || 'unknown'}@${u?.blockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < uriUpdatesOrdered.length; i++) {
+      const update = uriUpdatesOrdered[i];
+      const blockNum = BigInt(update?.blockNumber || 0);
+      try {
+        await applyUriUpdateFromGraph(update, chainId, dbInstance);
+        await updateUriCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 25 === 0 || i === uriUpdatesOrdered.length - 1) {
+          console.info(`............  uri update progress: ${i + 1}/${uriUpdatesOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing uri update:', { id: update?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-    } catch (error) {
-      console.error('❌ Error processing uri update:', { id: update?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3561,29 +3644,31 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     .slice()
     .sort((a, b) => Number(a?.lastUpdatedBlockNumber || a?.createdBlockNumber || 0) - Number(b?.lastUpdatedBlockNumber || b?.createdBlockNumber || 0));
 
-  console.info("............  process associations: ", associationsOrdered.length);
-  if (associationsOrdered.length > 0) {
-    console.info('............  sample association ids:', associationsOrdered.slice(0, 3).map((a) => `${a?.id || 'unknown'}@${a?.lastUpdatedBlockNumber || a?.createdBlockNumber || '0'}`).join(', '));
-  }
-  for (let i = 0; i < associationsOrdered.length; i++) {
-    const assoc = associationsOrdered[i];
-    const blockNum = BigInt(assoc?.lastUpdatedBlockNumber || assoc?.createdBlockNumber || 0);
-    try {
-      await upsertAssociationFromGraph(assoc, chainId, dbInstance, associationAccountsBatch, associationsBatch);
-      // Best-effort: if the association.data points to IPFS delegation metadata, fetch+persist it for RDF export.
+  if (selected.has('associations')) {
+    console.info("............  process associations: ", associationsOrdered.length);
+    if (associationsOrdered.length > 0) {
+      console.info('............  sample association ids:', associationsOrdered.slice(0, 3).map((a) => `${a?.id || 'unknown'}@${a?.lastUpdatedBlockNumber || a?.createdBlockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < associationsOrdered.length; i++) {
+      const assoc = associationsOrdered[i];
+      const blockNum = BigInt(assoc?.lastUpdatedBlockNumber || assoc?.createdBlockNumber || 0);
       try {
-        await upsertAssociationDelegationFromIpfs(assoc, chainId, dbInstance);
-      } catch (e) {
-        // Do not fail the full backfill on IPFS issues.
-        console.warn('⚠️  association delegation IPFS ingest failed (best-effort)', { id: assoc?.id, err: String((e as any)?.message || e) });
+        await upsertAssociationFromGraph(assoc, chainId, dbInstance, associationAccountsBatch, associationsBatch);
+        // Best-effort: if the association.data points to IPFS delegation metadata, fetch+persist it for RDF export.
+        try {
+          await upsertAssociationDelegationFromIpfs(assoc, chainId, dbInstance);
+        } catch (e) {
+          // Do not fail the full backfill on IPFS issues.
+          console.warn('⚠️  association delegation IPFS ingest failed (best-effort)', { id: assoc?.id, err: String((e as any)?.message || e) });
+        }
+        await updateAssociationCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 50 === 0 || i === associationsOrdered.length - 1) {
+          console.info(`............  associations progress: ${i + 1}/${associationsOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing association:', { id: assoc?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-      await updateAssociationCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 50 === 0 || i === associationsOrdered.length - 1) {
-        console.info(`............  associations progress: ${i + 1}/${associationsOrdered.length} (block ${blockNum})`);
-      }
-    } catch (error) {
-      console.error('❌ Error processing association:', { id: assoc?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3592,22 +3677,24 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
     .slice()
     .sort((a, b) => Number(a?.blockNumber || 0) - Number(b?.blockNumber || 0));
 
-  console.info("............  process association revocations: ", associationRevocationsOrdered.length);
-  if (associationRevocationsOrdered.length > 0) {
-    console.info('............  sample association revocation ids:', associationRevocationsOrdered.slice(0, 3).map((r) => `${r?.id || 'unknown'}@${r?.blockNumber || '0'}`).join(', '));
-  }
-  for (let i = 0; i < associationRevocationsOrdered.length; i++) {
-    const rev = associationRevocationsOrdered[i];
-    const blockNum = BigInt(rev?.blockNumber || 0);
-    try {
-      await recordAssociationRevocationFromGraph(rev, chainId, dbInstance, associationRevocationsBatch);
-      await updateAssociationRevocationCheckpointIfNeeded(blockNum);
-      if ((i + 1) % 50 === 0 || i === associationRevocationsOrdered.length - 1) {
-        console.info(`............  association revocation progress: ${i + 1}/${associationRevocationsOrdered.length} (block ${blockNum})`);
+  if (selected.has('associationRevocations')) {
+    console.info("............  process association revocations: ", associationRevocationsOrdered.length);
+    if (associationRevocationsOrdered.length > 0) {
+      console.info('............  sample association revocation ids:', associationRevocationsOrdered.slice(0, 3).map((r) => `${r?.id || 'unknown'}@${r?.blockNumber || '0'}`).join(', '));
+    }
+    for (let i = 0; i < associationRevocationsOrdered.length; i++) {
+      const rev = associationRevocationsOrdered[i];
+      const blockNum = BigInt(rev?.blockNumber || 0);
+      try {
+        await recordAssociationRevocationFromGraph(rev, chainId, dbInstance, associationRevocationsBatch);
+        await updateAssociationRevocationCheckpointIfNeeded(blockNum);
+        if ((i + 1) % 50 === 0 || i === associationRevocationsOrdered.length - 1) {
+          console.info(`............  association revocation progress: ${i + 1}/${associationRevocationsOrdered.length} (block ${blockNum})`);
+        }
+      } catch (error) {
+        console.error('❌ Error processing association revocation:', { id: rev?.id, blockNum: String(blockNum), error });
+        throw error;
       }
-    } catch (error) {
-      console.error('❌ Error processing association revocation:', { id: rev?.id, blockNum: String(blockNum), error });
-      throw error;
     }
   }
 
@@ -3721,7 +3808,7 @@ function watch() {
 
 // Parse command-line arguments
 function parseArgs() {
-  const args: { agentId?: string } = {};
+  const args: { agentId?: string; sections?: string } = {};
   const argv = process.argv.slice(2);
   
   for (let i = 0; i < argv.length; i++) {
@@ -3730,9 +3817,44 @@ function parseArgs() {
       args.agentId = argv[i + 1];
       i++;
     }
+    if (arg === '--sections' || arg === '--section') {
+      args.sections = argv[i + 1];
+      i++;
+    }
   }
   
   return args;
+}
+
+export function getClientsByChainId(): Record<string, any> {
+  const clientsByChainId: Record<string, any> = {
+    '11155111': erc8004EthSepoliaClient,
+    '84532': erc8004BaseSepoliaClient,
+  };
+  if (erc8004OpSepoliaClient) clientsByChainId['11155420'] = erc8004OpSepoliaClient;
+  return clientsByChainId;
+}
+
+async function promptForSectionsIfTty(): Promise<BackfillSection[] | null> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return null;
+  try {
+    const readline = await import('node:readline/promises');
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      const answer = (await rl.question(`Run all ingest sections? (Y/n): `)).trim().toLowerCase();
+      if (!answer || answer === 'y' || answer === 'yes') return null;
+      const list = (await rl.question(`Which section(s)? (${ALL_BACKFILL_SECTIONS.join(', ')}): `)).trim();
+      if (!list) return null;
+      const parts = list.split(',').map((s) => s.trim()).filter(Boolean);
+      const valid = new Set(ALL_BACKFILL_SECTIONS);
+      const picked = parts.filter((p) => valid.has(p as BackfillSection)) as BackfillSection[];
+      return picked.length ? picked : null;
+    } finally {
+      rl.close();
+    }
+  } catch {
+    return null;
+  }
 }
 
 // Process a specific agentId across all chains, ignoring checkpoints
@@ -3787,14 +3909,14 @@ async function processSingleAgentId(agentId: string) {
   console.log(`\n✅ Finished processing agentId ${agentId}`);
 }
 
-(async () => {
+export async function runIndexerMain() {
   const args = parseArgs();
   
   // If agentId is specified, process only that agent
   if (args.agentId) {
     console.log(`🎯 Single agent mode: processing agentId ${args.agentId}`);
     await processSingleAgentId(args.agentId);
-    process.exit(0);
+    return;
   }
   
   // Normal indexing mode
@@ -3831,11 +3953,22 @@ async function processSingleAgentId(agentId: string) {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const clientsByChainId: Record<string, any> = {
-    '11155111': erc8004EthSepoliaClient,
-    '84532': erc8004BaseSepoliaClient,
-  };
-  if (erc8004OpSepoliaClient) clientsByChainId['11155420'] = erc8004OpSepoliaClient;
+  const clientsByChainId = getClientsByChainId();
+
+  // Optional interactive selection for development runs.
+  // Default: run all sections.
+  const pickedFromPrompt = !args.sections ? await promptForSectionsIfTty() : null;
+  const sectionsFromArgs =
+    args.sections && args.sections.trim()
+      ? args.sections
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+  const requestedSections =
+    sectionsFromArgs.length
+      ? (sectionsFromArgs as BackfillSection[])
+      : (pickedFromPrompt && pickedFromPrompt.length ? pickedFromPrompt : null);
 
   try {
     for (const cid of chainIds) {
@@ -3844,7 +3977,7 @@ async function processSingleAgentId(agentId: string) {
         console.warn(`Skipping unknown INDEXER_CHAIN_ID=${cid}`);
         continue;
       }
-      await backfill(c);
+      await backfill(c, requestedSections ? { sections: requestedSections } : undefined);
     }
   } catch (e) {
     console.error('Initial GraphQL backfill failed:', e);
@@ -3865,4 +3998,23 @@ async function processSingleAgentId(agentId: string) {
   //const interval = setInterval(() => { backfill().catch((e) => console.error('GraphQL backfill error', e)); }, Math.max(5000, GRAPHQL_POLL_MS));
   //console.log("Indexer running (GraphQL + watch). Press Ctrl+C to exit.");
   //process.on('SIGINT', () => { clearInterval(interval); unwatch(); process.exit(0); });
+}
+
+// Only run when invoked as the entry script (so CLIs can import backfill helpers without side-effects).
+const isEntry = (() => {
+  const thisFile = fileURLToPath(import.meta.url);
+  return process.argv.some((a) => {
+    try {
+      return pathResolve(a) === thisFile;
+    } catch {
+      return false;
+    }
+  });
 })();
+
+if (isEntry) {
+  runIndexerMain().catch((e) => {
+    console.error('[indexer] fatal', e);
+    process.exitCode = 1;
+  });
+}

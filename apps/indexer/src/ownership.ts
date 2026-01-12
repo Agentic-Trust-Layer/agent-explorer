@@ -32,78 +32,62 @@ const chainConfigs: Record<number, ChainConfig> = {
 
 const publicClientCache = new Map<number, PublicClient>();
 const missingClientWarning = new Set<number>();
-const eoaOwnerCache = new Map<string, string>();
-const eoaOwnerPromiseCache = new Map<string, Promise<string>>();
+const eoaOwnerCache = new Map<string, string | null>();
+const eoaOwnerPromiseCache = new Map<string, Promise<string | null>>();
+const unresolvedControllerWarning = new Set<string>();
+const maxDepthWarning = new Set<string>();
+const cycleWarning = new Set<string>();
+const missingClientInfoWarning = new Set<number>();
+const bytecodeTypeCache = new Map<string, 'eoa' | 'aa'>();
+const bytecodeTypePromiseCache = new Map<string, Promise<'eoa' | 'aa' | null>>();
 
-const OWNER_ABI = [
+// ABIs for reading owner/controller from smart accounts (MetaMask Hybrid Accounts, etc.)
+const OWNER_ABI: Abi = [
   {
-    type: 'function',
     name: 'owner',
+    type: 'function',
     stateMutability: 'view',
     inputs: [],
     outputs: [{ type: 'address' }],
   },
-] as const satisfies Abi;
+] as const;
 
-const CONTROLLER_ABI = [
+const GET_OWNER_ABI: Abi = [
   {
-    type: 'function',
-    name: 'controller',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'address' }],
-  },
-] as const satisfies Abi;
-
-const GET_OWNER_ABI = [
-  {
-    type: 'function',
     name: 'getOwner',
+    type: 'function',
     stateMutability: 'view',
     inputs: [],
     outputs: [{ type: 'address' }],
   },
-] as const satisfies Abi;
+] as const;
 
-const GET_CONTROLLER_ABI = [
+const OWNERS_ABI: Abi = [
   {
+    name: 'owners',
     type: 'function',
-    name: 'getController',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'address' }],
-  },
-] as const satisfies Abi;
-
-const GET_OWNERS_ABI = [
-  {
-    type: 'function',
-    name: 'getOwners',
     stateMutability: 'view',
     inputs: [],
     outputs: [{ type: 'address[]' }],
   },
-] as const satisfies Abi;
+] as const;
 
-const OWNERS_ARRAY_ABI = [
-  {
-    type: 'function',
-    name: 'owners',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'address[]' }],
-  },
-] as const satisfies Abi;
-
-const OWNERS_INDEX_ABI = [
-  {
-    type: 'function',
-    name: 'owners',
-    stateMutability: 'view',
-    inputs: [{ name: 'index', type: 'uint256' }],
-    outputs: [{ type: 'address' }],
-  },
-] as const satisfies Abi;
+async function getBytecodeSafe(
+  client: PublicClient,
+  address: Address,
+  retries = 2,
+): Promise<Hex | null | undefined> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await client.getBytecode({ address });
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  // Don't spam; callers will decide how to handle unknown bytecode.
+  return undefined;
+}
 
 function normalizeAddress(value: string | null | undefined): Address | null {
   if (!value) return null;
@@ -175,49 +159,54 @@ async function tryReadContract<T>(
 }
 
 async function findControllerAddress(client: PublicClient, account: Address): Promise<Address | null> {
-  const tryAddress = async (abi: Abi, functionName: string, args?: readonly unknown[]): Promise<Address | null> => {
-    const result = await tryReadContract<Address>(client, { address: account, abi, functionName, args });
-    if (result) {
-      const normalized = normalizeAddress(result);
-      if (normalized && normalized !== ZERO_ADDRESS) {
-        return normalized;
-      }
-    }
-    return null;
-  };
+  // Try owner() first (most common pattern, including MetaMask Hybrid Accounts)
+  let controller = await tryReadContract<Address>(client, {
+    address: account,
+    abi: OWNER_ABI,
+    functionName: 'owner',
+    args: [],
+  });
 
-  const attempts: Array<() => Promise<Address | null>> = [
-    () => tryAddress(OWNER_ABI, 'owner'),
-    () => tryAddress(CONTROLLER_ABI, 'controller'),
-    () => tryAddress(GET_OWNER_ABI, 'getOwner'),
-    () => tryAddress(GET_CONTROLLER_ABI, 'getController'),
-    async () => {
-      const owners = await tryReadContract<readonly Address[]>(client, { address: account, abi: GET_OWNERS_ABI, functionName: 'getOwners' });
-      if (owners && owners.length) {
-        return normalizeAddress(owners[0]);
-      }
-      return null;
-    },
-    async () => {
-      const owners = await tryReadContract<readonly Address[]>(client, { address: account, abi: OWNERS_ARRAY_ABI, functionName: 'owners' });
-      if (owners && owners.length) {
-        return normalizeAddress(owners[0]);
-      }
-      return null;
-    },
-    () => tryAddress(OWNERS_INDEX_ABI, 'owners', [0n]),
-  ];
-
-  for (const attempt of attempts) {
-    try {
-      const controller = await attempt();
-      if (controller) {
-        return controller;
-      }
-    } catch {
-      // Ignore and try next
+  if (controller) {
+    const normalized = normalizeAddress(controller);
+    if (normalized && normalized !== ZERO_ADDRESS) {
+      console.log(`[ownership] Resolved owner for account abstraction ${account}: ${normalized} (via owner())`);
+      return normalized;
     }
   }
+
+  // Fallback: try getOwner()
+  controller = await tryReadContract<Address>(client, {
+    address: account,
+    abi: GET_OWNER_ABI,
+    functionName: 'getOwner',
+    args: [],
+  });
+
+  if (controller) {
+    const normalized = normalizeAddress(controller);
+    if (normalized && normalized !== ZERO_ADDRESS) {
+      console.log(`[ownership] Resolved owner for account abstraction ${account}: ${normalized} (via getOwner())`);
+      return normalized;
+    }
+  }
+
+  // Fallback: try owners() array (multi-sig pattern)
+  const owners = await tryReadContract<Address[]>(client, {
+    address: account,
+    abi: OWNERS_ABI,
+    functionName: 'owners',
+    args: [],
+  });
+
+  if (owners && owners.length > 0) {
+    const normalized = normalizeAddress(owners[0]);
+    if (normalized && normalized !== ZERO_ADDRESS) {
+      console.log(`[ownership] Resolved owner for account abstraction ${account}: ${normalized} (via owners()[0])`);
+      return normalized;
+    }
+  }
+
   return null;
 }
 
@@ -227,21 +216,31 @@ async function resolveWithClient(
   account: Address,
   depth: number,
   visited: Set<string>,
-): Promise<Address> {
+): Promise<Address | null> {
   if (depth >= MAX_RESOLUTION_DEPTH) {
-    return account;
+    const key = cacheKey(chainId, account);
+    if (!maxDepthWarning.has(key)) {
+      maxDepthWarning.add(key);
+      console.warn(`[ownership] Max resolution depth reached for ${key}; leaving EOA owner NULL`);
+    }
+    return null;
   }
   const lower = account.toLowerCase();
   if (visited.has(lower)) {
-    return account;
+    const key = cacheKey(chainId, account);
+    if (!cycleWarning.has(key)) {
+      cycleWarning.add(key);
+      console.warn(`[ownership] Cycle detected while resolving controller for ${key}; leaving EOA owner NULL`);
+    }
+    return null;
   }
   visited.add(lower);
 
-  let bytecode: Hex | null | undefined = null;
-  try {
-    bytecode = await client.getBytecode({ address: account });
-  } catch {
-    return account;
+  const bytecode = await getBytecodeSafe(client, account);
+  if (bytecode === undefined) {
+    // If the RPC is flaky, don't force a NULL owner; best-effort by treating this hop as unresolved.
+    // Returning null here means "can't prove"; callers may choose a fallback.
+    return null;
   }
 
   if (isEoaBytecode(bytecode)) {
@@ -250,10 +249,17 @@ async function resolveWithClient(
 
   const controller = await findControllerAddress(client, account);
   if (!controller) {
-    return account;
+    const key = cacheKey(chainId, account);
+    if (!unresolvedControllerWarning.has(key)) {
+      unresolvedControllerWarning.add(key);
+      console.warn(`[ownership] Could not resolve controller/owner for contract ${key}; leaving EOA owner NULL`);
+    }
+    return null;
   }
 
-  return resolveWithClient(chainId, client, controller, depth + 1, visited);
+  // If the AA exposes an owner/controller address, trust it and stop.
+  // (User requirement: do not do additional verification checks.)
+  return controller;
 }
 
 export async function resolveEoaOwner(chainId: number, ownerAddress: string | null | undefined): Promise<string | null> {
@@ -273,16 +279,17 @@ export async function resolveEoaOwner(chainId: number, ownerAddress: string | nu
     return eoaOwnerPromiseCache.get(key)!;
   }
 
-  const promise = (async () => {
+  const promise: Promise<string | null> = (async () => {
     const client = await getClient(chainId);
     if (!client) {
-      eoaOwnerCache.set(key, normalized);
-      return normalized;
+      return null;
     }
     const visited = new Set<string>();
     const resolved = await resolveWithClient(chainId, client, normalized, 0, visited);
-    eoaOwnerCache.set(key, resolved);
-    return resolved;
+    const out = resolved ? resolved : null;
+    // Only cache positive results. Avoid caching null so temporary RPC issues don't poison results.
+    if (out) eoaOwnerCache.set(key, out);
+    return out;
   })();
 
   eoaOwnerPromiseCache.set(key, promise);
@@ -291,5 +298,78 @@ export async function resolveEoaOwner(chainId: number, ownerAddress: string | nu
   } finally {
     eoaOwnerPromiseCache.delete(key);
   }
+}
+
+export async function getAccountType(chainId: number, address: string | null | undefined): Promise<'eoa' | 'aa' | null> {
+  const normalized = normalizeAddress(address);
+  if (!normalized) return null;
+  if (normalized === ZERO_ADDRESS) return 'eoa';
+
+  const key = cacheKey(chainId, normalized);
+  if (bytecodeTypeCache.has(key)) return bytecodeTypeCache.get(key)!;
+  if (bytecodeTypePromiseCache.has(key)) return await bytecodeTypePromiseCache.get(key)!;
+
+  const promise: Promise<'eoa' | 'aa' | null> = (async () => {
+    const client = await getClient(chainId);
+    if (!client) return null;
+    try {
+      const bytecode = await client.getBytecode({ address: normalized });
+      const t: 'eoa' | 'aa' = isEoaBytecode(bytecode) ? 'eoa' : 'aa';
+      bytecodeTypeCache.set(key, t);
+      return t;
+    } catch {
+      return null;
+    }
+  })();
+  bytecodeTypePromiseCache.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    bytecodeTypePromiseCache.delete(key);
+  }
+}
+
+export async function resolveEoaInfo(
+  chainId: number,
+  address: string | null | undefined,
+): Promise<{ accountType: 'eoa' | 'aa'; eoaAddress: string; resolved: boolean } | null> {
+  const normalized = normalizeAddress(address);
+  if (!normalized) return null;
+  const lower = normalized.toLowerCase();
+  if (lower === ZERO_ADDRESS) return { accountType: 'eoa', eoaAddress: lower, resolved: true };
+
+  const client = await getClient(chainId);
+  if (!client) {
+    if (!missingClientInfoWarning.has(chainId)) {
+      missingClientInfoWarning.add(chainId);
+      console.warn(`[ownership] No RPC client for chain ${chainId}; defaulting accountType=eoa and eoaAddress=self`);
+    }
+    return { accountType: 'eoa', eoaAddress: lower, resolved: false };
+  }
+
+  let bytecode: Hex | null | undefined = null;
+  try {
+    bytecode = await client.getBytecode({ address: normalized });
+  } catch {
+    return { accountType: 'eoa', eoaAddress: lower, resolved: false };
+  }
+
+  if (isEoaBytecode(bytecode)) {
+    bytecodeTypeCache.set(cacheKey(chainId, normalized), 'eoa');
+    return { accountType: 'eoa', eoaAddress: lower, resolved: true };
+  }
+
+  bytecodeTypeCache.set(cacheKey(chainId, normalized), 'aa');
+  const resolved = await resolveEoaOwner(chainId, lower);
+  if (resolved) {
+    const result = { accountType: 'aa' as const, eoaAddress: resolved.toLowerCase(), resolved: true };
+    console.log(`[resolveEoaInfo] Resolved EOA for AA ${lower}: ${result.eoaAddress} (resolved=${result.resolved})`);
+    return result;
+  }
+  // Fallback: we know it's a contract, but couldn't resolve a controller EOA.
+  // Keep a value so downstream has something deterministic.
+  const fallback = { accountType: 'aa' as const, eoaAddress: lower, resolved: false };
+  console.log(`[resolveEoaInfo] Could not resolve EOA for AA ${lower}, using fallback: ${fallback.eoaAddress} (resolved=${fallback.resolved})`);
+  return fallback;
 }
 
