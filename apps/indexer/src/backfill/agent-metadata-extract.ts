@@ -378,7 +378,6 @@ export async function runAgentMetadataExtract(
       rawJson, agentCardJson,
       agentUri,
       a2aEndpoint,
-      ensEndpoint,
       -- Removed: agentAccountEndpoint
       agentName,
       description,
@@ -532,8 +531,6 @@ export async function runAgentMetadataExtract(
         return typeof v === 'string' && v.trim() ? v.trim() : null;
       };
       const a2aFromRaw = findEndpoint('A2A') || findEndpoint('a2a') || (typeof raw?.a2aEndpoint === 'string' ? raw.a2aEndpoint.trim() : null) || (typeof raw?.chatEndpoint === 'string' ? raw.chatEndpoint.trim() : null);
-      const ensFromRaw = findEndpoint('ENS') || findEndpoint('ens') || (typeof raw?.ensEndpoint === 'string' ? raw.ensEndpoint.trim() : null) || (typeof raw?.ensName === 'string' ? raw.ensName.trim() : null);
-      const agentWallet = findEndpoint('agentWallet') || findEndpoint('agent-wallet');
       const active = raw?.active === undefined ? null : (raw?.active === true || raw?.active === 1 || String(raw?.active).toLowerCase() === 'true' ? 1 : 0);
       const nameFromRaw = raw ? (typeof raw?.name === 'string' && raw.name.trim() ? raw.name.trim() : null) : null;
       const descFromRaw = raw ? (typeof raw?.description === 'string' && raw.description.trim() ? raw.description.trim() : null) : null;
@@ -568,8 +565,6 @@ export async function runAgentMetadataExtract(
         const a2aFromCard = cardInfo?.a2aUrl || null;
         const a2aEndpoint = row?.a2aEndpoint ? String(row.a2aEndpoint) : null;
         const a2aEndpointNew = !a2aEndpoint && a2aFromCard ? a2aFromCard : null;
-        const ensEndpoint = row?.ensEndpoint ? String(row.ensEndpoint) : null;
-        const ensEndpointNew = !ensEndpoint && ensFromRaw ? ensFromRaw : null;
         const agentName = row?.agentName ? String(row.agentName) : null;
         const description = row?.description ? String(row.description) : null;
         const image = row?.image ? String(row.image) : null;
@@ -588,7 +583,6 @@ export async function runAgentMetadataExtract(
                capabilityLabelsJson = COALESCE(?, capabilityLabelsJson),
                agentCardProtocolJson = COALESCE(?, agentCardProtocolJson),
                a2aEndpoint = COALESCE(?, a2aEndpoint),
-               ensEndpoint = COALESCE(?, ensEndpoint),
                agentName = COALESCE(?, agentName),
                description = COALESCE(?, description),
                image = COALESCE(?, image),
@@ -605,7 +599,6 @@ export async function runAgentMetadataExtract(
             capabilityLabelsJson,
             agentCardProtocolJson,
             a2aEndpointNew || a2aFromRaw,
-            ensEndpointNew,
             agentNameNew,
             descriptionNew,
             imageNew,

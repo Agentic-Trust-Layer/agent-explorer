@@ -513,8 +513,8 @@ function renderAgentSection(
   // - Anchor the discoverable AIAgent node to the on-chain agentAccount (SmartAccount).
   // - If no agentAccount exists, we skip emitting this agent entirely.
   const acctNorm = normalizeHex(row?.agentAccount) ?? null;
-  const acctIri = acctNorm ? accountIri(chainId, acctNorm) : null;
-  if (!acctIri) return '';
+  if (!acctNorm) return '';
+  const acctIri = accountIri(chainId, acctNorm);
   const aIri = acctIri;
 
   // Prefer DID-account for per-agent IRIs (descriptors/skills/domains/situations/protocol IRIs).
@@ -1199,8 +1199,8 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   const chainId = Number(row?.chainId ?? 0) || 0;
   const agentId = String(row?.agentId ?? '');
   const acctNorm = normalizeHex(row?.agentAccount) ?? null;
-  const acctIri = acctNorm ? accountIri(chainId, acctNorm) : null;
-  if (!acctIri) return '';
+  if (!acctNorm) return '';
+  const acctIri = accountIri(chainId, acctNorm);
   const aIri = acctIri;
 
   const didAccountValue =

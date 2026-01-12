@@ -590,12 +590,18 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
 
 
   if (agentIdentityOwnerAccountAddr != '0x000000000000000000000000000000000000dEaD') {
-    // Resolving EOA owners can be RPC-heavy; keep it opt-in.
-    const resolveEoa = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
-    const resolvedEoaIdentityOwnerAddr = resolveEoa ? await resolveEoaOwnerSafe(chainId, agentIdentityOwnerAccountAddr) : null;
-    const eoaAgentIdentityOwnerAccountAddr = (resolvedEoaIdentityOwnerAddr ?? agentIdentityOwnerAccountAddr)?.toLowerCase();
-    const resolvedEoaAgentAddr = resolveEoa && agentAccountAddr ? await resolveEoaOwnerSafe(chainId, agentAccountAddr) : null;
-    const eoaAgentAccountAddr = (resolvedEoaAgentAddr ?? agentAccountAddr)?.toLowerCase() ?? null;
+    // Types should always be present (eoa|aa). We determine this by resolving to the controlling EOA:
+    // - if resolve(addr) == addr => 'eoa'
+    // - else => 'aa'
+    //
+    // Populating the actual `eoa*` fields can be RPC-heavy; keep that opt-in.
+    const resolveEoaWrites = process.env.RESOLVE_EOA_OWNER_ON_WRITE === '1';
+    const resolvedEoaIdentityOwnerAddrForType = await resolveEoaOwnerSafe(chainId, agentIdentityOwnerAccountAddr);
+    const eoaAgentIdentityOwnerAccountAddr =
+      resolveEoaWrites ? (resolvedEoaIdentityOwnerAddrForType ?? agentIdentityOwnerAccountAddr)?.toLowerCase() : null;
+    const resolvedEoaAgentAddrForType = agentAccountAddr ? await resolveEoaOwnerSafe(chainId, agentAccountAddr) : null;
+    const eoaAgentAccountAddr =
+      resolveEoaWrites ? ((resolvedEoaAgentAddrForType ?? agentAccountAddr)?.toLowerCase() ?? null) : null;
     const createdAtTime = mintedTimestamp ?? Math.floor(Date.now() / 1000);
     
     // Compute DID values
@@ -610,6 +616,15 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     const agentIdentityOwnerAccount = `${chainId}:${agentIdentityOwnerAccountAddr}`;
     const eoaAgentIdentityOwnerAccount = eoaAgentIdentityOwnerAccountAddr ? `${chainId}:${eoaAgentIdentityOwnerAccountAddr}` : null;
 
+    const agentIdentityOwnerAccountType =
+      resolvedEoaIdentityOwnerAddrForType && agentIdentityOwnerAccountAddr
+        ? (resolvedEoaIdentityOwnerAddrForType.toLowerCase() === agentIdentityOwnerAccountAddr.toLowerCase() ? 'eoa' : 'aa')
+        : null;
+    const agentAccountType =
+      agentAccountAddrFinal && resolvedEoaAgentAddrForType
+        ? (resolvedEoaAgentAddrForType.toLowerCase() === agentAccountAddrFinal.toLowerCase() ? 'eoa' : 'aa')
+        : null;
+
     // Strict schema only (no backward compatibility).
     await dbInstance.prepare(
       `
@@ -617,18 +632,21 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
         chainId, agentId,
         agentAccount, eoaAgentAccount,
         agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount,
+        agentAccountType, agentIdentityOwnerAccountType,
         agentName, agentUri,
         createdAtBlock, createdAtTime,
         didIdentity, didAccount, didName,
         rawJson, updatedAtTime,
         a2aEndpoint
       )
-      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(chainId, agentId) DO UPDATE SET
         agentAccount=excluded.agentAccount,
         eoaAgentAccount=COALESCE(excluded.eoaAgentAccount, eoaAgentAccount),
         agentIdentityOwnerAccount=excluded.agentIdentityOwnerAccount,
         eoaAgentIdentityOwnerAccount=COALESCE(excluded.eoaAgentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount),
+        agentAccountType=COALESCE(excluded.agentAccountType, agentAccountType),
+        agentIdentityOwnerAccountType=COALESCE(excluded.agentIdentityOwnerAccountType, agentIdentityOwnerAccountType),
         agentName=COALESCE(NULLIF(TRIM(excluded.agentName), ''), agentName),
         agentUri=COALESCE(excluded.agentUri, agentUri),
         didIdentity=COALESCE(excluded.didIdentity, didIdentity),
@@ -645,6 +663,8 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       eoaAgentAccount,
       agentIdentityOwnerAccount,
       eoaAgentIdentityOwnerAccount,
+      agentAccountType,
+      agentIdentityOwnerAccountType,
       agentName,
       resolvedTokenURI,
       Number(blockNumber),
@@ -1551,8 +1571,17 @@ async function upsertTokenMetadataFromGraph(
   if (!item) return;
 
   const metadataIdRaw = typeof item.id === 'string' ? item.id : null;
-  const agentIdRaw = item?.agent?.id != null ? String(item.agent.id) : null;
   const keyRaw = typeof item.key === 'string' ? item.key : null;
+  const agentIdRaw =
+    item?.agent?.id != null ? String(item.agent.id) :
+    item?.agentId != null ? String(item.agentId) :
+    (() => {
+      // New subgraph shape: `id` looks like `${agentId}-${key}`
+      if (typeof metadataIdRaw !== 'string') return null;
+      const idx = metadataIdRaw.indexOf('-');
+      if (idx <= 0) return null;
+      return metadataIdRaw.slice(0, idx);
+    })();
   if (!metadataIdRaw || !agentIdRaw || !keyRaw) {
     console.warn('⚠️  upsertTokenMetadataFromGraph: missing id or key', item);
     return;
@@ -1601,7 +1630,6 @@ async function upsertTokenMetadataFromGraph(
     metadataIdRaw,
     agentIdRaw,
     key,
-    key,
     valueHex,
     valueText,
     indexedKey,
@@ -1612,6 +1640,75 @@ async function upsertTokenMetadataFromGraph(
     timestamp,
     now,
   ]);
+
+  // agentName -> update agents row (overwrite with latest)
+  if (key === 'agentName') {
+    const name = valueText ? valueText.trim() : '';
+    if (name) {
+      const didNameValue = name.endsWith('.eth') ? `did:ens:${chainId}:${name}` : null;
+      const updateStmt = dbInstance.prepare(`
+        UPDATE agents
+        SET agentName = ?,
+            didName = CASE WHEN ? IS NOT NULL THEN ? ELSE didName END,
+            updatedAtTime = ?
+        WHERE chainId = ? AND agentId = ?
+      `);
+      await enqueueOrRun(batch, updateStmt, [name, didNameValue, didNameValue, now, chainId, agentIdRaw]);
+    }
+  }
+
+  // If metadata sets the operational account, reflect it into agents.agentAccount (CAIP10-ish: `${chainId}:${address}`)
+  // Supports:
+  // - value = 0x + 40 hex (raw address)
+  // - value = hex-encoded UTF-8 "0x...." (string address)
+  if (key === 'agentWallet' || key === 'agentAccount') {
+    const candidate =
+      (valueHex && /^0x[a-fA-F0-9]{40}$/.test(valueHex.trim()) ? valueHex.trim() : null) ??
+      (valueText && /^0x[a-fA-F0-9]{40}$/.test(valueText.trim()) ? valueText.trim() : null) ??
+      (valueText ? parseCaip10Address(valueText.trim()) : null);
+
+    if (candidate) {
+      const addr = candidate.toLowerCase();
+      const agentAccountValue = `${chainId}:${addr}`;
+      const didAccountValue = `did:ethr:${chainId}:${addr}`;
+      const resolved = await resolveEoaOwnerSafe(chainId, addr);
+      const resolvedLower = resolved ? resolved.toLowerCase() : addr;
+      const agentAccountType = resolvedLower === addr ? 'eoa' : 'aa';
+      const eoaAgentAccountValue = `${chainId}:${resolvedLower}`;
+      const updateStmt = dbInstance.prepare(`
+        UPDATE agents
+        SET agentAccount = ?,
+            didAccount = ?,
+            eoaAgentAccount = COALESCE(?, eoaAgentAccount),
+            agentAccountType = COALESCE(?, agentAccountType),
+            updatedAtTime = ?
+        WHERE chainId = ? AND agentId = ?
+      `);
+      await enqueueOrRun(batch, updateStmt, [
+        agentAccountValue,
+        didAccountValue,
+        eoaAgentAccountValue,
+        agentAccountType,
+        now,
+        chainId,
+        agentIdRaw,
+      ]);
+    }
+  }
+
+  // status/active -> agents.active
+  if (key === 'status' || key === 'active') {
+    const activeValue = parseActiveMetadataValue(valueText);
+    if (activeValue !== null) {
+      const updateStmt = dbInstance.prepare(`
+        UPDATE agents
+        SET active = ?,
+            updatedAtTime = ?
+        WHERE chainId = ? AND agentId = ?
+      `);
+      await enqueueOrRun(batch, updateStmt, [activeValue, now, chainId, agentIdRaw]);
+    }
+  }
 }
 
 // Parse CAIP-10 like eip155:chainId:0x... to 0x address
@@ -1671,6 +1768,17 @@ function normalizeMetadataString(value: any): string | null {
   } catch {
     return null;
   }
+}
+
+function parseActiveMetadataValue(valueText: string | null | undefined): number | null {
+  if (!valueText) return null;
+  const v = String(valueText).trim().toLowerCase();
+  if (!v) return null;
+  // Positive-ish
+  if (v === '1' || v === 'true' || v === 'active' || v === 'enabled' || v === 'on' || v === 'yes' || v === 'y') return 1;
+  // Negative-ish
+  if (v === '0' || v === 'false' || v === 'inactive' || v === 'disabled' || v === 'off' || v === 'no' || v === 'n') return 0;
+  return null;
 }
 
 /**
@@ -1852,11 +1960,11 @@ export async function upsertFromTokenGraph(item: any, chainId: number) {
   const eoaAgentAccount = resolvedEoaAgentAccount ?? agentAccount;
   const agentIdentityOwnerAccountType =
     resolvedEoaOwnerAccount && ownerAddress
-      ? ((resolvedEoaOwnerAccount ?? '').toLowerCase() === ownerAddress.toLowerCase() ? 'EOA' : 'SmartAccount')
+      ? ((resolvedEoaOwnerAccount ?? '').toLowerCase() === ownerAddress.toLowerCase() ? 'eoa' : 'aa')
       : null;
   const agentAccountType =
     resolvedEoaAgentAccount && agentAccount
-      ? ((resolvedEoaAgentAccount ?? '').toLowerCase() === agentAccount.toLowerCase() ? 'EOA' : 'SmartAccount')
+      ? ((resolvedEoaAgentAccount ?? '').toLowerCase() === agentAccount.toLowerCase() ? 'eoa' : 'aa')
       : null;
   await db.prepare(`
     INSERT INTO agents(chainId, agentId, agentAddress, agentAccount, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, eoaAgentAccount, agentIdentityOwnerAccountType, agentAccountType, agentName, agentUri, createdAtBlock, createdAtTime, didIdentity, didAccount, didName)
@@ -2214,11 +2322,11 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
   const eoaAgentAccount = agentAccount ? ((await resolveEoaOwnerSafe(chainId, agentAccount)) ?? agentAccount) : null;
   const agentIdentityOwnerAccountType =
     ownerAddress && eoaAgentIdentityOwnerAccount
-      ? (eoaAgentIdentityOwnerAccount.toLowerCase() === ownerAddress.toLowerCase() ? 'EOA' : 'SmartAccount')
+      ? (eoaAgentIdentityOwnerAccount.toLowerCase() === ownerAddress.toLowerCase() ? 'eoa' : 'aa')
       : null;
   const agentAccountType =
     agentAccount && eoaAgentAccount
-      ? (eoaAgentAccount.toLowerCase() === agentAccount.toLowerCase() ? 'EOA' : 'SmartAccount')
+      ? (eoaAgentAccount.toLowerCase() === agentAccount.toLowerCase() ? 'eoa' : 'aa')
       : null;
   const didIdentity = `did:8004:${chainId}:${agentId}`;
   const didAccount = agentAccount ? `did:ethr:${chainId}:${agentAccount}` : '';
@@ -3244,7 +3352,7 @@ export async function backfill(client: ERC8004Client, dbOverride?: any) {
 
   const minTokenMetadataBlock = lastAgentMetadata > 0n ? lastAgentMetadata : 0n;
   const tokenMetadataItems = await fetchAllFromSubgraph(
-    'agentMetadatas',
+    ROOT_AGENT_METADATA_FIELD,
     agentMetadataQuery,
     ROOT_AGENT_METADATA_FIELD,
     {

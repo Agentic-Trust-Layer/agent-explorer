@@ -1,7 +1,7 @@
 import { createD1Database } from '../db-d1';
 import { fetchHolSearchPage, type HolSearchHit } from './hol-api';
 
-type AnyDb = any;
+export type AnyDb = any;
 
 async function tryExec(db: AnyDb, sql: string): Promise<void> {
   try {

@@ -33,6 +33,37 @@ function isAddressHex(value: string | null | undefined): boolean {
   return /^0x[0-9a-f]{40}$/.test(value);
 }
 
+function normalizeAddress40(value: any): string | null {
+  const v = normalizeHexLike(value);
+  if (!v) return null;
+  if (!isAddressHex(v)) return null;
+  return v.slice(2);
+}
+
+type NormalizedAccountFilter =
+  | { kind: 'caipish'; value: string } // "{chainId}:{0x...}" (address normalized)
+  | { kind: 'addr40'; value: string } // "abcd..." (40 hex chars, no 0x)
+  | { kind: 'string'; value: string }; // unknown format; use exact equality
+
+function normalizeAccountFilterValue(value: any): NormalizedAccountFilter | null {
+  if (value == null) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const colonIdx = raw.indexOf(':');
+  if (colonIdx > 0) {
+    const prefix = raw.slice(0, colonIdx).trim();
+    const rest = raw.slice(colonIdx + 1).trim();
+    const addr40 = normalizeAddress40(rest);
+    if (addr40) return { kind: 'caipish', value: `${prefix}:0x${addr40}` };
+    return { kind: 'string', value: raw };
+  }
+
+  const addr40 = normalizeAddress40(raw);
+  if (addr40) return { kind: 'addr40', value: addr40 };
+  return { kind: 'string', value: raw };
+}
+
 function clamp01(x: number): number {
   if (!Number.isFinite(x)) return 0;
   if (x < 0) return 0;
@@ -125,6 +156,18 @@ function buildWhereClause(filters: {
   const conditions: string[] = [];
   const params: any[] = [];
 
+  const addAccountEq = (column: string, value: any) => {
+    const normalized = normalizeAccountFilterValue(value);
+    if (!normalized) return;
+    if (normalized.kind === 'addr40') {
+      conditions.push(`substr(${column}, -40) = ?`);
+      params.push(normalized.value);
+      return;
+    }
+    conditions.push(`${column} = ?`);
+    params.push(normalized.value);
+  };
+
   if (filters.chainId !== undefined) {
     conditions.push(`chainId = ?`);
     params.push(filters.chainId);
@@ -136,13 +179,11 @@ function buildWhereClause(filters: {
   }
 
   if (filters.agentIdentityOwnerAccount) {
-    conditions.push(`agentIdentityOwnerAccount = ?`);
-    params.push(filters.agentIdentityOwnerAccount);
+    addAccountEq('agentIdentityOwnerAccount', filters.agentIdentityOwnerAccount);
   }
 
   if (filters.eoaAgentIdentityOwnerAccount) {
-    conditions.push(`eoaAgentIdentityOwnerAccount = ?`);
-    params.push(filters.eoaAgentIdentityOwnerAccount);
+    addAccountEq('eoaAgentIdentityOwnerAccount', filters.eoaAgentIdentityOwnerAccount);
   }
 
   if (filters.agentName) {
@@ -298,6 +339,50 @@ function buildGraphWhereClause(where?: {
   const conditions: string[] = [];
   const params: any[] = [];
 
+  const addAccountEq = (column: string, value: any) => {
+    const normalized = normalizeAccountFilterValue(value);
+    if (!normalized) return;
+    if (normalized.kind === 'addr40') {
+      conditions.push(`substr(${column}, -40) = ?`);
+      params.push(normalized.value);
+      return;
+    }
+    conditions.push(`${column} = ?`);
+    params.push(normalized.value);
+  };
+
+  const addAccountIn = (column: string, values: any[]) => {
+    if (!Array.isArray(values) || values.length === 0) return;
+
+    const exact: string[] = [];
+    const addr40: string[] = [];
+    for (const v of values) {
+      const normalized = normalizeAccountFilterValue(v);
+      if (!normalized) continue;
+      if (normalized.kind === 'addr40') addr40.push(normalized.value);
+      else exact.push(normalized.value);
+    }
+
+    if (exact.length > 0 && addr40.length > 0) {
+      const exactPlaceholders = exact.map(() => '?').join(',');
+      const addrPlaceholders = addr40.map(() => '?').join(',');
+      conditions.push(`(${column} IN (${exactPlaceholders}) OR substr(${column}, -40) IN (${addrPlaceholders}))`);
+      params.push(...exact, ...addr40);
+      return;
+    }
+
+    if (exact.length > 0) {
+      conditions.push(`${column} IN (${exact.map(() => '?').join(',')})`);
+      params.push(...exact);
+      return;
+    }
+
+    if (addr40.length > 0) {
+      conditions.push(`substr(${column}, -40) IN (${addr40.map(() => '?').join(',')})`);
+      params.push(...addr40);
+    }
+  };
+
   const addAggregateComparison = (expr: string, operator: string, value: any) => {
     if (value !== undefined && value !== null) {
       conditions.push(`${expr} ${operator} ?`);
@@ -323,36 +408,28 @@ function buildGraphWhereClause(where?: {
     params.push(...where.agentId_in);
   }
   if (where.agentIdentityOwnerAccount) {
-    conditions.push(`agentIdentityOwnerAccount = ?`);
-    params.push(where.agentIdentityOwnerAccount);
+    addAccountEq('agentIdentityOwnerAccount', where.agentIdentityOwnerAccount);
   }
   if (Array.isArray(where.agentIdentityOwnerAccount_in) && where.agentIdentityOwnerAccount_in.length > 0) {
-    conditions.push(`agentIdentityOwnerAccount IN (${where.agentIdentityOwnerAccount_in.map(() => '?').join(',')})`);
-    params.push(...where.agentIdentityOwnerAccount_in);
+    addAccountIn('agentIdentityOwnerAccount', where.agentIdentityOwnerAccount_in);
   }
   if (where.eoaAgentIdentityOwnerAccount) {
-    conditions.push(`eoaAgentIdentityOwnerAccount = ?`);
-    params.push(where.eoaAgentIdentityOwnerAccount);
+    addAccountEq('eoaAgentIdentityOwnerAccount', where.eoaAgentIdentityOwnerAccount);
   }
   if (Array.isArray(where.eoaAgentIdentityOwnerAccount_in) && where.eoaAgentIdentityOwnerAccount_in.length > 0) {
-    conditions.push(`eoaAgentIdentityOwnerAccount IN (${where.eoaAgentIdentityOwnerAccount_in.map(() => '?').join(',')})`);
-    params.push(...where.eoaAgentIdentityOwnerAccount_in);
+    addAccountIn('eoaAgentIdentityOwnerAccount', where.eoaAgentIdentityOwnerAccount_in);
   }
   if (where.agentAccount) {
-    conditions.push(`agentAccount = ?`);
-    params.push(where.agentAccount);
+    addAccountEq('agentAccount', where.agentAccount);
   }
   if (Array.isArray(where.agentAccount_in) && where.agentAccount_in.length > 0) {
-    conditions.push(`agentAccount IN (${where.agentAccount_in.map(() => '?').join(',')})`);
-    params.push(...where.agentAccount_in);
+    addAccountIn('agentAccount', where.agentAccount_in);
   }
   if (where.eoaAgentAccount) {
-    conditions.push(`eoaAgentAccount = ?`);
-    params.push(where.eoaAgentAccount);
+    addAccountEq('eoaAgentAccount', where.eoaAgentAccount);
   }
   if (Array.isArray(where.eoaAgentAccount_in) && where.eoaAgentAccount_in.length > 0) {
-    conditions.push(`eoaAgentAccount IN (${where.eoaAgentAccount_in.map(() => '?').join(',')})`);
-    params.push(...where.eoaAgentAccount_in);
+    addAccountIn('eoaAgentAccount', where.eoaAgentAccount_in);
   }
 
   if (where.agentCategory) {
@@ -1242,7 +1319,6 @@ async function fetchTrustLedgerBadgeDefinitions(db: any, args?: { program?: stri
  * @param options - Additional options (like env for indexAgent)
  */
 export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions) {
-
   return {
     oasfSkills: async (args: {
       key?: string;
@@ -1304,7 +1380,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           `,
           [...params, limit, offset],
         );
-        return rows.map((r) => ({
+        const out = rows.map((r) => ({
           key: String((r as any)?.skillId ?? ''),
           nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
           uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
@@ -1312,6 +1388,8 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
           category: (r as any)?.category != null ? String((r as any).category) : null,
         }));
+        console.log('[oasfSkills] mode=modern', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
+        return out;
       };
 
       const runLegacy = async () => {
@@ -1361,7 +1439,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           `,
           [...params, limit, offset],
         );
-        return rows.map((r) => ({
+        const out = rows.map((r) => ({
           key: String((r as any)?.skillId ?? ''),
           nameKey: (r as any)?.name != null ? String((r as any).name) : null,
           uid: null,
@@ -1369,12 +1447,15 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           extendsKey: null,
           category: (r as any)?.category != null ? String((r as any).category) : null,
         }));
+        console.log('[oasfSkills] mode=legacy', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
+        return out;
       };
 
       try {
         return await runModern();
       } catch (e: any) {
         const msg = String(e?.message || e);
+        console.log('[oasfSkills] modern failed; falling back', { message: msg });
         if (msg.includes('no such column')) {
           return await runLegacy();
         }
@@ -1443,7 +1524,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           `,
           [...params, limit, offset],
         );
-        return rows.map((r) => ({
+        const out = rows.map((r) => ({
           key: String((r as any)?.domainId ?? ''),
           nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
           uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
@@ -1451,6 +1532,8 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
           category: (r as any)?.category != null ? String((r as any).category) : null,
         }));
+        console.log('[oasfDomains] mode=modern', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
+        return out;
       };
 
       const runSemiModernNoCategory = async () => {
@@ -1499,7 +1582,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           `,
           [...params, limit, offset],
         );
-        return rows.map((r) => ({
+        const out = rows.map((r) => ({
           key: String((r as any)?.domainId ?? ''),
           nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
           uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
@@ -1507,6 +1590,8 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
           category: null,
         }));
+        console.log('[oasfDomains] mode=semi-modern', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
+        return out;
       };
 
       const runLegacy = async () => {
@@ -1555,7 +1640,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           `,
           [...params, limit, offset],
         );
-        return rows.map((r) => ({
+        const out = rows.map((r) => ({
           key: String((r as any)?.domainId ?? ''),
           nameKey: (r as any)?.name != null ? String((r as any).name) : null,
           uid: null,
@@ -1563,12 +1648,15 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           extendsKey: null,
           category: (r as any)?.category != null ? String((r as any).category) : null,
         }));
+        console.log('[oasfDomains] mode=legacy', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
+        return out;
       };
 
       try {
         return await runModern();
       } catch (e: any) {
         const msg = String(e?.message || e);
+        console.log('[oasfDomains] modern failed; falling back', { message: msg });
         if (msg.includes('no such column: category')) {
           return await runSemiModernNoCategory();
         }

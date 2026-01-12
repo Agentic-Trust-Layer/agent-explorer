@@ -203,10 +203,9 @@ export async function uploadFileToRepository(
       'Content-Length': String(stat.size),
     },
     // Node.js fetch needs duplex for streaming bodies
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    duplex: 'half' as any,
-    body: stream as any,
-  });
+    duplex: 'half',
+    body: stream,
+  } as any);
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     // Try to extract line number or IRI from error message

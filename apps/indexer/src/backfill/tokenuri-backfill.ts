@@ -377,7 +377,6 @@ export async function runTokenUriBackfill(
         const desc = normalizeString(fetched?.description);
         const img = fetched?.image == null ? null : normalizeString(fetched?.image);
         const a2a = findEndpoint(fetched, 'A2A') || findEndpoint(fetched, 'a2a') || normalizeString(fetched?.a2aEndpoint) || normalizeString(fetched?.chatEndpoint);
-        const ens = findEndpoint(fetched, 'ENS') || findEndpoint(fetched, 'ens') || normalizeString(fetched?.ensEndpoint) || normalizeString(fetched?.ensName);
         const supportedTrust = parseSupportedTrust(fetched);
         const active = parseBoolean(fetched?.active);
 
@@ -397,7 +396,6 @@ export async function runTokenUriBackfill(
                description = COALESCE(NULLIF(TRIM(?), ''), description),
                image = COALESCE(NULLIF(TRIM(?), ''), image),
                a2aEndpoint = COALESCE(NULLIF(TRIM(?), ''), a2aEndpoint),
-               ensEndpoint = COALESCE(NULLIF(TRIM(?), ''), ensEndpoint),
                supportedTrust = COALESCE(?, supportedTrust),
                active = COALESCE(?, active),
                rawJson = COALESCE(?, rawJson),
@@ -409,7 +407,6 @@ export async function runTokenUriBackfill(
             desc ?? null,
             img ?? null,
             a2a ?? null,
-            ens ?? null,
             supportedTrust.length ? JSON.stringify(supportedTrust) : null,
             active,
             rawJson,
@@ -426,7 +423,6 @@ export async function runTokenUriBackfill(
             agentId,
             hasName: Boolean(name),
             hasA2a: Boolean(a2a),
-            hasEns: Boolean(ens),
             supportedTrustCount: supportedTrust.length,
             active,
           });

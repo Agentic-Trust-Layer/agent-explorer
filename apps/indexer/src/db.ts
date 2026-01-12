@@ -103,6 +103,9 @@ async function initializeSchema() {
 
   await tryAddColumn('agents', 'agentCardJson', 'TEXT');
   await tryAddColumn('agents', 'agentCardReadAt', 'INTEGER');
+  // Account typing (EOA vs SmartAccount/AA)
+  await tryAddColumn('agents', 'agentAccountType', 'TEXT');
+  await tryAddColumn('agents', 'agentIdentityOwnerAccountType', 'TEXT');
 
   // Jan 2026 naming only (no legacy column backfills).
 

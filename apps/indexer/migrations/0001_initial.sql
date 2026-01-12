@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS agents (
   didIdentity TEXT NOT NULL,
   didAccount TEXT,
   didName TEXT,
+  agentAccountType TEXT,
+  agentIdentityOwnerAccountType TEXT,
   -- current indexed/enriched fields (kept in baseline schema; not optional)
   agentCategory TEXT,
   did TEXT,

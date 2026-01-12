@@ -41,9 +41,10 @@ async function processAllAgents(chainId?: number) {
       if (processed % 100 === 0) {
         console.log(`[badge-process] Progress: ${processed}/${rows.length} agents processed`);
       }
-    } catch (e) {
+    } catch (e: unknown) {
       errors++;
-      console.warn(`[badge-process] Failed to process agent ${agentId} on chain ${cId}:`, e?.message || String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(`[badge-process] Failed to process agent ${agentId} on chain ${cId}:`, msg);
     }
   }
   

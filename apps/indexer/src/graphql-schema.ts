@@ -41,6 +41,9 @@ export const graphQLSchemaString = `
     eoaAgentIdentityOwnerAccount: String
 
     eoaAgentAccount: String
+    # Account typing for operational + identity owner accounts ("eoa" | "aa")
+    agentAccountType: String
+    agentIdentityOwnerAccountType: String
     agentCategory: String
     agentUri: String
     createdAtBlock: Int!
