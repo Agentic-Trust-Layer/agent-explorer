@@ -1,0 +1,55 @@
+{
+  "name": "@thenamespace/indexer",
+  "version": "1.0.2",
+  "description": "TypeScript SDK for interacting with the Namespace Indexer API - query L2 subnames, registries, and metadata",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "sdk",
+    "indexer",
+    "namespace",
+    "ens",
+    "l2",
+    "subnames",
+    "registry",
+    "typescript"
+  ],
+  "files": [
+    "/dist"
+  ],
+  "author": "Arti <arti@namespace.ninja>",
+  "contributors": [
+    "Harpreet Singh <harpreet@namespace.ninja>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thenamespace/namespacesdk.git",
+    "directory": "packages/indexer"
+  },
+  "bugs": {
+    "url": "https://github.com/thenamespace/namespacesdk/issues"
+  },
+  "homepage": "https://namespace.ninja",
+  "dependencies": {
+    "@types/node": "^22.10.5",
+    "axios": "^1.7.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "start": "node dist/index.js",
+    "restart": "rimraf dist && tsc && node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "clean": "rimraf dist",
+    "test": "ts-node test-sdk.ts",
+    "test:examples": "ts-node examples/basic-usage.ts"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1"
+  }
+}

@@ -1,0 +1,16 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.Abis = void 0;
+const l1_mint_controller_abi_json_1 = __importDefault(require("./l1-mint-controller-abi.json"));
+const l2_mint_controller_abi_json_1 = __importDefault(require("./l2-mint-controller.abi.json"));
+const l2_registry_resolver_abi_json_1 = __importDefault(require("./l2-registry-resolver-abi.json"));
+const ens_registry_abi_json_1 = __importDefault(require("./ens-registry-abi.json"));
+exports.Abis = {
+    L1_MINT_CONTROLLER: l1_mint_controller_abi_json_1.default,
+    L2_MINT_CONTROLLER: l2_mint_controller_abi_json_1.default,
+    L2_REGISTRY_RESOLVER: l2_registry_resolver_abi_json_1.default,
+    ENS_REGISTRY: ens_registry_abi_json_1.default
+};

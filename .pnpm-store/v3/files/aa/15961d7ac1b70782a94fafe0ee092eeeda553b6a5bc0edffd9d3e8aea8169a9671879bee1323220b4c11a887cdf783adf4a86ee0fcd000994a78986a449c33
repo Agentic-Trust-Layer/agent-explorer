@@ -1,0 +1,30 @@
+declare const CHAIN_ID: {
+    mainnet: number;
+    optimism: number;
+    bsc: number;
+    gnosis: number;
+    polygon: number;
+    base: number;
+    arbitrum: number;
+    linea: number;
+    berachain: number;
+    unichain: number;
+    arbitrumNova: number;
+    bscTestnet: number;
+    megaEthTestnet: number;
+    chiado: number;
+    lineaSepolia: number;
+    berachainBepolia: number;
+    baseSepolia: number;
+    arbitrumSepolia: number;
+    sepolia: number;
+    optimismSepolia: number;
+    unichainSepolia: number;
+    polygonAmoy: number;
+    monadTestnet: number;
+    lineaGoerli: number;
+};
+type DeployedContracts = Record<string, Record<number, Record<string, `0x${string}`>>>;
+declare const DELEGATOR_CONTRACTS: DeployedContracts;
+
+export { CHAIN_ID, DELEGATOR_CONTRACTS };

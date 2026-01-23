@@ -1,0 +1,44 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getChainName = exports.getChain = exports.getChainId = exports.ListingChain = void 0;
+const chains_1 = require("viem/chains");
+/**
+ * Supported networks for listing/minting operations.
+ */
+var ListingChain;
+(function (ListingChain) {
+    ListingChain["Mainnet"] = "MAINNET";
+    ListingChain["Sepolia"] = "SEPOLIA";
+    ListingChain["BaseSepolia"] = "BASE_SEPOLIA";
+    ListingChain["Optimism"] = "OPTIMISM";
+    ListingChain["Base"] = "BASE";
+})(ListingChain || (exports.ListingChain = ListingChain = {}));
+/** Internal mapping of supported chains to viem chain configs */
+const chains = {
+    BASE: chains_1.base,
+    BASE_SEPOLIA: chains_1.baseSepolia,
+    MAINNET: chains_1.mainnet,
+    OPTIMISM: chains_1.optimism,
+    SEPOLIA: chains_1.sepolia,
+};
+/** Returns numeric chain id for a supported chain */
+const getChainId = (chain) => {
+    return (0, exports.getChain)(chain).id;
+};
+exports.getChainId = getChainId;
+/** Returns viem Chain config for a supported chain */
+const getChain = (chain) => {
+    return chains[chain];
+};
+exports.getChain = getChain;
+/** Resolves chain id to a supported ListingChain enum */
+const getChainName = (chainId) => {
+    for (const chain of Object.keys(chains)) {
+        const chainKey = chain;
+        if (chains[chainKey].id === chainId) {
+            return chainKey;
+        }
+    }
+    throw new Error("Unsupported chain provided: " + chainId);
+};
+exports.getChainName = getChainName;

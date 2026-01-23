@@ -1,0 +1,87 @@
+import { AbstractIdentifierProvider } from '@veramo/did-manager';
+export class AADidProvider extends AbstractIdentifierProvider {
+    async addKey(args, context) {
+        // In a real implementation, you would add the key to the identifier's key list and persist it.
+        // Here, we simulate this by returning a success response.
+        return { success: true, key: args.key };
+    }
+    defaultKms;
+    chainId;
+    address;
+    providerName;
+    constructor(options) {
+        super();
+        this.defaultKms = options.defaultKms;
+        this.chainId = options.chainId;
+        this.address = options.address;
+        this.providerName = `aa:${this.address}`;
+    }
+    // Returns the DID method name
+    getSupportedMethods() {
+        return [`aa:${this.address}`];
+    }
+    getAccount() {
+        return this.address;
+    }
+    async createIdentifier({ kms, alias, options }, context) {
+        //console.info(`Resolving DID 111: ${did}`)
+        // provider and did are a one to one relationship
+        const address = this.address;
+        const chainId = this.chainId;
+        const did = `did:aa:eip155:${chainId}:${address}`;
+        const identifier = {
+            did,
+            alias,
+            provider: this.providerName,
+            controllerKeyId: address, // assumes no local private key; signing done externally or on-chain
+            keys: [],
+            services: [],
+        };
+        console.info("&&&&&&&&&&&& Creating identifier:", identifier);
+        return identifier;
+    }
+    async resolveDid(did) {
+        console.info(`Resolving DID 222: ${did}`);
+        const parts = did.split(':').slice(1);
+        const [method, networkId, address] = parts;
+        if (method !== 'contract') {
+            throw new Error(`Unsupported DID method: ${method}`);
+        }
+        if (!address) {
+            throw new Error(`Missing address in DID: ${did}`);
+        }
+        const controllerAddress = address.toLowerCase();
+        return {
+            '@context': ['https://www.w3.org/ns/did/v1'],
+            id: did,
+            verificationMethod: [
+                {
+                    id: `${did}#controller`,
+                    type: 'EcdsaSecp256k1RecoveryMethod2020',
+                    controller: did,
+                    blockchainAccountId: `${controllerAddress}@eip155:${networkId}`,
+                },
+            ],
+            authentication: [`${did}#controller`],
+        };
+    }
+    async updateIdentifier(args, context) {
+        throw new Error('WebDIDProvider updateIdentifier not supported yet.');
+    }
+    async deleteIdentifier(identifier, context) {
+        for (const { kid } of identifier.keys) {
+            await context.agent.keyManagerDelete({ kid });
+        }
+        return true;
+    }
+    async addService({ identifier, service, options }, context) {
+        return { success: true };
+    }
+    async removeKey(args, context) {
+        return { success: true };
+    }
+    async removeService(args, context) {
+        return { success: true };
+    }
+}
+//# sourceMappingURL=AADidProvider.js.map

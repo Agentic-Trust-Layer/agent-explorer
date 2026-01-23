@@ -1,0 +1,24 @@
+export declare enum ChainName {
+    Ethereum = "eth",
+    Default = "default",
+    Solana = "sol",
+    Arbitrum = "arb",
+    Optimism = "op",
+    Base = "base",
+    Polygon = "polygon",
+    Bsc = "bsc",
+    Avalanche = "avax",
+    Gnosis = "gnosis",
+    Zksync = "zksync",
+    Cosmos = "cosmos",
+    Near = "near",
+    Linea = "linea",
+    Scroll = "scroll",
+    Bitcoin = "btc",
+    Starknet = "starknet"
+}
+export declare const chainMetadata: Record<ChainName, {
+    label: string;
+    coin: number;
+}>;
+export declare const getCoinType: (chainName: ChainName) => number;

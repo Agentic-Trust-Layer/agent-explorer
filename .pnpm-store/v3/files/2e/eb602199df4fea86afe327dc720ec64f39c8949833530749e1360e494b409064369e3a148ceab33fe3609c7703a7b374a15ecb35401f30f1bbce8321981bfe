@@ -1,0 +1,121 @@
+/**
+ * A2A Protocol Provider API for AgenticTrust Client
+ * Handles Agent-to-Agent (A2A) interactions
+ */
+import type { GraphQLClient } from 'graphql-request';
+import type { A2AAgentCard } from '../models/a2aAgentCardInfo';
+import type { VeramoAgent } from './veramo';
+export interface AgentProvider {
+    id?: string;
+    agentName?: string;
+    providerId?: string;
+    endpoint?: string;
+    [key: string]: unknown;
+}
+export interface A2ARequest {
+    fromAgentId: string;
+    toAgentId: string;
+    message?: string;
+    payload?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    skillId?: string;
+}
+export interface AuthenticatedA2ARequest extends A2ARequest {
+    /** Authentication challenge and signature */
+    auth?: {
+        did: string;
+        kid: string;
+        algorithm: string;
+        challenge: string;
+        signature: string;
+    };
+}
+export interface A2AResponse {
+    success: boolean;
+    messageId?: string;
+    response?: Record<string, unknown>;
+    error?: string;
+}
+export interface ProviderEndpoint {
+    providerId: string;
+    endpoint: string;
+    method?: string;
+}
+/**
+ * A2A Protocol Provider API for GraphQL operations
+ * Used by AgenticTrustClient for backend queries
+ */
+export declare class A2AProtocolProviderAPI {
+    private graphQLClient;
+    constructor(graphQLClient: GraphQLClient);
+    /**
+     * Get agent provider endpoint for A2A communication via GraphQL
+     */
+    getAgentProvider(agentId: string): Promise<AgentProvider | null>;
+    /**
+     * Send an Agent-to-Agent (A2A) message via GraphQL
+     */
+    sendA2AMessage(request: A2ARequest): Promise<A2AResponse>;
+    /**
+     * List available agent providers via GraphQL
+     */
+    listProviders(): Promise<AgentProvider[]>;
+}
+/**
+ * A2A Protocol Provider for a specific agent
+ * Handles direct A2A communication with an agent provider
+ */
+export declare class A2AProtocolProvider {
+    private providerUrl;
+    private agentCard;
+    private a2aEndpoint;
+    private veramoAgent;
+    private authenticated;
+    private clientDid;
+    private clientKid;
+    /**
+     * Check if an endpoint URL is a placeholder/example URL
+     * Note: localhost URLs are allowed for development, only actual placeholder/example domains are flagged
+     */
+    private static isPlaceholderUrl;
+    /**
+     * Construct an A2A Protocol Provider for a specific agent
+     * @param a2aEndpoint - The base URL from the agent's a2aEndpoint field (must be absolute)
+     * @param veramoAgent - Veramo agent for authentication
+     */
+    constructor(a2aEndpoint: string, veramoAgent: VeramoAgent);
+    /**
+     * Fetch and cache the agent card from /.well-known/agent-card.json
+     */
+    fetchAgentCard(): Promise<A2AAgentCard | null>;
+    /**
+     * Get the cached agent card (call fetchAgentCard first)
+     */
+    getAgentCard(): A2AAgentCard | null;
+    /**
+     * Get the A2A endpoint URL
+     * This will fetch the agent card if not already cached
+     */
+    getA2AEndpoint(): Promise<ProviderEndpoint | null>;
+    /**
+     * Check if the agent supports A2A protocol
+     */
+    supportsA2A(): Promise<boolean>;
+    /**
+     * Get available skills from the agent card
+     */
+    getSkills(): Promise<import("./agent").AgentSkill[]>;
+    /**
+     * Get agent capabilities
+     */
+    getCapabilities(): Promise<Record<string, unknown> | null>;
+    /**
+     * Create and sign an authentication challenge
+     */
+    private createSignedChallenge;
+    /**
+     * Send an A2A message to the agent
+     */
+    sendMessage(request: A2ARequest): Promise<A2AResponse>;
+}
+//# sourceMappingURL=a2aProtocolProvider.d.ts.map

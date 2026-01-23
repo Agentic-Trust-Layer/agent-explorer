@@ -54,7 +54,7 @@
     "@agentic-trust/core": "^1.0.32",
     "@agentic-trust/veramo-agent-extension": "^1.0.32",
     "@metamask/smart-accounts-kit": "^0.3.0",
-    "@metamask/delegation-abis": "^0.16.0",
+    "@metamask/delegation-abis": "^0.11.0",
     "@pinecone-database/pinecone": "^6.1.3",
     "dotenv": "^16.4.5",
     "ethers": "^6.13.2",

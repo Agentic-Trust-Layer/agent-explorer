@@ -1,0 +1,200 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createMintClient = createMintClient;
+const axios_1 = __importDefault(require("axios"));
+const env_1 = require("./env");
+const viem_1 = require("viem");
+const chains_1 = require("./chains");
+const abi_1 = require("./abi");
+const addresses_1 = require("@thenamespace/addresses");
+const utils_1 = require("./utils");
+// Listing cache time
+// 15 minutes
+const DEFAULT_LISTING_CACHE = 15 * 60 * 1000;
+const DEFAULT_MINT_SOURCE = "namespace-sdk";
+class MintClientImpl {
+    constructor(config = {}) {
+        this.config = config;
+        this.cachedClients = {};
+        this.cachedListings = {};
+        // Derive environment internally from isTestnet.
+        const derivedEnv = this.config.isTestnet ? "staging" : "production";
+        const listManagerUri = this.config.listManagerUri
+            ? this.config.listManagerUri
+            : env_1.LibEnvironment.listingApi[derivedEnv];
+        const mintManagerUri = this.config.mintManagerUri
+            ? this.config.mintManagerUri
+            : env_1.LibEnvironment.mintingApi[derivedEnv];
+        console.info(`Initializing mint manager sdk with mint-manager: ${mintManagerUri}, list-manager: ${listManagerUri}`);
+        this.mintManagerHttp = axios_1.default.create({
+            baseURL: mintManagerUri,
+        });
+        this.listManagerHttp = axios_1.default.create({
+            baseURL: listManagerUri,
+        });
+    }
+    async getMintDetails(request) {
+        return this.mintManagerHttp
+            .get("/api/v1/minting-parameters/estimated", {
+            params: request,
+        })
+            .then((res) => res.data);
+    }
+    async getMintTransactionParameters(request) {
+        const listing = await this.getListingForName(request.parentName);
+        const paramResponse = await this.getMintParameters({
+            label: request.label,
+            minterAddress: request.minterAddress,
+            parentName: request.parentName,
+            expiryInYears: request.expiryInYears,
+            isTestnet: this.config.isTestnet,
+            owner: request.owner
+        });
+        let resolverData = [];
+        const isL1Listing = listing.type === "L1";
+        const isL2Listing = listing.type === "L2";
+        let abi = [];
+        let contractAddress = viem_1.zeroAddress;
+        if (isL1Listing) {
+            const { mintController } = (0, addresses_1.getL1NamespaceContracts)(this.config.isTestnet);
+            contractAddress = mintController;
+            abi = abi_1.Abis.L1_MINT_CONTROLLER;
+        }
+        else if (isL2Listing) {
+            const registryNetwork = listing.l2Metadata?.registryNetwork;
+            if (!registryNetwork) {
+                throw new Error(`Could not determine registry network for name: ${listing.name}`);
+            }
+            const chainId = (0, chains_1.getChainId)(registryNetwork);
+            const { controller } = (0, addresses_1.getL2NamespaceContracts)(chainId);
+            contractAddress = controller;
+            abi = abi_1.Abis.L2_MINT_CONTROLLER;
+        }
+        else {
+            throw new Error(`Unsupported listing type: ${listing.type}`);
+        }
+        if (request.records) {
+            const fullSubname = `${request.label}.${request.parentName}`;
+            resolverData = (0, utils_1.convertEnsRecordsToResolverData)(fullSubname, request.records);
+        }
+        return {
+            abi: abi,
+            args: [
+                paramResponse.content,
+                paramResponse.signature,
+                resolverData,
+                (0, viem_1.toHex)(this.config.mintSource || DEFAULT_MINT_SOURCE),
+            ],
+            functionName: "mint",
+            contractAddress: contractAddress,
+            account: request.minterAddress,
+            value: BigInt(paramResponse.content.fee) + BigInt(paramResponse.content.price),
+        };
+    }
+    async isL1SubnameAvailable(subname) {
+        const subnameNetwork = this.config.isTestnet
+            ? chains_1.ListingChain.Sepolia
+            : chains_1.ListingChain.Mainnet;
+        const { ensRegistry } = (0, addresses_1.getEnsContracts)(this.config.isTestnet);
+        const subnameOwner = await this.getPublicClient(subnameNetwork).readContract({
+            abi: abi_1.Abis.ENS_REGISTRY,
+            functionName: "owner",
+            address: ensRegistry,
+            args: [(0, viem_1.namehash)(subname)],
+        });
+        return subnameOwner === viem_1.zeroAddress;
+    }
+    async isL2SubnameAvailable(subname, chainId) {
+        const subnameNetwork = (0, chains_1.getChainName)(chainId);
+        const { registryResolver } = (0, addresses_1.getL2NamespaceContracts)(chainId);
+        const split = subname.split(".");
+        if (split.length < 2) {
+            throw Error(`Invalid subname provided: ${subname}`);
+        }
+        const parentName = `${split[split.length - 2]}.${split[split.length - 1]}`;
+        const parentNode = (0, viem_1.namehash)(parentName);
+        const subnameNode = (0, viem_1.namehash)(subname);
+        try {
+            const web3Client = this.getPublicClient(subnameNetwork);
+            const ownerAddress = await web3Client.readContract({
+                abi: abi_1.Abis.L2_REGISTRY_RESOLVER,
+                functionName: "subnodeOwner",
+                address: registryResolver,
+                args: [subnameNode, parentNode],
+            });
+            return ownerAddress.toLocaleLowerCase() === viem_1.zeroAddress;
+        }
+        catch (err) {
+            console.warn("Error while checking l2 subname ownership, is registry present?", registryResolver, parentName, subname, `Parent Node: ${parentNode}`, `Subname Node: ${subnameNode}`);
+            if (err instanceof viem_1.ContractFunctionExecutionError) {
+                const contractErr = err;
+                console.error(contractErr.cause);
+            }
+            else {
+                console.error(err);
+            }
+            return false;
+        }
+    }
+    async getMintParameters(request) {
+        return this.mintManagerHttp
+            .post(`/api/v1/minting-parameters`, request)
+            .then((res) => res.data);
+    }
+    async getListingForName(name) {
+        const listingNetwork = this.config.isTestnet
+            ? chains_1.ListingChain.Sepolia
+            : chains_1.ListingChain.Mainnet;
+        const cacheKey = `${name}-${listingNetwork}`;
+        const now = new Date().getTime();
+        if (this.cachedListings[cacheKey]) {
+            const { data, exp } = this.cachedListings[cacheKey];
+            if (exp > now) {
+                return data;
+            }
+        }
+        const { data } = await this.listManagerHttp.get(`/api/v1/listing/network/${listingNetwork}/name/${name}`);
+        const cacheTime = now + (this.config.listingCacheMilliseconds || DEFAULT_LISTING_CACHE);
+        this.cachedListings[cacheKey] = {
+            data: data,
+            exp: cacheTime,
+        };
+        return data;
+    }
+    getPublicClient(chainName) {
+        const chain = (0, chains_1.getChain)(chainName);
+        if (this.cachedClients[chain.id]) {
+            return this.cachedClients[chain.id];
+        }
+        const customTransports = this.config.cursomRpcUrls || {};
+        const chainClient = (0, viem_1.createPublicClient)({
+            transport: (0, viem_1.http)(customTransports[chain.id]),
+            chain: chain,
+        });
+        this.cachedClients[chain.id] = chainClient;
+        return chainClient;
+    }
+}
+/**
+ * Create a new MintClient instance.
+ *
+ * @example
+ * ```typescript
+ * import { createMintClient } from '@thenamespace/mint-manager';
+ *
+ * // Mainnet (default)
+ * const mainnet = createMintClient();
+ *
+ * // Testnet
+ * const testnet = createMintClient({
+ *   isTestnet: true,
+ *   customRpcUrls: { [baseSepolia.id]: 'https://base-sepolia.g.alchemy.com/v2/<api-key>>' }
+ * });
+ * ```
+ */
+function createMintClient(config = {}) {
+    return new MintClientImpl(config);
+}

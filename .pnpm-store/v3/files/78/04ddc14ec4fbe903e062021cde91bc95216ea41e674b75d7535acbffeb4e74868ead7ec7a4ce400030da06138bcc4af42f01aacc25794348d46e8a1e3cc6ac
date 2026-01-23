@@ -1,0 +1,44 @@
+/**
+ * Framework-agnostic handler for creating agents with Account Abstraction
+ *
+ * This contains the core business logic that can be used by both Next.js and Express handlers.
+ */
+export interface CreateAgentForAARequest {
+    agentName: string;
+    agentAccount: string;
+    account: string;
+    description?: string;
+    image?: string;
+    agentUrl?: string;
+    supportedTrust?: string[];
+    endpoints?: Array<{
+        name: string;
+        endpoint: string;
+        version?: string;
+        capabilities?: Record<string, any>;
+    }>;
+    chainId?: number;
+}
+export interface CreateAgentForAAResponse {
+    success: true;
+    bundlerUrl: string;
+    tokenUri: string;
+    chainId: number;
+    calls: Array<{
+        to: string;
+        data: string;
+        value: string;
+    }>;
+}
+export interface CreateAgentForAAError {
+    error: string;
+    message?: string;
+}
+/**
+ * Framework-agnostic handler for creating agents with AA
+ */
+export declare function handleCreateAgentForAA(body: unknown): Promise<{
+    status: number;
+    data: CreateAgentForAAResponse | CreateAgentForAAError;
+}>;
+//# sourceMappingURL=create-for-aa.d.ts.map

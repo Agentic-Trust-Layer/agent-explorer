@@ -1,0 +1,82 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.convertEnsRecordsToResolverData = void 0;
+const viem_1 = require("viem");
+const address_encoder_1 = require("@ensdomains/address-encoder");
+const address_records_1 = require("./constants/address-records");
+//@ts-ignore
+// The newest version of content-hash
+// throws error Error [ERR_PACKAGE_PATH_NOT_EXPORTED]:
+const content_hash_1 = require("@ensdomains/content-hash");
+const ETH_COIN = 60;
+const ResolverAbi = (0, viem_1.parseAbi)([
+    "function setText(bytes32 node, string key, string value) public",
+    "function setAddr(bytes32 node, uint256 coin, bytes value) public",
+    "function setContenthash(bytes32 node, bytes contenthash)",
+]);
+/**
+ * Converts ENS records to encoded resolver calldata suitable for batched mint.
+ * Applies texts, addresses (multi-coin), and optional contenthash.
+ */
+const convertEnsRecordsToResolverData = (fullName, records) => {
+    let resolverData = [];
+    const subnameNode = (0, viem_1.namehash)(fullName);
+    if (records.texts && records.texts.length > 0) {
+        records.texts.forEach((text) => {
+            resolverData.push((0, viem_1.encodeFunctionData)({
+                abi: ResolverAbi,
+                args: [subnameNode, text.key, text.value],
+                functionName: "setText",
+            }));
+        });
+    }
+    if (records.addresses && records.addresses.length > 0) {
+        for (const addr of records.addresses) {
+            let addressCoin = 0;
+            if (typeof addr.chain === "number") {
+                addressCoin = addr.chain;
+            }
+            else {
+                const supportedChain = address_records_1.chainMetadata[addr.chain];
+                if (!supportedChain) {
+                    console.info(`Cannot find coin for chain: ${addr.chain}`);
+                    continue;
+                }
+                else {
+                    addressCoin = supportedChain.coin;
+                }
+            }
+            if (addressCoin === ETH_COIN) {
+                resolverData.push((0, viem_1.encodeFunctionData)({
+                    abi: ResolverAbi,
+                    args: [subnameNode, BigInt(ETH_COIN), addr.value],
+                    functionName: "setAddr",
+                }));
+            }
+            else {
+                const addrEncoder = (0, address_encoder_1.getCoderByCoinType)(addressCoin);
+                if (addrEncoder) {
+                    const decodedAddr = addrEncoder.decode(addr.value);
+                    const hexAddr = (0, viem_1.toHex)(decodedAddr);
+                    resolverData.push((0, viem_1.encodeFunctionData)({
+                        abi: ResolverAbi,
+                        args: [subnameNode, BigInt(addressCoin), hexAddr],
+                        functionName: "setAddr",
+                    }));
+                }
+            }
+        }
+    }
+    // There is currently an issue with content-hash library
+    // [ERR_PACKAGE_PATH_NOT_EXPORTED]
+    if (records.contenthash) {
+        const encodedValue = (0, content_hash_1.encode)(records.contenthash.type, records.contenthash.value);
+        resolverData.push((0, viem_1.encodeFunctionData)({
+            abi: ResolverAbi,
+            args: [subnameNode, `0x${encodedValue}`],
+            functionName: "setContenthash",
+        }));
+    }
+    return resolverData;
+};
+exports.convertEnsRecordsToResolverData = convertEnsRecordsToResolverData;

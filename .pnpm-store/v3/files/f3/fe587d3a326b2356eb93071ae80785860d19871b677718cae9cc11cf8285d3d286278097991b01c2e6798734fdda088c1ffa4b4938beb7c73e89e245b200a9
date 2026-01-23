@@ -1,0 +1,78 @@
+import { AxiosRequestConfig } from "axios";
+import { L2RegistryResponse, L2SubnameRequest, L2SubnameResponse, L2SubnamesRequest, L2SubnamesResponse } from "../dto";
+/**
+ * Interface for the Namespace Indexer client
+ * Provides methods to query L2 subnames and registry data
+ */
+export interface IndexerClient {
+    /**
+     * Get a single L2 subname by chain ID and name/namehash
+     * @param request - The request parameters containing chainId and nameOrNamehash
+     * @returns Promise resolving to the L2 subname data
+     * @throws {AxiosError} When the API request fails
+     * @example
+     * ```typescript
+     * const subname = await client.getL2Subname({
+     *   chainId: 10,
+     *   nameOrNamehash: 'lucas.oppunk.eth'
+     * });
+     * ```
+     */
+    getL2Subname(request: L2SubnameRequest): Promise<L2SubnameResponse>;
+    /**
+     * Get L2 registry information by chain ID and name/namehash
+     * @param request - The request parameters containing chainId and nameOrNamehash
+     * @returns Promise resolving to the L2 registry data
+     * @throws {AxiosError} When the API request fails
+     * @example
+     * ```typescript
+     * const registry = await client.getL2Registry({
+     *   chainId: 10,
+     *   nameOrNamehash: 'oppunk.eth'
+     * });
+     * ```
+     */
+    getL2Registry(request: L2SubnameRequest): Promise<L2RegistryResponse>;
+    /**
+     * Get multiple L2 subnames with optional filtering and pagination
+     * @param request - The request parameters for filtering and pagination
+     * @returns Promise resolving to paginated L2 subnames data
+     * @throws {AxiosError} When the API request fails
+     * @example
+     * ```typescript
+     * const subnames = await client.getL2Subnames({
+     *   chainId: 10,
+     *   page: 0,
+     *   size: 10
+     * });
+     */
+    getL2Subnames(request: L2SubnamesRequest): Promise<L2SubnamesResponse>;
+}
+/**
+ * Configuration interface for the IndexerClient
+ * Extends AxiosRequestConfig to allow custom HTTP client configuration
+ */
+export interface IndexerClientConfig extends AxiosRequestConfig {
+    /** Custom indexer API endpoint (defaults to production endpoint) */
+    indexerUri?: string;
+}
+/**
+ * Factory function to create a new IndexerClient instance
+ * @param config - Optional configuration for the client
+ * @returns A new IndexerClient instance
+ *
+ * @example
+ * ```typescript
+ * // Create client with default configuration
+ * const client = createIndexerClient();
+ *
+ * // Create client with custom configuration
+ * const client = createIndexerClient({
+ *   indexerUri: 'https://test-indexer.namespace.ninja',
+ *   timeout: 10000,
+ *   headers: { 'Authorization': 'Bearer token' }
+ * });
+ * ```
+ */
+export declare const createIndexerClient: (config?: IndexerClientConfig) => IndexerClient;
+//# sourceMappingURL=index.d.ts.map

@@ -1,0 +1,117 @@
+/**
+ * Agentic Trust SDK - Identity Client
+ * Extends the base ERC-8004 IdentityClient with AA-centric helpers.
+ *
+ * Uses AccountProvider (Ports & Adapters pattern) for chain I/O.
+ */
+import { type Chain, type PublicClient, type WalletClient, type Account, type Transport, type Address as ViemAddress } from 'viem';
+import { BaseIdentityClient, AccountProvider, type ChainConfig } from '@agentic-trust/8004-sdk';
+import type { MetadataEntry } from '@agentic-trust/8004-sdk';
+export type AIAgentIdentityClientOptions = {
+    accountProvider: AccountProvider;
+    identityRegistryAddress: `0x${string}`;
+} | {
+    publicClient: PublicClient;
+    walletClient?: WalletClient<Transport, Chain, Account> | null;
+    identityRegistryAddress: `0x${string}`;
+    chainConfig?: ChainConfig;
+} | {
+    chainId: number;
+    rpcUrl: string;
+    identityRegistryAddress: `0x${string}`;
+    walletClient?: WalletClient<Transport, Chain, Account> | null;
+    account?: Account | ViemAddress;
+    bundlerUrl?: string;
+    paymasterUrl?: string;
+};
+export declare class AIAgentIdentityClient extends BaseIdentityClient {
+    private chain;
+    private identityRegistryAddress;
+    private publicClient;
+    private walletClient;
+    protected accountProvider: AccountProvider;
+    constructor(options: AIAgentIdentityClientOptions);
+    /**
+     * Get metadata using AccountProvider
+     */
+    getMetadata(agentId: bigint, key: string): Promise<string>;
+    /**
+     * Encode function call data using AccountProvider
+     */
+    encodeFunctionData(abi: any[], functionName: string, args: any[]): Promise<string>;
+    /**
+     * Legacy method - delegates to encodeFunctionData
+     * @deprecated Use encodeFunctionData instead
+     */
+    encodeCall(abi: any[], functionName: string, args: any[]): string;
+    /**
+     * Encode register calldata without sending (for bundler/AA - like EAS SDK pattern)
+     * This override exists in the Agentic Trust SDK to keep AA helpers here.
+     */
+    encodeRegisterWithMetadata(tokenUri: string, metadata?: MetadataEntry[]): Promise<string>;
+    encodeRegister(name: string, agentAccount: `0x${string}`, tokenUri: string): Promise<string>;
+    prepareRegisterCalls(name: string, agentAccount: `0x${string}`, tokenUri: string): Promise<{
+        calls: {
+            to: `0x${string}`;
+            data: `0x${string}`;
+        }[];
+    }>;
+    encodeSetRegistrationUri(agentId: bigint, uri: string): Promise<`0x${string}`>;
+    prepareSetRegistrationUriCalls(agentId: bigint, uri: string): Promise<{
+        calls: {
+            to: `0x${string}`;
+            data: `0x${string}`;
+        }[];
+    }>;
+    /**
+     * Prepare a complete transaction for client-side signing (similar to prepareCall for bundlers)
+     * All Ethereum logic (encoding, gas estimation, nonce) is handled server-side
+     * Client only needs to sign and send with MetaMask
+     * @param tokenUri - IPFS token URI for the agent registration
+     * @param metadata - Metadata entries for the agent
+     * @param fromAddress - Address that will sign the transaction (only address needed, no client)
+     * @returns Prepared transaction object ready for client-side signing
+     */
+    prepareRegisterTransaction(tokenUri: string, metadata: MetadataEntry[], fromAddress: `0x${string}`): Promise<{
+        to: `0x${string}`;
+        data: `0x${string}`;
+        value: `0x${string}`;
+        gas?: `0x${string}`;
+        gasPrice?: `0x${string}`;
+        maxFeePerGas?: `0x${string}`;
+        maxPriorityFeePerGas?: `0x${string}`;
+        nonce?: number;
+        chainId: number;
+    }>;
+    isValidAgentAccount(agentAccount: `0x${string}`): Promise<boolean | null>;
+    /**
+     * Extract agentId from a user operation/transaction receipt
+     * Public in this SDK to support AA flows explicitly.
+     */
+    extractAgentIdFromReceiptPublic(receipt: any): bigint;
+    /**
+     * Get the owner (EOA) of an account address
+     *
+     * @param accountAddress - The account address (smart account or contract)
+     * @returns The owner address (EOA) or null if not found or error
+     */
+    getAccountOwner(accountAddress: `0x${string}`): Promise<string | null>;
+    /**
+     * @deprecated Use getAccountOwner instead
+     */
+    getAgentEoaByAgentAccount(agentAccount: `0x${string}`): Promise<string | null>;
+    /**
+     * Get agentName from on-chain metadata (string value)
+     */
+    getAgentName(agentId: bigint): Promise<string | null>;
+    /**
+     * Get agentAccount address from on-chain metadata.
+     * Supports CAIP-10 format like "eip155:11155111:0x..." or raw 0x address.
+     */
+    getAgentAccount(agentId: bigint): Promise<`0x${string}` | null>;
+    /**
+     * Keep compatibility: delegate to receipt extractor.
+     */
+    extractAgentIdFromLogs(receipt: any): bigint;
+}
+//# sourceMappingURL=AIAgentIdentityClient.d.ts.map

@@ -1,0 +1,464 @@
+[
+    {
+        "inputs": [
+            { "internalType": "address", "name": "_verifier", "type": "address" },
+            { "internalType": "address", "name": "_treasury", "type": "address" },
+            {
+                "internalType": "address",
+                "name": "_tokenMetadata",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "_registryResolver",
+                "type": "address"
+            },
+            { "internalType": "address", "name": "_emitter", "type": "address" },
+            { "internalType": "address", "name": "_resolver", "type": "address" },
+            {
+                "internalType": "address",
+                "name": "_controllerProxy",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    { "inputs": [], "name": "ECDSAInvalidSignature", "type": "error" },
+    {
+        "inputs": [
+            { "internalType": "uint256", "name": "length", "type": "uint256" }
+        ],
+        "name": "ECDSAInvalidSignatureLength",
+        "type": "error"
+    },
+    {
+        "inputs": [{ "internalType": "bytes32", "name": "s", "type": "bytes32" }],
+        "name": "ECDSAInvalidSignatureS",
+        "type": "error"
+    },
+    { "inputs": [], "name": "InvalidShortString", "type": "error" },
+    {
+        "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+        "name": "InvalidSignature",
+        "type": "error"
+    },
+    { "inputs": [], "name": "NotVerifiedMinter", "type": "error" },
+    {
+        "inputs": [
+            { "internalType": "address", "name": "owner", "type": "address" }
+        ],
+        "name": "OwnableInvalidOwner",
+        "type": "error"
+    },
+    {
+        "inputs": [
+            { "internalType": "address", "name": "account", "type": "address" }
+        ],
+        "name": "OwnableUnauthorizedAccount",
+        "type": "error"
+    },
+    { "inputs": [], "name": "ReentrancyGuardReentrantCall", "type": "error" },
+    {
+        "inputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+        "name": "RegistryAlreadyExists",
+        "type": "error"
+    },
+    {
+        "inputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+        "name": "RegistryNotFound",
+        "type": "error"
+    },
+    { "inputs": [], "name": "SignatureExpired", "type": "error" },
+    {
+        "inputs": [{ "internalType": "string", "name": "str", "type": "string" }],
+        "name": "StringTooLong",
+        "type": "error"
+    },
+    {
+        "anonymous": false,
+        "inputs": [],
+        "name": "EIP712DomainChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "node",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "expiration",
+                "type": "uint256"
+            }
+        ],
+        "name": "ExpiryExtended",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "label",
+                "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "parentNode",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes32",
+                "name": "node",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "price",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "fee",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "paymentReceiver",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "expiry",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "bytes",
+                "name": "extraData",
+                "type": "bytes"
+            }
+        ],
+        "name": "NameMinted",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "previousOwner",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "newOwner",
+                "type": "address"
+            }
+        ],
+        "name": "OwnershipTransferred",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "label",
+                "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "TLD",
+                "type": "string"
+            },
+            {
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "node",
+                "type": "bytes32"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "registryAddress",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "tokenName",
+                "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "tokenSymbol",
+                "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "enum ParentControlType",
+                "name": "parentControl",
+                "type": "uint8"
+            },
+            {
+                "indexed": false,
+                "internalType": "enum ExpirableType",
+                "name": "expirableType",
+                "type": "uint8"
+            }
+        ],
+        "name": "RegistryDeployed",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "verifier",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "bool",
+                "name": "allowed",
+                "type": "bool"
+            }
+        ],
+        "name": "VerifierChanged",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "enum ParentControlType",
+                        "name": "parentControl",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "enum ExpirableType",
+                        "name": "expirableType",
+                        "type": "uint8"
+                    },
+                    { "internalType": "string", "name": "tokenName", "type": "string" },
+                    { "internalType": "string", "name": "tokenSymbol", "type": "string" },
+                    { "internalType": "string", "name": "label", "type": "string" },
+                    { "internalType": "string", "name": "TLD", "type": "string" },
+                    { "internalType": "address", "name": "owner", "type": "address" },
+                    {
+                        "internalType": "uint256",
+                        "name": "signatureExpiry",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct FactoryContext",
+                "name": "context",
+                "type": "tuple"
+            },
+            { "internalType": "bytes", "name": "signature", "type": "bytes" },
+            { "internalType": "bytes[]", "name": "resolverData", "type": "bytes[]" }
+        ],
+        "name": "deploy",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "eip712Domain",
+        "outputs": [
+            { "internalType": "bytes1", "name": "fields", "type": "bytes1" },
+            { "internalType": "string", "name": "name", "type": "string" },
+            { "internalType": "string", "name": "version", "type": "string" },
+            { "internalType": "uint256", "name": "chainId", "type": "uint256" },
+            {
+                "internalType": "address",
+                "name": "verifyingContract",
+                "type": "address"
+            },
+            { "internalType": "bytes32", "name": "salt", "type": "bytes32" },
+            { "internalType": "uint256[]", "name": "extensions", "type": "uint256[]" }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    { "internalType": "bytes32", "name": "node", "type": "bytes32" },
+                    { "internalType": "uint256", "name": "expiry", "type": "uint256" },
+                    { "internalType": "uint256", "name": "price", "type": "uint256" },
+                    { "internalType": "uint256", "name": "fee", "type": "uint256" },
+                    {
+                        "internalType": "address",
+                        "name": "paymentReceiver",
+                        "type": "address"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "signatureExpiry",
+                        "type": "uint256"
+                    }
+                ],
+                "internalType": "struct ExtendExpiryContext",
+                "name": "context",
+                "type": "tuple"
+            },
+            { "internalType": "bytes", "name": "signature", "type": "bytes" }
+        ],
+        "name": "extendExpiry",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    { "internalType": "address", "name": "owner", "type": "address" },
+                    { "internalType": "string", "name": "label", "type": "string" },
+                    {
+                        "internalType": "bytes32",
+                        "name": "parentNode",
+                        "type": "bytes32"
+                    },
+                    { "internalType": "uint256", "name": "price", "type": "uint256" },
+                    { "internalType": "uint256", "name": "fee", "type": "uint256" },
+                    {
+                        "internalType": "address",
+                        "name": "paymentReceiver",
+                        "type": "address"
+                    },
+                    { "internalType": "uint256", "name": "expiry", "type": "uint256" },
+                    {
+                        "internalType": "uint256",
+                        "name": "signatureExpiry",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "verifiedMinter",
+                        "type": "address"
+                    }
+                ],
+                "internalType": "struct MintContext",
+                "name": "context",
+                "type": "tuple"
+            },
+            { "internalType": "bytes", "name": "signature", "type": "bytes" },
+            { "internalType": "bytes[]", "name": "resolverData", "type": "bytes[]" },
+            { "internalType": "bytes", "name": "extraData", "type": "bytes" }
+        ],
+        "name": "mint",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "owner",
+        "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "renounceOwnership",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "resolver",
+        "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            { "internalType": "address", "name": "_resolver", "type": "address" }
+        ],
+        "name": "setResolver",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            { "internalType": "address", "name": "_treasury", "type": "address" }
+        ],
+        "name": "setTreasury",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            { "internalType": "address", "name": "_verifier", "type": "address" },
+            { "internalType": "bool", "name": "allowed", "type": "bool" }
+        ],
+        "name": "setVerifier",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "tokenMetadata",
+        "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            { "internalType": "address", "name": "newOwner", "type": "address" }
+        ],
+        "name": "transferOwnership",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "treasury",
+        "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]

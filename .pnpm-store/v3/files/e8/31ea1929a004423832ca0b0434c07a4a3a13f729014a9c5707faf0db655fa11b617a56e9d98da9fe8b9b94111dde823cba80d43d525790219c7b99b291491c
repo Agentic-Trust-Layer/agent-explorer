@@ -1,0 +1,17 @@
+export interface AgentValidationsSummary {
+    agentId: string;
+    chainId: number;
+    did8004: string;
+    pending: unknown[];
+    completed: unknown[];
+}
+export declare function getAgentValidationsSummary(chainId: number, agentId: string | number): Promise<AgentValidationsSummary>;
+/**
+ * Create a validator account abstraction using the name 'validator-ens' as the seed from a private key.
+ * The validator address is determined server-side based on AGENTIC_TRUST_VALIDATOR_PRIVATE_KEY.
+ */
+export declare function createValidatorAccountAbstraction(validatorName: string, validatorPrivateKey: string, chainId?: number): Promise<{
+    accountClient: any;
+    address: `0x${string}`;
+}>;
+//# sourceMappingURL=validations.d.ts.map

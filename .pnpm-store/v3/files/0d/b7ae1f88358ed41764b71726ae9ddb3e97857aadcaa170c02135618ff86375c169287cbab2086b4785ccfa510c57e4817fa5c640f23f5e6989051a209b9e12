@@ -1,0 +1,341 @@
+import { extractIssuer, isDefined, MANDATORY_CREDENTIAL_CONTEXT, 
+//mapAgentIdentifierKeysToDoc,
+processEntryToArray, removeDIDParameters, resolveDidOrThrow, } from '@veramo/utils';
+import { TypedDataEncoder, } from 'ethers';
+import { createPublicClient, http, encodeFunctionData, } from "viem";
+import { sepolia } from "viem/chains";
+const chain = sepolia;
+import { getEthTypesFromInputDoc } from 'eip-712-types-generation';
+import { getRegistryAgent } from './IdentityRegistry.js';
+import { parseDid8004 } from '@agentic-trust/8004-ext-sdk';
+// Extracts the numeric agentId from a verificationMethod object.
+// Accepts fields like:
+// - agentId: 'eip155:11155111:13'
+// - controller: 'did:8004:eip155:11155111:13'
+// - id: 'did:8004:eip155:11155111:13#agentId'
+function getVerMethodAgentId(verificationMethod) {
+    try {
+        const vm = verificationMethod || {};
+        if (typeof vm.agentId === 'string' && vm.agentId.length > 0) {
+            const base = vm.agentId.split('#')[0];
+            const parts = base.split(':');
+            return parts[parts.length - 1];
+        }
+        const from = (typeof vm.controller === 'string' && vm.controller) ||
+            (typeof vm.id === 'string' && vm.id) ||
+            undefined;
+        if (from) {
+            const base = from.split('#')[0];
+            if (!base) {
+                return undefined;
+            }
+            const parts = base.split(':');
+            if (parts.length >= 5 && parts[0] === 'did' && parts[1] === '8004') {
+                return parts[parts.length - 1];
+            }
+        }
+    }
+    catch { }
+    return undefined;
+}
+export class AgentCredentialIssuerEIP1271 {
+    methods;
+    constructor() {
+        this.methods = {
+            createVerifiableCredentialEIP1271: this.createVerifiableCredentialEIP1271.bind(this),
+            createVerifiablePresentationEIP1271: this.createVerifiablePresentationEIP1271.bind(this),
+            verifyCredentialEIP1271: this.verifyCredentialEIP1271.bind(this),
+            verifyPresentationEIP1271: this.verifyPresentationEIP1271.bind(this),
+        };
+    }
+    async createVerifiableCredentialEIP1271(args, context) {
+        const credentialContext = processEntryToArray(args?.credential?.['@context'], MANDATORY_CREDENTIAL_CONTEXT);
+        const credentialType = processEntryToArray(args?.credential?.type, 'VerifiableCredential');
+        let issuanceDate = args?.credential?.issuanceDate || new Date().toISOString();
+        if (issuanceDate instanceof Date) {
+            issuanceDate = issuanceDate.toISOString();
+        }
+        const issuer = args.credential.issuer;
+        if (!issuer || typeof issuer === 'string') {
+            throw new Error('Issuer must be an object with an "id" and "did" signer');
+        }
+        console.info("Creating Verifiable Credential EIP1271 with issuer:", issuer);
+        const identifier = await context.agent.didManagerGet({ did: issuer.id });
+        const did8004 = parseDid8004(identifier.did);
+        let chainId;
+        try {
+            chainId = did8004.chainId;
+        }
+        catch (e) {
+            chainId = 11155111;
+        }
+        // point to a DID controller that supports smart contract-based signature verification
+        const credential = {
+            ...args?.credential,
+            '@context': credentialContext,
+            type: credentialType,
+            issuanceDate,
+            proof: {
+                verificationMethod: identifier.did + "#ethereumAddress",
+                created: issuanceDate,
+                proofPurpose: 'assertionMethod',
+                type: 'EthereumEip712Signature2021',
+            },
+        };
+        const message = credential;
+        const domain = {
+            chainId,
+            name: 'VerifiableCredential',
+            version: '1',
+        };
+        const primaryType = 'VerifiableCredential';
+        const allTypes = getEthTypesFromInputDoc(credential, primaryType);
+        const types = { ...allTypes };
+        const signature = await args?.signer?.signTypedData(domain, types, message);
+        credential['proof']['proofValue'] = signature;
+        credential['proof']['eip712'] = {
+            domain,
+            types: allTypes,
+            primaryType,
+        };
+        return credential;
+    }
+    async createVerifiablePresentationEIP1271(args, context) {
+        console.info("Creating Verifiable Presentation EIP1271 with args:", args);
+        const presentationContext = processEntryToArray(args?.presentation?.['@context'], MANDATORY_CREDENTIAL_CONTEXT);
+        const presentationType = processEntryToArray(args?.presentation?.type, 'VerifiablePresentation');
+        let issuanceDate = args?.presentation?.issuanceDate || new Date().toISOString();
+        if (issuanceDate instanceof Date) {
+            issuanceDate = issuanceDate.toISOString();
+        }
+        const presentation = {
+            ...args?.presentation,
+            '@context': presentationContext,
+            type: presentationType,
+            issuanceDate,
+        };
+        if (!isDefined(args.presentation.holder)) {
+            throw new Error('invalid_argument: presentation.holder must not be empty');
+        }
+        if (args.presentation.verifiableCredential) {
+            presentation.verifiableCredential = args.presentation.verifiableCredential.map((cred) => {
+                // map JWT credentials to their canonical form
+                if (typeof cred === 'string') {
+                    return cred;
+                }
+                else if (cred.proof.jwt) {
+                    return cred.proof.jwt;
+                }
+                else {
+                    return JSON.stringify(cred);
+                }
+            });
+        }
+        const holder = removeDIDParameters(presentation.holder);
+        let identifier;
+        try {
+            identifier = await context.agent.didManagerGet({ did: holder });
+        }
+        catch (e) {
+            throw new Error('invalid_argument: presentation.holder must be a DID managed by this agent');
+        }
+        console.info("identifier: ", identifier);
+        const did8004 = parseDid8004(identifier.did);
+        let chainId;
+        try {
+            chainId = did8004.chainId;
+        }
+        catch (e) {
+            chainId = 11155111;
+        }
+        presentation['proof'] = {
+            verificationMethod: did8004.agentId + "#agentId",
+            created: issuanceDate,
+            proofPurpose: 'assertionMethod',
+            type: 'EthereumEip712Signature2021',
+        };
+        const message = presentation;
+        const domain = {
+            chainId,
+            name: 'VerifiablePresentation',
+            version: '1',
+        };
+        const primaryType = 'VerifiablePresentation';
+        const allTypes = getEthTypesFromInputDoc(presentation, primaryType);
+        const types = { ...allTypes };
+        const signature = await args?.signer?.signTypedData(domain, types, message);
+        presentation.proof.proofValue = signature;
+        presentation.proof.eip712 = {
+            domain,
+            types: allTypes,
+            primaryType,
+        };
+        return presentation;
+    }
+    async verifyCredentialEIP1271(args, context) {
+        console.info("verifyCredentialEIP1271 called with args: ", args);
+        // check that proof exists
+        const { credential } = args;
+        if (!credential.proof || !credential.proof.proofValue)
+            throw new Error('invalid_argument: proof is undefined');
+        const { proof, ...signingInput } = credential;
+        const { proofValue, eip712, ...verifyInputProof } = proof;
+        const verificationMessage = {
+            ...signingInput,
+            proof: verifyInputProof,
+        };
+        const compat = {
+            ...eip712,
+        };
+        compat.types = compat.types || compat.messageSchema;
+        if (!compat.primaryType || !compat.types || !compat.domain) {
+            throw new Error('invalid_argument: proof is missing expected properties');
+        }
+        const filteredTypes = { ...compat.types };
+        delete filteredTypes.EIP712Domain;
+        const digest = TypedDataEncoder.hash(compat.domain, filteredTypes, verificationMessage);
+        const signature = proofValue;
+        console.info("............... signature: ", signature);
+        console.info("............... digest: ", digest);
+        const isValidSignatureData = encodeFunctionData({
+            abi: [
+                {
+                    name: "isValidSignature",
+                    type: "function",
+                    inputs: [
+                        { name: "_hash", type: "bytes32" },
+                        { name: "_signature", type: "bytes" },
+                    ],
+                    outputs: [{ type: "bytes4" }],
+                    stateMutability: "view",
+                },
+            ],
+            functionName: "isValidSignature",
+            args: [digest, signature],
+        });
+        const publicClient = createPublicClient({
+            chain: chain,
+            transport: http(),
+        });
+        const did = credential.issuer.id;
+        console.info(">>>>>>>>>>>> credential issuer did: ", did);
+        const agentId = parseDid8004(did).agentId;
+        console.info("agentId used to validate signature: ", agentId);
+        // Resolve smart account address from ERC-8004 Identity Registry using agentId
+        const registryAddress = "0xD3Ef59f3Bbc1d766E3Ba463Be134B5eB29e907A0";
+        const agentInfo = await getRegistryAgent(registryAddress, BigInt(String(agentId)));
+        const address = agentInfo.agentAddress;
+        // validate signature using contract EIP-1271
+        const { data: isValidSignature } = await publicClient.call({
+            account: address,
+            data: isValidSignatureData,
+            to: address,
+        });
+        console.info("isValidSignature: ", isValidSignature);
+        if (!isValidSignature?.startsWith('0x1626ba7e')) {
+            console.info("********** Verifiable Credential Signature is not valid according to EIP-1271");
+            return false;
+        }
+        console.info("signature is valid according to EIP-1271");
+        // verify the issuer did
+        const issuer = extractIssuer(credential);
+        if (!issuer || typeof issuer === 'undefined') {
+            throw new Error('invalid_argument: credential.issuer must not be empty');
+        }
+        const agent = await context.agent.resolveDid({ didUrl: issuer, options: args.resolutionOptions });
+        const didDocument = await resolveDidOrThrow(issuer, context, args.resolutionOptions);
+        if (didDocument.verificationMethod && agentId) {
+            for (const verificationMethod of didDocument.verificationMethod) {
+                const verAgentId = getVerMethodAgentId(verificationMethod);
+                console.info("XXXXXXXXXXXXXXXXXXXXXX  verAgentId: ", verAgentId, 'agentId: ', agentId);
+                if (verAgentId === agentId) {
+                    return true;
+                }
+            }
+        }
+        else {
+            throw new Error('resolver_error: issuer DIDDocument does not contain any verificationMethods');
+        }
+        return false;
+    }
+    async verifyPresentationEIP1271(args, context) {
+        // check that proof exists
+        const { presentation } = args;
+        if (!presentation.proof || !presentation.proof.proofValue)
+            throw new Error('invalid_argument: proof is undefined');
+        const { proof, ...signingInput } = presentation;
+        const { proofValue, eip712, ...verifyInputProof } = proof;
+        const verificationMessage = {
+            ...signingInput,
+            proof: verifyInputProof,
+        };
+        const compat = {
+            ...eip712,
+        };
+        compat.types = compat.types || compat.messageSchema;
+        if (!compat.primaryType || !compat.types || !compat.domain)
+            throw new Error('invalid_argument: proof is missing expected properties');
+        const filteredTypes = { ...compat.types };
+        delete filteredTypes.EIP712Domain;
+        const digest = TypedDataEncoder.hash(compat.domain, filteredTypes, verificationMessage);
+        const signature = proofValue;
+        const isValidSignatureData = encodeFunctionData({
+            abi: [
+                {
+                    name: "isValidSignature",
+                    type: "function",
+                    inputs: [
+                        { name: "_hash", type: "bytes32" },
+                        { name: "_signature", type: "bytes" },
+                    ],
+                    outputs: [{ type: "bytes4" }],
+                    stateMutability: "view",
+                },
+            ],
+            functionName: "isValidSignature",
+            args: [digest, signature],
+        });
+        const publicClient = createPublicClient({
+            chain: chain,
+            transport: http(),
+        });
+        const agentId = parseDid8004(presentation.holder).agentId;
+        // Resolve smart account address from ERC-8004 Identity Registry using agentId
+        const registryAddress = "0xD3Ef59f3Bbc1d766E3Ba463Be134B5eB29e907A0";
+        const agentInfo = await getRegistryAgent(registryAddress, BigInt(String(agentId)));
+        const address = agentInfo.agentAddress;
+        // validate signature using contract EIP-1271
+        const { data: isValidSignature } = await publicClient.call({
+            account: address,
+            data: isValidSignatureData,
+            to: address,
+        });
+        if (!isValidSignature?.startsWith('0x1626ba7e')) {
+            console.info("*********** Verifiable Presentation Signature is not valid according to EIP-1271");
+            console.info("isValidSignature: ", isValidSignature);
+            return false;
+        }
+        // verify the client did
+        const clientDid = extractIssuer(presentation);
+        if (!clientDid || typeof clientDid === 'undefined') {
+            throw new Error('invalid_argument: presentation.holder must not be empty');
+        }
+        console.info("gator client Agent Did: ", clientDid);
+        const clientDidDocument = await resolveDidOrThrow(clientDid, context, args.resolutionOptions);
+        if (clientDidDocument.verificationMethod && agentId) {
+            console.info("gator client didDocument.verificationMethod: ", clientDidDocument.verificationMethod);
+            for (const verificationMethod of clientDidDocument.verificationMethod) {
+                const verAgentId = getVerMethodAgentId(verificationMethod);
+                console.info("XXXXXXXXXXXXXXXXXXXXXX  verAgentId: ", verAgentId, 'agentId: ', agentId);
+                if (verAgentId === agentId) {
+                    return true;
+                }
+            }
+        }
+        else {
+            throw new Error('resolver_error: holder DIDDocument does not contain any verificationMethods');
+        }
+        return false;
+    }
+}
+//# sourceMappingURL=AgentCredentialIssuerEIP1271.js.map

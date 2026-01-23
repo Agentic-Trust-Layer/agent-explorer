@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ContenthashType = void 0;
+var ContenthashType;
+(function (ContenthashType) {
+    ContenthashType["Ipfs"] = "ipfs";
+    ContenthashType["Onion"] = "onion3";
+    ContenthashType["Swarm"] = "swarm";
+    ContenthashType["Arweave"] = "arweave";
+    ContenthashType["Skynet"] = "syknet";
+})(ContenthashType || (exports.ContenthashType = ContenthashType = {}));

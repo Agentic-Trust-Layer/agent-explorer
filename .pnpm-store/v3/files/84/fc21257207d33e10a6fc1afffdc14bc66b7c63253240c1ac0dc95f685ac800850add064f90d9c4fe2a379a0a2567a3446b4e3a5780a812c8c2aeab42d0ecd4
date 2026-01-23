@@ -1,0 +1,17 @@
+import { Chain } from "viem";
+/**
+ * Supported networks for listing/minting operations.
+ */
+export declare enum ListingChain {
+    Mainnet = "MAINNET",
+    Sepolia = "SEPOLIA",
+    BaseSepolia = "BASE_SEPOLIA",
+    Optimism = "OPTIMISM",
+    Base = "BASE"
+}
+/** Returns numeric chain id for a supported chain */
+export declare const getChainId: (chain: ListingChain) => number;
+/** Returns viem Chain config for a supported chain */
+export declare const getChain: (chain: ListingChain) => Chain;
+/** Resolves chain id to a supported ListingChain enum */
+export declare const getChainName: (chainId: number) => ListingChain;

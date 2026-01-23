@@ -1,0 +1,188 @@
+/**
+ * Agent class
+ *
+ * Represents a discovered agent with protocol support (A2A, MCP, etc.)
+ * Abstracts protocol details so clients can interact with agents without
+ * knowing the underlying protocol implementation.
+ */
+import type { AgenticTrustClient } from '../singletons/agenticTrustClient';
+import type { A2AAgentCard as AgentCard, AgentSkill, AgentCapabilities } from '../models/a2aAgentCardInfo';
+import type { AgentData as DiscoveryAgentData, GiveFeedbackParams } from '@agentic-trust/8004-ext-sdk';
+import type { AgentDetail, AgentIdentifier } from '../models/agentDetail';
+import type { PreparedTransaction } from '../../client/walletSigning';
+import type { SessionPackage } from '../../shared/sessionPackage';
+export type { A2AAgentCard as AgentCard, AgentSkill, AgentCapabilities, } from '../models/a2aAgentCardInfo';
+export interface MessageRequest {
+    message?: string;
+    payload?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+    skillId?: string;
+}
+export interface MessageResponse {
+    success: boolean;
+    messageId?: string;
+    response?: Record<string, unknown>;
+    error?: string;
+}
+export interface FeedbackAuthParams {
+    clientAddress: `0x${string}`;
+    agentId?: string | number | bigint;
+    indexLimit?: number;
+    expirySeconds?: number;
+    chainId?: number;
+    skillId?: string;
+    message?: string;
+    metadata?: Record<string, unknown>;
+}
+export interface FeedbackAuthResult {
+    feedbackAuthId: string;
+    agentId: string;
+    chainId: number;
+    payload: Record<string, unknown>;
+    response: MessageResponse;
+}
+export interface FeedbackAuthIssueParams {
+    clientAddress: `0x${string}`;
+    agentId?: bigint | string;
+    skillId?: string;
+    expirySeconds?: number;
+}
+export type GiveFeedbackInput = Omit<GiveFeedbackParams, 'agent' | 'agentId'> & {
+    agentId?: string;
+    clientAddress?: `0x${string}`;
+    skill?: string;
+    context?: string;
+    capability?: string;
+    feedbackAuth?: string;
+};
+/**
+ * Agent data from discovery (GraphQL)
+ */
+export type AgentData = DiscoveryAgentData;
+/**
+ * Agent class - represents a discovered agent with protocol support
+ */
+export declare class Agent {
+    readonly data: AgentData;
+    private readonly client;
+    private a2aProvider;
+    private agentCard;
+    private endpoint;
+    private initialized;
+    private sessionPackage;
+    constructor(data: AgentData, client: AgenticTrustClient);
+    /**
+     * Get agent ID
+     */
+    get agentId(): number | undefined;
+    /**
+     * Get agent name
+     */
+    get agentName(): string | undefined;
+    /**
+     * Get agent account address
+     */
+    get agentAccount(): string | undefined;
+    /**
+     * Backwards-compatible alias for agentAccount
+     */
+    get agentAddress(): string | undefined;
+    /**
+     * Get agent owner address
+     */
+    get agentOwner(): string | undefined;
+    /**
+     * Get identity DID (e.g. did:8004)
+     */
+    get didIdentity(): string | null | undefined;
+    /**
+     * Get account DID (e.g. did:ethr)
+     */
+    get didAccount(): string | null | undefined;
+    /**
+     * Get name DID (e.g. did:ens)
+     */
+    get didName(): string | null | undefined;
+    /**
+     * Get A2A endpoint URL
+     */
+    get a2aEndpoint(): string | undefined;
+    private initialize;
+    isInitialized(): boolean;
+    fetchCard(): Promise<AgentCard | null>;
+    getCard(): AgentCard | null;
+    getSkills(): Promise<AgentSkill[]>;
+    getCapabilities(): Promise<AgentCapabilities | null>;
+    supportsProtocol(): Promise<boolean>;
+    getEndpoint(): Promise<{
+        providerId: string;
+        endpoint: string;
+        method?: string;
+    } | null>;
+    /**
+     * Send a message to the agent
+     */
+    sendMessage(request: MessageRequest): Promise<MessageResponse>;
+    /**
+     * Verify the agent by sending an authentication challenge
+     * Creates a signed challenge and sends it to the agent's endpoint
+     * This will force a fresh authentication challenge even if already authenticated
+     * @returns true if verification passed, false otherwise
+     */
+    verify(): Promise<boolean>;
+    /**
+     * Request a feedback authorization token from the agent's A2A endpoint.
+     * Automatically verifies the agent (unless skipVerify=true) before sending the requestAuth message.
+     */
+    getFeedbackAuth(params: FeedbackAuthParams): Promise<FeedbackAuthResult>;
+    /**
+     * Set SessionPackage for this agent instance.
+     * This allows dynamically setting the SessionPackage based on request context
+     * (e.g., subdomain-based routing in provider apps).
+     *
+     * This is server-side only and specific to providerApp configuration.
+     *
+     * @param sessionPackage - The SessionPackage to use for this agent instance
+     */
+    setSessionPackage(sessionPackage: SessionPackage): void;
+    /**
+     * Build a providerApp-like structure from a SessionPackage.
+     * This is used when a SessionPackage is set on the agent instance.
+     */
+    private buildProviderAppFromSessionPackage;
+    /**
+     * Issue a feedback authorization on behalf of this agent using the provider app's signer.
+     * If a SessionPackage is set on this agent instance, it will be used instead of the
+     * singleton providerApp. This allows dynamic SessionPackage selection based on request context.
+     */
+    requestAuth(params: FeedbackAuthIssueParams): Promise<{
+        feedbackAuth: `0x${string}`;
+        agentId: string;
+        clientAddress: `0x${string}`;
+        skill: string;
+    }>;
+    private buildFeedbackSubmission;
+    /**
+     * Submit client feedback to the reputation contract.
+     */
+    giveFeedback(params: GiveFeedbackInput): Promise<{
+        txHash: string;
+    }>;
+    /**
+     * Prepare a giveFeedback transaction for client-side signing.
+     */
+    prepareGiveFeedback(params: GiveFeedbackInput): Promise<{
+        chainId: number;
+        transaction: PreparedTransaction;
+    }>;
+}
+/**
+ * Load a detailed Agent view using a provided AgenticTrustClient.
+ * This is the core implementation used by admin and other services.
+ */
+export declare function loadAgentDetail(client: AgenticTrustClient, agentIdentifier: AgentIdentifier, chainId?: number): Promise<AgentDetail>;
+/**
+ * @deprecated Use loadAgentDetail instead.
+ */
+export declare const buildAgentDetail: typeof loadAgentDetail;
+//# sourceMappingURL=agent.d.ts.map

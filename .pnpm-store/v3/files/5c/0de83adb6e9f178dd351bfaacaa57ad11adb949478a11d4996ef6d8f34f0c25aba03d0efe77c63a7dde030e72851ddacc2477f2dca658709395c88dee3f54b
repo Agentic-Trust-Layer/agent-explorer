@@ -1,0 +1,122 @@
+export type AgentOperationKind = 'create' | 'update';
+export type AgentOperationMode = 'aa' | 'eoa';
+export interface AgentOperationCall {
+    to: string;
+    data: string;
+    value: string;
+}
+export interface AgentPreparedTransactionPayload {
+    to: string;
+    data: string;
+    value: string;
+    gas?: string;
+    gasPrice?: string;
+    maxFeePerGas?: string;
+    maxPriorityFeePerGas?: string;
+    nonce?: number;
+    chainId: number;
+}
+export interface AgentOperationPlan {
+    success: true;
+    operation: AgentOperationKind;
+    mode: AgentOperationMode;
+    chainId: number;
+    cid?: string;
+    identityRegistry?: string;
+    tokenUri?: string;
+    bundlerUrl?: string;
+    calls: AgentOperationCall[];
+    transaction?: AgentPreparedTransactionPayload | null;
+    agentId?: string;
+    txHash?: string;
+    metadata?: Record<string, unknown>;
+}
+export interface DirectCreateAgentPayload {
+    mode: AgentOperationMode;
+    agentName: string;
+    agentAccount: string;
+    description?: string;
+    image?: string;
+    agentUrl?: string;
+    supportedTrust?: string[];
+    endpoints?: Array<{
+        name: string;
+        endpoint: string;
+        version?: string;
+        capabilities?: Record<string, any>;
+    }>;
+    chainId?: number;
+    ensOptions?: Record<string, unknown>;
+}
+export interface CreateAgentPayload {
+    mode: AgentOperationMode;
+    agentName: string;
+    agentAccount: string;
+    account?: string;
+    description?: string;
+    image?: string;
+    agentUrl?: string;
+    supportedTrust?: string[];
+    endpoints?: Array<{
+        name: string;
+        endpoint: string;
+        version?: string;
+        capabilities?: Record<string, any>;
+    }>;
+    chainId?: number;
+}
+export interface UpdateAgentRegistrationPayload {
+    did8004: string;
+    registration: unknown;
+    mode?: AgentOperationMode;
+}
+export interface RequestFeedbackAuthPayload {
+    clientAddress: string;
+    agentId: string;
+    chainId?: number;
+    indexLimit?: number;
+    expirySeconds?: number;
+}
+export interface RequestFeedbackAuthResult {
+    feedbackAuthId: string;
+    agentId: string;
+    chainId: number;
+}
+export interface PrepareFeedbackPayload {
+    did8004: string;
+    score: number;
+    feedback: string;
+    feedbackAuth: string;
+    clientAddress?: string;
+    tag1?: string;
+    tag2?: string;
+    feedbackUri?: string;
+    feedbackHash?: string;
+    skill?: string;
+    context?: string;
+    capability?: string;
+    mode?: AgentOperationMode;
+}
+export interface PrepareValidationRequestPayload {
+    did8004: string;
+    requestUri?: string;
+    requestHash?: string;
+    mode?: AgentOperationMode;
+}
+export interface DirectFeedbackPayload {
+    did8004?: string;
+    agentId?: string | number;
+    chainId?: number;
+    score: number | string;
+    feedback?: string;
+    feedbackAuth: string;
+    clientAddress?: string;
+    tag1?: string;
+    tag2?: string;
+    feedbackUri?: string;
+    feedbackHash?: string;
+    skill?: string;
+    context?: string;
+    capability?: string;
+}
+//# sourceMappingURL=types.d.ts.map

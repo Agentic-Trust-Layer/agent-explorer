@@ -1,0 +1,115 @@
+/**
+ * Agent Feedback API
+ *
+ * Handles feedback authentication for agents
+ */
+import { ethers } from 'ethers';
+import { getReputationClient } from '../singletons/reputationClient';
+// Cache for the ABI to avoid reloading it multiple times
+let abiCache = null;
+/**
+ * Load IdentityRegistry ABI using dynamic import
+ * NOTE: This function should only be called server-side (Next.js API routes)
+ */
+const getIdentityRegistryAbi = async () => {
+    // Return cached ABI if available
+    if (abiCache) {
+        return abiCache;
+    }
+    // Dynamic import works with webpack's module resolution and the package.json exports
+    try {
+        const abiModule = await import('@agentic-trust/8004-ext-sdk/abis/IdentityRegistry.json');
+        abiCache = abiModule.default || abiModule;
+        return abiCache;
+    }
+    catch (error) {
+        throw new Error(`Failed to load IdentityRegistry ABI: ${error?.message || error}. ` +
+            `Make sure @agentic-trust/8004-ext-sdk is installed and the ABI file exists.`);
+    }
+};
+/**
+ * Create feedback auth signature
+ */
+export async function createFeedbackAuth(params) {
+    const { publicClient, agentId, clientAddress, signer, walletClient, expirySeconds = 3600 } = params;
+    // Get the shared reputation client singleton
+    const reputationClient = await getReputationClient();
+    // Get identity registry from reputation client
+    const identityReg = await reputationClient.getIdentityRegistry();
+    // Load IdentityRegistry ABI (async dynamic import)
+    const identityRegistryAbi = await getIdentityRegistryAbi();
+    // Ensure IdentityRegistry operator approvals are configured for sessionAA
+    console.info("**********************************");
+    console.info("createFeedbackAuth: ", agentId, clientAddress, signer.address);
+    try {
+        const ownerOfAgent = await publicClient.readContract({
+            address: identityReg,
+            abi: identityRegistryAbi,
+            functionName: 'ownerOf',
+            args: [agentId],
+        });
+        const isOperator = await publicClient.readContract({
+            address: identityReg,
+            abi: identityRegistryAbi,
+            functionName: 'isApprovedForAll',
+            args: [ownerOfAgent, signer.address],
+        });
+        const tokenApproved = await publicClient.readContract({
+            address: identityReg,
+            abi: identityRegistryAbi,
+            functionName: 'getApproved',
+            args: [agentId],
+        });
+        console.info('IdentityRegistry approvals:', { ownerOfAgent, isOperator, tokenApproved });
+        if (!isOperator && tokenApproved.toLowerCase() !== signer.address.toLowerCase()) {
+            throw new Error(`IdentityRegistry approval missing: neither isApprovedForAll nor getApproved`);
+        }
+    }
+    catch (e) {
+        console.warn('[IdentityRegistry] approval check failed:', e?.message || e);
+        throw e;
+    }
+    const nowSec = BigInt(Math.floor(Date.now() / 1000));
+    const chainId = BigInt(publicClient.chain?.id ?? 0);
+    const U64_MAX = 18446744073709551615n;
+    const lastIndexFetched = await reputationClient.getLastIndex(agentId, clientAddress);
+    let indexLimit = lastIndexFetched + 1n;
+    let expiry = nowSec + BigInt(expirySeconds);
+    if (expiry > U64_MAX) {
+        console.warn('[FeedbackAuth] Computed expiry exceeds uint64; clamping to max');
+        expiry = U64_MAX;
+    }
+    // Build FeedbackAuth struct via ReputationClient
+    console.info("create feedback auth structure: ", agentId, clientAddress, indexLimit, expiry, chainId, signer.address);
+    const authStruct = reputationClient.createFeedbackAuth(agentId, clientAddress, indexLimit, expiry, chainId, signer.address);
+    // Note: log the struct directly; JSON.stringify cannot handle BigInt values.
+    console.info('authStruct:', authStruct);
+    // Sign keccak256(encoded tuple) with provided signer (sessionAA via ERC-1271)
+    const encoded = ethers.AbiCoder.defaultAbiCoder().encode(['uint256', 'address', 'uint256', 'uint256', 'uint256', 'address', 'address'], [
+        authStruct.agentId,
+        authStruct.clientAddress,
+        authStruct.indexLimit,
+        authStruct.expiry,
+        authStruct.chainId,
+        authStruct.identityRegistry,
+        authStruct.signerAddress,
+    ]);
+    const messageHash = ethers.keccak256(encoded);
+    // Sign the message hash using the wallet client
+    if (!walletClient) {
+        throw new Error('walletClient is required for signing feedback auth');
+    }
+    const signature = await walletClient.signMessage({
+        account: signer,
+        message: { raw: ethers.getBytes(messageHash) },
+    });
+    console.info("signature: ", signature);
+    // Return encoded tuple + signature concatenated
+    // Contract expects: encoded(FeedbackAuth struct) + signature
+    // This matches the format expected by the contract's giveFeedback function
+    const feedbackAuth = ethers.concat([encoded, signature]);
+    console.info("feedbackAuth with signature: ", feedbackAuth);
+    console.info("**********************************");
+    return feedbackAuth;
+}
+//# sourceMappingURL=agentFeedback.js.map

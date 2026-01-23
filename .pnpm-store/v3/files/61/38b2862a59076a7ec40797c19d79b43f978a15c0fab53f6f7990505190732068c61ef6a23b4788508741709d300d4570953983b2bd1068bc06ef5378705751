@@ -1,0 +1,100 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getCoinType = exports.chainMetadata = exports.ChainName = void 0;
+var ChainName;
+(function (ChainName) {
+    ChainName["Ethereum"] = "eth";
+    ChainName["Default"] = "default";
+    ChainName["Solana"] = "sol";
+    ChainName["Arbitrum"] = "arb";
+    ChainName["Optimism"] = "op";
+    ChainName["Base"] = "base";
+    ChainName["Polygon"] = "polygon";
+    ChainName["Bsc"] = "bsc";
+    ChainName["Avalanche"] = "avax";
+    ChainName["Gnosis"] = "gnosis";
+    ChainName["Zksync"] = "zksync";
+    ChainName["Cosmos"] = "cosmos";
+    ChainName["Near"] = "near";
+    ChainName["Linea"] = "linea";
+    ChainName["Scroll"] = "scroll";
+    ChainName["Bitcoin"] = "btc";
+    ChainName["Starknet"] = "starknet";
+})(ChainName || (exports.ChainName = ChainName = {}));
+const convertToCoinType = (coinType) => {
+    return (0x80000000 | coinType) >>> 0;
+};
+exports.chainMetadata = {
+    eth: {
+        label: "Ethereum",
+        coin: 60,
+    },
+    default: {
+        label: "Default",
+        coin: 2147483648,
+    },
+    base: {
+        label: "Base",
+        coin: convertToCoinType(8453),
+    },
+    op: {
+        label: "Optimism",
+        coin: convertToCoinType(10),
+    },
+    arb: {
+        label: "Arbitrum",
+        coin: convertToCoinType(42161),
+    },
+    bsc: {
+        label: "BNB",
+        coin: convertToCoinType(56),
+    },
+    polygon: {
+        label: "Polygon",
+        coin: convertToCoinType(137),
+    },
+    avax: {
+        label: "Avax",
+        coin: convertToCoinType(43114),
+    },
+    gnosis: {
+        label: "Gnosis",
+        coin: convertToCoinType(100),
+    },
+    zksync: {
+        label: "ZkSync",
+        coin: convertToCoinType(324),
+    },
+    starknet: {
+        label: "Starknet",
+        coin: 234567891,
+    },
+    sol: {
+        label: "Solana",
+        coin: 501,
+    },
+    btc: {
+        label: "Bitcoin",
+        coin: 0,
+    },
+    cosmos: {
+        label: "Cosmos",
+        coin: 118,
+    },
+    near: {
+        label: "Near",
+        coin: 397,
+    },
+    linea: {
+        label: "Linea",
+        coin: convertToCoinType(59144),
+    },
+    scroll: {
+        label: "Scroll",
+        coin: convertToCoinType(534352),
+    },
+};
+const getCoinType = (chainName) => {
+    return exports.chainMetadata[chainName]?.coin;
+};
+exports.getCoinType = getCoinType;

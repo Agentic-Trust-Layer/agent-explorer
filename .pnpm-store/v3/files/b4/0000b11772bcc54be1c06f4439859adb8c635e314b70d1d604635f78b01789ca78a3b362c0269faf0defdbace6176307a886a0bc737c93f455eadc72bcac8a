@@ -1,0 +1,76 @@
+{
+  "name": "@veramo/kms-local",
+  "description": "Veramo KMS implementation that provides Ed25519 and secp256k1 crypto",
+  "version": "6.0.0",
+  "main": "build/index.js",
+  "exports": "./build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "extract-api": "node ../cli/bin/veramo.js dev extract-api"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.1.0",
+    "@stablelib/nacl": "^1.0.4",
+    "@stablelib/random": "^1.0.2",
+    "@veramo/core-types": "^6.0.0",
+    "@veramo/key-manager": "^6.0.0",
+    "@veramo/utils": "^6.0.0",
+    "debug": "^4.3.3",
+    "did-jwt": "^8.0.0",
+    "ethers": "^6.11.1"
+  },
+  "devDependencies": {
+    "@types/debug": "4.1.8",
+    "typescript": "5.3.3"
+  },
+  "files": [
+    "build/**/*",
+    "src/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/decentralized-identity/veramo.git",
+    "directory": "packages/kms-local"
+  },
+  "author": "Consensys Mesh R&D <hello@veramo.io>",
+  "contributors": [
+    "Simonas Karuzas <simonas.karuzas@mesh.xyz>",
+    "Mircea Nistor <mircea.nistor@mesh.xyz>"
+  ],
+  "keywords": [
+    "Veramo",
+    "DID",
+    "Verifiable Credential",
+    "veramo-plugin",
+    "KMS",
+    "key database",
+    "ES256K",
+    "ES256K-R",
+    "Ed25519",
+    "EdDSA",
+    "JWS",
+    "JWE",
+    "Secp256k1",
+    "Secp256r1",
+    "P-256",
+    "X25519",
+    "Ethereum",
+    "wallet",
+    "eth_sign",
+    "EIP712",
+    "EIP191"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "moduleDirectories": [
+    "node_modules",
+    "src"
+  ],
+  "gitHead": "9a0e6bd1ec2d49e152b18d086decbe49e6f41028"
+}

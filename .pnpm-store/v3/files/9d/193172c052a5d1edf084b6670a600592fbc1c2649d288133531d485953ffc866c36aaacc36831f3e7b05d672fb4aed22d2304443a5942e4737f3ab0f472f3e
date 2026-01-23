@@ -1,0 +1,44 @@
+/**
+ * A2A Agent Card (agent-card.json) types
+ */
+export interface AgentSkill {
+    id: string;
+    name: string;
+    description?: string;
+    tags?: string[];
+    examples?: string[];
+    inputModes?: string[];
+    outputModes?: string[];
+}
+export interface AgentRegistration {
+    agentId: number;
+    agentAddress: string;
+    signature: string;
+}
+export interface AgentProvider {
+    organization: string;
+    url: string;
+}
+export interface AgentCapabilities {
+    streaming?: boolean;
+    pushNotifications?: boolean;
+    stateTransitionHistory?: boolean;
+    [key: string]: unknown;
+}
+export interface A2AAgentCard {
+    name: string;
+    description?: string;
+    url: string;
+    provider?: AgentProvider;
+    version?: string;
+    capabilities?: AgentCapabilities;
+    defaultInputModes?: string[];
+    defaultOutputModes?: string[];
+    skills?: AgentSkill[];
+    registrations?: AgentRegistration[];
+    trustModels?: string[];
+    supportsAuthenticatedExtendedCard?: boolean;
+    feedbackDataURI?: string;
+    [key: string]: unknown;
+}
+//# sourceMappingURL=a2aAgentCardInfo.d.ts.map

@@ -1,0 +1,11 @@
+/**
+ * Validation Client Singleton
+ *
+ * Manages a singleton instance of AIAgentValidationClient
+ * Initialized from environment variables and domain AccountProvider
+ */
+import { AIAgentValidationClient } from '@agentic-trust/8004-ext-sdk';
+export declare function getValidationClient(chainId?: number): Promise<AIAgentValidationClient>;
+export declare function isValidationClientInitialized(chainId?: number): boolean;
+export declare function resetValidationClient(chainId?: number): void;
+//# sourceMappingURL=validationClient.d.ts.map

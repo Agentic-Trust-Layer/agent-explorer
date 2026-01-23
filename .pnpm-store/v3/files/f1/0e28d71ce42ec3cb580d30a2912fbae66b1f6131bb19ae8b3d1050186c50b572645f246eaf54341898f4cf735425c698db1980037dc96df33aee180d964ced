@@ -1,0 +1,22 @@
+/**
+ * Next.js API Route Handler for updating agent registration with Account Abstraction
+ *
+ * This handler can be directly exported and used in Next.js apps:
+ *
+ * ```typescript
+ * // In app/api/agents/[did:8004]/registration/route.ts
+ * export { PUT as updateAgentRegistrationHandler } from '@agentic-trust/core/server/api/agents/[did:8004]/registration';
+ * ```
+ *
+ * Or using the exported handler:
+ * ```typescript
+ * export { updateAgentRegistrationHandler as PUT } from '@agentic-trust/core/server';
+ * ```
+ */
+type NextRequest = any;
+type NextResponseType = any;
+export declare function PUT(request: NextRequest, { params }: {
+    params: Record<string, string | undefined>;
+}): Promise<NextResponseType>;
+export {};
+//# sourceMappingURL=registration.d.ts.map

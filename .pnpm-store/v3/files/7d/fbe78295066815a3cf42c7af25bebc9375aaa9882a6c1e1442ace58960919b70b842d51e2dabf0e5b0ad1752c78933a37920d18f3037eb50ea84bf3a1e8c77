@@ -1,0 +1,3 @@
+import type { ResolverRegistry } from 'did-resolver';
+export declare function getAgentResolver(): ResolverRegistry;
+//# sourceMappingURL=AgentResolver.d.ts.map

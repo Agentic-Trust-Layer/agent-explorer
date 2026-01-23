@@ -1,0 +1,112 @@
+/**
+ * ERC-8004 SDK Types
+ * All types strictly follow the ERC-8004 specification
+ */
+/**
+ * Metadata entry for agent registration
+ * Used when registering an agent with on-chain metadata
+ */
+export interface MetadataEntry {
+    key: string;
+    value: string;
+}
+/**
+ * Agent registration file structure
+ * Fields marked OPTIONAL follow "MAY" requirements in the spec
+ */
+export interface AgentRegistrationFile {
+    type: string;
+    name: string;
+    description: string;
+    image: string;
+    endpoints?: Array<{
+        name: string;
+        endpoint: string;
+        version?: string;
+        capabilities?: any;
+    }>;
+    registrations?: Array<{
+        agentId: number;
+        agentRegistry: string;
+    }>;
+    supportedTrust?: Array<'reputation' | 'crypto-economic' | 'tee-attestation' | string>;
+}
+/**
+ * Feedback authorization structure
+ * Tuple: (agentId, clientAddress, indexLimit, expiry, chainId, identityRegistry, signerAddress)
+ */
+export interface FeedbackAuth {
+    agentId: bigint;
+    clientAddress: string;
+    indexLimit: bigint;
+    expiry: bigint;
+    chainId: bigint;
+    identityRegistry: string;
+    signerAddress: string;
+}
+/**
+ * Feedback structure as stored on-chain
+ */
+export interface Feedback {
+    score: number;
+    tag1?: string;
+    tag2?: string;
+    isRevoked: boolean;
+}
+/**
+ * Off-chain feedback file structure
+ * Fields beyond the MUST fields are all OPTIONAL per spec
+ */
+export interface FeedbackFile {
+    agentRegistry: string;
+    agentId: number;
+    clientAddress: string;
+    createdAt: string;
+    feedbackAuth: string;
+    score: number;
+    tag1?: string;
+    tag2?: string;
+    skill?: string;
+    context?: string;
+    task?: string;
+    capability?: 'prompts' | 'resources' | 'tools' | 'completions';
+    name?: string;
+    proof_of_payment?: {
+        fromAddress: string;
+        toAddress: string;
+        chainId: string;
+        txHash: string;
+    };
+    [key: string]: any;
+}
+/**
+ * Summary statistics for reputation or validation
+ */
+export interface Summary {
+    count: bigint;
+    averageScore: number;
+}
+/**
+ * Validation status
+ * Note: responseHash is optional for backward compatibility with older contract versions
+ */
+export interface ValidationStatus {
+    validatorAddress: string;
+    agentId: bigint;
+    response: number;
+    responseHash?: string;
+    tag: string;
+    lastUpdate: bigint;
+}
+/**
+ * SDK Configuration
+ * Accepts any Ethereum provider compatible with ethers.js v6
+ */
+export interface ERC8004Config {
+    identityRegistryAddress: string;
+    reputationRegistryAddress: string;
+    validationRegistryAddress: string;
+    provider: any;
+    signer?: any;
+}
+//# sourceMappingURL=types.d.ts.map

@@ -1,0 +1,77 @@
+{
+  "name": "@agentic-trust/8004-ext-sdk",
+  "version": "1.0.32",
+  "description": "ERC-8004 Agentic Trust SDK - A TypeScript SDK for managing AI agents with ENS integration, identity management, and reputation systems",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./utils/did8004": {
+      "import": "./dist/utils/did8004.js",
+      "types": "./dist/utils/did8004.d.ts"
+    },
+    "./package.json": "./package.json",
+    "./abis/*.json": {
+      "import": "./abis/*.json",
+      "require": "./abis/*.json",
+      "default": "./abis/*.json"
+    }
+  },
+  "files": [
+    "dist",
+    "abis",
+    "README.md"
+  ],
+  "keywords": [
+    "erc8004",
+    "ai-agents",
+    "ens",
+    "ethereum",
+    "identity",
+    "reputation",
+    "trustless-agents",
+    "blockchain",
+    "typescript",
+    "sdk"
+  ],
+  "author": "ERC-8004 Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erc8004/erc-8004-identity-indexer.git",
+    "directory": "packages/erc8004-agentic-trust-sdk"
+  },
+  "dependencies": {
+    "graphql-request": "^6.1.0",
+    "viem": "^2.37.11",
+    "ethers": "^6.13.2",
+    "@metamask/delegation-toolkit": "^0.13.0",
+    "@thenamespace/mint-manager": "^1.1.0",
+    "@thenamespace/indexer": "^1.0.2",
+    "@agentic-trust/8004-sdk": "1.0.32"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/react": "^18.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  }
+}

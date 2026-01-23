@@ -1,0 +1,1 @@
+{"version":3,"file":"vlxLegacy.js","sourceRoot":"","sources":["../../../src/coin/vlxLegacy.ts"],"names":[],"mappings":";;;AACA,kDAG4B;AAE5B,MAAM,IAAI,GAAG,WAAW,CAAC;AACzB,MAAM,QAAQ,GAAG,GAAG,CAAC;AAER,QAAA,sBAAsB,GAAG,iCAAqB,CAAC;AAC/C,QAAA,sBAAsB,GAAG,iCAAqB,CAAC;AAE/C,QAAA,SAAS,GAAG;IACvB,IAAI;IACJ,QAAQ;IACR,MAAM,EAAE,8BAAsB;IAC9B,MAAM,EAAE,8BAAsB;CACA,CAAC"}

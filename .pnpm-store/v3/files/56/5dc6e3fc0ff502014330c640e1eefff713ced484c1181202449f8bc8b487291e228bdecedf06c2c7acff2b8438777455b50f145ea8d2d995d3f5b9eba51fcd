@@ -1,0 +1,37 @@
+{
+  "name": "json-canonicalize",
+  "version": "1.2.0",
+  "description": "JSON canonicalize function ",
+  "keywords": [
+    "json",
+    "canonical",
+    "canonicalize",
+    "canonicalization",
+    "serialization",
+    "lexicographic",
+    "sign",
+    "signature",
+    "signing",
+    "crypto"
+  ],
+  "files": [
+    "src",
+    "bundles",
+    "esm5",
+    "esm2015",
+    "types"
+  ],
+  "main": "./bundles/index.umd.js",
+  "module": "./esm5/index.js",
+  "es2015": "./esm2015/index.js",
+  "typings": "./types/index.d.ts",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/snowyu/json-canonicalize.ts"
+  },
+  "author": "Riceball LEE <snowyu.lee@gmail.com>",
+  "license": "MIT",
+  "peerDependencies": {},
+  "dependencies": {}
+}

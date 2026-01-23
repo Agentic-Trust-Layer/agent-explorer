@@ -1,0 +1,47 @@
+/**
+ * Server-only exports for @agentic-trust/core
+ *
+ * This entry point aggregates utilities that are safe to use in Node.js / server contexts only.
+ * Import from `@agentic-trust/core/server` instead of the base package when you need these helpers.
+ */
+// API route handlers (server-side only)
+export { handleResolveAccount } from './lib/resolveAccount';
+// Next.js API route handlers for agents (function-based)
+export { createAgentRouteHandler, updateAgentRegistrationRouteHandler, requestFeedbackAuthRouteHandler, prepareFeedbackRouteHandler, prepareValidationRequestRouteHandler, getFeedbackRouteHandler, directFeedbackRouteHandler, getValidationsRouteHandler, } from '../api/agents/next';
+export { createAgentDirectRouteHandler, } from '../api/agents/directNext';
+// Express-compatible API route handlers and router helpers
+export { createAgentExpressHandler, updateAgentRegistrationExpressHandler, requestFeedbackAuthExpressHandler, prepareFeedbackExpressHandler, getFeedbackExpressHandler, mountAgentRoutes as mountAgentApiRoutes, } from '../api/agents/express';
+export { createAgentDirectExpressHandler, } from '../api/agents/directExpress';
+// Core agent API for direct server usage
+export { createAgentCore as createAgent, updateAgentRegistrationCore as updateAgentRegistration, requestFeedbackAuthCore as requestFeedbackAuth, prepareFeedbackCore as prepareFeedback, prepareValidationRequestCore as prepareValidationRequest, } from '../api/agents/core';
+export { createAgentDirectCore as createAgentDirect } from '../api/agents/directServer';
+// Server singletons & utilities
+export { AgenticTrustClient, } from './singletons/agenticTrustClient';
+export { getAgenticTrustClient, } from './lib/agenticTrust';
+export { fetchA2AAgentCard, } from './lib/a2aAgentCard';
+export { Agent, } from './lib/agent';
+export { AgentsAPI, } from './lib/agents';
+export { createFeedbackAuth, } from './lib/agentFeedback';
+export { uploadRegistration, getRegistration, createRegistrationJSON, } from './lib/agentRegistration';
+export { getAgentAccountByAgentName, extractAgentAccountFromDiscovery, getCounterfactualAAAddressByAgentName, } from './lib/accounts';
+export { getAdminApp, getAdminAddress, isAdminAppInitialized, resetAdminApp, hasAdminPrivateKey, } from './userApps/adminApp';
+export { getClientApp, getClientAppAccount, getClientAddress, isClientAppInitialized, resetClientApp, } from './userApps/clientApp';
+export { getProviderApp, getProviderAgentId, isProviderAppInitialized, resetProviderApp, } from './userApps/providerApp';
+export { getValidatorApp, getValidatorAddress, hasValidatorPrivateKey, isValidatorAppInitialized, resetValidatorApp, } from './userApps/validatorApp';
+export { getDiscoveryClient, isDiscoveryClientInitialized, resetDiscoveryClient, } from './singletons/discoveryClient';
+export { getENSClient, isENSClientInitialized, resetENSClient, isENSNameAvailable, isENSAvailable, } from './singletons/ensClient';
+// API helpers for server routes (discovery/search)
+export { discoverAgents, } from './lib/discover';
+export { searchAgentsGetRouteHandler, searchAgentsPostRouteHandler, } from '../api/search/next';
+export { getAccountOwner, getAccountOwnerByDidEthr, parseEthrDid, } from './lib/accounts';
+export { getChainEnvVar, getChainEnvVarDetails, getChainEnvVarNames, requireChainEnvVar, getChainById, getSupportedChainIds, isChainSupported, getChainConfig, getChainRpcUrl, getChainBundlerUrl, isPrivateKeyMode, getEnsOrgName, getEnsOrgAddress, getEnsPrivateKey, getWeb3AuthClientId, getWeb3AuthNetwork, getChainDisplayMetadata, getWeb3AuthChainSettings, getChainIdHex, DEFAULT_CHAIN_ID, sepolia, baseSepolia, optimismSepolia, } from './lib/chainConfig';
+// Export IPFS storage (server-backed implementation)
+export { createIPFSStorage, getIPFSStorage, isIPFSStorageInitialized, resetIPFSStorage, } from './lib/ipfs';
+export { addToL1OrgPK, setL1NameInfoPK, } from './lib/names';
+export { loadSessionPackage, validateSessionPackage, buildDelegationSetup, buildSessionPackage, } from './lib/sessionPackage';
+// AA utilities that rely on server-side contexts
+export { buildAgentAccountFromSession } from './lib/sessionPackage';
+// Validation client and utilities
+export { getValidationClient, isValidationClientInitialized, resetValidationClient, } from './singletons/validationClient';
+export { createValidatorAccountAbstraction, getAgentValidationsSummary, } from './lib/validations';
+//# sourceMappingURL=index.js.map

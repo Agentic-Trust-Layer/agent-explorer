@@ -1,0 +1,32 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.sui = exports.decodeSuiAddress = exports.encodeSuiAddress = void 0;
+const bytes_js_1 = require("../utils/bytes.js");
+const hex_js_1 = require("../utils/hex.js");
+const name = "sui";
+const coinType = 784;
+const encodeSuiAddress = (source) => {
+    if (source.length !== 32)
+        throw new Error("Unrecognised address format");
+    const encoded = (0, bytes_js_1.bytesToHex)(source);
+    return encoded.toLowerCase();
+};
+exports.encodeSuiAddress = encodeSuiAddress;
+const decodeSuiAddress = (source) => {
+    const stripped = (0, hex_js_1.stripHexPrefix)(source);
+    if (!/^0x[a-fA-F0-9]{64}$/.test(source) && !/^[a-fA-F0-9]{64}$/.test(stripped)) {
+        throw new Error("Unrecognised address format");
+    }
+    const decoded = (0, bytes_js_1.hexToBytes)(`0x${stripped}`);
+    if (decoded.length !== 32)
+        throw new Error("Unrecognised address format");
+    return decoded;
+};
+exports.decodeSuiAddress = decodeSuiAddress;
+exports.sui = {
+    name,
+    coinType,
+    encode: exports.encodeSuiAddress,
+    decode: exports.decodeSuiAddress,
+};
+//# sourceMappingURL=sui.js.map

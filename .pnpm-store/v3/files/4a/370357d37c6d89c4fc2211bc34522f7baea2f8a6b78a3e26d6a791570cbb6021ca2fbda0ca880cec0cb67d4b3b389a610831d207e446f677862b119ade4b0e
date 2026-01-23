@@ -1,0 +1,162 @@
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createIndexerClient = void 0;
+const axios_1 = __importStar(require("axios"));
+/** Default indexer API endpoint */
+const DEFAULT_INDEXER_URI = "https://indexer.namespace.ninja";
+/**
+ * HTTP-based implementation of the IndexerClient
+ * Uses axios for HTTP requests to the Namespace Indexer API
+ */
+class HttpIndexerClient {
+    /**
+     * Creates a new HTTP IndexerClient instance
+     * @param config - Configuration options for the client
+     */
+    constructor(config = {}) {
+        this.config = config;
+        const uri = config.indexerUri || DEFAULT_INDEXER_URI;
+        this.http = axios_1.default.create({
+            ...config,
+            baseURL: uri,
+            timeout: config.timeout || 30000, // 30 second default timeout
+            headers: {
+                'Content-Type': 'application/json',
+                ...config.headers,
+            }
+        });
+        // Add response interceptor for better error handling
+        this.http.interceptors.response.use((response) => response, (error) => {
+            if (error.response) {
+                // Server responded with error status
+                const status = error.response.status;
+                const data = error.response.data;
+                console.error(`Indexer API Error ${status}:`, data);
+            }
+            else if (error.request) {
+                // Request was made but no response received
+                console.error('Indexer API Network Error:', error.message);
+            }
+            else {
+                // Something else happened
+                console.error('Indexer API Error:', error.message);
+            }
+            return Promise.reject(error);
+        });
+    }
+    /**
+     * Get a single L2 subname by chain ID and name/namehash
+     * @param request - The request parameters
+     * @returns Promise resolving to the L2 subname data
+     */
+    async getL2Subname({ chainId, nameOrNamehash, }) {
+        try {
+            const response = await this.http.get(`/api/v1/l2-subnames/chainId/${chainId}/namehash/${nameOrNamehash}`);
+            return response.data;
+        }
+        catch (error) {
+            throw this.handleError(error, 'getL2Subname', { chainId, nameOrNamehash });
+        }
+    }
+    /**
+     * Get L2 registry information by chain ID and name/namehash
+     * @param request - The request parameters
+     * @returns Promise resolving to the L2 registry data
+     */
+    async getL2Registry({ chainId, nameOrNamehash, }) {
+        try {
+            const response = await this.http.get(`/api/v1/l2-subnames/registry/chainId/${chainId}/namehash/${nameOrNamehash}`);
+            return response.data;
+        }
+        catch (error) {
+            throw this.handleError(error, 'getL2Registry', { chainId, nameOrNamehash });
+        }
+    }
+    /**
+     * Get multiple L2 subnames with optional filtering and pagination
+     * @param request - The request parameters for filtering and pagination
+     * @returns Promise resolving to paginated L2 subnames data
+     */
+    async getL2Subnames(request) {
+        try {
+            const response = await this.http.get(`/api/v1/l2-subnames/all`, { params: request });
+            return response.data;
+        }
+        catch (error) {
+            throw this.handleError(error, 'getL2Subnames', request);
+        }
+    }
+    /**
+     * Handle and enhance errors with context information
+     * @param error - The original error
+     * @param method - The method name where the error occurred
+     * @param params - The parameters that were passed to the method
+     * @returns Enhanced error with additional context
+     */
+    handleError(error, method, params) {
+        if (error instanceof axios_1.AxiosError) {
+            const enhancedError = new Error(`Indexer API Error in ${method}: ${error.message}`);
+            enhancedError.originalError = error;
+            enhancedError.method = method;
+            enhancedError.params = params;
+            return enhancedError;
+        }
+        return error instanceof Error ? error : new Error(String(error));
+    }
+}
+/**
+ * Factory function to create a new IndexerClient instance
+ * @param config - Optional configuration for the client
+ * @returns A new IndexerClient instance
+ *
+ * @example
+ * ```typescript
+ * // Create client with default configuration
+ * const client = createIndexerClient();
+ *
+ * // Create client with custom configuration
+ * const client = createIndexerClient({
+ *   indexerUri: 'https://test-indexer.namespace.ninja',
+ *   timeout: 10000,
+ *   headers: { 'Authorization': 'Bearer token' }
+ * });
+ * ```
+ */
+const createIndexerClient = (config) => {
+    return new HttpIndexerClient(config);
+};
+exports.createIndexerClient = createIndexerClient;
+//# sourceMappingURL=index.js.map

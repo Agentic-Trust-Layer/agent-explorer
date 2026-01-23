@@ -1,0 +1,25 @@
+type Address = `0x${string}`;
+export interface L1ContractAddresses {
+    mintController: Address;
+    nameWrapperProxy: Address;
+    hybridResolver: Address;
+    oldHybridResolver: Address;
+    bulkEnsRegistrar: Address;
+}
+export interface L2ContractAddresses {
+    controller: Address;
+    resolver: Address;
+    registryResolver: Address;
+    emitter: Address;
+}
+export interface EnsContracts {
+    nameWrapper: Address;
+    ensRegistry: Address;
+    publicResolver: Address;
+    ethRegistrarController: Address;
+    universalResolver: Address;
+}
+export declare const getEnsContracts: (isTestnet?: boolean) => EnsContracts;
+export declare const getL1NamespaceContracts: (isTestnet?: boolean) => L1ContractAddresses;
+export declare const getL2NamespaceContracts: (chainId: number) => L2ContractAddresses;
+export {};

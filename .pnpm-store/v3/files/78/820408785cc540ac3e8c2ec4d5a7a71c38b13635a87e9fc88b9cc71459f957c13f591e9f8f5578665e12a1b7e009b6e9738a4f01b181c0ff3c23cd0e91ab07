@@ -1,0 +1,82 @@
+/**
+ * Next.js API Route Handler for updating agent registration with Account Abstraction
+ *
+ * This handler can be directly exported and used in Next.js apps.
+ * The client-side function `updateAgentRegistrationWithWalletForAA` from `@agentic-trust/core/client`
+ * automatically calls this endpoint at `/api/agents/[did:8004]/registration`.
+ *
+ * Usage in your Next.js app:
+ *
+ * ```typescript
+ * // In app/api/agents/[did:8004]/registration/route.ts
+ * export { updateAgentRegistrationHandler as PUT } from '@agentic-trust/core/server';
+ * ```
+ *
+ * Then in your React component:
+ *
+ * ```typescript
+ * import { updateAgentRegistrationWithWalletForAA } from '@agentic-trust/core/client';
+ *
+ * const result = await updateAgentRegistrationWithWalletForAA({
+ *   did8004: 'did:8004:11155111:123',
+ *   chain: sepolia,
+ *   accountClient: agentAccountClient,
+ *   registration: { name: 'Updated Agent', description: '...' },
+ * });
+ * ```
+ *
+ * The client function handles:
+ * - Registration JSON serialization
+ * - API call to prepare update calls
+ * - UserOperation submission via bundler
+ * - Receipt waiting and confirmation
+ *
+ * For Express apps, use the Express-compatible handler:
+ * ```typescript
+ * import { updateAgentRegistrationExpressHandler } from '@agentic-trust/core/server/api/agents/express';
+ * ```
+ */
+import { handleUpdateAgentRegistration } from './handlers/update-registration';
+// Try to load NextResponse at module load time (static pattern)
+// If Next.js isn't installed, this will be null and the handler will throw a helpful error
+let NextResponse = null;
+try {
+    // First, try direct require (works in Next.js webpack bundling)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    NextResponse = require('next/server').NextResponse;
+}
+catch (firstError) {
+    // If direct require fails, try using createRequire (for pure ES modules like Express)
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { createRequire } = require('module');
+        const requireFn = createRequire(import.meta.url);
+        NextResponse = requireFn('next/server').NextResponse;
+    }
+    catch {
+        // Next.js not available - this is OK, handler will throw helpful error when called
+        NextResponse = null;
+    }
+}
+// Handle different encodings of the colon in the route parameter (Next.js may encode it differently)
+const DID_PARAM_KEYS = ['did:8004', 'did:8004', 'did:8004'];
+function getDidParam(params) {
+    for (const key of DID_PARAM_KEYS) {
+        const value = params[key];
+        if (value) {
+            return decodeURIComponent(value);
+        }
+    }
+    throw new Error('Missing did:8004 parameter');
+}
+export async function PUT(request, { params }) {
+    if (!NextResponse) {
+        throw new Error('Next.js is required for this handler. ' +
+            'In Express apps, use updateAgentRegistrationExpressHandler from @agentic-trust/core/server/api/agents/express');
+    }
+    const agentDid = getDidParam(params);
+    const body = await request.json();
+    const result = await handleUpdateAgentRegistration(agentDid, body);
+    return NextResponse.json(result.data, { status: result.status });
+}
+//# sourceMappingURL=did8004-registration.js.map

@@ -1,0 +1,5 @@
+{
+  "types": "../dist/types/coins.d.ts",
+  "module": "../dist/esm/coins.js",
+  "main": "../dist/cjs/coins.js"
+}

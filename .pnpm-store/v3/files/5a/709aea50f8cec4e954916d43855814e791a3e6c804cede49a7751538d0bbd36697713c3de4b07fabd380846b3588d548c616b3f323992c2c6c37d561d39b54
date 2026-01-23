@@ -1,0 +1,34 @@
+/**
+ * Framework-agnostic handler for updating agent registration with Account Abstraction
+ *
+ * This contains the core business logic that can be used by both Next.js and Express handlers.
+ */
+export interface UpdateAgentRegistrationRequest {
+    registration: unknown;
+}
+export interface UpdateAgentRegistrationResponse {
+    success: true;
+    cid: string;
+    tokenUri: string;
+    chainId: number;
+    identityRegistry: string;
+    bundlerUrl: string;
+    calls: Array<{
+        to: string;
+        data: string;
+        value: string;
+    }>;
+}
+export interface UpdateAgentRegistrationError {
+    error: string;
+    message?: string;
+    details?: string;
+}
+/**
+ * Framework-agnostic handler for updating agent registration
+ */
+export declare function handleUpdateAgentRegistration(agentDid: string, body: unknown): Promise<{
+    status: number;
+    data: UpdateAgentRegistrationResponse | UpdateAgentRegistrationError;
+}>;
+//# sourceMappingURL=update-registration.d.ts.map

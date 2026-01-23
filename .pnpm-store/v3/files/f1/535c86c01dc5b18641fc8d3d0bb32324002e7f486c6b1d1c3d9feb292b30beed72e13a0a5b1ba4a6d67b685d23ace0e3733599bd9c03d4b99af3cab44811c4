@@ -1,0 +1,7 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getEnsContracts = exports.getL2NamespaceContracts = exports.getL1NamespaceContracts = void 0;
+var addresses_1 = require("./addresses");
+Object.defineProperty(exports, "getL1NamespaceContracts", { enumerable: true, get: function () { return addresses_1.getL1NamespaceContracts; } });
+Object.defineProperty(exports, "getL2NamespaceContracts", { enumerable: true, get: function () { return addresses_1.getL2NamespaceContracts; } });
+Object.defineProperty(exports, "getEnsContracts", { enumerable: true, get: function () { return addresses_1.getEnsContracts; } });

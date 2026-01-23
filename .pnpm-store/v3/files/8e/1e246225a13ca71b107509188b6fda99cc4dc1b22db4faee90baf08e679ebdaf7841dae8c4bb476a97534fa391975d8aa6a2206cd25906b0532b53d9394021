@@ -1,0 +1,81 @@
+/**
+ * Response interface for L2 subname data from the Namespace Indexer
+ */
+export interface L2SubnameResponse {
+    /** The human-readable name (e.g., "alice.namespace.eth") */
+    name: string;
+    /** The namehash of the subname */
+    namehash: string;
+    /** The owner address of the subname */
+    owner: string;
+    /** Optional avatar URL for the subname */
+    avatar?: string;
+    /** The chain ID where the subname is registered */
+    chainId: number;
+    /** Expiration timestamp in seconds (0 if not expirable) */
+    expiry: number;
+    /** The namehash of the parent domain */
+    parentHash: string;
+    /** DNS records associated with the subname */
+    records: {
+        /** Address records (e.g., ETH, BTC addresses) */
+        addresses: Record<string, string>;
+        /** Text records (e.g., email, description) */
+        texts: Record<string, string>;
+        /** Content hash record (IPFS hash, etc.) */
+        contenthash: string;
+    };
+    /** Transaction metadata for the subname registration */
+    metadata: {
+        /** Block number when the subname was registered */
+        blockNumber: number;
+        /** Price paid for the subname in wei */
+        price: number;
+        /** Fee paid for the transaction in wei */
+        fee: number;
+        /** Transaction hash of the registration */
+        tx: string;
+    };
+}
+/**
+ * Request interface for querying a single L2 subname
+ */
+export interface L2SubnameRequest {
+    /** Supported chain IDs: 10 (Optimism), 8453 (Base), 84532 (Base Sepolia) */
+    chainId: 10 | 8453 | 84532;
+    /** The name or namehash to query */
+    nameOrNamehash: string;
+}
+/**
+ * Response interface for paginated L2 subnames list
+ */
+export interface L2SubnamesResponse {
+    /** Number of items per page */
+    size: number;
+    /** Current page number (0-indexed) */
+    page: number;
+    /** Array of L2 subname data */
+    items: L2SubnameResponse[];
+    /** Total number of subnames matching the query */
+    total: number;
+}
+/**
+ * Request interface for querying multiple L2 subnames with filters
+ */
+export interface L2SubnamesRequest {
+    /** Filter by owner address */
+    owner?: string;
+    /** Filter by chain ID */
+    chainId?: number;
+    /** Page number for pagination (0-indexed) */
+    page?: number;
+    /** Number of items per page */
+    size?: number;
+    /** Filter by parent domain */
+    parent?: string;
+    /** Filter by testnet status */
+    isTestnet?: boolean;
+    /** Search subnames by name (partial match) */
+    stringSearch?: string;
+}
+//# sourceMappingURL=l2-subname.dto.d.ts.map

@@ -1,0 +1,56 @@
+/**
+ * Server-side utilities for account operations
+ *
+ * This module provides utilities for:
+ * - Getting account owners (EOA) from account addresses
+ * - Resolving agent account addresses by name
+ * - Computing counterfactual AA addresses (private key mode only)
+ * - Parsing PKH DIDs
+ */
+export interface ParsedEthrDid {
+    account: `0x${string}`;
+    chainId: number;
+}
+/**
+ * Parse a did:ethr DID to extract chainId and account address
+ *
+ * @param didEthr - The did:ethr string (e.g., "did:ethr:11155111:0x1234..." or "did:ethr:0x1234...")
+ * @returns Parsed DID with chainId and account address
+ */
+export declare function parseEthrDid(didEthr: string): ParsedEthrDid;
+/**
+ * Get the owner (EOA) of an account address using did:ethr format
+ *
+ * @param didEthr - The did:ethr string (e.g., "did:ethr:11155111:0x1234...")
+ * @returns The owner address (EOA) or null if not found or error
+ */
+export declare function getAccountOwnerByDidEthr(didEthr: string): Promise<string | null>;
+/**
+ * Get the owner (EOA) of an account address
+ *
+ * @param accountAddress - The account address (smart account or contract)
+ * @param chainId - Chain ID where the account is deployed (defaults to DEFAULT_CHAIN_ID)
+ * @returns The owner address (EOA) or null if not found or error
+ */
+export declare function getAccountOwner(accountAddress: `0x${string}`, chainId?: number): Promise<string | null>;
+export type AgentAccountResolution = {
+    account: `0x${string}` | null;
+    method: 'ens-identity' | 'ens-direct' | 'discovery' | 'deterministic' | null;
+};
+export declare function extractAgentAccountFromDiscovery(agent: unknown): `0x${string}` | null;
+/**
+ * Resolve the agent account address using ENS. Falls back to deterministic indication when not found.
+ */
+export declare function getAgentAccountByAgentName(agentName: string): Promise<AgentAccountResolution>;
+/**
+ * Get the counterfactual AA address for an agent name (server-side computation with private key)
+ *
+ * This function computes the AA address using the AdminApp's private key.
+ * It should only be used when the server has a private key configured (private key mode).
+ *
+ * @param agentName - The agent name
+ * @param chainId - Chain ID (defaults to DEFAULT_CHAIN_ID)
+ * @returns The counterfactual AA address
+ */
+export declare function getCounterfactualAAAddressByAgentName(agentName: string, chainId?: number): Promise<`0x${string}`>;
+//# sourceMappingURL=accounts.d.ts.map

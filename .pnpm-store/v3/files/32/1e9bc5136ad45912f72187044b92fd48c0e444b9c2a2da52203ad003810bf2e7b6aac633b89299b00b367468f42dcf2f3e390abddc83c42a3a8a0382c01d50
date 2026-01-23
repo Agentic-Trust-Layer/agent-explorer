@@ -1,0 +1,45 @@
+import { AgentApiError } from './core';
+import { createAgentDirectCore, } from './directServer';
+const defaultContextFactory = () => ({});
+function sendJson(res, status, payload) {
+    res.status(status).json(payload);
+}
+function handleExpressError(res, error) {
+    if (error instanceof AgentApiError) {
+        sendJson(res, error.status ?? 400, {
+            error: error.message,
+            details: error.details,
+        });
+        return;
+    }
+    console.error('[AgenticTrust][Express][Direct] Unexpected error:', error);
+    sendJson(res, 500, {
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+    });
+}
+function assertMode(mode) {
+    return mode === 'aa' || mode === 'eoa';
+}
+export function createAgentDirectExpressHandler(defaultMode, getContext = defaultContextFactory) {
+    return async (req, res) => {
+        try {
+            const ctx = getContext(req);
+            const body = (req.body ?? {});
+            const modeFromBody = typeof body.mode === 'string' ? body.mode : undefined;
+            const modeToUse = modeFromBody ?? defaultMode;
+            if (!assertMode(modeToUse)) {
+                throw new AgentApiError('mode must be either "aa" or "eoa"', 400);
+            }
+            const result = await createAgentDirectCore(ctx, {
+                ...body,
+                mode: modeToUse,
+            });
+            sendJson(res, 200, result);
+        }
+        catch (error) {
+            handleExpressError(res, error);
+        }
+    };
+}
+//# sourceMappingURL=directExpress.js.map

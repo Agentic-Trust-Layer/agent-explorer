@@ -1,0 +1,61 @@
+{
+  "name": "@ensdomains/content-hash",
+  "version": "3.1.0-rc.1",
+  "description": "A simple tool to encode/decode content hash for EIP 1577 compliant ENS Resolvers (fork of pldespaigne/content-hash)",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "typings": "./dist/types/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "default": "./dist/cjs/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/",
+    "src/",
+    "!src/**/*.test.ts"
+  ],
+  "keywords": [
+    "ethereum",
+    "ens",
+    "eip-1577",
+    "resolver",
+    "ipfs",
+    "swarm",
+    "content-hash",
+    "content",
+    "hash",
+    "contenthash",
+    "contentHash"
+  ],
+  "author": "ensdomains",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ensdomains/content-hash"
+  },
+  "dependencies": {
+    "@ensdomains/address-encoder": "1.0.0-rc.3",
+    "@noble/curves": "^1.2.0",
+    "@scure/base": "^1.1.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.1.6",
+    "vitest": "^0.33.0"
+  },
+  "scripts": {
+    "test": "vitest",
+    "clean": "rm -rf ./dist",
+    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
+    "build:esm": "tsc --project tsconfig.build.json --module es2022 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
+    "build:types": "tsc --project tsconfig.build.json --module esnext --declarationDir ./dist/types --emitDeclarationOnly --declaration --declarationMap",
+    "build": "pnpm run clean && pnpm run build:cjs && pnpm run build:esm && pnpm run build:types",
+    "prepublish": "pnpm run build"
+  }
+}

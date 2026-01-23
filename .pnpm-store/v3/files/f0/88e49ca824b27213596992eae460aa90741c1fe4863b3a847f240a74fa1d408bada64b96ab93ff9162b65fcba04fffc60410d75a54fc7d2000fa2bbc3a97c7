@@ -1,0 +1,23 @@
+import { type Provider, type Signer, type TypedDataDomain, type TypedDataField, Transaction, AbstractSigner } from 'ethers';
+import { type IKey } from '@veramo/core-types';
+import { type IAgentContext, type IKeyManager } from '@veramo/core-types';
+type IRequiredContext = IAgentContext<IKeyManager>;
+/**
+ * Creates an `ethers` - `signer` implementation by wrapping
+ * a veramo agent with a key-manager that should be capable of `eth_signTransaction`
+ *
+ * @internal This is exported for convenience, not meant to be supported as part of the public API
+ */
+export declare class AAKmsSigner extends AbstractSigner {
+    private context;
+    private controllerKey;
+    readonly provider: Provider | null;
+    constructor(controllerKey: IKey, context: IRequiredContext, provider?: Provider);
+    getAddress(): Promise<string>;
+    signTransaction(transaction: Transaction): Promise<string>;
+    signTypedData(domain: TypedDataDomain, types: Record<string, Array<TypedDataField>>, value: Record<string, any>): Promise<string>;
+    signMessage(message: string | Uint8Array): Promise<string>;
+    connect(provider: Provider | null): Signer;
+}
+export {};
+//# sourceMappingURL=AAKmsSigner.d.ts.map

@@ -1,0 +1,1 @@
+{"version":3,"file":"IVerifyResult.d.ts","sourceRoot":"","sources":["../../src/types/IVerifyResult.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,MAAM,EAAE,MAAM,aAAa,CAAA;AACpC;;;;;GAKG;AACF,MAAM,WAAW,aAAa;IAC7B;;OAEG;IACH,QAAQ,EAAE,OAAO,CAAA;IAEjB;;;OAGG;IACH,KAAK,CAAC,EAAE,MAAM,CAAA;IAEd;;;OAGG;IACH,CAAC,CAAC,EAAE,MAAM,GAAG,GAAG,CAAA;CACjB"}

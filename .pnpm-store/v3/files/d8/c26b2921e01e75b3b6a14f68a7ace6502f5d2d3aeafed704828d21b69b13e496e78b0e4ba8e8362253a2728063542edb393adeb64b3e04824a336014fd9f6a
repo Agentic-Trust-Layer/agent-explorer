@@ -1,0 +1,143 @@
+/**
+ * Validator App Singleton
+ *
+ * Manages a singleton instance for validator-side operations using private key
+ * Provides access to validator account, wallet client, and validator address
+ * Used for processing ENS validation requests
+ */
+import { ViemAccountProvider } from '@agentic-trust/8004-sdk';
+import { getChainById, getChainRpcUrl, DEFAULT_CHAIN_ID } from '../lib/chainConfig';
+import { isUserAppEnabled, logUserAppInitFailure, logUserAppInitStart, logUserAppInitSuccess } from './userApp';
+// Singleton instance (per chain)
+const validatorAppInstances = new Map();
+const initializationPromises = new Map();
+/**
+ * Check if the validator private key is configured in environment.
+ */
+export function hasValidatorPrivateKey() {
+    const value = process.env.AGENTIC_TRUST_VALIDATOR_PRIVATE_KEY;
+    return typeof value === 'string' && value.trim().length > 0;
+}
+/**
+ * Get or create the ValidatorApp instance
+ * Initializes from private key in environment variables
+ *
+ * @param chainId - Chain ID (defaults to DEFAULT_CHAIN_ID)
+ */
+export async function getValidatorApp(chainId = DEFAULT_CHAIN_ID) {
+    const instanceKey = `validator:${chainId}`;
+    // If already initialized for this chain, return immediately
+    const existingInstance = validatorAppInstances.get(instanceKey);
+    if (existingInstance) {
+        return existingInstance;
+    }
+    // If initialization is in progress for this chain, wait for it
+    const existingPromise = initializationPromises.get(instanceKey);
+    if (existingPromise) {
+        return existingPromise;
+    }
+    // Start initialization for this chain
+    const initializationPromise = (async () => {
+        try {
+            // Check if this is a validator app (environment flag)
+            if (!isUserAppEnabled('validator')) {
+                throw new Error('ValidatorApp is only available when AGENTIC_TRUST_APP_ROLES includes "validator"');
+            }
+            logUserAppInitStart('validator', `chainId=${chainId}`);
+            // Get validator private key from environment
+            const privateKey = process.env.AGENTIC_TRUST_VALIDATOR_PRIVATE_KEY;
+            if (!privateKey) {
+                throw new Error('AGENTIC_TRUST_VALIDATOR_PRIVATE_KEY environment variable is not set');
+            }
+            // Get chain-specific RPC URL and chain config
+            const targetChainId = chainId || DEFAULT_CHAIN_ID;
+            const rpcUrl = getChainRpcUrl(targetChainId);
+            if (!rpcUrl) {
+                throw new Error(`Missing required RPC URL. Configure AGENTIC_TRUST_RPC_URL_{CHAIN} for chainId ${targetChainId}`);
+            }
+            const { createPublicClient, createWalletClient, http: httpTransport } = await import('viem');
+            const chain = getChainById(targetChainId);
+            // Create public client (always needed)
+            const publicClient = createPublicClient({
+                chain,
+                transport: httpTransport(rpcUrl),
+            });
+            // Create wallet client and account from private key
+            const { privateKeyToAccount } = await import('viem/accounts');
+            const normalizedKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+            const account = privateKeyToAccount(normalizedKey);
+            const address = account.address;
+            const walletClient = createWalletClient({
+                account,
+                chain,
+                transport: httpTransport(rpcUrl),
+            });
+            // Create AccountProvider
+            const accountProvider = new ViemAccountProvider({
+                publicClient,
+                walletClient: walletClient,
+                account,
+                chainConfig: {
+                    id: chain.id,
+                    rpcUrl,
+                    name: chain.name,
+                    chain,
+                },
+            });
+            const instance = {
+                account,
+                publicClient: publicClient,
+                walletClient: walletClient,
+                accountProvider,
+                address,
+                hasPrivateKey: true,
+            };
+            // Store instance by chain key
+            validatorAppInstances.set(instanceKey, instance);
+            initializationPromises.delete(instanceKey); // Remove from pending
+            logUserAppInitSuccess('validator', address);
+            return instance;
+        }
+        catch (error) {
+            logUserAppInitFailure('validator', error);
+            initializationPromises.delete(instanceKey); // Remove from pending on error
+            throw error;
+        }
+    })();
+    // Store promise for this chain
+    initializationPromises.set(instanceKey, initializationPromise);
+    return initializationPromise;
+}
+/**
+ * Get the validator address (convenience method)
+ */
+export async function getValidatorAddress(chainId = DEFAULT_CHAIN_ID) {
+    const validatorApp = await getValidatorApp(chainId);
+    return validatorApp?.address;
+}
+/**
+ * Check if validator app is initialized for a specific chain
+ */
+export function isValidatorAppInitialized(chainId) {
+    if (chainId !== undefined) {
+        const instanceKey = `validator:${chainId}`;
+        return validatorAppInstances.has(instanceKey);
+    }
+    return validatorAppInstances.size > 0;
+}
+/**
+ * Reset validator app instances (useful for testing)
+ * @param chainId - Optional chain ID to reset specific instance, or all if not provided
+ */
+export function resetValidatorApp(chainId) {
+    if (chainId !== undefined) {
+        const instanceKey = `validator:${chainId}`;
+        validatorAppInstances.delete(instanceKey);
+        initializationPromises.delete(instanceKey);
+    }
+    else {
+        validatorAppInstances.clear();
+        initializationPromises.clear();
+    }
+}
+//# sourceMappingURL=validatorApp.js.map

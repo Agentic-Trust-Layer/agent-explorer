@@ -1,0 +1,23 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createIndexFromBackup = void 0;
+const createIndexFromBackup = (api) => {
+    return async (createIndexFromBackupOptions) => {
+        if (!createIndexFromBackupOptions.backupId) {
+            throw new Error('You must pass a non-empty string for `backupId` in order to create an index from backup');
+        }
+        else if (!createIndexFromBackupOptions.name) {
+            throw new Error('You must pass a non-empty string for `name` in order to create an index from backup');
+        }
+        return await api.createIndexFromBackupOperation({
+            backupId: createIndexFromBackupOptions.backupId,
+            createIndexFromBackupRequest: {
+                name: createIndexFromBackupOptions.name,
+                tags: createIndexFromBackupOptions.tags,
+                deletionProtection: createIndexFromBackupOptions.deletionProtection,
+            },
+        });
+    };
+};
+exports.createIndexFromBackup = createIndexFromBackup;
+//# sourceMappingURL=createIndexFromBackup.js.map

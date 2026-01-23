@@ -1,0 +1,75 @@
+/**
+ * Next.js API Route Handler for creating agents with Account Abstraction
+ *
+ * This handler can be directly exported and used in Next.js apps.
+ * The client-side function `createAgentWithWalletForAA` from `@agentic-trust/core/client`
+ * automatically calls this endpoint at `/api/agents/create-for-aa`.
+ *
+ * Usage in your Next.js app:
+ *
+ * ```typescript
+ * // In app/api/agents/create-for-aa/route.ts
+ * export { createAgentForAAHandler as POST } from '@agentic-trust/core/server';
+ *
+ * // Or using the direct import:
+ * // export { POST } from '@agentic-trust/core/server/api/agents/create-for-aa';
+ * ```
+ *
+ * Then in your React component:
+ *
+ * ```typescript
+ * import { createAgentWithWalletForAA } from '@agentic-trust/core/client';
+ *
+ * const result = await createAgentWithWalletForAA({
+ *   agentData: {
+ *     agentName: 'my-agent',
+ *     agentAccount: '0x...',
+ *     description: 'My agent description',
+ *   },
+ * });
+ * ```
+ *
+ * The client function handles:
+ * - Wallet connection and account detection
+ * - Chain selection and switching
+ * - AA account client creation
+ * - UserOperation submission via bundler
+ * - Agent ID extraction and indexer refresh
+ *
+ * For Express apps, use the Express-compatible handler:
+ * ```typescript
+ * import { createAgentForAAExpressHandler } from '@agentic-trust/core/server/api/agents/express';
+ * ```
+ */
+import { handleCreateAgentForAA } from './handlers/create-for-aa';
+// Try to load NextResponse at module load time (static pattern)
+// If Next.js isn't installed, this will be null and the handler will throw a helpful error
+let NextResponse = null;
+try {
+    // First, try direct require (works in Next.js webpack bundling)
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    NextResponse = require('next/server').NextResponse;
+}
+catch (firstError) {
+    // If direct require fails, try using createRequire (for pure ES modules like Express)
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const { createRequire } = require('module');
+        const requireFn = createRequire(import.meta.url);
+        NextResponse = requireFn('next/server').NextResponse;
+    }
+    catch {
+        // Next.js not available - this is OK, handler will throw helpful error when called
+        NextResponse = null;
+    }
+}
+export async function POST(request) {
+    if (!NextResponse) {
+        throw new Error('Next.js is required for this handler. ' +
+            'In Express apps, use createAgentForAAExpressHandler from @agentic-trust/core/server/api/agents/express');
+    }
+    const body = await request.json();
+    const result = await handleCreateAgentForAA(body);
+    return NextResponse.json(result.data, { status: result.status });
+}
+//# sourceMappingURL=create-for-aa.js.map

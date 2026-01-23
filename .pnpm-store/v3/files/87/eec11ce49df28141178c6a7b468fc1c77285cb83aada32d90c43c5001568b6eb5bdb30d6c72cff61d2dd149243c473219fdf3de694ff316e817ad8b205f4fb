@@ -1,0 +1,7 @@
+import { Hash } from "viem";
+import { EnsRecords } from "./types";
+/**
+ * Converts ENS records to encoded resolver calldata suitable for batched mint.
+ * Applies texts, addresses (multi-coin), and optional contenthash.
+ */
+export declare const convertEnsRecordsToResolverData: (fullName: string, records: EnsRecords) => Hash[];

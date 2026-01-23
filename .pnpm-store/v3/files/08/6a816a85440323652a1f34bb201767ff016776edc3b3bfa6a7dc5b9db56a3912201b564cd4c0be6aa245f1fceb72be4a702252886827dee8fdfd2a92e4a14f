@@ -1,0 +1,997 @@
+/**
+ * Client-side wallet signing utilities
+ *
+ * Handles MetaMask/EIP-1193 wallet integration for signing and sending transactions
+ * All Ethereum logic is handled server-side, client only needs to sign and send
+ */
+import { createWalletClient, custom, createPublicClient, } from 'viem';
+import { getChainById, DEFAULT_CHAIN_ID, getChainRpcUrl, getChainBundlerUrl, sepolia, baseSepolia, optimismSepolia, isL1, isL2, isPrivateKeyMode, } from '../server/lib/chainConfig';
+import { getDeployedAccountClientByAgentName, sendSponsoredUserOperation, waitForUserOperationReceipt, } from './accountClient';
+import { createAgent as callCreateAgentEndpoint, updateAgentRegistration as callUpdateAgentRegistrationEndpoint, } from '../api/agents/client';
+export { getDeployedAccountClientByAgentName, getCounterfactualAccountClientByAgentName, getCounterfactualAAAddressByAgentName, } from './accountClient';
+function resolveEthereumProvider(providedProvider) {
+    if (providedProvider)
+        return providedProvider;
+    if (typeof window !== 'undefined') {
+        const web3authProvider = window?.web3auth?.provider;
+        if (web3authProvider)
+            return web3authProvider;
+        const injected = window.ethereum;
+        if (injected)
+            return injected;
+    }
+    return null;
+}
+async function resolveChainId(ethereumProvider) {
+    try {
+        const chainHex = await ethereumProvider.request?.({
+            method: 'eth_chainId',
+        });
+        if (typeof chainHex === 'string') {
+            return parseInt(chainHex, 16);
+        }
+    }
+    catch {
+        // ignore; fallback below
+    }
+    // Fallback to default chain id
+    return DEFAULT_CHAIN_ID;
+}
+/**
+ * Ensure the provider has an authorized account and return it.
+ * Tries eth_accounts first; if empty, requests eth_requestAccounts.
+ */
+async function ensureAuthorizedAccount(ethereumProvider) {
+    try {
+        const existing = await ethereumProvider.request({ method: 'eth_accounts' });
+        if (Array.isArray(existing) && existing.length > 0) {
+            return existing[0];
+        }
+    }
+    catch {
+        // ignore and fall through to request
+    }
+    try {
+        const granted = await ethereumProvider.request({
+            method: 'eth_requestAccounts',
+        });
+        if (Array.isArray(granted) && granted.length > 0) {
+            return granted[0];
+        }
+    }
+    catch {
+        // fallthrough to permissions flow
+    }
+    try {
+        await ethereumProvider.request?.({
+            method: 'wallet_requestPermissions',
+            params: [{ eth_accounts: {} }],
+        });
+        const afterPerm = await ethereumProvider.request({
+            method: 'eth_accounts',
+        });
+        if (Array.isArray(afterPerm) && afterPerm.length > 0) {
+            return afterPerm[0];
+        }
+    }
+    catch {
+        // ignore
+    }
+    throw new Error('Wallet not authorized. Please connect your wallet.');
+}
+async function ensureChainSelected(ethereumProvider, chain) {
+    try {
+        const currentHex = await ethereumProvider.request?.({
+            method: 'eth_chainId',
+        });
+        const current = typeof currentHex === 'string' ? parseInt(currentHex, 16) : undefined;
+        if (current === chain.id)
+            return;
+    }
+    catch {
+        // continue to switch
+    }
+    const hexId = `0x${chain.id.toString(16)}`;
+    try {
+        await ethereumProvider.request?.({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: hexId }],
+        });
+        return;
+    }
+    catch (switchErr) {
+        // 4902 = unknown chain, try add then switch
+        if (switchErr?.code !== 4902) {
+            throw switchErr;
+        }
+    }
+    // Try to add chain using centralized configuration
+    const chainConfig = getChainById(chain.id);
+    const addParams = {
+        chainId: hexId,
+        chainName: chainConfig.name,
+        nativeCurrency: {
+            name: 'ETH',
+            symbol: 'ETH',
+            decimals: 18,
+        },
+        rpcUrls: [getChainRpcUrl(chain.id)],
+        blockExplorerUrls: chainConfig.blockExplorers?.default
+            ? [chainConfig.blockExplorers.default.url]
+            : [],
+    };
+    await ethereumProvider.request?.({
+        method: 'wallet_addEthereumChain',
+        params: [addParams],
+    });
+    await ethereumProvider.request?.({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: hexId }],
+    });
+}
+/**
+ * Sign and send a transaction using MetaMask/EIP-1193 wallet
+ *
+ * @param options - Signing options including transaction, account, chain, and provider
+ * @returns Transaction hash, receipt, and optionally extracted agentId
+ */
+export async function signAndSendTransaction(options) {
+    const { transaction, account, chain, ethereumProvider, onStatusUpdate, extractAgentId = false, } = options;
+    // Get wallet provider
+    const provider = resolveEthereumProvider(ethereumProvider);
+    if (!provider) {
+        throw new Error('No wallet provider found. Please connect MetaMask or use an EIP-1193 compatible wallet.');
+    }
+    // Update status
+    onStatusUpdate?.('Connecting to wallet...');
+    // Create wallet client
+    try {
+        // Ensure correct chain & account permission before sending
+        await ensureChainSelected(provider, chain);
+        await ensureAuthorizedAccount(provider);
+    }
+    catch {
+        // Non-fatal; some providers may not require this here
+    }
+    const walletClient = createWalletClient({
+        account,
+        chain,
+        transport: custom(provider),
+    });
+    // Update status
+    onStatusUpdate?.('Transaction prepared. Please confirm in your wallet...');
+    // Convert hex strings to bigint for Viem (Viem accepts both, but TypeScript is strict)
+    const txParams = {
+        ...transaction,
+        value: BigInt(transaction.value),
+    };
+    if (transaction.gas) {
+        txParams.gas = BigInt(transaction.gas);
+    }
+    if (transaction.gasPrice) {
+        txParams.gasPrice = BigInt(transaction.gasPrice);
+    }
+    if (transaction.maxFeePerGas) {
+        txParams.maxFeePerGas = BigInt(transaction.maxFeePerGas);
+    }
+    if (transaction.maxPriorityFeePerGas) {
+        txParams.maxPriorityFeePerGas = BigInt(transaction.maxPriorityFeePerGas);
+    }
+    // Sign and send transaction
+    const hash = await walletClient.sendTransaction(txParams);
+    // Update status
+    onStatusUpdate?.(`Transaction submitted! Hash: ${hash}. Waiting for confirmation...`);
+    // Wait for transaction receipt
+    const publicClient = createPublicClient({
+        chain,
+        transport: custom(ethereumProvider),
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    // Extract agentId if requested (for agent creation transactions)
+    let agentId;
+    if (receipt && Array.isArray(receipt.logs)) {
+        const zeroTopic = '0x0000000000000000000000000000000000000000000000000000000000000000';
+        const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+        const mintLog = receipt.logs.find((log) => log?.topics?.[0] === transferTopic &&
+            (log?.topics?.[1] === zeroTopic || log?.topics?.[1] === undefined));
+        if (mintLog) {
+            const tokenTopic = mintLog.topics?.[3];
+            const tokenData = mintLog.data;
+            const tokenHex = tokenTopic ?? tokenData;
+            if (tokenHex) {
+                try {
+                    agentId = BigInt(tokenHex).toString();
+                }
+                catch (error) {
+                    console.warn('Unable to parse agentId from mint log:', error);
+                }
+            }
+        }
+    }
+    if (extractAgentId) {
+        try {
+            agentId = extractAgentIdFromReceipt(receipt);
+        }
+        catch (error) {
+            console.warn('Could not extract agentId from receipt:', error);
+        }
+    }
+    return {
+        hash,
+        receipt,
+        agentId,
+    };
+}
+/**
+ * Extract agentId from a transaction receipt (for agent creation)
+ * Looks for ERC-721 Transfer event from zero address
+ *
+ * @param receipt - Transaction receipt
+ * @returns Extracted agentId as string, or undefined if not found
+ */
+export function extractAgentIdFromReceipt(receipt) {
+    try {
+        // ERC-721 Transfer event signature
+        const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+        // Zero address topic (from address)
+        const zeroAddress = '0x0000000000000000000000000000000000000000000000000000000000000000';
+        if (!receipt.logs || !Array.isArray(receipt.logs)) {
+            return undefined;
+        }
+        for (const log of receipt.logs) {
+            if (log.topics &&
+                log.topics[0] === transferTopic &&
+                log.topics[1] === zeroAddress) {
+                // Extract tokenId (agentId) from topics[3]
+                if (log.topics[3]) {
+                    return BigInt(log.topics[3]).toString();
+                }
+            }
+        }
+        return undefined;
+    }
+    catch (error) {
+        console.warn('Error extracting agentId from receipt:', error);
+        return undefined;
+    }
+}
+/**
+ * Refresh agent in GraphQL indexer
+ *
+ * @param agentId - Agent ID to refresh
+ * @param chainId - Chain ID for the agent
+ * @param refreshEndpoint - Optional custom refresh endpoint (defaults to `/api/agents/<did>/refresh`)
+ * @returns Promise that resolves when refresh is complete
+ */
+export async function refreshAgentInIndexer(agentId, chainId, refreshEndpoint) {
+    const chainIdStr = typeof chainId === 'number' ? chainId.toString(10) : chainId?.toString() ?? '';
+    if (!chainIdStr.trim()) {
+        throw new Error('Chain ID is required to refresh agent in indexer');
+    }
+    const did = encodeURIComponent(`did:8004:${chainIdStr.trim()}:${agentId}`);
+    const endpoint = refreshEndpoint || `/api/agents/${did}/refresh`;
+    try {
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}), // Send empty body to avoid JSON parsing errors
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.warn(`Failed to refresh agent ${agentId} in GraphQL indexer: ${response.status} ${response.statusText}`, errorText);
+            return;
+        }
+        // Try to parse response, but don't fail if it's empty
+        try {
+            const data = await response.json();
+            console.log(`✅ Refreshed agent ${agentId} in GraphQL indexer`, data);
+        }
+        catch (parseError) {
+            // Response might be empty, that's okay
+            console.log(`✅ Refreshed agent ${agentId} in GraphQL indexer`);
+        }
+    }
+    catch (error) {
+        console.warn(`Error refreshing agent ${agentId} in GraphQL indexer:`, error);
+    }
+}
+/**
+ * Check if wallet provider is available
+ *
+ * @param ethereumProvider - Optional provider (defaults to window.ethereum)
+ * @returns true if provider is available
+ */
+export function isWalletProviderAvailable(ethereumProvider) {
+    if (ethereumProvider) {
+        return true;
+    }
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    return !!window.ethereum;
+}
+/**
+ * Get the connected wallet address from provider
+ *
+ * @param ethereumProvider - Optional provider (defaults to window.ethereum)
+ * @returns Connected wallet address, or null if not connected
+ */
+export async function getWalletAddress(ethereumProvider) {
+    const provider = ethereumProvider ||
+        (typeof window !== 'undefined' ? window.ethereum : null);
+    if (!provider) {
+        return null;
+    }
+    try {
+        const accounts = await provider.request({ method: 'eth_accounts' });
+        if (accounts && accounts.length > 0) {
+            return accounts[0];
+        }
+        return null;
+    }
+    catch (error) {
+        console.warn('Error getting wallet address:', error);
+        return null;
+    }
+}
+/**
+ * Create an agent with automatic wallet signing if needed
+ *
+ * This method handles the entire flow:
+ * 1. Calls the API to create agent (endpoint: /api/agents/create)
+ * 2. If client-side signing is required, signs and sends transaction
+ * 3. Waits for receipt and extracts agentId
+ * 4. Refreshes GraphQL indexer
+ *
+ * Only agentData is required - account, chain, and provider are auto-detected
+ *
+ * @param options - Creation options (only agentData required)
+ * @returns Agent creation result
+ */
+async function createAgentWithWalletEOA(options) {
+    const { agentData, account: providedAccount, ethereumProvider: providedProvider, rpcUrl: providedRpcUrl, onStatusUpdate, chainId: requestedChainId, } = options;
+    // Get wallet provider (default to window.ethereum)
+    const ethereumProvider = providedProvider ||
+        (typeof window !== 'undefined' ? window.ethereum : null);
+    if (!ethereumProvider) {
+        throw new Error('No wallet provider found. Please connect MetaMask or use an EIP-1193 compatible wallet.');
+    }
+    // Get account from provider if not provided
+    let account;
+    if (providedAccount) {
+        account = providedAccount;
+    }
+    else {
+        account = await ensureAuthorizedAccount(ethereumProvider);
+    }
+    // Step 1: Call API to create agent
+    onStatusUpdate?.('Creating agent...');
+    const plan = await callCreateAgentEndpoint({
+        mode: 'eoa',
+        agentName: agentData.agentName,
+        agentAccount: agentData.agentAccount,
+        description: agentData.description,
+        image: agentData.image,
+        agentUrl: agentData.agentUrl,
+        chainId: requestedChainId,
+    });
+    if (plan.mode !== 'eoa' || !plan.transaction) {
+        throw new Error('Server response missing EOA transaction details');
+    }
+    const chain = getChainById(plan.chainId);
+    const preparedTx = {
+        to: plan.transaction.to,
+        data: plan.transaction.data,
+        value: (plan.transaction.value ?? '0'),
+        gas: plan.transaction.gas,
+        gasPrice: plan.transaction.gasPrice,
+        maxFeePerGas: plan.transaction.maxFeePerGas,
+        maxPriorityFeePerGas: plan.transaction.maxPriorityFeePerGas,
+        nonce: plan.transaction.nonce,
+        chainId: plan.transaction.chainId,
+    };
+    // Sign and send transaction
+    const result = await signAndSendTransaction({
+        transaction: preparedTx,
+        account,
+        chain,
+        ethereumProvider,
+        onStatusUpdate,
+        extractAgentId: true,
+    });
+    if (result.agentId) {
+        await refreshAgentInIndexer(result.agentId, plan.chainId);
+    }
+    return {
+        agentId: result.agentId,
+        txHash: result.hash,
+        requiresClientSigning: true,
+    };
+}
+/**
+ * Create an agent with Account Abstraction (AA) using a wallet
+ *
+ * This client-side function handles the complete AA agent creation flow:
+ * 1. Detects wallet provider and account
+ * 2. Creates/retrieves AA account client for the agent
+ * 3. Calls the server API route `/api/agents/create` to prepare registration
+ * 4. Sends UserOperation via bundler using the AA account
+ * 5. Extracts agentId and refreshes the indexer
+ *
+ * **Setup Required:**
+ * Your Next.js app must mount the API route handler:
+ *
+ * ```typescript
+ * // In app/api/agents/create/route.ts
+ * import { createAgentRouteHandler } from '@agentic-trust/core/server';
+ * export const POST = createAgentRouteHandler();
+ * ```
+ *
+ * **Usage:**
+ * ```typescript
+ * import { createAgentWithWallet } from '@agentic-trust/core/client';
+ *
+ * const result = await createAgentWithWallet({
+ *   agentData: {
+ *     agentName: 'my-agent',
+ *     agentAccount: '0x...', // AA account address
+ *     description: 'My agent',
+ *   },
+ *   onStatusUpdate: (msg) => console.log(msg),
+ * });
+ * ```
+ *
+ * @param options - Agent creation options
+ * @returns Agent creation result with agentId and txHash
+ */
+async function createAgentWithWalletAA(options) {
+    const { agentData, account: providedAccount, ethereumProvider: providedProvider, rpcUrl: providedRpcUrl, onStatusUpdate, chainId: providedChainId, } = options;
+    // Get wallet provider (default to window.ethereum)
+    const ethereumProvider = resolveEthereumProvider(providedProvider);
+    if (!ethereumProvider) {
+        throw new Error('No wallet provider found. Please connect MetaMask or use an EIP-1193 compatible wallet.');
+    }
+    // Get account from provider if not provided
+    let account;
+    if (providedAccount) {
+        account = providedAccount;
+    }
+    else {
+        account = await ensureAuthorizedAccount(ethereumProvider);
+    }
+    const chainId = typeof providedChainId === 'number'
+        ? providedChainId
+        : await resolveChainId(ethereumProvider);
+    // Step 1: Call API to create agent
+    onStatusUpdate?.('Creating agent...');
+    // 0.  Get on the correct chain get adapter for the chain
+    let chain;
+    switch (chainId) {
+        case 11155111: // ETH Sepolia
+            chain = sepolia;
+            break;
+        case 84532: // Base Sepolia
+            chain = baseSepolia;
+            break;
+        case 11155420: // Optimism Sepolia
+            chain = optimismSepolia;
+            break;
+        default:
+            chain = sepolia;
+            console.warn(`Unknown chainId ${chainId}, defaulting to Sepolia`);
+    }
+    // Ensure provider is on the required chain before building clients
+    try {
+        await ensureChainSelected(ethereumProvider, chain);
+    }
+    catch (switchErr) {
+        console.warn('Unable to switch chain on provider for AA flow:', switchErr);
+    }
+    // Build viem clients bound to the user's Web3Auth provider
+    const viemWalletClient = createWalletClient({
+        account,
+        chain,
+        transport: custom(ethereumProvider),
+    });
+    const viemPublicClient = createPublicClient({
+        chain,
+        transport: custom(ethereumProvider),
+    });
+    // 1.  Need to create the Agent Account Abstraction (Account)
+    // Build AA account client using client's EOA (MetaMask/Web3Auth)
+    // Get agent name from request
+    //let agentFullName = options.agentData.agentName;
+    //if (options.ensOptions?.orgName) {
+    //  agentFullName = options.agentData.agentName + '.' + options.ensOptions?.orgName + ".eth";
+    //}
+    // Get Account Client by Agent Name, find if exists and if not then create it
+    let bundlerUrl = getChainBundlerUrl(chainId);
+    let agentAccountClient = await getDeployedAccountClientByAgentName(bundlerUrl, options.agentData.agentName, account, {
+        chain: chain,
+        walletClient: viemWalletClient,
+        publicClient: viemPublicClient,
+    });
+    if (!agentAccountClient) {
+        throw new Error('Failed to build AA account client');
+    }
+    // Verify the address matches
+    const computedAddress = await agentAccountClient.getAddress();
+    if (computedAddress.toLowerCase() !==
+        options.agentData.agentAccount.toLowerCase()) {
+        throw new Error(`AA address mismatch: computed ${computedAddress}, expected ${options.agentData.agentAccount}`);
+    }
+    // 2.  Add ENS record associated with new agent
+    console.log('*********** createAgentWithWallet: options.ensOptions', options.ensOptions);
+    if (options.ensOptions?.enabled &&
+        options.ensOptions.orgName &&
+        isL1(chainId)) {
+        try {
+            const ensAgentAccount = typeof computedAddress === 'string' && computedAddress.startsWith('0x')
+                ? computedAddress
+                : options.agentData.agentAccount;
+            onStatusUpdate?.('Creating ENS subdomain for agent: ' + options.agentData.agentName);
+            const pkModeDetected = isPrivateKeyMode();
+            console.log("createAgentWithWallet: pkModeDetected", pkModeDetected);
+            const addEndpoint = pkModeDetected
+                ? '/api/names/add-to-l1-org-pk'
+                : '/api/names/add-to-l1-org';
+            console.info(`[ENS][L1] ${pkModeDetected ? 'PK mode detected 11111' : 'Client mode'} - calling ${addEndpoint}`);
+            const ensResponse = await fetch(addEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agentAccount: ensAgentAccount,
+                    orgName: options.ensOptions.orgName,
+                    agentName: options.agentData.agentName,
+                    agentUrl: options.agentData.agentUrl,
+                    chainId,
+                }),
+            });
+            if (!ensResponse.ok) {
+                const err = await ensResponse.json().catch(() => ({}));
+                console.warn('[ENS][L1] add-to-l1-org call failed', err);
+            }
+            else {
+                console.info('[ENS][L1] add-to-l1-org call succeeded');
+            }
+            onStatusUpdate?.('Preparing ENS metadata update...');
+            const infoEndpoint = pkModeDetected
+                ? '/api/names/set-l1-name-info-pk'
+                : '/api/names/set-l1-name-info';
+            console.info(`[ENS][L1] ${pkModeDetected ? 'PK mode detected 22222' : 'Client mode'} - calling ${infoEndpoint}`);
+            const infoResponse = await fetch(infoEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    agentAddress: ensAgentAccount,
+                    orgName: options.ensOptions.orgName,
+                    agentName: options.agentData.agentName,
+                    agentUrl: options.agentData.agentUrl,
+                    agentDescription: options.agentData.description,
+                    chainId,
+                }),
+            });
+            if (infoResponse.ok) {
+                console.log('*********** createAgentWithWallet: ENS metadata response received');
+                const infoData = await infoResponse.json();
+                const serverInfoUserOpHash = infoData?.userOpHash;
+                if (serverInfoUserOpHash) {
+                    console.log('*********** createAgentWithWallet: ENS info userOpHash (server-submitted)', serverInfoUserOpHash);
+                }
+                else {
+                    const infoCalls = [];
+                    if (Array.isArray(infoData?.calls)) {
+                        for (const rawCall of infoData.calls) {
+                            const to = rawCall?.to;
+                            const data = rawCall?.data;
+                            if (!to || !data) {
+                                continue;
+                            }
+                            let value;
+                            if (rawCall?.value !== null && rawCall?.value !== undefined) {
+                                try {
+                                    value = BigInt(rawCall.value);
+                                }
+                                catch (error) {
+                                    console.warn('Unable to parse ENS info call value', rawCall.value, error);
+                                }
+                            }
+                            infoCalls.push({
+                                to,
+                                data,
+                                value,
+                            });
+                        }
+                    }
+                    if (infoCalls.length > 0) {
+                        onStatusUpdate?.('Updating ENS agent info...');
+                        // Ensure we are using a deployed-only AA client (no factory/factoryData)
+                        //const fullAgentName = agentName + '.' + options.ensOptions.orgName + ".eth";
+                        console.log('!!!!!!!!!!!! handleCreateAgent: getDeployedAccountClientByAgentName 2: agentName', options.agentData.agentName);
+                        agentAccountClient = await getDeployedAccountClientByAgentName(bundlerUrl, options.agentData.agentName, account, {
+                            chain: chain,
+                            walletClient: viemWalletClient,
+                            publicClient: viemPublicClient,
+                        });
+                        const infoUserOpHash = await sendSponsoredUserOperation({
+                            bundlerUrl,
+                            chain: chain,
+                            accountClient: agentAccountClient,
+                            calls: infoCalls,
+                        });
+                        await waitForUserOperationReceipt({
+                            bundlerUrl,
+                            chain: chain,
+                            hash: infoUserOpHash,
+                        });
+                    }
+                }
+            }
+            else {
+                const errorPayload = await infoResponse.json().catch(() => ({}));
+                console.warn('Failed to prepare ENS metadata calls:', errorPayload);
+            }
+            console.log('Requested ENS record creation and metadata update for agent', options.agentData.agentName);
+        }
+        catch (ensError) {
+            console.warn('Failed to create ENS record for agent:', ensError);
+        }
+    }
+    else if (options.ensOptions?.enabled &&
+        options.ensOptions.orgName &&
+        isL2(chainId)) {
+        const rawOrg = options.ensOptions.orgName || '';
+        const rawAgent = options.agentData.agentName || '';
+        const cleanOrgName = rawOrg.replace(/\.eth$/i, '').toLowerCase();
+        const orgPattern = cleanOrgName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const cleanAgentName = rawAgent
+            .replace(new RegExp(`^${orgPattern}\\.`, 'i'), '')
+            .replace(/\.eth$/i, '')
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, '-');
+        const agentUrl = options.agentData.agentUrl;
+        const agentDescription = options.agentData.description;
+        const agentImage = options.agentData.image;
+        // Prepare all necessary L2 ENS calls server-side, then send them as one user operation
+        const prepareResp = await fetch('/api/names/add-to-l2-org', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                agentAddress: agentAccountClient.address,
+                orgName: cleanOrgName,
+                agentName: cleanAgentName,
+                agentUrl,
+                agentDescription,
+                agentImage,
+                chainId,
+            }),
+        });
+        if (!prepareResp.ok) {
+            const errorPayload = await prepareResp.json().catch(() => ({}));
+            console.warn('Failed to prepare L2 ENS calls:', errorPayload);
+        }
+        else {
+            const { calls: rawCalls } = await prepareResp.json();
+            const l2EnsCalls = (rawCalls || []).map((call) => ({
+                to: call.to,
+                data: call.data,
+                value: BigInt(call.value || '0'),
+            }));
+            if (l2EnsCalls.length > 0) {
+                for (const call of l2EnsCalls) {
+                    console.log('********************* send sponsored user operation for L2 ENS call');
+                    const userOpHash = await sendSponsoredUserOperation({
+                        bundlerUrl,
+                        chain,
+                        accountClient: agentAccountClient,
+                        calls: [call],
+                    });
+                    await waitForUserOperationReceipt({
+                        bundlerUrl,
+                        chain,
+                        hash: userOpHash,
+                    });
+                }
+            }
+        }
+        /*  TODO:  Need to resolve this to set ens url and description
+          onStatusUpdate?.('Set ENS metadata update...');
+          const infoResponse = await fetch('/api/names/set-l2-name-info', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              agentAddress: agentAccountClient.address,
+              orgName: options.ensOptions.orgName,
+              agentName: options.agentData.agentName,
+              agentUrl: options.agentData.agentUrl,
+              agentDescription: options.agentData.description,
+              chainId,
+            }),
+          });
+    
+          if (!infoResponse.ok) {
+            const errorPayload = await infoResponse.json().catch(() => ({}));
+            console.warn('Failed to prepare L2 ENS calls:', errorPayload);
+          } else {
+            const { calls: rawCalls } = await infoResponse.json();
+            const l2EnsCalls = (rawCalls || []).map((call: any) => ({
+              to: call.to as `0x${string}`,
+              data: call.data as `0x${string}`,
+              value: BigInt(call.value || '0'),
+            }));
+            if (l2EnsCalls.length > 0) {
+              for (const call of l2EnsCalls) {
+                console.log('********************* send sponsored user operation for L2 ENS call');
+                const userOpHash = await sendSponsoredUserOperation({
+                  bundlerUrl,
+                  chain,
+                  accountClient: agentAccountClient,
+                  calls: [call],
+                });
+                await waitForUserOperationReceipt({
+                  bundlerUrl,
+                  chain,
+                  hash: userOpHash,
+                });
+              }
+            }
+          }
+            */
+    }
+    // 2.  Need to create the Agent Identity (NFT)
+    console.log('*********** createAgentWithWallet: creating agent identity...');
+    const finalAgentName = options.ensOptions?.enabled && options.ensOptions?.orgName
+        ? `${options.agentData.agentName}.${options.ensOptions?.orgName}.eth`
+        : options.agentData.agentName;
+    agentData.agentName = finalAgentName;
+    let data;
+    try {
+        data = await callCreateAgentEndpoint({
+            mode: 'aa',
+            account: computedAddress,
+            agentName: agentData.agentName,
+            agentAccount: agentData.agentAccount,
+            description: agentData.description,
+            image: agentData.image,
+            agentUrl: agentData.agentUrl,
+            chainId,
+        });
+    }
+    catch (error) {
+        throw new Error(error instanceof Error ? error.message : 'Failed to create agent');
+    }
+    if (data.mode !== 'aa') {
+        throw new Error('Server returned an unexpected plan mode for AA creation');
+    }
+    if (data.bundlerUrl) {
+        bundlerUrl = data.bundlerUrl;
+    }
+    if (!Array.isArray(data.calls) || data.calls.length === 0) {
+        throw new Error('Agent creation response missing register calls');
+    }
+    // Construct Agent Identity with agentAccount Client
+    const createAgentIdentityCalls = data.calls.map((call) => ({
+        to: call.to,
+        data: call.data,
+        value: BigInt(call.value || '0'),
+    }));
+    // Send UserOperation via bundler
+    onStatusUpdate?.('Sending UserOperation via bundler...');
+    const userOpHash = await sendSponsoredUserOperation({
+        bundlerUrl,
+        chain: chain,
+        accountClient: agentAccountClient,
+        calls: createAgentIdentityCalls,
+    });
+    onStatusUpdate?.(`UserOperation sent! Hash: ${userOpHash}. Waiting for confirmation...`);
+    // Wait for receipt
+    const receipt = await waitForUserOperationReceipt({
+        bundlerUrl,
+        chain: chain,
+        hash: userOpHash,
+    });
+    // Extract agentId from receipt logs
+    let agentId;
+    try {
+        const extractResponse = await fetch('/api/agents/extract-agent-id', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                receipt: JSON.parse(JSON.stringify(receipt, (_, value) => typeof value === 'bigint' ? value.toString() : value)),
+                chainId: chain.id,
+            }),
+        });
+        if (extractResponse.ok) {
+            const extractData = await extractResponse.json();
+            if (extractData?.agentId) {
+                agentId = extractData.agentId;
+            }
+        }
+        else {
+            const errorPayload = await extractResponse.json().catch(() => ({}));
+            console.warn('Failed to extract agentId via API:', errorPayload);
+        }
+    }
+    catch (error) {
+        console.warn('Unable to extract agentId via API:', error);
+    }
+    // Refresh GraphQL indexer
+    if (agentId) {
+        await refreshAgentInIndexer(agentId, chain.id);
+    }
+    else {
+        onStatusUpdate?.('Refreshing GraphQL indexer...');
+        console.log('UserOperation confirmed. Please refresh the agent list to see the new agent.');
+    }
+    return {
+        agentId,
+        txHash: userOpHash,
+        requiresClientSigning: true,
+    };
+}
+export async function createAgentWithWallet(options) {
+    const useAA = options.useAA ?? false;
+    if (useAA) {
+        return createAgentWithWalletAA(options);
+    }
+    return createAgentWithWalletEOA(options);
+}
+export async function updateAgentRegistrationWithWallet(options) {
+    const { did8004, chain, accountClient, registration, onStatusUpdate } = options;
+    const serialized = typeof registration === 'string' ? registration : JSON.stringify(registration, null, 2);
+    onStatusUpdate?.('Preparing agent registration update on server...');
+    console.info('........... registration: ', registration);
+    let prepared;
+    try {
+        prepared = await callUpdateAgentRegistrationEndpoint({
+            did8004,
+            registration: serialized,
+            mode: 'aa',
+        });
+    }
+    catch (error) {
+        throw new Error(error instanceof Error
+            ? error.message
+            : 'Failed to prepare registration update');
+    }
+    const bundlerUrl = prepared.bundlerUrl;
+    const rawCalls = Array.isArray(prepared.calls) ? prepared.calls : [];
+    if (!bundlerUrl || rawCalls.length === 0) {
+        throw new Error('Registration update response missing bundlerUrl or calls');
+    }
+    const updateCalls = rawCalls.map((call) => ({
+        to: call.to,
+        data: call.data,
+        value: BigInt(call.value ?? '0'),
+    }));
+    console.info('updateCalls', updateCalls);
+    console.info('accountClient:', accountClient.address);
+    onStatusUpdate?.('Sending registration update via bundler...');
+    const userOpHash = await sendSponsoredUserOperation({
+        bundlerUrl,
+        chain: chain,
+        accountClient,
+        calls: updateCalls,
+    });
+    onStatusUpdate?.(`Registration update sent! UserOperation hash: ${userOpHash}. Waiting for confirmation...`);
+    const receipt = await waitForUserOperationReceipt({
+        bundlerUrl,
+        chain: chain,
+        hash: userOpHash,
+    });
+    console.info('........... receipt: ', receipt);
+    return {
+        txHash: userOpHash,
+        requiresClientSigning: true,
+    };
+}
+export async function giveFeedbackWithWallet(options) {
+    const { did8004, chain, score, feedback, feedbackAuth, clientAddress, tag1, tag2, feedbackUri, feedbackHash, skill, context, capability, ethereumProvider, onStatusUpdate, } = options;
+    onStatusUpdate?.('Preparing feedback submission on server...');
+    let prepared;
+    try {
+        const response = await fetch(`/api/agents/${encodeURIComponent(did8004)}/feedback`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                score,
+                feedback,
+                feedbackAuth,
+                clientAddress,
+                tag1,
+                tag2,
+                feedbackUri,
+                feedbackHash,
+                skill,
+                context,
+                capability,
+                mode: 'eoa',
+            }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || 'Failed to prepare feedback submission');
+        }
+        prepared = (await response.json());
+    }
+    catch (error) {
+        throw new Error(error instanceof Error
+            ? error.message
+            : 'Failed to prepare feedback submission');
+    }
+    if (!prepared.transaction) {
+        throw new Error('Feedback submission response missing transaction payload');
+    }
+    const txResult = await signAndSendTransaction({
+        transaction: prepared.transaction, // AgentPreparedTransactionPayload is compatible with PreparedTransaction
+        account: (clientAddress || '0x'),
+        chain,
+        ethereumProvider,
+        onStatusUpdate,
+    });
+    return {
+        txHash: txResult.hash,
+        requiresClientSigning: true,
+    };
+}
+export async function requestENSValidationWithWallet(options) {
+    const { requesterDid, chain, requesterAccountClient, requestUri, requestHash, onStatusUpdate, } = options;
+    onStatusUpdate?.('Preparing validation request on server...');
+    let prepared;
+    try {
+        const response = await fetch(`/api/agents/${encodeURIComponent(requesterDid)}/validation-request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                requestUri,
+                requestHash,
+                mode: 'aa',
+            }),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || 'Failed to prepare validation request');
+        }
+        prepared = (await response.json());
+    }
+    catch (error) {
+        throw new Error(error instanceof Error
+            ? error.message
+            : 'Failed to prepare validation request');
+    }
+    const bundlerUrl = prepared.bundlerUrl;
+    const rawCalls = Array.isArray(prepared.calls) ? prepared.calls : [];
+    if (!bundlerUrl || rawCalls.length === 0) {
+        throw new Error('Validation request response missing bundlerUrl or calls');
+    }
+    const validationCalls = rawCalls.map((call) => ({
+        to: call.to,
+        data: call.data,
+        value: BigInt(call.value ?? '0'),
+    }));
+    onStatusUpdate?.('Sending validation request via bundler...');
+    const userOpHash = await sendSponsoredUserOperation({
+        bundlerUrl,
+        chain: chain,
+        accountClient: requesterAccountClient,
+        calls: validationCalls,
+    });
+    onStatusUpdate?.(`Validation request sent! UserOperation hash: ${userOpHash}. Waiting for confirmation...`);
+    const receipt = await waitForUserOperationReceipt({
+        bundlerUrl,
+        chain: chain,
+        hash: userOpHash,
+    });
+    const validatorAddress = prepared.metadata?.validatorAddress || '';
+    const finalRequestHash = prepared.metadata?.requestHash || '';
+    return {
+        txHash: userOpHash,
+        requiresClientSigning: true,
+        validatorAddress,
+        requestHash: finalRequestHash,
+    };
+}
+//# sourceMappingURL=walletSigning.js.map

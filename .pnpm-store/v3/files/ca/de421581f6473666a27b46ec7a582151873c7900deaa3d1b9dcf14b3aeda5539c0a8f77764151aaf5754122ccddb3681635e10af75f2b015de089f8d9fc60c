@@ -1,0 +1,33 @@
+/**
+ * @agentic-trust/core
+ *
+ * Core SDK for agentic trust systems
+ */
+// ERC-8004 Agentic Trust SDK exports
+// Re-export all ERC-8004 functionality for convenience
+export { AIAgentENSClient, AIAgentL2ENSDurenClient, AIAgentL2ENSNamespaceClient, AIAgentIdentityClient, AIAgentReputationClient, OrgIdentityClient, } from '@agentic-trust/8004-ext-sdk';
+// Export AccountProvider types from erc8004-sdk for convenience
+export { ViemAccountProvider, } from '@agentic-trust/8004-sdk';
+export { 
+// Preferred Did-then-method names only
+buildDid8004, parseDid8004, resolveDid8004, } from './shared/did8004';
+export { buildDidEns, buildDidEnsFromAgentAndOrg, parseDidEns, } from './shared/didEns';
+export { buildDidEthr, parseDidEthr, } from './shared/didEthr';
+// Chain / Web3Auth config helpers (safe for both client and server)
+export { DEFAULT_CHAIN_ID, getChainRpcUrl, getChainBundlerUrl, isPrivateKeyMode, getEnsOrgName, getWeb3AuthClientId, getWeb3AuthNetwork, getChainDisplayMetadata, getSupportedChainIds, getWeb3AuthChainSettings, getChainIdHex, } from './server/lib/chainConfig';
+// Legacy export for backward compatibility (deprecated - use ViemAccountProvider instead)
+export { ViemAdapter } from '@agentic-trust/8004-sdk';
+// Session package utilities are server-only and should be imported from '@agentic-trust/core/server'
+// They are NOT exported here to prevent browser bundling issues (uses Node.js 'fs' module)
+// Export bundler utilities
+export { sendSponsoredUserOperation, waitForUserOperationReceipt, deploySmartAccountIfNeeded, isSmartContract, } from './client/accountClient';
+export { generateSessionPackage } from './client/sessionPackageBuilder';
+// Note: Server-only functionality is exported from '@agentic-trust/core/server'
+// Export client-side wallet signing utilities
+export { signAndSendTransaction, extractAgentIdFromReceipt, refreshAgentInIndexer, isWalletProviderAvailable, getWalletAddress, getDeployedAccountClientByAgentName, getCounterfactualAccountClientByAgentName, getCounterfactualAAAddressByAgentName, createAgentWithWallet, updateAgentRegistrationWithWallet, giveFeedbackWithWallet, requestENSValidationWithWallet, } from './client/walletSigning';
+// Client-side agent API helpers (HTTP-based)
+export { createAgent, updateAgentRegistration, } from './api/agents/client';
+export { createAgentDirect, } from './api/agents/directClient';
+// Validation request utilities (server-side)
+export { createValidatorAccountAbstraction, } from './server/lib/validations';
+//# sourceMappingURL=index.js.map

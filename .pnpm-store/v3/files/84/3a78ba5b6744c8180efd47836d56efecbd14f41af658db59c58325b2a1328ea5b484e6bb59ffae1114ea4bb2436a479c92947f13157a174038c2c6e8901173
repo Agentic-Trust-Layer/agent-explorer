@@ -1,0 +1,21 @@
+/**
+ * Reputation Client Singleton
+ *
+ * Manages a singleton instance of AIAgentReputationClient
+ * Initialized from session package or environment variables
+ */
+import { AIAgentReputationClient } from '@agentic-trust/8004-ext-sdk';
+/**
+ * Get or create the AIAgentReputationClient singleton
+ * Initializes from session package if available, otherwise uses environment variables
+ */
+export declare function getReputationClient(chainId?: number): Promise<AIAgentReputationClient>;
+/**
+ * Check if reputation client is initialized for a specific chain
+ */
+export declare function isReputationClientInitialized(chainId?: number): boolean;
+/**
+ * Reset the reputation client instance for a specific chain (useful for testing)
+ */
+export declare function resetReputationClient(chainId?: number): void;
+//# sourceMappingURL=reputationClient.d.ts.map

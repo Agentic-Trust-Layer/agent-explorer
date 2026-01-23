@@ -1,0 +1,64 @@
+import { getENSClient, } from '../singletons/ensClient';
+import { requireChainEnvVar, getEnsOrgAddress, getEnsPrivateKey, getChainById, } from './chainConfig';
+import { createPublicClient, createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { sendSponsoredUserOperation, waitForUserOperationReceipt, } from '../../client/accountClient';
+import { Implementation, toMetaMaskSmartAccount } from '@metamask/delegation-toolkit';
+export async function addToL1OrgPK(params) {
+    const targetChainId = params.chainId || 11155111;
+    const ensClient = await getENSClient(targetChainId);
+    const { calls } = await ensClient.prepareAddAgentNameToOrgCalls({
+        orgName: params.orgName,
+        agentName: params.agentName,
+        agentAddress: params.agentAddress,
+        agentUrl: params.agentUrl || '',
+    });
+    return await executeEnsCallsWithOrgPK({ calls, chainId: targetChainId });
+}
+export async function setL1NameInfoPK(params) {
+    const targetChainId = params.chainId || 11155111;
+    const ensClient = await getENSClient(targetChainId);
+    const { calls } = await ensClient.prepareSetAgentNameInfoCalls({
+        agentAddress: params.agentAddress,
+        orgName: params.orgName,
+        agentName: params.agentName,
+        agentUrl: params.agentUrl,
+        agentDescription: params.agentDescription,
+    });
+    return await executeEnsCallsWithOrgPK({ calls, chainId: targetChainId });
+}
+async function executeEnsCallsWithOrgPK(params) {
+    const { calls, chainId } = params;
+    const bundlerUrl = requireChainEnvVar('AGENTIC_TRUST_BUNDLER_URL', chainId);
+    const rpcUrl = requireChainEnvVar('AGENTIC_TRUST_RPC_URL', chainId);
+    const privKey = getEnsPrivateKey(chainId);
+    const orgAddress = getEnsOrgAddress(chainId);
+    const chain = getChainById(chainId);
+    const publicClient = createPublicClient({ chain: chain, transport: http(rpcUrl) });
+    const walletAccount = privateKeyToAccount(privKey);
+    const walletClient = createWalletClient({
+        account: walletAccount,
+        chain: chain,
+        transport: http(rpcUrl),
+    });
+    const orgAccountClient = await toMetaMaskSmartAccount({
+        address: orgAddress,
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        signer: { walletClient: walletClient },
+    });
+    const formattedCalls = calls.map(call => ({
+        to: call.to,
+        data: call.data,
+        value: typeof call.value === 'bigint' ? call.value : BigInt(call.value ?? 0),
+    }));
+    const userOpHash = await sendSponsoredUserOperation({
+        bundlerUrl,
+        chain,
+        accountClient: orgAccountClient,
+        calls: formattedCalls,
+    });
+    const receipt = await waitForUserOperationReceipt({ bundlerUrl, chain, hash: userOpHash });
+    return { userOpHash, receipt };
+}
+//# sourceMappingURL=names.js.map

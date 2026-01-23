@@ -1,0 +1,259 @@
+import { AgentApiError, createAgentCore, updateAgentRegistrationCore, requestFeedbackAuthCore, prepareFeedbackCore, prepareValidationRequestCore, getFeedbackCore, submitFeedbackDirectCore, } from './core';
+import { getValidationsCore } from './validations';
+import { parseDid8004 } from '../../shared/did8004';
+const hasNativeResponse = typeof globalThis !== 'undefined' &&
+    typeof globalThis.Response === 'function';
+const defaultContextFactory = () => ({});
+// Recursively convert BigInt and other non-JSON-safe values into JSON-safe forms.
+function toJsonSafe(value) {
+    if (typeof value === 'bigint') {
+        return value.toString();
+    }
+    if (value instanceof Date) {
+        return value.toISOString();
+    }
+    if (Array.isArray(value)) {
+        return value.map((item) => toJsonSafe(item));
+    }
+    if (value && typeof value === 'object') {
+        const result = {};
+        for (const [key, v] of Object.entries(value)) {
+            result[key] = toJsonSafe(v);
+        }
+        return result;
+    }
+    return value;
+}
+function jsonResponse(body, status = 200) {
+    const safeBody = toJsonSafe(body);
+    if (hasNativeResponse) {
+        const ResponseCtor = globalThis.Response;
+        return new ResponseCtor(JSON.stringify(safeBody), {
+            status,
+            headers: {
+                'content-type': 'application/json',
+            },
+        });
+    }
+    return {
+        status,
+        body: safeBody,
+        headers: { 'content-type': 'application/json' },
+    };
+}
+function handleNextError(error) {
+    if (error instanceof AgentApiError) {
+        return jsonResponse({
+            error: error.message,
+            details: error.details,
+        }, error.status ?? 400);
+    }
+    console.error('[AgenticTrust][Next] Unexpected error:', error);
+    return jsonResponse({
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+}
+export function createAgentRouteHandler(createContext = defaultContextFactory) {
+    return async (req) => {
+        try {
+            const input = (await req.json());
+            const ctx = createContext(req);
+            const result = await createAgentCore(ctx, input);
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+function extractDidParam(params) {
+    const candidateKeys = [
+        'did:8004',
+        'did%3A8004',
+        'did8004',
+    ];
+    for (const key of candidateKeys) {
+        const value = params[key];
+        if (!value)
+            continue;
+        const asString = Array.isArray(value) ? value[0] : value;
+        if (typeof asString === 'string' && asString.length > 0) {
+            return decodeURIComponent(asString);
+        }
+    }
+    // Fallback: first value
+    const firstKey = Object.keys(params)[0];
+    if (firstKey) {
+        const value = params[firstKey];
+        if (value) {
+            const asString = Array.isArray(value) ? value[0] : value;
+            if (typeof asString === 'string' && asString.length > 0) {
+                return decodeURIComponent(asString);
+            }
+        }
+    }
+    throw new AgentApiError('Missing did:8004 parameter', 400);
+}
+export function updateAgentRegistrationRouteHandler(createContext = defaultContextFactory) {
+    return async (req, context) => {
+        try {
+            const did8004 = extractDidParam(context.params || {});
+            const body = (await req.json());
+            const ctx = createContext(req);
+            const input = {
+                did8004,
+                registration: body?.registration,
+                mode: typeof body?.mode === 'string' ? body.mode : undefined,
+            };
+            const result = await updateAgentRegistrationCore(ctx, input);
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+function parseNumberParam(value) {
+    if (!value)
+        return undefined;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+}
+export function requestFeedbackAuthRouteHandler(createContext = defaultContextFactory) {
+    return async (req, context) => {
+        try {
+            const url = new URL(req.url);
+            const params = url.searchParams;
+            let agentIdParam = params.get('agentId') ??
+                (context?.params ? extractDidParam(context.params) : undefined);
+            const parsedDid = agentIdParam && agentIdParam.startsWith('did:8004:')
+                ? parseDid8004(agentIdParam)
+                : null;
+            const input = {
+                clientAddress: params.get('clientAddress') ?? '',
+                agentId: parsedDid ? parsedDid.agentId : (agentIdParam ?? ''),
+                chainId: parsedDid
+                    ? parsedDid.chainId
+                    : parseNumberParam(params.get('chainId')),
+                indexLimit: parseNumberParam(params.get('indexLimit')),
+                expirySeconds: parseNumberParam(params.get('expirySec')) ??
+                    parseNumberParam(params.get('expirySeconds')),
+            };
+            const ctx = createContext(req);
+            const result = await requestFeedbackAuthCore(ctx, input);
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+export function prepareFeedbackRouteHandler(createContext = defaultContextFactory) {
+    return async (req, context) => {
+        try {
+            const did8004 = extractDidParam(context.params || {});
+            const body = (await req.json());
+            const ctx = createContext(req);
+            const input = {
+                did8004,
+                ...body,
+            };
+            const result = await prepareFeedbackCore(ctx, input);
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+export function prepareValidationRequestRouteHandler(createContext = defaultContextFactory) {
+    return async (req, context) => {
+        try {
+            const did8004 = extractDidParam(context.params || {});
+            const body = (await req.json());
+            const ctx = createContext(req);
+            const input = {
+                did8004,
+                ...body,
+            };
+            const result = await prepareValidationRequestCore(ctx, input);
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+export function getFeedbackRouteHandler(createContext = defaultContextFactory) {
+    return async (req, context) => {
+        try {
+            const did8004 = extractDidParam(context.params || {});
+            const url = new URL(req.url);
+            const searchParams = url.searchParams;
+            const includeRevokedParam = searchParams.get('includeRevoked');
+            const includeRevoked = includeRevokedParam === 'true' || includeRevokedParam === '1';
+            const limit = parseNumberParam(searchParams.get('limit')) ?? 100;
+            const offset = parseNumberParam(searchParams.get('offset')) ?? 0;
+            const ctx = createContext(req);
+            const result = await getFeedbackCore(ctx, {
+                did8004,
+                includeRevoked,
+                limit,
+                offset,
+            });
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+export function directFeedbackRouteHandler(createContext = defaultContextFactory) {
+    return async (req, context) => {
+        try {
+            const did8004 = extractDidParam(context.params || {});
+            const body = (await req.json());
+            const ctx = createContext(req);
+            const input = {
+                did8004,
+                ...body,
+            };
+            const result = await submitFeedbackDirectCore(ctx, input);
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+export function getValidationsRouteHandler(createContext = defaultContextFactory) {
+    return async (req, context) => {
+        try {
+            const did8004 = extractDidParam(context.params || {});
+            const parsed = parseDid8004(did8004);
+            const ctx = createContext(req);
+            const result = await getValidationsCore(ctx, {
+                chainId: parsed.chainId,
+                agentId: parsed.agentId,
+            });
+            console.log('[getValidationsRouteHandler] Result:', {
+                did8004,
+                chainId: parsed.chainId,
+                agentId: parsed.agentId,
+                result,
+                pendingType: typeof result.pending,
+                completedType: typeof result.completed,
+                pendingIsArray: Array.isArray(result.pending),
+                completedIsArray: Array.isArray(result.completed),
+                pendingLength: Array.isArray(result.pending) ? result.pending.length : 'N/A',
+                completedLength: Array.isArray(result.completed) ? result.completed.length : 'N/A',
+            });
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleNextError(error);
+        }
+    };
+}
+//# sourceMappingURL=next.js.map

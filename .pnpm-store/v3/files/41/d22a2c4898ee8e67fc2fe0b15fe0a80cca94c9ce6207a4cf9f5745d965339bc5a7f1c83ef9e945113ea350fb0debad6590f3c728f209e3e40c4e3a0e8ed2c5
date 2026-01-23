@@ -1,0 +1,74 @@
+import { type Chain } from 'viem';
+import type { PublicClient, WalletClient } from 'viem';
+type GetAAAccountClientOptions = {
+    chain?: Chain;
+    publicClient?: PublicClient;
+    walletClient?: WalletClient;
+    ethereumProvider?: any;
+    includeDeployParams?: boolean;
+    accountAddress?: `0x${string}`;
+};
+/**
+ * Get the counterfactual AA address for an agent name (client-side computation)
+ *
+ * This function computes the AA address without creating a full account client.
+ * It uses the wallet provider (MetaMask/Web3Auth) to compute the address.
+ *
+ * @param agentName - The agent name
+ * @param eoaAddress - The EOA address (owner of the AA account)
+ * @param options - Options for chain, ethereumProvider, etc.
+ * @returns The counterfactual AA address
+ */
+export declare function getCounterfactualAAAddressByAgentName(agentName: string, eoaAddress: `0x${string}`, options?: GetAAAccountClientOptions): Promise<`0x${string}`>;
+export declare function getCounterfactualAccountClientByAgentName(agentName: string, eoaAddress: `0x${string}`, options?: GetAAAccountClientOptions): Promise<any>;
+export declare function getDeployedAccountClientByAgentName(bundlerUrl: string, agentName: string, eoaAddress: `0x${string}`, options?: GetAAAccountClientOptions): Promise<any>;
+/**
+ * Send a sponsored UserOperation via bundler
+ *
+ * @param params - UserOperation parameters
+ * @returns UserOperation hash
+ */
+export declare function sendSponsoredUserOperation(params: {
+    bundlerUrl: string;
+    chain: Chain;
+    accountClient: any;
+    calls: {
+        to: `0x${string}`;
+        data?: `0x${string}`;
+        value?: bigint;
+    }[];
+}): Promise<`0x${string}`>;
+/**
+ * Wait for UserOperation receipt
+ *
+ * @param params - Receipt parameters
+ * @returns UserOperation receipt
+ */
+export declare function waitForUserOperationReceipt(params: {
+    bundlerUrl: string;
+    chain: Chain;
+    hash: `0x${string}`;
+}): Promise<any>;
+/**
+ * Deploy smart account if needed
+ *
+ * @param params - Deployment parameters
+ * @returns true if account was deployed, false if already deployed
+ */
+export declare function deploySmartAccountIfNeeded(params: {
+    bundlerUrl: string;
+    chain: Chain;
+    account: {
+        isDeployed: () => Promise<boolean>;
+    };
+}): Promise<boolean>;
+/**
+ * Check if an address is a smart contract (has code)
+ *
+ * @param publicClient - Viem public client
+ * @param address - Address to check
+ * @returns true if address has code (is a contract), false if EOA
+ */
+export declare function isSmartContract(publicClient: any, address: `0x${string}`): Promise<boolean>;
+export {};
+//# sourceMappingURL=accountClient.d.ts.map

@@ -1,0 +1,28 @@
+export type SessionPackage = {
+    agentId: number;
+    chainId: number;
+    aa: `0x${string}`;
+    sessionAA?: `0x${string}`;
+    selector: `0x${string}`;
+    sessionKey: {
+        privateKey: `0x${string}`;
+        address: `0x${string}`;
+        validAfter: number;
+        validUntil: number;
+    };
+    entryPoint: `0x${string}`;
+    bundlerUrl: string;
+    delegationRedeemData?: `0x${string}`;
+    signedDelegation: {
+        message: {
+            delegate: `0x${string}`;
+            delegator: `0x${string}`;
+            authority: `0x${string}`;
+            caveats: any[];
+            salt: `0x${string}`;
+            signature: `0x${string}`;
+        };
+        signature: `0x${string}`;
+    };
+};
+//# sourceMappingURL=sessionPackage.d.ts.map

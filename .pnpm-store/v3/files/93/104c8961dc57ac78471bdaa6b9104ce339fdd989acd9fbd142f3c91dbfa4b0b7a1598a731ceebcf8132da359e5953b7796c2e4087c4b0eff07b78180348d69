@@ -1,0 +1,59 @@
+{
+  "name": "@metamask/delegation-deployments",
+  "version": "0.12.0",
+  "description": "A history of deployments of the Delegation Framework",
+  "license": "(MIT-0 OR Apache-2.0)",
+  "keywords": [
+    "MetaMask",
+    "Ethereum"
+  ],
+  "homepage": "https://github.com/MetaMask/delegator-sdk/tree/main/packages/delegation-deployments#readme",
+  "bugs": {
+    "url": "https://github.com/MetaMask/delegator-sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MetaMask/delegator-sdk.git"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/**",
+    "dist/"
+  ],
+  "exports": {
+    ".": {
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "engines": {
+    "node": "^18.18 || >=20"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "yarn typecheck && tsup",
+    "typecheck": "tsc --noEmit",
+    "changelog:update": "../../scripts/update-changelog.sh @metamask/delegation-deployments",
+    "changelog:validate": "../../scripts/validate-changelog.sh @metamask/delegation-deployments",
+    "validate-latest-contracts": "npx tsx script/validate-contract-deployments.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "@metamask/auto-changelog": "^3.4.4",
+    "compare-versions": "^6.1.1",
+    "tsup": "^7.2.0",
+    "typescript": "5.0.4"
+  }
+}

@@ -1,0 +1,48 @@
+/**
+ * Next.js API Route Handler for creating agents with Account Abstraction
+ *
+ * This handler can be directly exported and used in Next.js apps.
+ * The client-side function `createAgentWithWalletForAA` from `@agentic-trust/core/client`
+ * automatically calls this endpoint at `/api/agents/create-for-aa`.
+ *
+ * Usage in your Next.js app:
+ *
+ * ```typescript
+ * // In app/api/agents/create-for-aa/route.ts
+ * export { createAgentForAAHandler as POST } from '@agentic-trust/core/server';
+ *
+ * // Or using the direct import:
+ * // export { POST } from '@agentic-trust/core/server/api/agents/create-for-aa';
+ * ```
+ *
+ * Then in your React component:
+ *
+ * ```typescript
+ * import { createAgentWithWalletForAA } from '@agentic-trust/core/client';
+ *
+ * const result = await createAgentWithWalletForAA({
+ *   agentData: {
+ *     agentName: 'my-agent',
+ *     agentAccount: '0x...',
+ *     description: 'My agent description',
+ *   },
+ * });
+ * ```
+ *
+ * The client function handles:
+ * - Wallet connection and account detection
+ * - Chain selection and switching
+ * - AA account client creation
+ * - UserOperation submission via bundler
+ * - Agent ID extraction and indexer refresh
+ *
+ * For Express apps, use the Express-compatible handler:
+ * ```typescript
+ * import { createAgentForAAExpressHandler } from '@agentic-trust/core/server/api/agents/express';
+ * ```
+ */
+type NextRequest = any;
+type NextResponseType = any;
+export declare function POST(request: NextRequest): Promise<NextResponseType>;
+export {};
+//# sourceMappingURL=create-for-aa.d.ts.map

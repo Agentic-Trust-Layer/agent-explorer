@@ -1,0 +1,14 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.deleteBackup = void 0;
+const errors_1 = require("../errors");
+const deleteBackup = (api) => {
+    return async (backupId) => {
+        if (!backupId) {
+            throw new errors_1.PineconeArgumentError('You must pass a non-empty string for `backupId` in order to delete a backup');
+        }
+        return await api.deleteBackup({ backupId: backupId });
+    };
+};
+exports.deleteBackup = deleteBackup;
+//# sourceMappingURL=deleteBackup.js.map

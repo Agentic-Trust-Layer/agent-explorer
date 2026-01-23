@@ -1,0 +1,85 @@
+import { buildDid8004 } from '../../index';
+import { getValidationClient } from '../singletons/validationClient';
+import { keccak256, stringToHex, createPublicClient, http, createWalletClient } from 'viem';
+import { toMetaMaskSmartAccount, Implementation } from '@metamask/delegation-toolkit';
+import { privateKeyToAccount } from 'viem/accounts';
+import { getChainById, DEFAULT_CHAIN_ID, requireChainEnvVar } from './chainConfig';
+export async function getAgentValidationsSummary(chainId, agentId) {
+    const client = await getValidationClient(chainId);
+    const numericAgentId = typeof agentId === 'string' ? Number.parseInt(agentId, 10) : Number(agentId);
+    if (!Number.isFinite(numericAgentId) || numericAgentId <= 0) {
+        throw new Error('Invalid agentId');
+    }
+    const agentIdBigInt = BigInt(numericAgentId);
+    const requestHashes = await client.getAgentValidations(agentIdBigInt);
+    console.log(`[getAgentValidationsSummary] Found ${requestHashes.length} validation request hash(es) for agent ${numericAgentId} on chain ${chainId}`);
+    const pending = [];
+    const completed = [];
+    for (const hash of requestHashes) {
+        try {
+            const status = await client.getValidationStatus(hash);
+            console.log(`[getAgentValidationsSummary] Validation ${hash}: response=${status.response}, validator=${status.validatorAddress}`);
+            if (status.response === 0) {
+                pending.push(status);
+            }
+            else {
+                completed.push(status);
+            }
+        }
+        catch (error) {
+            console.warn(`[getAgentValidationsSummary] Failed to get status for hash ${hash}:`, error);
+            // Ignore invalid entries but continue
+        }
+    }
+    const did8004 = buildDid8004(chainId, numericAgentId);
+    console.log(`[getAgentValidationsSummary] Summary for agent ${numericAgentId}: pending=${pending.length}, completed=${completed.length}`);
+    return {
+        agentId: String(numericAgentId),
+        chainId,
+        did8004,
+        pending,
+        completed,
+    };
+}
+/**
+ * Create a validator account abstraction using the name 'validator-ens' as the seed from a private key.
+ * The validator address is determined server-side based on AGENTIC_TRUST_VALIDATOR_PRIVATE_KEY.
+ */
+export async function createValidatorAccountAbstraction(validatorName, validatorPrivateKey, chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    const chain = getChainById(targetChainId);
+    const rpcUrl = requireChainEnvVar('AGENTIC_TRUST_RPC_URL', targetChainId);
+    // Normalize private key
+    const normalizedKey = validatorPrivateKey.startsWith('0x')
+        ? validatorPrivateKey
+        : `0x${validatorPrivateKey}`;
+    // Create account from private key
+    const account = privateKeyToAccount(normalizedKey);
+    const eoaAddress = account.address;
+    // Create public and wallet clients
+    const publicClient = createPublicClient({
+        chain: chain,
+        transport: http(rpcUrl),
+    });
+    const walletClient = createWalletClient({
+        account,
+        chain: chain,
+        transport: http(rpcUrl),
+    });
+    // Create salt from validator name 'validator-ens'
+    const salt = keccak256(stringToHex(validatorName));
+    // Create account abstraction with validator name as seed
+    const clientConfig = {
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        signer: {
+            walletClient,
+        },
+        deployParams: [eoaAddress, [], [], []],
+        deploySalt: salt,
+    };
+    const accountClient = await toMetaMaskSmartAccount(clientConfig);
+    const validatorAddress = accountClient.address;
+    return { accountClient, address: validatorAddress };
+}
+//# sourceMappingURL=validations.js.map

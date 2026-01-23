@@ -1,0 +1,87 @@
+{
+  "name": "ethr-did-resolver",
+  "version": "11.0.4",
+  "description": "Resolve DID documents for ethereum addresses and public keys",
+  "type": "commonjs",
+  "source": "./src/index.ts",
+  "main": "./lib/index.js",
+  "module": "./esm/index.js",
+  "types": "./lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./esm/index.js",
+      "require": "./lib/index.js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:decentralized-identity/ethr-did-resolver.git"
+  },
+  "files": [
+    "lib",
+    "esm",
+    "src",
+    "LICENSE"
+  ],
+  "author": "Pelle Braendgaard",
+  "contributors": [
+    "Mircea Nistor"
+  ],
+  "license": "Apache-2.0",
+  "keywords": [
+    "did:ethr",
+    "DID",
+    "DID document",
+    "PKI",
+    "resolver",
+    "Verifiable Credential",
+    "W3C",
+    "ethereum",
+    "ethereumAddress",
+    "blockchainAccountId",
+    "registry",
+    "EIP1056",
+    "EcdsaSecp256k1RecoveryMethod2020",
+    "EcdsaSecp256k1VerificationKey2019",
+    "Ed25519VerificationKey2018"
+  ],
+  "scripts": {
+    "test": "jest",
+    "test:ci": "jest --coverage",
+    "build": "tsc",
+    "clean": "rm -rf ./lib",
+    "format": "prettier --write \"src/**/*.[jt]s\"",
+    "lint": "eslint --ignore-pattern \"src/**/*.test.[jt]s\" \"src/**/*.[jt]s\"",
+    "prepublishOnly": "yarn test:ci && yarn format && yarn lint",
+    "release": "semantic-release --debug"
+  },
+  "devDependencies": {
+    "@babel/core": "7.27.4",
+    "@babel/preset-env": "7.27.2",
+    "@babel/preset-typescript": "7.27.1",
+    "@eslint/eslintrc": "^3.1.0",
+    "@eslint/js": "^9.11.1",
+    "@ethers-ext/provider-ganache": "6.0.0-beta.2",
+    "@semantic-release/changelog": "6.0.3",
+    "@semantic-release/git": "10.0.1",
+    "@types/jest": "29.5.14",
+    "@typescript-eslint/eslint-plugin": "8.34.0",
+    "@typescript-eslint/parser": "8.34.0",
+    "babel-jest": "29.7.0",
+    "eslint": "8.57.1",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-jest": "28.13.5",
+    "eslint-plugin-prettier": "5.4.1",
+    "jest": "29.7.0",
+    "prettier": "3.5.3",
+    "semantic-release": "22.0.12",
+    "ts-jest": "^29.2.5",
+    "typescript": "5.8.3"
+  },
+  "dependencies": {
+    "did-resolver": "^4.1.0",
+    "ethers": "^6.8.1"
+  },
+  "packageManager": "yarn@1.22.22"
+}

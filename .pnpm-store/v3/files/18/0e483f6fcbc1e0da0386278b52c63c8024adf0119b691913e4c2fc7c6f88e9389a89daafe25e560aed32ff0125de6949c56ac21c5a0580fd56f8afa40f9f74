@@ -1,0 +1,38 @@
+/**
+ * Validation Client Singleton
+ *
+ * Manages a singleton instance of AIAgentValidationClient
+ * Initialized from environment variables and domain AccountProvider
+ */
+import { AIAgentValidationClient } from '@agentic-trust/8004-ext-sdk';
+import { requireChainEnvVar, DEFAULT_CHAIN_ID } from '../lib/chainConfig';
+import { DomainClient } from './domainClient';
+import { resolveDomainUserApps, resolveValidationAccountProvider, } from './domainAccountProviders';
+class ValidationDomainClient extends DomainClient {
+    constructor() {
+        super('validation');
+    }
+    async buildClient(targetChainId, initArg) {
+        const validationRegistry = requireChainEnvVar('AGENTIC_TRUST_VALIDATION_REGISTRY', targetChainId);
+        const rpcUrl = requireChainEnvVar('AGENTIC_TRUST_RPC_URL', targetChainId);
+        const init = (initArg || {});
+        const userApps = init.userApps ?? (await resolveDomainUserApps());
+        const accountProvider = await resolveValidationAccountProvider(targetChainId, rpcUrl, userApps);
+        const validationClient = await AIAgentValidationClient.create(accountProvider, validationRegistry);
+        return validationClient;
+    }
+}
+const validationDomainClient = new ValidationDomainClient();
+export async function getValidationClient(chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    return validationDomainClient.get(targetChainId);
+}
+export function isValidationClientInitialized(chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    return validationDomainClient.isInitialized(targetChainId);
+}
+export function resetValidationClient(chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    validationDomainClient.reset(targetChainId);
+}
+//# sourceMappingURL=validationClient.js.map

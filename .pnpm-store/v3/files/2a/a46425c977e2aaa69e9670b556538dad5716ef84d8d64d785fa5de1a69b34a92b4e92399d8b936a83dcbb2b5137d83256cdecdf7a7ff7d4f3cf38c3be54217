@@ -1,0 +1,58 @@
+{
+  "name": "throttled-queue",
+  "version": "3.0.0",
+  "description": "Throttles arbitrary code to execute a maximum number of times per interval. Best for making throttled API requests.",
+  "main": "dist/cjs/throttledQueue.cjs",
+  "types": "dist/cjs/throttledQueue.d.cts",
+  "type": "module",
+  "exports": {
+    "import": {
+      "types": "./dist/esm/throttledQueue.d.mts",
+      "default": "./dist/esm/throttledQueue.mjs"
+    },
+    "require": {
+      "types": "./dist/cjs/throttledQueue.d.cts",
+      "default": "./dist/cjs/throttledQueue.cjs"
+    }
+  },
+  "files": [
+    "dist/*",
+    "src/*"
+  ],
+  "scripts": {
+    "build": "npm run build:cjs && npm run build:esm",
+    "build:cjs": "tsc -p tsconfig.cjs.json && npm run build:cjs:transform",
+    "build:cjs:transform": "mjscjs -p tsconfig.cjs.json",
+    "build:esm": "tsc -p tsconfig.esm.json && npm run build:esm:transform",
+    "build:esm:transform": "mjscjs -p tsconfig.esm.json",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run src/throttledQueue.test.ts --test-timeout=200000"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaunpersad/throttled-queue.git"
+  },
+  "keywords": [
+    "node",
+    "rate limit",
+    "queue",
+    "throttle",
+    "throttled",
+    "request"
+  ],
+  "author": "Shaun Persad <shaunpersad@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/shaunpersad/throttled-queue/issues"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.9.0",
+    "@typescript-eslint/parser": "^5.9.0",
+    "eslint": "^8.6.0",
+    "eslint-config-airbnb-typescript": "^16.1.0",
+    "eslint-plugin-import": "^2.25.4",
+    "mjscjs": "^1.1.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

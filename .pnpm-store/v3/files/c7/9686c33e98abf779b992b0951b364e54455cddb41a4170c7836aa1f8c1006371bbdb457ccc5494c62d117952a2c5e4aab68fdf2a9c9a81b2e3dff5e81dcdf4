@@ -1,0 +1,275 @@
+import { keccak256, stringToHex, createPublicClient, http, zeroAddress, createWalletClient, custom } from 'viem';
+import { sepolia } from 'viem/chains';
+import { createBundlerClient } from 'viem/account-abstraction';
+import { getChainRpcUrl } from '../server/lib/chainConfig';
+import { toMetaMaskSmartAccount, Implementation } from '@metamask/delegation-toolkit';
+/**
+ * Get the counterfactual AA address for an agent name (client-side computation)
+ *
+ * This function computes the AA address without creating a full account client.
+ * It uses the wallet provider (MetaMask/Web3Auth) to compute the address.
+ *
+ * @param agentName - The agent name
+ * @param eoaAddress - The EOA address (owner of the AA account)
+ * @param options - Options for chain, ethereumProvider, etc.
+ * @returns The counterfactual AA address
+ */
+export async function getCounterfactualAAAddressByAgentName(agentName, eoaAddress, options) {
+    // Use the existing function to get the account client, then return just the address
+    const accountClient = await getCounterfactualAccountClientByAgentName(agentName, eoaAddress, options);
+    return accountClient.address;
+}
+export async function getCounterfactualAccountClientByAgentName(agentName, eoaAddress, options) {
+    const chain = options?.chain || sepolia;
+    let walletClient;
+    if (options?.walletClient) {
+        walletClient = options.walletClient;
+    }
+    else if (options?.ethereumProvider) {
+        walletClient = createWalletClient({
+            chain: chain,
+            transport: custom(options.ethereumProvider),
+            account: eoaAddress,
+        });
+    }
+    else {
+        throw new Error('No wallet client found. Ensure MetaMask/Web3Auth is available or pass walletClient in options.');
+    }
+    let publicClient;
+    if (options?.publicClient) {
+        publicClient = options.publicClient;
+    }
+    else if (options?.ethereumProvider) {
+        publicClient = createPublicClient({
+            chain: chain,
+            transport: custom(options?.ethereumProvider),
+        });
+    }
+    else {
+        throw new Error('No public client found. Ensure RPC URL is available or pass publicClient in options.');
+    }
+    const salt = keccak256(stringToHex(agentName));
+    const clientConfig = {
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        signer: {
+            walletClient,
+        },
+        deployParams: [eoaAddress, [], [], []],
+        deploySalt: salt,
+    };
+    let counterfactualAccountClient = await toMetaMaskSmartAccount(clientConfig);
+    return counterfactualAccountClient;
+}
+export async function getDeployedAccountClientByAgentName(bundlerUrl, agentName, eoaAddress, options) {
+    // Extract only the name to the left of the first '.'
+    const normalizedAgentName = agentName.includes('.') ? agentName.split('.')[0] : agentName;
+    // Ensure we have a valid non-empty string
+    if (!normalizedAgentName || normalizedAgentName.trim().length === 0) {
+        throw new Error('Agent name is required and cannot be empty');
+    }
+    const chain = options?.chain || sepolia;
+    console.info('*********** accountClient getDeployedAccountClientByAgentName: agentName', agentName, 'normalized:', normalizedAgentName);
+    let walletClient;
+    if (options?.walletClient) {
+        walletClient = options.walletClient;
+    }
+    else if (options?.ethereumProvider) {
+        walletClient = createWalletClient({
+            chain: chain,
+            transport: custom(options.ethereumProvider),
+            account: eoaAddress,
+        });
+    }
+    else {
+        throw new Error('No wallet client found. Ensure MetaMask/Web3Auth is available or pass walletClient in options.');
+    }
+    let publicClient;
+    if (options?.publicClient) {
+        publicClient = options.publicClient;
+    }
+    else if (options?.ethereumProvider) {
+        publicClient = createPublicClient({
+            chain: chain,
+            transport: custom(options?.ethereumProvider),
+        });
+    }
+    else {
+        throw new Error('No public client found. Ensure RPC URL is available or pass publicClient in options.');
+    }
+    const salt = keccak256(stringToHex(normalizedAgentName));
+    const clientConfig = {
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        signer: {
+            walletClient,
+        },
+        deployParams: [eoaAddress, [], [], []],
+        deploySalt: salt,
+    };
+    let counterfactualAccountClient = await toMetaMaskSmartAccount(clientConfig);
+    // Check deployment status with provided publicClient, then fall back to HTTP RPC if available
+    let isDeployed = false;
+    try {
+        const code = await publicClient.getBytecode({ address: counterfactualAccountClient.address });
+        isDeployed = !!code && code !== "0x";
+    }
+    catch { }
+    if (!isDeployed) {
+        try {
+            const rpcUrl = getChainRpcUrl(chain.id);
+            console.info('*********** accountClient getDeployedAccountClientByAgentName: checking on RPC', rpcUrl);
+            if (rpcUrl) {
+                const httpClient = createPublicClient({ chain: chain, transport: http(rpcUrl) });
+                const codeHttp = await httpClient.getBytecode({ address: counterfactualAccountClient.address });
+                isDeployed = !!codeHttp && codeHttp !== "0x";
+            }
+        }
+        catch { }
+    }
+    console.info('*********** accountClient getDeployedAccountClientByAgentName: isDeployed', isDeployed);
+    if (!isDeployed && bundlerUrl) {
+        console.info('*********** accountClient getDeployedAccountClientByAgentName: deploying via bundler');
+        const pimlico = await getPimlicoClient(bundlerUrl);
+        const bundlerClient = createBundlerClient({
+            transport: http(bundlerUrl),
+            paymaster: true,
+            chain: chain,
+            paymasterContext: { mode: 'SPONSORED' },
+        });
+        const { fast: fee } = await pimlico.getUserOperationGasPrice();
+        console.info('*********** accountClient getDeployedAccountClientByAgentName: gas price', fee);
+        const userOperationHash = await bundlerClient.sendUserOperation({
+            account: counterfactualAccountClient,
+            calls: [{ to: zeroAddress }],
+            ...fee,
+        });
+        console.info('*********** accountClient getDeployedAccountClientByAgentName: userOperationHash', userOperationHash);
+        await bundlerClient.waitForUserOperationReceipt({ hash: userOperationHash });
+        // After deployment, mark as deployed so we rebuild below
+        isDeployed = true;
+    }
+    if (isDeployed) {
+        // Rebuild a "clean" smart account client with address only (no factory/deploy params)
+        // using an HTTP public client to avoid provider quirks.
+        try {
+            const rpcUrl = getChainRpcUrl(chain.id);
+            const httpClient = createPublicClient({ chain: chain, transport: http(rpcUrl) });
+            console.info('*********** accountClient getDeployedAccountClientByAgentName: rebuilding deployed account client (address-only)');
+            const deployedAccountClient = await toMetaMaskSmartAccount({
+                client: httpClient,
+                implementation: Implementation.Hybrid,
+                signer: {
+                    walletClient: walletClient,
+                },
+                address: counterfactualAccountClient.address,
+            });
+            console.info('*********** accountClient getDeployedAccountClientByAgentName: agentAccountClient', deployedAccountClient.address);
+            return deployedAccountClient;
+        }
+        catch (rebuildErr) {
+            console.warn('*********** accountClient getDeployedAccountClientByAgentName: rebuild failed, falling back to existing client', rebuildErr);
+            return counterfactualAccountClient;
+        }
+    }
+    console.info('*********** accountClient getDeployedAccountClientByAgentName: agentAccountClient', counterfactualAccountClient.address);
+    return counterfactualAccountClient;
+}
+// ============================================================================
+// Bundler Utilities
+// ============================================================================
+// Dynamic import for permissionless (optional dependency)
+async function getPimlicoClient(bundlerUrl) {
+    try {
+        // @ts-ignore - permissionless is an optional dependency
+        const { createPimlicoClient } = await import('permissionless/clients/pimlico');
+        return createPimlicoClient({ transport: http(bundlerUrl) });
+    }
+    catch (error) {
+        throw new Error('permissionless package not installed. Install it with: pnpm add permissionless ' +
+            `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+}
+/**
+ * Send a sponsored UserOperation via bundler
+ *
+ * @param params - UserOperation parameters
+ * @returns UserOperation hash
+ */
+export async function sendSponsoredUserOperation(params) {
+    const { bundlerUrl, chain, accountClient, calls } = params;
+    const pimlicoClient = await getPimlicoClient(bundlerUrl);
+    const bundlerClient = createBundlerClient({
+        transport: http(bundlerUrl),
+        paymaster: true,
+        chain: chain,
+        paymasterContext: { mode: 'SPONSORED' }
+    });
+    const { fast: fee } = await pimlicoClient.getUserOperationGasPrice();
+    const userOpHash = await bundlerClient.sendUserOperation({
+        account: accountClient,
+        calls,
+        ...fee
+    });
+    return userOpHash;
+}
+/**
+ * Wait for UserOperation receipt
+ *
+ * @param params - Receipt parameters
+ * @returns UserOperation receipt
+ */
+export async function waitForUserOperationReceipt(params) {
+    const { bundlerUrl, chain, hash } = params;
+    const bundlerClient = createBundlerClient({
+        transport: http(bundlerUrl),
+        paymaster: true,
+        chain: chain,
+        paymasterContext: { mode: 'SPONSORED' }
+    });
+    return await bundlerClient.waitForUserOperationReceipt({ hash });
+}
+/**
+ * Deploy smart account if needed
+ *
+ * @param params - Deployment parameters
+ * @returns true if account was deployed, false if already deployed
+ */
+export async function deploySmartAccountIfNeeded(params) {
+    const { bundlerUrl, chain, account } = params;
+    const isDeployed = await account.isDeployed();
+    if (isDeployed)
+        return false;
+    const pimlico = await getPimlicoClient(bundlerUrl);
+    const bundlerClient = createBundlerClient({
+        transport: http(bundlerUrl),
+        paymaster: true,
+        chain: chain,
+        paymasterContext: { mode: 'SPONSORED' }
+    });
+    const { fast } = await pimlico.getUserOperationGasPrice();
+    const userOperationHash = await bundlerClient.sendUserOperation({
+        account,
+        calls: [{ to: zeroAddress }],
+        ...fast
+    });
+    await bundlerClient.waitForUserOperationReceipt({ hash: userOperationHash });
+    return true;
+}
+/**
+ * Check if an address is a smart contract (has code)
+ *
+ * @param publicClient - Viem public client
+ * @param address - Address to check
+ * @returns true if address has code (is a contract), false if EOA
+ */
+export async function isSmartContract(publicClient, address) {
+    try {
+        const code = await publicClient.getBytecode({ address });
+        return code !== undefined && code !== '0x';
+    }
+    catch {
+        return false;
+    }
+}
+//# sourceMappingURL=accountClient.js.map

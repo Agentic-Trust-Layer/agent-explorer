@@ -1,0 +1,255 @@
+/**
+ * Client-side wallet signing utilities
+ *
+ * Handles MetaMask/EIP-1193 wallet integration for signing and sending transactions
+ * All Ethereum logic is handled server-side, client only needs to sign and send
+ */
+import { type Address, type Chain } from 'viem';
+export { getDeployedAccountClientByAgentName, getCounterfactualAccountClientByAgentName, getCounterfactualAAAddressByAgentName, } from './accountClient';
+/**
+ * Transaction prepared by server for client-side signing
+ */
+export interface PreparedTransaction {
+    to: `0x${string}`;
+    data: `0x${string}`;
+    value: `0x${string}`;
+    gas?: `0x${string}`;
+    gasPrice?: `0x${string}`;
+    maxFeePerGas?: `0x${string}`;
+    maxPriorityFeePerGas?: `0x${string}`;
+    nonce?: number;
+    chainId: number;
+}
+/**
+ * Result of signing and sending a transaction
+ */
+export interface TransactionResult {
+    hash: `0x${string}`;
+    receipt: any;
+    agentId?: string;
+}
+/**
+ * Options for signing a transaction
+ */
+export interface SignTransactionOptions {
+    transaction: PreparedTransaction;
+    account: Address;
+    chain: Chain;
+    ethereumProvider?: any;
+    rpcUrl?: string;
+    onStatusUpdate?: (message: string) => void;
+    extractAgentId?: boolean;
+}
+/**
+ * Sign and send a transaction using MetaMask/EIP-1193 wallet
+ *
+ * @param options - Signing options including transaction, account, chain, and provider
+ * @returns Transaction hash, receipt, and optionally extracted agentId
+ */
+export declare function signAndSendTransaction(options: SignTransactionOptions): Promise<TransactionResult>;
+/**
+ * Extract agentId from a transaction receipt (for agent creation)
+ * Looks for ERC-721 Transfer event from zero address
+ *
+ * @param receipt - Transaction receipt
+ * @returns Extracted agentId as string, or undefined if not found
+ */
+export declare function extractAgentIdFromReceipt(receipt: any): string | undefined;
+/**
+ * Refresh agent in GraphQL indexer
+ *
+ * @param agentId - Agent ID to refresh
+ * @param chainId - Chain ID for the agent
+ * @param refreshEndpoint - Optional custom refresh endpoint (defaults to `/api/agents/<did>/refresh`)
+ * @returns Promise that resolves when refresh is complete
+ */
+export declare function refreshAgentInIndexer(agentId: string, chainId: number | string, refreshEndpoint?: string): Promise<void>;
+/**
+ * Check if wallet provider is available
+ *
+ * @param ethereumProvider - Optional provider (defaults to window.ethereum)
+ * @returns true if provider is available
+ */
+export declare function isWalletProviderAvailable(ethereumProvider?: any): boolean;
+/**
+ * Get the connected wallet address from provider
+ *
+ * @param ethereumProvider - Optional provider (defaults to window.ethereum)
+ * @returns Connected wallet address, or null if not connected
+ */
+export declare function getWalletAddress(ethereumProvider?: any): Promise<Address | null>;
+/**
+ * Options for creating an agent with wallet signing
+ * Only agentData is required - everything else is automatically detected
+ */
+export interface CreateAgentWithWalletOptions {
+    agentData: {
+        agentName: string;
+        agentAccount: `0x${string}`;
+        description?: string;
+        image?: string;
+        agentUrl?: string;
+    };
+    account?: Address;
+    ethereumProvider?: any;
+    rpcUrl?: string;
+    onStatusUpdate?: (message: string) => void;
+    useAA?: boolean;
+    ensOptions?: {
+        enabled?: boolean;
+        orgName?: string;
+    };
+    chainId?: number;
+}
+/**
+ * Result of creating an agent
+ */
+export interface CreateAgentResult {
+    agentId?: string;
+    txHash: string;
+    requiresClientSigning: boolean;
+}
+export declare function createAgentWithWallet(options: CreateAgentWithWalletOptions): Promise<CreateAgentResult>;
+/**
+ * Update an existing agent's registration (tokenUri) using an AA wallet +
+ * bundler, mirroring the AA create flow.
+ *
+ * This client-side function handles the complete AA agent registration update flow:
+ * 1. Sends the updated registration JSON to the server API route
+ * 2. Receives prepared AA calls + bundler URL
+ * 3. Sends a sponsored UserOperation via the bundler using the AA account
+ * 4. Waits for confirmation
+ *
+ * **Setup Required:**
+ * Your Next.js app must mount the API route handler:
+ *
+ * ```typescript
+ * // In app/api/agents/[did:8004]/registration/route.ts
+ * import { updateAgentRegistrationRouteHandler } from '@agentic-trust/core/server';
+ * export const PUT = updateAgentRegistrationRouteHandler();
+ * ```
+ *
+ * **Usage:**
+ * ```typescript
+ * import { updateAgentRegistrationWithWallet } from '@agentic-trust/core/client';
+ *
+ * const result = await updateAgentRegistrationWithWallet({
+ *   did8004: 'did:8004:11155111:123',
+ *   chain: sepolia,
+ *   accountClient: agentAccountClient,
+ *   registration: { name: 'Updated Agent', description: '...' },
+ *   onStatusUpdate: (msg) => console.log(msg),
+ * });
+ * ```
+ */
+export interface UpdateAgentRegistrationWithWalletOptions {
+    did8004: string;
+    chain: Chain;
+    accountClient: any;
+    registration: string | Record<string, unknown>;
+    onStatusUpdate?: (status: string) => void;
+}
+export declare function updateAgentRegistrationWithWallet(options: UpdateAgentRegistrationWithWalletOptions): Promise<{
+    txHash: string;
+    requiresClientSigning: true;
+}>;
+/**
+ * Submit feedback for an agent using an AA wallet + bundler, mirroring the AA update flow.
+ *
+ * This client-side function handles the complete AA feedback submission flow:
+ * 1. Sends feedback data to the server API route to prepare calls
+ * 2. Receives prepared AA calls + bundler URL
+ * 3. Sends a sponsored UserOperation via the bundler using the AA account
+ * 4. Waits for confirmation
+ *
+ * **Setup Required:**
+ * Your Next.js app must mount the API route handler:
+ *
+ * ```typescript
+ * // In app/api/agents/[did:8004]/feedback/route.ts
+ * import { prepareFeedbackRouteHandler } from '@agentic-trust/core/server';
+ * export const POST = prepareFeedbackRouteHandler();
+ * ```
+ *
+ * **Usage:**
+ * ```typescript
+ * import { giveFeedbackWithWallet } from '@agentic-trust/core/client';
+ *
+ * const result = await giveFeedbackWithWallet{
+ *   did8004: 'did:8004:11155111:123',
+ *   chain: sepolia,
+ *   accountClient: clientAccountClient,
+ *   score: 85,
+ *   feedback: 'Great agent!',
+ *   feedbackAuth: '0x...',
+ *   onStatusUpdate: (msg) => console.log(msg),
+ * });
+ * ```
+ */
+export interface GiveFeedbackWithWalletOptions {
+    did8004: string;
+    chain: Chain;
+    score: number;
+    feedback: string;
+    feedbackAuth: string;
+    clientAddress?: string;
+    ethereumProvider?: any;
+    tag1?: string;
+    tag2?: string;
+    feedbackUri?: string;
+    feedbackHash?: string;
+    skill?: string;
+    context?: string;
+    capability?: string;
+    onStatusUpdate?: (status: string) => void;
+}
+export declare function giveFeedbackWithWallet(options: GiveFeedbackWithWalletOptions): Promise<{
+    txHash: string;
+    requiresClientSigning: true;
+}>;
+/**
+ * Request validation for an agent using an AA wallet + bundler.
+ *
+ * This client-side function handles the complete AA validation request flow:
+ * 1. Sends validation request data to the server API route to prepare calls
+ * 2. Receives prepared AA calls + bundler URL
+ * 3. Sends a sponsored UserOperation via the bundler using the AA account
+ * 4. Waits for confirmation
+ *
+ * **Setup Required:**
+ * Your Next.js app must mount the API route handler:
+ *
+ * ```typescript
+ * // In app/api/agents/[did:8004]/validation-request/route.ts
+ * import { prepareValidationRequestRouteHandler } from '@agentic-trust/core/server';
+ * export const POST = prepareValidationRequestRouteHandler();
+ * ```
+ *
+ * **Usage:**
+ * ```typescript
+ * import { requestENSValidationWithWallet } from '@agentic-trust/core/client';
+ *
+ * const result = await requestENSValidationWithWallet({
+ *   requesterDid: 'did:8004:11155111:123',
+ *   chain: sepolia,
+ *   requesterAccountClient: agentAccountClient,
+ *   requestUri: 'https://...',
+ *   onStatusUpdate: (msg) => console.log(msg),
+ * });
+ * ```
+ */
+export interface RequestValidationWithWalletOptions {
+    requesterDid: string;
+    chain: Chain;
+    requesterAccountClient: any;
+    requestUri?: string;
+    requestHash?: string;
+    onStatusUpdate?: (status: string) => void;
+}
+export declare function requestENSValidationWithWallet(options: RequestValidationWithWalletOptions): Promise<{
+    txHash: string;
+    requiresClientSigning: true;
+    validatorAddress: string;
+    requestHash: string;
+}>;
+//# sourceMappingURL=walletSigning.d.ts.map

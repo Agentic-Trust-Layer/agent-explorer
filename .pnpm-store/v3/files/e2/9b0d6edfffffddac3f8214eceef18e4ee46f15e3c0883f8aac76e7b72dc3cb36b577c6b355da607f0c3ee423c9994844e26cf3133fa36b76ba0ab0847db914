@@ -1,0 +1,1318 @@
+import { parseDid8004 } from '@agentic-trust/8004-ext-sdk';
+async function getAccountNonce(accountClient) {
+    if (typeof accountClient?.getNonce === 'function') {
+        try {
+            const value = await accountClient.getNonce();
+            if (typeof value === 'bigint') {
+                accountClient.nonce = value;
+                return value;
+            }
+        }
+        catch { }
+    }
+    if (typeof accountClient?.nonce === 'bigint') {
+        return accountClient.nonce;
+    }
+    return undefined;
+}
+async function sendUserOpWithTimeout(params) {
+    const { timeoutMs = 20000, nonce, ...rest } = params;
+    if (typeof nonce === 'bigint') {
+        rest.accountClient.nonce = nonce;
+    }
+    const sendPromise = (async () => {
+        const hash = await sendSponsoredUserOperation(rest);
+        const receipt = await waitForUserOperationReceipt({
+            bundlerUrl: rest.bundlerUrl,
+            chain: rest.chain,
+            hash,
+        });
+        return { hash, receipt };
+    })();
+    return await Promise.race([
+        sendPromise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout waiting for UserOperation')), timeoutMs)),
+    ]);
+}
+import { AIAgentIdentityClient, } from '@agentic-trust/8004-ext-sdk';
+import { ViemAccountProvider, BaseIdentityClient, } from '@agentic-trust/8004-sdk';
+import { Agent } from './agent';
+import { getDiscoveryClient } from '../singletons/discoveryClient';
+import { requireChainEnvVar, getChainById, getChainRpcUrl, getChainBundlerUrl, DEFAULT_CHAIN_ID, isL1, } from './chainConfig';
+import { parseEthrDid } from './accounts';
+import { uploadRegistration, createRegistrationJSON } from './agentRegistration';
+import { createPublicClient, encodeFunctionData, http } from 'viem';
+import { getAdminApp } from '../userApps/adminApp';
+import IdentityRegistryABIJson from '@agentic-trust/8004-ext-sdk/abis/IdentityRegistry.json';
+import { Implementation, toMetaMaskSmartAccount } from '@metamask/delegation-toolkit';
+import { createBundlerClient } from 'viem/account-abstraction';
+import { addToL1OrgPK } from './names';
+import { sendSponsoredUserOperation, waitForUserOperationReceipt } from '../../client/accountClient';
+import { getENSClient } from '../singletons/ensClient';
+import { rethrowDiscoveryError } from './discoveryErrors';
+const identityRegistryAbi = IdentityRegistryABIJson.default ?? IdentityRegistryABIJson;
+function safeParseJson(value) {
+    try {
+        return JSON.parse(value);
+    }
+    catch {
+        return undefined;
+    }
+}
+function normalizeToStringArray(...values) {
+    for (const value of values) {
+        if (Array.isArray(value)) {
+            return value.map((item) => String(item));
+        }
+        if (typeof value === 'string') {
+            return [value];
+        }
+    }
+    return [];
+}
+function includesEveryCaseInsensitive(source, expected) {
+    if (!expected.length) {
+        return true;
+    }
+    if (!source.length) {
+        return false;
+    }
+    const sourceLower = source.map((value) => value.toLowerCase());
+    return expected.every((value) => sourceLower.includes(value.toLowerCase()));
+}
+export class AgentsAPI {
+    client;
+    constructor(client) {
+        this.client = client;
+    }
+    /**
+     * List all agents
+     * Query uses the actual schema fields from the API
+     * Returns agents sorted by agentId in descending order
+     * Fetches all agents using pagination if needed
+     */
+    async listAgents(options) {
+        return this.searchAgents(options ?? {});
+    }
+    /**
+     * Get a single agent by ID
+     * @param agentId - The agent ID as a string
+     * @param chainId - Optional chain ID (defaults to 11155111 for Sepolia)
+     */
+    async getAgent(agentId, chainId = 11155111) {
+        return this.client.getAgent(agentId, chainId);
+    }
+    async getAgentByDid(did8004) {
+        return this.client.getAgentByDid(did8004);
+    }
+    /**
+     * Get a fully-hydrated AgentDetail for a given agentId and chainId.
+     * This method is kept for backwards compatibility but simply delegates
+     * to the top-level AgenticTrustClient.getAgentDetails helper.
+     */
+    async getAgentDetails(agentId, chainId) {
+        return this.client.getAgentDetails(agentId, chainId);
+    }
+    /**
+     * Get raw agent data from discovery (for internal use)
+     * Returns the raw AgentData from the discovery indexer
+     */
+    async getAgentFromDiscovery(chainId, agentId) {
+        const discoveryClient = await getDiscoveryClient();
+        try {
+            return await discoveryClient.getAgent(chainId, agentId);
+        }
+        catch (error) {
+            // Check if this is an access code/auth error and provide a clearer message
+            rethrowDiscoveryError(error, 'agents.getAgentFromDiscovery');
+        }
+    }
+    async getAgentFromDiscoveryByDid(did8004) {
+        const { agentId, chainId } = parseDid8004(did8004);
+        return this.getAgentFromDiscovery(chainId, agentId);
+    }
+    /**
+     * Refresh/Index an agent in the GraphQL indexer
+     * Triggers the indexer to re-index the specified agent
+     * @param agentId - Agent ID to refresh (required)
+     * @param chainId - Optional chain ID (defaults to 11155111 for Sepolia)
+     */
+    async refreshAgent(agentId, chainId = 11155111) {
+        const discoveryClient = await getDiscoveryClient();
+        try {
+            return await discoveryClient.refreshAgent(agentId, chainId);
+        }
+        catch (error) {
+            rethrowDiscoveryError(error, 'agents.refreshAgent');
+        }
+    }
+    async refreshAgentByDid(agentDid) {
+        const { agentId, chainId } = parseDid8004(agentDid);
+        return this.refreshAgent(agentId, chainId);
+    }
+    /**
+     * Create a new agent
+     * Requires AdminApp to be initialized (server-side)
+     * @param params - Agent creation parameters
+     * @returns Created agent ID and transaction hash, or prepared transaction for client-side signing
+     */
+    async createAgentForEOA(params) {
+        const targetChainId = params.chainId || DEFAULT_CHAIN_ID;
+        const adminApp = await getAdminApp(undefined, targetChainId);
+        if (!adminApp) {
+            throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and provide either AGENTIC_TRUST_ADMIN_PRIVATE_KEY or connect via wallet');
+        }
+        const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', targetChainId);
+        const identityRegistryHex = identityRegistry.startsWith('0x')
+            ? identityRegistry
+            : `0x${identityRegistry}`;
+        // Create registration JSON and upload to IPFS
+        let tokenUri = '';
+        const chainId = targetChainId;
+        console.log('[agents.createAgentForEOA] Using chainId', chainId);
+        try {
+            const registrationJSON = createRegistrationJSON({
+                name: params.agentName,
+                agentAccount: params.agentAccount,
+                description: params.description,
+                image: params.image,
+                agentUrl: params.agentUrl,
+                chainId,
+                identityRegistry: identityRegistryHex,
+                supportedTrust: params.supportedTrust,
+                endpoints: params.endpoints,
+            });
+            const uploadResult = await uploadRegistration(registrationJSON);
+            tokenUri = uploadResult.tokenUri;
+        }
+        catch (error) {
+            console.error('Failed to upload registration JSON to IPFS:', error);
+            throw new Error(`Failed to create registration JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        // If no private key, prepare transaction for client-side signing
+        if (!adminApp.hasPrivateKey) {
+            // Prepare transaction for client-side signing
+            // Build metadata array
+            const metadata = [
+                { key: 'agentName', value: params.agentName ? String(params.agentName) : '' },
+                { key: 'agentAccount', value: params.agentAccount ? String(params.agentAccount) : '' },
+            ].filter(m => m.value !== '');
+            // Prepare transaction using AIAgentIdentityClient (all Ethereum logic server-side)
+            // Get chain by ID
+            const chain = getChainById(chainId);
+            const rpcUrl = getChainRpcUrl(chainId);
+            const publicClient = createPublicClient({
+                chain: chain,
+                transport: http(rpcUrl),
+            });
+            const accountProvider = new ViemAccountProvider({
+                publicClient: publicClient,
+                walletClient: null, // Read-only for transaction preparation
+                chainConfig: {
+                    id: chainId,
+                    rpcUrl: rpcUrl,
+                    name: chain.name,
+                    chain: chain,
+                },
+            });
+            const aiIdentityClient = new AIAgentIdentityClient({
+                accountProvider,
+                identityRegistryAddress: identityRegistryHex,
+            });
+            // Prepare complete transaction (encoding, gas estimation, nonce, etc.)
+            // AIAgentIdentityClient handles all Ethereum logic internally using its publicClient
+            const transaction = await aiIdentityClient.prepareRegisterTransaction(tokenUri, metadata, adminApp.address // Only address needed - no publicClient passed
+            );
+            return {
+                requiresClientSigning: true,
+                transaction,
+                tokenUri,
+                metadata: metadata.map(m => ({ key: m.key, value: m.value })),
+            };
+        }
+        // Check wallet balance before attempting transaction
+        try {
+            const balance = await adminApp.publicClient.getBalance({ address: adminApp.address });
+            if (balance === 0n) {
+                throw new Error(`Wallet ${adminApp.address} has zero balance. Please fund the wallet with Sepolia ETH to pay for gas.`);
+            }
+            console.log(`Wallet balance: ${balance.toString()} wei (${(Number(balance) / 1e18).toFixed(6)} ETH)`);
+        }
+        catch (balanceError) {
+            if (balanceError.message.includes('zero balance')) {
+                throw balanceError;
+            }
+            console.warn('Could not check wallet balance:', balanceError.message);
+        }
+        // Create write-capable IdentityClient using AdminApp AccountProvider
+        const identityClient = new BaseIdentityClient(adminApp.accountProvider, identityRegistryHex);
+        // Build metadata array
+        // For agentAccount (address), we need to pass it as-is since it's already a hex string
+        // IdentityClient.stringToBytes will encode strings as UTF-8, which is fine for agentName
+        // but agentAccount should be treated as an address string (which will be encoded as UTF-8)
+        // Note: The contract expects bytes, and encoding the address string as UTF-8 is acceptable
+        // as long as it's consistently decoded on read
+        const metadata = [
+            { key: 'agentName', value: params.agentName ? String(params.agentName) : '' },
+            { key: 'agentAccount', value: params.agentAccount ? String(params.agentAccount) : '' },
+        ].filter(m => m.value !== ''); // Remove empty values
+        // Use direct EOA transaction path (existing behavior)
+        const result = await identityClient.registerWithMetadata(tokenUri, metadata);
+        // Refresh the agent in the GraphQL indexer
+        try {
+            const discoveryClient = await getDiscoveryClient();
+            await discoveryClient.refreshAgent(result.agentId.toString(), chainId);
+            console.log(`✅ Refreshed agent ${result.agentId} in GraphQL indexer`);
+        }
+        catch (refreshError) {
+            // Log error but don't fail agent creation if refresh fails
+            console.warn(`⚠️ Failed to refresh agent ${result.agentId} in GraphQL indexer:`, refreshError);
+        }
+        return result;
+    }
+    /**
+     * Create a new agent for EOA using the server admin private key.
+     * Same interface as createAgentForEOA, but always executes the transaction server-side.
+     */
+    async createAgentForEOAPK(params) {
+        const targetChainId = params.chainId || DEFAULT_CHAIN_ID;
+        const adminApp = await getAdminApp(undefined, targetChainId);
+        if (!adminApp) {
+            throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and provide AGENTIC_TRUST_ADMIN_PRIVATE_KEY');
+        }
+        if (!adminApp.hasPrivateKey) {
+            throw new Error('Admin private key not available on server. Cannot execute server-side transaction.');
+        }
+        const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', targetChainId);
+        const identityRegistryHex = identityRegistry.startsWith('0x') ? identityRegistry : `0x${identityRegistry}`;
+        // Create registration JSON and upload to IPFS
+        let tokenUri = '';
+        try {
+            const registrationJSON = createRegistrationJSON({
+                name: params.agentName,
+                agentAccount: params.agentAccount,
+                description: params.description,
+                image: params.image,
+                agentUrl: params.agentUrl,
+                chainId: targetChainId,
+                identityRegistry: identityRegistryHex,
+                supportedTrust: params.supportedTrust,
+                endpoints: params.endpoints,
+            });
+            const uploadResult = await uploadRegistration(registrationJSON);
+            tokenUri = uploadResult.tokenUri;
+        }
+        catch (error) {
+            console.error('Failed to upload registration JSON to IPFS:', error);
+            throw new Error(`Failed to create registration JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        // Create write-capable IdentityClient using AdminApp AccountProvider
+        const identityClient = new BaseIdentityClient(adminApp.accountProvider, identityRegistryHex);
+        // Build metadata
+        const metadata = [
+            { key: 'agentName', value: params.agentName ? String(params.agentName) : '' },
+            { key: 'agentAccount', value: params.agentAccount ? String(params.agentAccount) : '' },
+        ].filter(m => m.value !== '');
+        // Execute registration
+        const result = await identityClient.registerWithMetadata(tokenUri, metadata);
+        // Refresh in indexer (best-effort)
+        try {
+            const discoveryClient = await getDiscoveryClient();
+            await discoveryClient.refreshAgent(result.agentId.toString(), targetChainId);
+        }
+        catch (refreshError) {
+            console.warn(`⚠️ Failed to refresh agent ${result.agentId} in GraphQL indexer:`, refreshError);
+        }
+        return result;
+    }
+    async createAgentForAA(params) {
+        const chainId = params.chainId || DEFAULT_CHAIN_ID;
+        const adminApp = await getAdminApp(undefined, chainId);
+        if (!adminApp) {
+            throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and provide either AGENTIC_TRUST_ADMIN_PRIVATE_KEY or connect via wallet');
+        }
+        const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', chainId);
+        const identityRegistryHex = identityRegistry.startsWith('0x')
+            ? identityRegistry
+            : `0x${identityRegistry}`;
+        // Create registration JSON and upload to IPFS
+        let tokenUri = '';
+        console.log('[agents.createAgentForAA] Using chainId', chainId);
+        try {
+            const registrationJSON = createRegistrationJSON({
+                name: params.agentName,
+                agentAccount: params.agentAccount,
+                description: params.description,
+                image: params.image,
+                agentUrl: params.agentUrl,
+                chainId,
+                identityRegistry: identityRegistryHex,
+                supportedTrust: params.supportedTrust,
+                endpoints: params.endpoints,
+            });
+            const uploadResult = await uploadRegistration(registrationJSON);
+            tokenUri = uploadResult.tokenUri;
+        }
+        catch (error) {
+            console.error('Failed to upload registration JSON to IPFS:', error);
+            throw new Error(`Failed to create registration JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        // Determine chain based on chainId
+        const chain = getChainById(chainId);
+        const rpcUrl = getChainRpcUrl(chainId);
+        const publicClient = createPublicClient({
+            chain: chain,
+            transport: http(rpcUrl),
+        });
+        const accountProvider = new ViemAccountProvider({
+            publicClient: publicClient,
+            walletClient: null,
+            chainConfig: {
+                id: chainId,
+                rpcUrl: rpcUrl,
+                name: chain.name,
+                chain: chain,
+            },
+        });
+        const aiIdentityClient = new AIAgentIdentityClient({
+            accountProvider,
+            identityRegistryAddress: identityRegistryHex,
+        });
+        const { calls: registerCalls } = await aiIdentityClient.prepareRegisterCalls(params.agentName, params.agentAccount, tokenUri);
+        const bundlerUrl = getChainBundlerUrl(params.chainId || DEFAULT_CHAIN_ID);
+        return {
+            success: true,
+            bundlerUrl,
+            tokenUri,
+            chainId,
+            calls: registerCalls,
+        };
+    }
+    /**
+     * Create a new agent for AA and execute via server admin private key (no client prompts).
+     * Same input interface as createAgentForAA, but performs the UserOperation using the server key.
+     */
+    async createAgentForAAPK(params) {
+        const chainId = params.chainId || DEFAULT_CHAIN_ID;
+        const adminApp = await getAdminApp(undefined, chainId);
+        if (!adminApp) {
+            throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and provide AGENTIC_TRUST_ADMIN_PRIVATE_KEY');
+        }
+        // First reuse existing preparation to get register calls
+        const prepared = await this.createAgentForAA({
+            ...params,
+            chainId,
+        });
+        // Build AA account client using admin signer
+        const chain = getChainById(chainId);
+        // Deterministic salt based on agentName (matches client computation)
+        const { keccak256, stringToHex } = await import('viem');
+        const deploySalt = keccak256(stringToHex(params.agentName));
+        const accountClient = await toMetaMaskSmartAccount({
+            client: adminApp.publicClient,
+            implementation: Implementation.Hybrid,
+            signer: adminApp.walletClient
+                ? { walletClient: adminApp.walletClient }
+                : (adminApp.account ? { account: adminApp.account } : {}),
+            deployParams: [adminApp.address, [], [], []],
+            deploySalt,
+        });
+        // Send UserOperation via bundler
+        const bundlerUrl = prepared.bundlerUrl;
+        const bundlerClient = createBundlerClient({
+            transport: http(bundlerUrl),
+            paymaster: true,
+            chain: chain,
+            paymasterContext: { mode: 'SPONSORED' },
+        });
+        // permissionless gas price (optional)
+        let fee = {};
+        try {
+            const { createPimlicoClient } = await import('permissionless/clients/pimlico');
+            const pimlico = createPimlicoClient({ transport: http(bundlerUrl) });
+            const gas = await pimlico.getUserOperationGasPrice();
+            fee = gas.fast || {};
+        }
+        catch {
+            // optional
+        }
+        const userOperationHash = await bundlerClient.sendUserOperation({
+            account: accountClient,
+            calls: prepared.calls,
+            ...fee,
+        });
+        const receipt = await bundlerClient.waitForUserOperationReceipt({ hash: userOperationHash });
+        // Try to extract agentId (best-effort)
+        let agentId;
+        try {
+            const id = await this.extractAgentIdFromReceipt(receipt, chainId);
+            if (id)
+                agentId = id;
+        }
+        catch { }
+        if (params.ensOptions?.enabled && params.ensOptions.orgName) {
+            try {
+                const ensClient = await getENSClient(chainId);
+                if (isL1(chainId)) {
+                    await addToL1OrgPK({
+                        orgName: params.ensOptions.orgName,
+                        agentName: params.agentName,
+                        agentAddress: params.agentAccount,
+                        agentUrl: params.agentUrl,
+                        chainId,
+                    });
+                    const { calls: infoCalls } = await ensClient.prepareSetAgentNameInfoCalls({
+                        orgName: params.ensOptions.orgName,
+                        agentName: params.agentName,
+                        agentAddress: params.agentAccount,
+                        agentUrl: params.agentUrl,
+                        agentDescription: params.description,
+                    });
+                    let nextNonce = await getAccountNonce(accountClient);
+                    if (infoCalls.length > 0) {
+                        const formattedCalls = infoCalls.map((call) => ({
+                            to: call.to,
+                            data: call.data,
+                            value: call.value ?? 0n,
+                        }));
+                        console.info('[createAgentForAAPK] Submitting L1 ENS metadata calls');
+                        await sendUserOpWithTimeout({
+                            bundlerUrl,
+                            chain,
+                            accountClient,
+                            calls: formattedCalls,
+                            nonce: nextNonce,
+                        });
+                        if (typeof nextNonce === 'bigint') {
+                            nextNonce += 1n;
+                        }
+                    }
+                }
+                else {
+                    console.info('[createAgentForAAPK] Running L2 ENS setup via agent account');
+                    const { calls: addCalls } = await ensClient.prepareAddAgentNameToOrgCalls({
+                        orgName: params.ensOptions.orgName,
+                        agentName: params.agentName,
+                        agentAddress: params.agentAccount,
+                        agentUrl: params.agentUrl || '',
+                    });
+                    let nextNonce = await getAccountNonce(accountClient);
+                    if (addCalls.length > 0) {
+                        const formattedAddCalls = addCalls.map((call) => ({
+                            to: call.to,
+                            data: call.data,
+                            value: 'value' in call && typeof call.value === 'bigint' ? call.value : 0n,
+                        }));
+                        console.info('[createAgentForAAPK] Submitting L2 ENS subdomain registration');
+                        await sendUserOpWithTimeout({
+                            bundlerUrl,
+                            chain,
+                            accountClient,
+                            calls: formattedAddCalls,
+                            nonce: nextNonce,
+                        });
+                        if (typeof nextNonce === 'bigint') {
+                            nextNonce += 1n;
+                        }
+                    }
+                    const { calls: infoCalls } = await ensClient.prepareAddAgentInfoCalls({
+                        orgName: params.ensOptions.orgName,
+                        agentName: params.agentName,
+                        agentAddress: params.agentAccount,
+                        agentUrl: params.agentUrl || '',
+                        agentDescription: params.description,
+                    });
+                    if (infoCalls.length > 0) {
+                        const formattedInfoCalls = infoCalls.map((call) => ({
+                            to: call.to,
+                            data: call.data,
+                            value: call.value ?? 0n,
+                        }));
+                        console.info('[createAgentForAAPK] Submitting L2 ENS metadata calls');
+                        await sendUserOpWithTimeout({
+                            bundlerUrl,
+                            chain,
+                            accountClient,
+                            calls: formattedInfoCalls,
+                            nonce: nextNonce,
+                        });
+                        if (typeof nextNonce === 'bigint') {
+                            nextNonce += 1n;
+                        }
+                    }
+                }
+            }
+            catch (ensError) {
+                console.warn('[createAgentForAAPK] ENS setup failed:', ensError);
+            }
+        }
+        return { txHash: userOperationHash, agentId };
+    }
+    async extractAgentIdFromReceipt(receipt, chainId = 11155111) {
+        if (!receipt) {
+            return null;
+        }
+        const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', chainId);
+        const identityRegistryHex = identityRegistry.startsWith('0x')
+            ? identityRegistry
+            : `0x${identityRegistry}`;
+        const chain = getChainById(chainId);
+        const aiIdentityClient = new AIAgentIdentityClient({
+            accountProvider: {
+                chainId: async () => chain.id,
+            },
+            identityRegistryAddress: identityRegistryHex,
+        });
+        try {
+            const agentId = aiIdentityClient.extractAgentIdFromReceiptPublic(receipt);
+            return agentId ? agentId.toString() : null;
+        }
+        catch (error) {
+            console.warn('extractAgentIdFromReceipt failed:', error);
+            return null;
+        }
+    }
+    async searchAgents(options) {
+        if (typeof options === 'string') {
+            return this.searchAgents({ query: options });
+        }
+        const discoveryClient = await getDiscoveryClient();
+        const advancedDiscoveryClient = discoveryClient;
+        const requestedPage = typeof options?.page === 'number' && Number.isFinite(options.page) ? options.page : 1;
+        const rawPageSize = typeof options?.pageSize === 'number' && options.pageSize > 0
+            ? options.pageSize
+            : undefined;
+        const hasQuery = typeof options?.query === 'string' && options.query.trim().length > 0;
+        const where = this.buildAgentWhereInput(options?.params);
+        // Always ensure we have a pageSize when performing discovery so that
+        // advanced search is used consistently (even when no filters are provided).
+        const effectivePageSize = rawPageSize ?? 50;
+        const hasAdvancedGraph = typeof advancedDiscoveryClient.searchAgentsGraph === 'function';
+        const hasAdvancedLegacy = typeof advancedDiscoveryClient.searchAgentsAdvanced === 'function';
+        // Prefer the advanced discovery APIs (Graph/advanced) whenever available so
+        // that we get an accurate total count and consistent pagination, even when
+        // no filters are supplied.
+        //
+        // IMPORTANT:
+        // - The Graph-based API (`searchAgentsGraph`) currently only supports structured
+        //   filters via `where` and does NOT take the free-text `query` string.
+        // - The legacy advanced API (`searchAgentsAdvanced`) is the one that wires the
+        //   general search query into the discovery backend (and can also take params).
+        //
+        // To ensure the general search box actually filters results, we route:
+        //   - requests WITH a query string through `searchAgentsAdvanced` when available
+        //   - requests WITHOUT a query string (filters / pagination only) through
+        //     `searchAgentsGraph` when available
+        if (effectivePageSize && (hasAdvancedGraph || hasAdvancedLegacy)) {
+            const offset = (Math.max(requestedPage, 1) - 1) * effectivePageSize;
+            try {
+                // If we have a text query and the legacy advanced API is available,
+                // use it so the query string is honored by the discovery service.
+                if (hasQuery && hasAdvancedLegacy) {
+                    const advanced = await advancedDiscoveryClient.searchAgentsAdvanced({
+                        query: options?.query,
+                        params: options?.params,
+                        limit: effectivePageSize,
+                        offset,
+                        orderBy: options?.orderBy,
+                        orderDirection: options?.orderDirection,
+                    });
+                    if (advanced && Array.isArray(advanced.agents)) {
+                        const total = typeof advanced.total === 'number' && advanced.total >= 0
+                            ? advanced.total
+                            : advanced.agents.length + offset;
+                        const totalPages = Math.max(1, Math.ceil(total / effectivePageSize));
+                        const safePage = Math.min(Math.max(requestedPage, 1), totalPages);
+                        const agentInstances = advanced.agents.map((data) => new Agent(data, this.client));
+                        return {
+                            agents: agentInstances,
+                            total,
+                            page: safePage,
+                            pageSize: effectivePageSize,
+                            totalPages,
+                        };
+                    }
+                }
+                else if (hasAdvancedGraph) {
+                    const advanced = await advancedDiscoveryClient.searchAgentsGraph({
+                        where,
+                        first: effectivePageSize,
+                        skip: offset,
+                        orderBy: options?.orderBy,
+                        orderDirection: options?.orderDirection,
+                    });
+                    if (advanced && Array.isArray(advanced.agents)) {
+                        const total = typeof advanced.total === 'number' && advanced.total >= 0
+                            ? advanced.total
+                            : advanced.agents.length + offset;
+                        const totalPages = Math.max(1, Math.ceil(total / effectivePageSize));
+                        const safePage = Math.min(Math.max(requestedPage, 1), totalPages);
+                        const agentInstances = advanced.agents.map((data) => new Agent(data, this.client));
+                        return {
+                            agents: agentInstances,
+                            total,
+                            page: safePage,
+                            pageSize: effectivePageSize,
+                            totalPages,
+                        };
+                    }
+                }
+                else if (hasAdvancedLegacy) {
+                    // Fallback: no Graph API, but legacy advanced is available (with or
+                    // without a query string).
+                    const advanced = await advancedDiscoveryClient.searchAgentsAdvanced({
+                        query: options?.query,
+                        params: options?.params,
+                        limit: effectivePageSize,
+                        offset,
+                        orderBy: options?.orderBy,
+                        orderDirection: options?.orderDirection,
+                    });
+                    if (advanced && Array.isArray(advanced.agents)) {
+                        const total = typeof advanced.total === 'number' && advanced.total >= 0
+                            ? advanced.total
+                            : advanced.agents.length + offset;
+                        const totalPages = Math.max(1, Math.ceil(total / effectivePageSize));
+                        const safePage = Math.min(Math.max(requestedPage, 1), totalPages);
+                        const agentInstances = advanced.agents.map((data) => new Agent(data, this.client));
+                        return {
+                            agents: agentInstances,
+                            total,
+                            page: safePage,
+                            pageSize: effectivePageSize,
+                            totalPages,
+                        };
+                    }
+                }
+            }
+            catch (error) {
+                console.warn('[AgentsAPI.searchAgents] Advanced search failed, returning empty results.', error);
+            }
+            // If advanced search fails or returns null, return empty results (no fallback)
+            return {
+                agents: [],
+                total: 0,
+                page: requestedPage,
+                pageSize: effectivePageSize,
+                totalPages: 0,
+            };
+        }
+        // If no filters, use listAgents to get default list from GraphQL endpoint.
+        // Default to 50 agents if no pageSize specified.
+        const defaultPageSize = effectivePageSize ?? 50;
+        const offset = (Math.max(requestedPage, 1) - 1) * defaultPageSize;
+        try {
+            const allAgents = await discoveryClient.listAgents(defaultPageSize, offset);
+            // For listAgents, we don't know the total, so we estimate based on returned results
+            // If we got a full page, there might be more; if less, we're at the end
+            const hasMore = allAgents.length === defaultPageSize;
+            const estimatedTotal = hasMore ? allAgents.length + offset + 1 : allAgents.length + offset;
+            const totalPages = Math.max(1, Math.ceil(estimatedTotal / defaultPageSize));
+            const agentInstances = allAgents.map((data) => new Agent(data, this.client));
+            return {
+                agents: agentInstances,
+                total: estimatedTotal,
+                page: requestedPage,
+                pageSize: defaultPageSize,
+                totalPages,
+            };
+        }
+        catch (error) {
+            console.warn('[AgentsAPI.searchAgents] listAgents failed, returning empty results.', error);
+            return {
+                agents: [],
+                total: 0,
+                page: requestedPage ?? 1,
+                pageSize: defaultPageSize,
+                totalPages: 0,
+            };
+        }
+    }
+    /**
+     * Map high-level DiscoverParams to the indexer's AgentWhereInput shape.
+     * This is used for the searchAgentsGraph(where: AgentWhereInput, ...) API.
+     */
+    buildAgentWhereInput(params) {
+        if (!params)
+            return undefined;
+        const where = {};
+        if (params.chains && params.chains !== 'all' && params.chains.length > 0) {
+            where.chainId_in = params.chains;
+        }
+        if (params.agentName?.trim()) {
+            where.agentName_contains_nocase = params.agentName.trim();
+        }
+        if (params.agentId?.trim()) {
+            // Exact match on agentId; you could also expose agentId_in if you later
+            // support multiple IDs.
+            where.agentId = params.agentId.trim();
+        }
+        if (params.description?.trim()) {
+            where.description_contains_nocase = params.description.trim();
+        }
+        if (params.accounts && params.accounts.length > 0) {
+            where.agentOwner_in = params.accounts.map((addr) => addr.toLowerCase());
+        }
+        if (params.operators && params.operators.length > 0) {
+            where.operator_in = params.operators.map((addr) => addr.toLowerCase());
+        }
+        if (typeof params.mcp === 'boolean') {
+            where.mcp = params.mcp;
+        }
+        if (typeof params.a2a === 'boolean') {
+            if (params.a2a) {
+                where.hasA2aEndpoint = true;
+            }
+        }
+        if (params.ens?.trim()) {
+            where.ensEndpoint_contains_nocase = params.ens.trim();
+        }
+        if (params.did?.trim()) {
+            where.did_contains_nocase = params.did.trim();
+        }
+        if (params.agentAccount) {
+            // Treat the agent account as the owner in the indexer schema.
+            where.agentOwner = params.agentAccount.toLowerCase();
+        }
+        if (params.supportedTrust && params.supportedTrust.length > 0) {
+            where.supportedTrust_in = params.supportedTrust;
+        }
+        if (params.a2aSkills && params.a2aSkills.length > 0) {
+            where.a2aSkills_in = params.a2aSkills;
+        }
+        if (params.mcpTools && params.mcpTools.length > 0) {
+            where.mcpTools_in = params.mcpTools;
+        }
+        if (params.mcpPrompts && params.mcpPrompts.length > 0) {
+            where.mcpPrompts_in = params.mcpPrompts;
+        }
+        if (params.mcpResources && params.mcpResources.length > 0) {
+            where.mcpResources_in = params.mcpResources;
+        }
+        if (typeof params.active === 'boolean') {
+            where.active = params.active;
+        }
+        if (typeof params.x402support === 'boolean') {
+            where.x402support = params.x402support;
+        }
+        if (typeof params.minFeedbackCount === 'number' && params.minFeedbackCount > 0) {
+            where.feedbackCount_gte = params.minFeedbackCount;
+        }
+        if (typeof params.minValidationCompletedCount === 'number' &&
+            params.minValidationCompletedCount > 0) {
+            where.validationCompletedCount_gte = params.minValidationCompletedCount;
+        }
+        if (typeof params.minFeedbackAverageScore === 'number' &&
+            params.minFeedbackAverageScore > 0) {
+            where.feedbackAverageScore_gte = params.minFeedbackAverageScore;
+        }
+        if (typeof params.createdWithinDays === 'number' && params.createdWithinDays > 0) {
+            const nowSeconds = Math.floor(Date.now() / 1000);
+            const windowSeconds = Math.floor(params.createdWithinDays * 24 * 60 * 60);
+            const threshold = nowSeconds - windowSeconds;
+            if (threshold > 0) {
+                where.createdAtTime_gte = threshold;
+            }
+        }
+        return Object.keys(where).length > 0 ? where : undefined;
+    }
+    applySearchAndPagination(agentData, options) {
+        const normalizedQuery = options?.query && typeof options.query === 'string'
+            ? options.query.trim().toLowerCase()
+            : '';
+        const params = options?.params;
+        const sortedAgents = (() => {
+            const orderBy = options?.orderBy?.trim();
+            const orderDirection = (options?.orderDirection ?? 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+            const list = [...agentData];
+            if (orderBy === 'agentName') {
+                list.sort((a, b) => {
+                    const aName = (a.agentName ?? '').toLowerCase();
+                    const bName = (b.agentName ?? '').toLowerCase();
+                    return orderDirection === 'ASC' ? aName.localeCompare(bName) : bName.localeCompare(aName);
+                });
+                return list;
+            }
+            // Default: newest first by agentId desc (back-compat)
+            list.sort((a, b) => {
+                const idA = typeof a.agentId === 'number' ? a.agentId : Number(a.agentId) || 0;
+                const idB = typeof b.agentId === 'number' ? b.agentId : Number(b.agentId) || 0;
+                return idB - idA;
+            });
+            return list;
+        })();
+        const filteredAgents = sortedAgents.filter((data) => {
+            if (normalizedQuery) {
+                const haystack = [
+                    typeof data.agentId === 'number' ? data.agentId.toString() : data.agentId,
+                    data.agentName,
+                    data.agentAccount,
+                    data.agentOwner,
+                    data.description,
+                    data.type,
+                    data.a2aEndpoint,
+                    data.ensEndpoint,
+                    data.agentAccountEndpoint,
+                    data.tokenUri,
+                    data.supportedTrust,
+                    data.rawJson,
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
+                if (!haystack.includes(normalizedQuery)) {
+                    return false;
+                }
+            }
+            if (!params) {
+                return true;
+            }
+            return this.matchesSearchParams(data, params);
+        });
+        const total = filteredAgents.length;
+        const pageSize = typeof options?.pageSize === 'number' && options.pageSize > 0
+            ? options.pageSize
+            : total || 1;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        const requestedPage = typeof options?.page === 'number' && Number.isFinite(options.page) ? options.page : 1;
+        const safePage = Math.min(Math.max(requestedPage, 1), totalPages);
+        const startIndex = (safePage - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const pageAgents = filteredAgents.slice(startIndex, endIndex);
+        const agentInstances = pageAgents.map((data) => new Agent(data, this.client));
+        return {
+            agents: agentInstances,
+            total,
+            page: safePage,
+            pageSize,
+            totalPages,
+        };
+    }
+    matchesSearchParams(agent, params) {
+        const parsedRaw = typeof agent.rawJson === 'string'
+            ? safeParseJson(agent.rawJson)
+            : agent.rawJson && typeof agent.rawJson === 'object'
+                ? agent.rawJson
+                : undefined;
+        const metadata = parsedRaw && typeof parsedRaw === 'object'
+            ? parsedRaw
+            : undefined;
+        if (params.chains && params.chains !== 'all') {
+            const chainId = typeof agent.chainId === 'number' ? agent.chainId : undefined;
+            if (!chainId || !params.chains.includes(chainId)) {
+                return false;
+            }
+        }
+        if (params.agentName) {
+            const name = agent.agentName ?? '';
+            if (!name.toLowerCase().includes(params.agentName.trim().toLowerCase())) {
+                return false;
+            }
+        }
+        if (params.description) {
+            const description = agent.description ?? '';
+            if (!description.toLowerCase().includes(params.description.trim().toLowerCase())) {
+                return false;
+            }
+        }
+        if (params.accounts && params.accounts.length > 0) {
+            const owner = agent.agentOwner?.toLowerCase();
+            if (!owner || !params.accounts.some((addr) => addr.toLowerCase() === owner)) {
+                return false;
+            }
+        }
+        if (params.agentAccount) {
+            const accountValue = agent.agentAccount;
+            const wallet = typeof accountValue === 'string' ? accountValue.toLowerCase() : undefined;
+            if (!wallet || wallet !== params.agentAccount.toLowerCase()) {
+                return false;
+            }
+        }
+        if (params.ens) {
+            const ensEndpoint = agent.ensEndpoint ?? '';
+            if (!ensEndpoint.toLowerCase().includes(params.ens.trim().toLowerCase())) {
+                return false;
+            }
+        }
+        if (params.did) {
+            const rawDid = (metadata && typeof metadata.did === 'string' && metadata.did) ||
+                (metadata?.identity && typeof metadata.identity?.did === 'string'
+                    ? metadata.identity.did
+                    : undefined);
+            if (!rawDid || rawDid.toLowerCase() !== params.did.trim().toLowerCase()) {
+                return false;
+            }
+        }
+        if (params.supportedTrust && params.supportedTrust.length > 0) {
+            const supportedTrust = normalizeToStringArray(agent.supportedTrust, metadata?.supportedTrust);
+            if (!includesEveryCaseInsensitive(supportedTrust, params.supportedTrust)) {
+                return false;
+            }
+        }
+        if (params.a2aSkills && params.a2aSkills.length > 0) {
+            const skills = normalizeToStringArray(metadata?.a2aSkills, metadata?.a2a?.skills, metadata?.skills);
+            if (!includesEveryCaseInsensitive(skills, params.a2aSkills)) {
+                return false;
+            }
+        }
+        if (params.mcpTools && params.mcpTools.length > 0) {
+            const tools = normalizeToStringArray(metadata?.mcpTools, metadata?.mcp?.tools);
+            if (!includesEveryCaseInsensitive(tools, params.mcpTools)) {
+                return false;
+            }
+        }
+        if (params.mcpPrompts && params.mcpPrompts.length > 0) {
+            const prompts = normalizeToStringArray(metadata?.mcpPrompts, metadata?.mcp?.prompts);
+            if (!includesEveryCaseInsensitive(prompts, params.mcpPrompts)) {
+                return false;
+            }
+        }
+        if (params.mcpResources && params.mcpResources.length > 0) {
+            const resources = normalizeToStringArray(metadata?.mcpResources, metadata?.mcp?.resources);
+            if (!includesEveryCaseInsensitive(resources, params.mcpResources)) {
+                return false;
+            }
+        }
+        if (params.mcp !== undefined) {
+            const hasMcp = metadata?.mcp === true ||
+                metadata?.mcp?.enabled === true ||
+                (Array.isArray(metadata?.mcp?.tools) && metadata.mcp.tools.length > 0);
+            if (params.mcp !== hasMcp) {
+                return false;
+            }
+        }
+        if (params.a2a !== undefined) {
+            const hasA2a = typeof agent.a2aEndpoint === 'string' && agent.a2aEndpoint.length > 0;
+            if (params.a2a !== hasA2a) {
+                return false;
+            }
+        }
+        if (params.operators && params.operators.length > 0) {
+            const operators = normalizeToStringArray(metadata?.operators, metadata?.agentOperators, metadata?.operatorAddresses).map((value) => value.toLowerCase());
+            if (operators.length === 0 ||
+                !params.operators.some((addr) => operators.includes(addr.toLowerCase()))) {
+                return false;
+            }
+        }
+        if (params.active !== undefined) {
+            const active = typeof metadata?.active === 'boolean'
+                ? metadata.active
+                : typeof metadata?.status === 'string'
+                    ? metadata.status.toLowerCase() === 'active'
+                    : undefined;
+            if (active !== undefined && params.active !== active) {
+                return false;
+            }
+        }
+        if (params.x402support !== undefined) {
+            const support = metadata?.x402support === true ||
+                metadata?.x402Support === true ||
+                (Array.isArray(metadata?.protocols) &&
+                    metadata.protocols.map((p) => p.toLowerCase()).includes('x402'));
+            if (params.x402support !== support) {
+                return false;
+            }
+        }
+        return true;
+    }
+    /**
+     * Admin API for agent management
+     * These methods require AdminApp to be initialized
+     * Note: createAgent is now available directly on agents (not agents.admin)
+     */
+    admin = {
+        /**
+         * Prepare low-level contract calls to update an agent's token URI and/or
+         * on-chain metadata. These calls can be executed client-side via a bundler
+         * or wallet, similar to createAgentForAA.
+         */
+        prepareUpdateAgent: async (params) => {
+            const chainId = params.chainId || DEFAULT_CHAIN_ID;
+            const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', chainId);
+            const identityRegistryHex = identityRegistry.startsWith('0x')
+                ? identityRegistry
+                : `0x${identityRegistry}`;
+            const agentId = BigInt(params.agentId);
+            const calls = [];
+            // Token URI update call
+            if (params.tokenUri !== undefined) {
+                const data = encodeFunctionData({
+                    abi: identityRegistryAbi,
+                    functionName: 'setAgentUri',
+                    args: [agentId, params.tokenUri],
+                });
+                calls.push({
+                    to: identityRegistryHex,
+                    data: data,
+                    value: 0n,
+                });
+            }
+            // Metadata update calls
+            if (params.metadata && params.metadata.length > 0) {
+                const encoder = new TextEncoder();
+                for (const entry of params.metadata) {
+                    const valueBytes = encoder.encode(entry.value);
+                    const data = encodeFunctionData({
+                        abi: identityRegistryAbi,
+                        functionName: 'setMetadata',
+                        args: [agentId, entry.key, valueBytes],
+                    });
+                    calls.push({
+                        to: identityRegistryHex,
+                        data: data,
+                        value: 0n,
+                    });
+                }
+            }
+            if (calls.length === 0) {
+                throw new Error('No updates provided. Specify tokenUri and/or metadata.');
+            }
+            const bundlerUrl = getChainBundlerUrl(chainId);
+            return {
+                chainId,
+                identityRegistry: identityRegistryHex,
+                bundlerUrl,
+                calls,
+            };
+        },
+        /**
+         * Prepare a create agent transaction for client-side signing
+         * Returns transaction data that can be signed and submitted by the client
+         */
+        prepareCreateAgentTransaction: async (params) => {
+            const chainId = params.chainId || DEFAULT_CHAIN_ID;
+            const adminApp = await getAdminApp(undefined, chainId);
+            if (!adminApp) {
+                throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and connect via wallet');
+            }
+            if (adminApp.hasPrivateKey) {
+                throw new Error('prepareCreateAgentTransaction should only be used when no private key is available');
+            }
+            const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', chainId);
+            const identityRegistryHex = identityRegistry.startsWith('0x')
+                ? identityRegistry
+                : `0x${identityRegistry}`;
+            // Create read-only IdentityClient using AdminApp's AccountProvider
+            const identityClient = new BaseIdentityClient(adminApp.accountProvider, identityRegistryHex);
+            // Build metadata array
+            const metadata = [
+                { key: 'agentName', value: params.agentName ? String(params.agentName) : '' },
+                { key: 'agentAccount', value: params.agentAccount ? String(params.agentAccount) : '' },
+            ].filter(m => m.value !== '');
+            // Create registration JSON and upload to IPFS
+            let tokenUri = '';
+            try {
+                const registrationJSON = createRegistrationJSON({
+                    name: params.agentName,
+                    agentAccount: params.agentAccount,
+                    description: params.description,
+                    image: params.image,
+                    agentUrl: params.agentUrl,
+                    chainId,
+                    identityRegistry: identityRegistryHex,
+                    supportedTrust: params.supportedTrust,
+                    endpoints: params.endpoints,
+                });
+                const uploadResult = await uploadRegistration(registrationJSON);
+                tokenUri = uploadResult.tokenUri;
+            }
+            catch (error) {
+                console.error('Failed to upload registration JSON to IPFS:', error);
+                throw new Error(`Failed to create registration JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            }
+            // Get chain-specific RPC URL
+            const rpcUrl = getChainRpcUrl(chainId);
+            // Encode the transaction data
+            const aiIdentityClient = new AIAgentIdentityClient({
+                chainId,
+                rpcUrl,
+                identityRegistryAddress: identityRegistryHex,
+            });
+            // Encode registerWithMetadata function call
+            const encodedData = await aiIdentityClient.encodeRegisterWithMetadata(tokenUri, metadata);
+            // Simulate transaction to get gas estimates
+            let gasEstimate;
+            let gasPrice;
+            let maxFeePerGas;
+            let maxPriorityFeePerGas;
+            let nonce;
+            try {
+                // Get current gas prices
+                const [gasPriceData, blockData] = await Promise.all([
+                    adminApp.publicClient.getGasPrice(),
+                    adminApp.publicClient.getBlock({ blockTag: 'latest' }),
+                ]);
+                gasPrice = gasPriceData;
+                // Try EIP-1559 gas prices if available
+                if (blockData && 'baseFeePerGas' in blockData && blockData.baseFeePerGas) {
+                    maxFeePerGas = (blockData.baseFeePerGas * 2n) / 10n; // 2x base fee
+                    maxPriorityFeePerGas = blockData.baseFeePerGas / 10n; // 10% of base fee
+                }
+                // Estimate gas
+                gasEstimate = await adminApp.publicClient.estimateGas({
+                    account: adminApp.address,
+                    to: identityRegistryHex,
+                    data: encodedData,
+                });
+                // Get nonce
+                nonce = await adminApp.publicClient.getTransactionCount({
+                    address: adminApp.address,
+                    blockTag: 'pending',
+                });
+            }
+            catch (error) {
+                console.warn('Could not estimate gas or get transaction parameters:', error);
+                // Continue without gas estimates - client can estimate
+            }
+            return {
+                requiresClientSigning: true,
+                transaction: {
+                    to: identityRegistryHex,
+                    data: encodedData,
+                    value: '0',
+                    gas: gasEstimate ? gasEstimate.toString() : undefined,
+                    gasPrice: gasPrice ? gasPrice.toString() : undefined,
+                    maxFeePerGas: maxFeePerGas ? maxFeePerGas.toString() : undefined,
+                    maxPriorityFeePerGas: maxPriorityFeePerGas ? maxPriorityFeePerGas.toString() : undefined,
+                    nonce,
+                    chainId,
+                },
+                tokenUri,
+                metadata: metadata.map(m => ({ key: m.key, value: m.value })),
+            };
+        },
+        /**
+         * Update an agent's token URI
+         * @param agentId - The agent ID to update
+         * @param tokenUri - New token URI
+         * @returns Transaction hash
+         */
+        /**
+         * Server-side helper that actually sends the prepared update calls using
+         * AdminApp's AccountProvider. For browser/bundler flows, prefer
+         * prepareUpdateAgent instead.
+         */
+        updateAgent: async (params) => {
+            const chainId = params.chainId || DEFAULT_CHAIN_ID;
+            const adminApp = await getAdminApp(undefined, chainId);
+            if (!adminApp) {
+                throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and AGENTIC_TRUST_ADMIN_PRIVATE_KEY is set');
+            }
+            const prepared = await this.admin.prepareUpdateAgent({
+                agentId: params.agentId,
+                tokenUri: params.tokenUri,
+                metadata: params.metadata,
+                chainId,
+            });
+            const results = [];
+            for (const call of prepared.calls) {
+                const tx = await adminApp.accountProvider.send({
+                    to: call.to,
+                    data: call.data,
+                    value: call.value ?? 0n,
+                });
+                results.push({ txHash: tx.hash });
+            }
+            if (results.length === 0) {
+                throw new Error('No updates provided. Specify tokenUri and/or metadata.');
+            }
+            const lastResult = results[results.length - 1];
+            if (!lastResult) {
+                throw new Error('Failed to get transaction hash from update operation');
+            }
+            return { txHash: lastResult.txHash };
+        },
+        updateAgentByDid: async (agentDid, params = {}) => {
+            const { agentId, chainId } = parseDid8004(agentDid);
+            return this.admin.updateAgent({
+                agentId,
+                chainId: params.chainId ?? chainId,
+                tokenUri: params.tokenUri,
+                metadata: params.metadata,
+            });
+        },
+        /**
+         * Delete an agent by transferring it to the zero address (burn)
+         * Note: This requires the contract to support transfers to address(0)
+         * @param agentId - The agent ID to delete
+         * @returns Transaction hash
+         */
+        deleteAgent: async (params) => {
+            const chainId = params.chainId || DEFAULT_CHAIN_ID;
+            const adminApp = await getAdminApp(undefined, chainId);
+            if (!adminApp) {
+                throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and AGENTIC_TRUST_ADMIN_PRIVATE_KEY is set');
+            }
+            const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', chainId);
+            // Import IdentityRegistry ABI for transferFrom
+            const IdentityRegistryABI = identityRegistryAbi;
+            const agentId = BigInt(params.agentId);
+            const from = adminApp.address;
+            const to = '0x0000000000000000000000000000000000000000';
+            // Transfer to zero address (burn)
+            const data = await adminApp.accountProvider.encodeFunctionData({
+                abi: IdentityRegistryABI,
+                functionName: 'transferFrom',
+                args: [from, to, agentId],
+            });
+            const result = await adminApp.accountProvider.send({
+                to: identityRegistry,
+                data,
+                value: 0n,
+            });
+            return { txHash: result.hash };
+        },
+        deleteAgentByDid: async (agentDid, options = {}) => {
+            const { agentId, chainId } = parseDid8004(agentDid);
+            return this.admin.deleteAgent({
+                agentId,
+                chainId: options.chainId ?? chainId,
+            });
+        },
+        /**
+         * Transfer an agent to a new owner
+         * @param agentId - The agent ID to transfer
+         * @param to - The new owner address
+         * @returns Transaction hash
+         */
+        transferAgent: async (params) => {
+            const chainId = params.chainId || DEFAULT_CHAIN_ID;
+            const adminApp = await getAdminApp(undefined, chainId);
+            if (!adminApp) {
+                throw new Error('AdminApp not initialized. Ensure AGENTIC_TRUST_APP_ROLES includes "admin" and AGENTIC_TRUST_ADMIN_PRIVATE_KEY is set');
+            }
+            const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', chainId);
+            // Import IdentityRegistry ABI for transferFrom
+            const IdentityRegistryABI = identityRegistryAbi;
+            const agentId = BigInt(params.agentId);
+            const from = adminApp.address;
+            // Transfer to new owner
+            const data = await adminApp.accountProvider.encodeFunctionData({
+                abi: IdentityRegistryABI,
+                functionName: 'transferFrom',
+                args: [from, params.to, agentId],
+            });
+            const result = await adminApp.accountProvider.send({
+                to: identityRegistry,
+                data,
+                value: 0n,
+            });
+            return { txHash: result.hash };
+        },
+        transferAgentByDid: async (fromDid, toDid) => {
+            const { agentId, chainId } = parseDid8004(fromDid);
+            // For now we support toDid as did:ethr:... and derive the destination
+            // account from it. Other DID methods can be added later as needed.
+            if (!toDid.startsWith('did:ethr:')) {
+                throw new Error(`Unsupported toDid format for transferAgentByDid: ${toDid}. Expected did:ethr:...`);
+            }
+            const { account } = parseEthrDid(toDid);
+            return this.admin.transferAgent({
+                agentId,
+                chainId,
+                to: account,
+            });
+        },
+    };
+}
+//# sourceMappingURL=agents.js.map

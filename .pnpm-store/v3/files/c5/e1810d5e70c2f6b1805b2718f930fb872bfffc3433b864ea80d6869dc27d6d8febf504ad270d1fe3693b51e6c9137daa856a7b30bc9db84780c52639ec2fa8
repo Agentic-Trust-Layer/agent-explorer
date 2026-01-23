@@ -1,0 +1,5 @@
+{
+  "types": "../dist/types/coders.d.ts",
+  "module": "../dist/esm/coders.js",
+  "main": "../dist/cjs/coders.js"
+}

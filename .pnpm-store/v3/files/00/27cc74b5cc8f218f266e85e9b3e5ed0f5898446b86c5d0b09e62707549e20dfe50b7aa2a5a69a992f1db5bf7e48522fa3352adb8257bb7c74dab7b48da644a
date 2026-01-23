@@ -1,0 +1,22 @@
+import { concatBytes } from "@noble/hashes/utils";
+import { createBech32Decoder, createBech32Encoder } from "../utils/bech32.js";
+const name = "iota";
+const coinType = 4218;
+const hrp = "iota";
+const version = new Uint8Array([0x00]);
+const iotaBech32Encode = createBech32Encoder(hrp);
+const iotaBech32Decode = createBech32Decoder(hrp);
+export const encodeIotaAddress = (source) => {
+    return iotaBech32Encode(concatBytes(version, source));
+};
+export const decodeIotaAddress = (source) => {
+    const decoded = iotaBech32Decode(source);
+    return decoded.slice(1);
+};
+export const iota = {
+    name,
+    coinType,
+    encode: encodeIotaAddress,
+    decode: decodeIotaAddress,
+};
+//# sourceMappingURL=iota.js.map

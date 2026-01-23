@@ -1,0 +1,74 @@
+/**
+ * Identity Client Singleton
+ *
+ * Manages a singleton instance of AIAgentIdentityClient
+ * Initialized from environment variables using AccountProvider
+ */
+import { AIAgentIdentityClient } from '@agentic-trust/8004-ext-sdk';
+import { ViemAccountProvider } from '@agentic-trust/8004-sdk';
+import { requireChainEnvVar, DEFAULT_CHAIN_ID } from '../lib/chainConfig';
+import { DomainClient } from './domainClient';
+class IdentityDomainClient extends DomainClient {
+    constructor() {
+        super('identity');
+    }
+    async buildClient(targetChainId) {
+        const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', targetChainId);
+        const rpcUrl = requireChainEnvVar('AGENTIC_TRUST_RPC_URL', targetChainId);
+        // Create AccountProvider using ViemAccountProvider (read-only, no wallet)
+        const { createPublicClient, http } = await import('viem');
+        const { sepolia, baseSepolia, optimismSepolia } = await import('viem/chains');
+        // Get chain by ID
+        let chain = sepolia;
+        if (targetChainId === 84532) {
+            chain = baseSepolia;
+        }
+        else if (targetChainId === 11155420) {
+            chain = optimismSepolia;
+        }
+        const publicClient = createPublicClient({
+            chain: chain,
+            transport: http(rpcUrl),
+        });
+        const accountProvider = new ViemAccountProvider({
+            publicClient: publicClient,
+            walletClient: null, // Read-only, no wallet
+            chainConfig: {
+                id: targetChainId,
+                rpcUrl,
+                name: chain.name,
+                chain: chain,
+            },
+        });
+        // Create identity client using AccountProvider
+        return new AIAgentIdentityClient({
+            accountProvider,
+            identityRegistryAddress: identityRegistry,
+        });
+    }
+}
+const identityDomainClient = new IdentityDomainClient();
+/**
+ * Get or create the AIAgentIdentityClient singleton
+ * Initializes from environment variables using AccountProvider
+ */
+export async function getIdentityClient(chainId) {
+    // Default to configured chain if no chainId provided
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    return identityDomainClient.get(targetChainId);
+}
+/**
+ * Check if identity client is initialized for a specific chain
+ */
+export function isIdentityClientInitialized(chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    return identityDomainClient.isInitialized(targetChainId);
+}
+/**
+ * Reset the identity client instance for a specific chain (useful for testing)
+ */
+export function resetIdentityClient(chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    identityDomainClient.reset(targetChainId);
+}
+//# sourceMappingURL=identityClient.js.map

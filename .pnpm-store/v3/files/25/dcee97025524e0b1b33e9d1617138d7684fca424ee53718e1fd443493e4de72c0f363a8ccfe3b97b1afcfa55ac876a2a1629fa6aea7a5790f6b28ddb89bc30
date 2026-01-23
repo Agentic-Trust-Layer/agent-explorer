@@ -1,0 +1,20 @@
+import { type IAgentPlugin, type VerifiableCredential, type VerifiablePresentation } from '@veramo/core-types';
+import { type ICredentialIssuerEIP1271, type ICreateVerifiableCredentialEIP1271Args, type ICreateVerifiablePresentationEIP1271Args, type IVerifyCredentialEIP1271Args, type IVerifyPresentationEIP1271Args, type IRequiredContext } from './ICredentialEIP1271.js';
+export type AADidParts = {
+    did: string;
+    method: string;
+    namespace: string;
+    chainId: string;
+    address: string;
+    fragment?: string;
+};
+export declare class AACredentialIssuerEIP1271 implements IAgentPlugin {
+    readonly methods: ICredentialIssuerEIP1271;
+    constructor();
+    parseAADid(didUrl: string): AADidParts;
+    createVerifiableCredentialEIP1271(args: ICreateVerifiableCredentialEIP1271Args, context: IRequiredContext): Promise<VerifiableCredential>;
+    createVerifiablePresentationEIP1271(args: ICreateVerifiablePresentationEIP1271Args, context: IRequiredContext): Promise<VerifiablePresentation>;
+    verifyCredentialEIP1271(args: IVerifyCredentialEIP1271Args, context: IRequiredContext): Promise<boolean>;
+    verifyPresentationEIP1271(args: IVerifyPresentationEIP1271Args, context: IRequiredContext): Promise<boolean>;
+}
+//# sourceMappingURL=AACredentialIssuerEIP1271.d.ts.map

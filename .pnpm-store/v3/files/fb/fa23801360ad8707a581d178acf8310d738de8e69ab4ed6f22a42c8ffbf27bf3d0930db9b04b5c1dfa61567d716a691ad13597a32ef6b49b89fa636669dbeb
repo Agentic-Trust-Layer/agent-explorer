@@ -1,0 +1,41 @@
+import { Address } from 'viem';
+
+declare const CHAIN_ID: {
+    arbitrum: number;
+    arbitrumNova: number;
+    base: number;
+    berachain: number;
+    bsc: number;
+    gnosis: number;
+    ink: number;
+    linea: number;
+    mainnet: number;
+    monad: number;
+    optimism: number;
+    polygon: number;
+    sei: number;
+    sonic: number;
+    unichain: number;
+    bscTestnet: number;
+    arbitrumSepolia: number;
+    baseSepolia: number;
+    berachainBepolia: number;
+    chiado: number;
+    citreaTestnet: number;
+    hoodiTestnet: number;
+    inkSepolia: number;
+    lineaSepolia: number;
+    megaEthTestnet: number;
+    monadTestnet: number;
+    optimismSepolia: number;
+    polygonAmoy: number;
+    seiTestnet: number;
+    sepolia: number;
+    sonicTestnet: number;
+    unichainSepolia: number;
+    lineaGoerli: number;
+};
+type DeployedContracts = Record<string, Record<number, Record<string, Address>>>;
+declare const DELEGATOR_CONTRACTS: DeployedContracts;
+
+export { CHAIN_ID, DELEGATOR_CONTRACTS };

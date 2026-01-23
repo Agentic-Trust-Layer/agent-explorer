@@ -1,0 +1,229 @@
+import { createPublicClient, createWalletClient, http, custom, zeroAddress, encodeFunctionData, } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { toHex } from 'viem';
+import { toMetaMaskSmartAccount, Implementation, createDelegation, } from '@metamask/delegation-toolkit';
+import IdentityRegistryAbi from '@agentic-trust/8004-ext-sdk/abis/IdentityRegistry.json';
+import { getChainRpcUrl, getChainBundlerUrl, getChainIdHex, getChainConfig, getChainById, } from '../server/lib/chainConfig';
+import { sendSponsoredUserOperation, waitForUserOperationReceipt } from './accountClient';
+const DEFAULT_SELECTOR = '0x8524d988';
+const DEFAULT_ENTRY_POINT = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+function normalizeHex(value) {
+    if (!value)
+        return undefined;
+    const trimmed = value.trim();
+    if (!trimmed)
+        return undefined;
+    return trimmed.startsWith('0x') ? trimmed : `0x${trimmed}`;
+}
+function getIdentityRegistryAddress(chainId) {
+    const cfg = getChainConfig(chainId);
+    if (!cfg)
+        return undefined;
+    const key = `NEXT_PUBLIC_AGENTIC_TRUST_IDENTITY_REGISTRY_${cfg.suffix}`;
+    return normalizeHex(process.env[key] ?? process.env.NEXT_PUBLIC_AGENTIC_TRUST_IDENTITY_REGISTRY ?? undefined);
+}
+function getReputationRegistryAddress(chainId) {
+    const cfg = getChainConfig(chainId);
+    if (!cfg)
+        return undefined;
+    const key = `NEXT_PUBLIC_AGENTIC_TRUST_REPUTATION_REGISTRY_${cfg.suffix}`;
+    return normalizeHex(process.env[key] ?? process.env.NEXT_PUBLIC_AGENTIC_TRUST_REPUTATION_REGISTRY ?? undefined);
+}
+async function switchChain(provider, chainId, rpcUrl) {
+    const chainIdHex = getChainIdHex(chainId);
+    try {
+        await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: chainIdHex }],
+        });
+    }
+    catch (error) {
+        if (error?.code === 4902) {
+            const chainConfig = getChainConfig(chainId);
+            const chainName = chainConfig?.displayName ?? `Chain ${chainId}`;
+            await provider.request({
+                method: 'wallet_addEthereumChain',
+                params: [
+                    {
+                        chainId: chainIdHex,
+                        chainName,
+                        nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                        rpcUrls: [rpcUrl],
+                    },
+                ],
+            });
+        }
+        else {
+            throw error;
+        }
+    }
+}
+export async function generateSessionPackage(params) {
+    const { agentId, chainId, agentAccount, provider, ownerAddress, selector = DEFAULT_SELECTOR, } = params;
+    if (!provider) {
+        throw new Error('An EIP-1193 provider is required to generate a session package.');
+    }
+    if (!ownerAddress) {
+        throw new Error('Wallet address is required to generate a session package.');
+    }
+    if (!agentAccount) {
+        throw new Error('Agent account is required to generate a session package.');
+    }
+    const rpcUrl = getChainRpcUrl(chainId);
+    if (!rpcUrl) {
+        throw new Error(`Missing RPC URL for chain ${chainId}`);
+    }
+    const bundlerUrl = getChainBundlerUrl(chainId);
+    if (!bundlerUrl) {
+        throw new Error(`Missing bundler URL for chain ${chainId}`);
+    }
+    const chain = getChainById(chainId);
+    const identityRegistry = getIdentityRegistryAddress(chainId);
+    if (!identityRegistry) {
+        throw new Error(`Missing IdentityRegistry address for chain ${chainId}. ` +
+            `Set NEXT_PUBLIC_AGENTIC_TRUST_IDENTITY_REGISTRY or ` +
+            `NEXT_PUBLIC_AGENTIC_TRUST_IDENTITY_REGISTRY_<CHAIN_SUFFIX> in your env.`);
+    }
+    const reputationRegistry = getReputationRegistryAddress(chainId);
+    if (!reputationRegistry) {
+        throw new Error(`Missing ReputationRegistry address for chain ${chainId}. ` +
+            `Set NEXT_PUBLIC_AGENTIC_TRUST_REPUTATION_REGISTRY or ` +
+            `NEXT_PUBLIC_AGENTIC_TRUST_REPUTATION_REGISTRY_<CHAIN_SUFFIX> in your env.`);
+    }
+    await switchChain(provider, chainId, rpcUrl);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const publicClient = createPublicClient({
+        chain,
+        transport: http(rpcUrl),
+    });
+    const walletClient = createWalletClient({
+        chain,
+        transport: custom(provider),
+        account: ownerAddress,
+    });
+    console.info('*********** sessionPackageBuilder: walletClient', walletClient?.account?.address);
+    console.info('*********** sessionPackageBuilder: agentAccount', agentAccount);
+    const smartAccount = await toMetaMaskSmartAccount({
+        address: agentAccount,
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        signer: {
+            walletClient: walletClient,
+        },
+    });
+    const entryPoint = DEFAULT_ENTRY_POINT;
+    const aaCode = await publicClient.getBytecode({ address: agentAccount });
+    const aaDeployed = !!aaCode && aaCode !== '0x';
+    if (!aaDeployed) {
+        const hash = await sendSponsoredUserOperation({
+            bundlerUrl,
+            chain,
+            accountClient: smartAccount,
+            calls: [{ to: zeroAddress }],
+        });
+        await waitForUserOperationReceipt({ bundlerUrl, chain, hash });
+    }
+    const sessionPrivateKey = generatePrivateKey();
+    const sessionKeyAccount = privateKeyToAccount(sessionPrivateKey);
+    const validUntil = Math.floor(Date.now() / 1000) + 60 * 30;
+    const validAfter = validUntil - 60 * 30 - 60;
+    console.info('*********** sessionPackageBuilder signer: sessionKeyAccount aaa:  ', sessionKeyAccount.address);
+    const burnerAccountClient = await toMetaMaskSmartAccount({
+        client: publicClient,
+        implementation: Implementation.Hybrid,
+        deployParams: [sessionKeyAccount.address, [], [], []],
+        signer: { account: sessionKeyAccount },
+        deploySalt: toHex(10),
+    });
+    const sessionAA = (await burnerAccountClient.getAddress());
+    const sessionCode = await publicClient.getBytecode({ address: sessionAA });
+    const sessionDeployed = !!sessionCode && sessionCode !== '0x';
+    if (!sessionDeployed) {
+        const hash = await sendSponsoredUserOperation({
+            bundlerUrl,
+            chain,
+            accountClient: burnerAccountClient,
+            calls: [{ to: zeroAddress }],
+        });
+        await waitForUserOperationReceipt({ bundlerUrl, chain, hash });
+    }
+    const environment = smartAccount.environment;
+    if (!environment) {
+        throw new Error('Delegation environment is unavailable on the smart account.');
+    }
+    console.info('*********** sessionPackageBuilder: createDelegation');
+    const delegation = createDelegation({
+        environment,
+        scope: {
+            type: 'functionCall',
+            targets: [reputationRegistry],
+            selectors: [selector],
+        },
+        from: agentAccount,
+        to: sessionAA,
+        caveats: [],
+    });
+    let signature;
+    if (typeof smartAccount.signDelegation === 'function') {
+        console.info('*********** sessionPackageBuilder: signDelegation smartAccount');
+        signature = (await smartAccount.signDelegation({
+            delegation,
+        }));
+    }
+    else if (typeof walletClient.signDelegation === 'function') {
+        signature = (await walletClient.signDelegation({
+            delegation,
+        }));
+    }
+    else {
+        throw new Error('Current wallet does not support delegation signing.');
+    }
+    // set the operator of nft to this newly created sessionAA
+    console.info("identityRegistry: ", identityRegistry);
+    console.info("zeroAddress: ", zeroAddress);
+    if (identityRegistry && identityRegistry !== zeroAddress) {
+        console.info('*********** sessionPackageBuilder: set the operator of nft to this newly created sessionAA');
+        const approveCalldata = encodeFunctionData({
+            abi: IdentityRegistryAbi,
+            functionName: 'approve',
+            args: [sessionAA, BigInt(agentId)],
+        });
+        console.info('*********** sessionPackageBuilder: approveCalldata', approveCalldata);
+        const hash = await sendSponsoredUserOperation({
+            bundlerUrl,
+            chain,
+            accountClient: smartAccount,
+            calls: [{ to: identityRegistry, data: approveCalldata }],
+        });
+        await waitForUserOperationReceipt({ bundlerUrl, chain, hash });
+        const ownerOfAgent = await publicClient.readContract({
+            address: identityRegistry,
+            abi: IdentityRegistryAbi,
+            functionName: 'ownerOf',
+            args: [agentId],
+        });
+        console.info('*********** sessionPackageBuilder: ownerOfAgent', ownerOfAgent);
+    }
+    console.info('*********** sessionPackageBuilder: sessionPackage');
+    const sessionPackage = {
+        agentId,
+        chainId,
+        aa: agentAccount,
+        sessionAA,
+        selector,
+        sessionKey: {
+            privateKey: sessionPrivateKey,
+            address: sessionKeyAccount.address,
+            validAfter,
+            validUntil,
+        },
+        entryPoint,
+        bundlerUrl,
+        signedDelegation: {
+            message: delegation,
+            signature,
+        },
+    };
+    return sessionPackage;
+}
+//# sourceMappingURL=sessionPackageBuilder.js.map

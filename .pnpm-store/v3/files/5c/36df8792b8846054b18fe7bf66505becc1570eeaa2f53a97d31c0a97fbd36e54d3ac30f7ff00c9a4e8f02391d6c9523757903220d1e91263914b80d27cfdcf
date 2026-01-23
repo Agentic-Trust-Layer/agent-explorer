@@ -1,0 +1,64 @@
+{
+  "name": "@agentic-trust/veramo-agent-extension",
+  "version": "1.0.32",
+  "description": "Veramo agent extensions for agent-to-agent and account abstraction support",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./utils/*": {
+      "types": "./dist/utils/*.d.ts",
+      "import": "./dist/utils/*.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "keywords": [
+    "veramo",
+    "agent",
+    "did",
+    "identity",
+    "credential",
+    "account-abstraction",
+    "agent-to-agent"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@veramo/core": "^6.0.0",
+    "@veramo/core-types": "^6.0.0",
+    "@veramo/did-manager": "^6.0.0",
+    "@veramo/did-resolver": "^6.0.0",
+    "@veramo/key-manager": "^6.0.0",
+    "@veramo/utils": "^6.0.0",
+    "caip": "^1.1.1",
+    "did-jwt": "^8.0.16",
+    "did-resolver": "^4.1.0",
+    "eip-712-types-generation": "^0.1.6",
+    "ethers": "^6.14.3",
+    "viem": "^2.30.5",
+    "@agentic-trust/8004-ext-sdk": "1.0.32"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.3.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src"
+  }
+}

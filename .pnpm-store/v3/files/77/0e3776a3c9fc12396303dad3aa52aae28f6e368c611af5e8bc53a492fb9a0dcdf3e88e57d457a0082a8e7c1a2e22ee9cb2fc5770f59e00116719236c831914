@@ -1,0 +1,38 @@
+/**
+ * Fetch agent-card.json from a URL
+ * Supports both direct URLs and base URLs (will append /.well-known/agent-card.json)
+ */
+export async function fetchA2AAgentCard(cardUrl) {
+    try {
+        // Ensure URL is absolute or resolve relative URLs
+        let url = cardUrl.startsWith('http')
+            ? cardUrl
+            : new URL(cardUrl, typeof window !== 'undefined' ? window.location.origin : '').toString();
+        // If URL doesn't end with agent-card.json or .well-known, append the standard path
+        console.log("----------> url inside fetchA2AAgentCard -----> ", cardUrl);
+        if (!url.includes('agent-card.json')) {
+            // Remove trailing slash and append the standard path
+            url = `${url.replace(/\/$/, '')}/.well-known/agent-card.json`;
+        }
+        console.log("----------> url inside fetchA2AAgentCard -----> ", url);
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+                Accept: 'application/json',
+            },
+            // Disable any HTTP caching so we always hit the live provider
+            cache: 'no-store',
+        });
+        console.log("----------> response inside fetchA2AAgentCard -----> ", response);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch agent card: ${response.status} ${response.statusText}`);
+        }
+        const card = await response.json();
+        return card;
+    }
+    catch (error) {
+        console.error('Error fetching agent card:', error);
+        return null;
+    }
+}
+//# sourceMappingURL=a2aAgentCard.js.map

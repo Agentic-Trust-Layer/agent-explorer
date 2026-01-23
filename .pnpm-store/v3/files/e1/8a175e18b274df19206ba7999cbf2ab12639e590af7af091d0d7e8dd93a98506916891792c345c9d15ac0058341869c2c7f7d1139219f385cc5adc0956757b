@@ -1,0 +1,24 @@
+/**
+ * Express-compatible API route handlers
+ *
+ * These handlers can be used in Express applications without requiring Next.js.
+ *
+ * Example usage:
+ *
+ * ```typescript
+ * import express from 'express';
+ * import {
+ *   createAgentForAAExpressHandler,
+ *   updateAgentRegistrationExpressHandler,
+ * } from '@agentic-trust/core/server/api/agents/express';
+ *
+ * const app = express();
+ * app.use(express.json());
+ *
+ * app.post('/api/agents/create-for-aa', createAgentForAAExpressHandler);
+ * app.put('/api/agents/:did8004/registration', updateAgentRegistrationExpressHandler);
+ * ```
+ */
+export { createAgentForAAExpressHandler } from './create-for-aa';
+export { updateAgentRegistrationExpressHandler } from './update-registration';
+//# sourceMappingURL=index.d.ts.map

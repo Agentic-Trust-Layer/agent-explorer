@@ -1,0 +1,23 @@
+{
+  "name": "eip-712-types-generation",
+  "version": "0.1.6",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "Nick Reynolds",
+  "license": "MIT",
+  "private": false,
+  "devDependencies": {
+    "@types/jest": "27.0.2",
+    "jest": "27.2.5",
+    "jest-extended": "^0.11.5",
+    "ts-jest": "27.0.5",
+    "typescript": "4.4.3"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest"
+  },
+  "dependencies": {
+    "json-canonicalize": "^1.0.4"
+  }
+}

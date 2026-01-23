@@ -1,0 +1,59 @@
+import { AgentApiError } from './core';
+import { createAgentDirectCore, } from './directServer';
+const hasNativeResponse = typeof globalThis !== 'undefined' &&
+    typeof globalThis.Response === 'function';
+const defaultContextFactory = () => ({});
+function jsonResponse(body, status = 200) {
+    if (hasNativeResponse) {
+        const ResponseCtor = globalThis.Response;
+        return new ResponseCtor(JSON.stringify(body), {
+            status,
+            headers: {
+                'content-type': 'application/json',
+            },
+        });
+    }
+    return {
+        status,
+        body,
+        headers: { 'content-type': 'application/json' },
+    };
+}
+function handleError(error) {
+    if (error instanceof AgentApiError) {
+        return jsonResponse({
+            error: error.message,
+            details: error.details,
+        }, error.status ?? 400);
+    }
+    console.error('[AgenticTrust][Next][Direct] Unexpected error:', error);
+    return jsonResponse({
+        error: 'Internal server error',
+        message: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+}
+function assertMode(mode) {
+    return mode === 'aa' || mode === 'eoa';
+}
+export function createAgentDirectRouteHandler(defaultMode, createContext = defaultContextFactory) {
+    return async (req) => {
+        try {
+            const body = (await req.json());
+            const ctx = createContext(req);
+            const modeFromBody = typeof body.mode === 'string' ? body.mode : undefined;
+            const modeToUse = modeFromBody ?? defaultMode;
+            if (!assertMode(modeToUse)) {
+                throw new AgentApiError('mode must be either "aa" or "eoa"', 400);
+            }
+            const result = await createAgentDirectCore(ctx, {
+                ...body,
+                mode: modeToUse,
+            });
+            return jsonResponse(result);
+        }
+        catch (error) {
+            return handleError(error);
+        }
+    };
+}
+//# sourceMappingURL=directNext.js.map

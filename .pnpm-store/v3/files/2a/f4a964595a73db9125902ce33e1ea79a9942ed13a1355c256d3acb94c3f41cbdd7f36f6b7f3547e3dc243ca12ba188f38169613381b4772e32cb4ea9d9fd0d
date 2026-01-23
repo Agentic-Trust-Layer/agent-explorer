@@ -1,0 +1,5 @@
+{
+  "types": "../dist/types/async.d.ts",
+  "module": "../dist/esm/async.js",
+  "main": "../dist/cjs/async.js"
+}

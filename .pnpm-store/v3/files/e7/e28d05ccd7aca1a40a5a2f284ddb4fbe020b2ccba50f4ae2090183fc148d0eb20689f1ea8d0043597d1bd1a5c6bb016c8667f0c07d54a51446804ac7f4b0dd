@@ -1,0 +1,46 @@
+{
+  "name": "@thenamespace/mint-manager",
+  "version": "1.1.1",
+  "description": "Library for minting l2 subnames",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "keywords": [
+    "sdk",
+    "offchain",
+    "namespace"
+  ],
+  "files": [
+    "/dist"
+  ],
+  "dependencies": {
+    "@ensdomains/address-encoder": "^1.1.2",
+    "@ensdomains/content-hash": "2.5.7",
+    "@thenamespace/addresses": "^1.0.15",
+    "@types/node": "^22.10.5",
+    "axios": "^1.7.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3",
+    "viem": "^2.24.3"
+  },
+  "author": "Arti <arti@namespace.ninja>",
+  "contributors": [
+    "Harpreet Singh <harpreet@namespace.ninja>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thenamespace/namespacesdk",
+    "directory": "packages/mint-manager"
+  },
+  "homepage": "https://namespace.ninja",
+  "scripts": {
+    "build": "rimraf dist && tsc",
+    "start": "node dist/index.js",
+    "restart": "rimraf dist && tsc && node dist/index.js",
+    "example:testnet": "ts-node ./examples/testnet-usage.ts",
+    "example:availability": "ts-node ./examples/availability-checks.ts"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1"
+  }
+}

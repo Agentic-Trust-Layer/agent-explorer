@@ -1,0 +1,7 @@
+export type NamespaceEnv = "staging" | "production";
+interface LibEnv {
+    listingApi: Record<NamespaceEnv, string>;
+    mintingApi: Record<NamespaceEnv, string>;
+}
+export declare const LibEnvironment: LibEnv;
+export {};

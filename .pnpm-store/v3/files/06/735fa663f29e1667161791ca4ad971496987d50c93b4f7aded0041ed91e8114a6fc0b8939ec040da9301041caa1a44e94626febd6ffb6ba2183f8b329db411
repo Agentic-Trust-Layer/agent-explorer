@@ -1,0 +1,24 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const getModel_1 = require("../getModel");
+const setupGetModelResponse = (response = {}, isSuccessful = true) => {
+    const fakeGetModel = jest
+        .fn()
+        .mockImplementation(() => isSuccessful ? Promise.resolve(response) : Promise.reject(response));
+    const IA = { getModel: fakeGetModel };
+    return IA;
+};
+describe('getModel', () => {
+    test('Confirm throws error if no model name is passed', async () => {
+        const IA = setupGetModelResponse();
+        const getModelCmd = (0, getModel_1.getModel)(IA);
+        await expect(getModelCmd('')).rejects.toThrow(new Error('You must pass a non-empty string for `modelName` in order to get a model'));
+    });
+    test('calls OpenAPI getModel with correct request', async () => {
+        const modelName = 'test-model';
+        const IA = setupGetModelResponse();
+        await (0, getModel_1.getModel)(IA)(modelName);
+        expect(IA.getModel).toHaveBeenCalledWith({ modelName });
+    });
+});
+//# sourceMappingURL=getModel.test.js.map

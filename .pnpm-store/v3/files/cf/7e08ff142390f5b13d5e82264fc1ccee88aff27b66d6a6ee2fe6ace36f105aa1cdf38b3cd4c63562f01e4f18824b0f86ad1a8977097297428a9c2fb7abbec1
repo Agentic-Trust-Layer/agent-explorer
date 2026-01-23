@@ -1,0 +1,13 @@
+import type { AgentApiContext } from './core';
+export declare function getValidationsCore(ctx: AgentApiContext | undefined, input: {
+    chainId: number;
+    agentId: string | number;
+}): Promise<{
+    success: boolean;
+    agentId: string;
+    chainId: number;
+    did8004: string;
+    pending: unknown[];
+    completed: unknown[];
+}>;
+//# sourceMappingURL=validations.d.ts.map

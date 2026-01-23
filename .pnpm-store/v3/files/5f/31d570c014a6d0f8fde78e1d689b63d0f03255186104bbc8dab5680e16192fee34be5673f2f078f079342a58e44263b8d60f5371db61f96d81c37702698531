@@ -1,0 +1,23 @@
+/**
+ * Express-compatible handler for creating agents with Account Abstraction
+ *
+ * Usage in your Express app:
+ *
+ * ```typescript
+ * import express from 'express';
+ * import { createAgentForAAExpressHandler } from '@agentic-trust/core/server/api/agents/express';
+ *
+ * const app = express();
+ * app.use(express.json());
+ *
+ * app.post('/api/agents/create-for-aa', createAgentForAAExpressHandler);
+ * ```
+ */
+type Request = any;
+type Response = any;
+/**
+ * Express handler for creating agents with AA
+ */
+export declare function createAgentForAAExpressHandler(req: Request, res: Response): Promise<void>;
+export {};
+//# sourceMappingURL=create-for-aa.d.ts.map

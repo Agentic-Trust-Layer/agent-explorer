@@ -1,0 +1,42 @@
+import { createPublicClient, http } from 'viem';
+import { sepolia } from 'viem/chains';
+export const identityRegistryAbi = [
+    {
+        type: 'function',
+        name: 'getAgent',
+        stateMutability: 'view',
+        inputs: [{ name: 'agentId', type: 'uint256' }],
+        outputs: [
+            {
+                name: 'agentInfo',
+                type: 'tuple',
+                components: [
+                    { name: 'agentId', type: 'uint256' },
+                    { name: 'agentDomain', type: 'string' },
+                    { name: 'agentAddress', type: 'address' },
+                ],
+            },
+        ],
+    },
+];
+export function getPublicClient() {
+    return createPublicClient({
+        chain: sepolia,
+        transport: http(),
+    });
+}
+export async function getRegistryAgent(registryAddress, agentId) {
+    const publicClient = getPublicClient();
+    const res = await publicClient.readContract({
+        address: registryAddress,
+        abi: identityRegistryAbi,
+        functionName: 'getAgent',
+        args: [agentId],
+    });
+    return {
+        agentId: BigInt(res.agentId ?? agentId),
+        agentDomain: res.agentDomain,
+        agentAddress: res.agentAddress,
+    };
+}
+//# sourceMappingURL=IdentityRegistry.js.map

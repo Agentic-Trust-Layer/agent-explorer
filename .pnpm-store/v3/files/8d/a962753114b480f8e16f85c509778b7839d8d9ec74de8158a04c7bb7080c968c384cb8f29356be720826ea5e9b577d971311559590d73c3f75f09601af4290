@@ -1,0 +1,3 @@
+const METADATA_KEYS = ['agentName', 'agentAccount'];
+export {};
+//# sourceMappingURL=agentDetail.js.map

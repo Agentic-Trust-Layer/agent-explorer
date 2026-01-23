@@ -1,0 +1,374 @@
+/**
+ * AgenticTrust API Client
+ *
+ * Client for interacting with the AgenticTrust GraphQL API
+ */
+import { GraphQLClient } from 'graphql-request';
+import type { ApiClientConfig } from '../lib/types';
+import { AgentsAPI } from '../lib/agents';
+import type { DiscoverAgentsOptions, ListAgentsResponse } from '../lib/agents';
+import { A2AProtocolProviderAPI } from '../lib/a2aProtocolProvider';
+import { VeramoAPI, type AuthChallenge, type ChallengeVerificationResult } from '../lib/veramo';
+import { Agent } from '../lib/agent';
+import type { AgentDetail } from '../models/agentDetail';
+import type { RequestAuthParams } from '../lib/agentFeedback';
+type OwnerType = 'eoa' | 'aa';
+type ExecutionMode = 'auto' | 'server' | 'client';
+type CreateAgentBaseParams = {
+    agentName: string;
+    agentAccount: `0x${string}`;
+    description?: string;
+    image?: string;
+    agentUrl?: string;
+    supportedTrust?: string[];
+    endpoints?: Array<{
+        name: string;
+        endpoint: string;
+        version?: string;
+        capabilities?: Record<string, any>;
+    }>;
+    chainId?: number;
+};
+type CreateAgentEOAClientResult = Awaited<ReturnType<AgentsAPI['createAgentForEOA']>>;
+type CreateAgentEOAServerResult = Awaited<ReturnType<AgentsAPI['createAgentForEOAPK']>>;
+type CreateAgentAAClientResult = Awaited<ReturnType<AgentsAPI['createAgentForAA']>>;
+type CreateAgentAAServerResult = Awaited<ReturnType<AgentsAPI['createAgentForAAPK']>>;
+type CreateAgentResult = CreateAgentEOAClientResult | CreateAgentEOAServerResult | CreateAgentAAClientResult | CreateAgentAAServerResult;
+export declare class AgenticTrustClient {
+    private graphQLClient;
+    private config;
+    agents: AgentsAPI;
+    a2aProtocolProvider: A2AProtocolProviderAPI;
+    veramo: VeramoAPI;
+    private constructor();
+    /**
+     * Initialize the Veramo agent (internal method)
+     * Called automatically during create() if not provided in config
+     */
+    private initializeVeramoAgent;
+    /**
+     * Create a new AgenticTrust client instance
+     */
+    static create(config: ApiClientConfig): Promise<AgenticTrustClient>;
+    /**
+     * High-level agent search API exposed directly on the AgenticTrustClient.
+     * This is a thin wrapper around AgentsAPI.searchAgents so that apps can call
+     * client.searchAgents(...) instead of client.agents.searchAgents(...).
+     */
+    searchAgents(options?: DiscoverAgentsOptions | string): Promise<ListAgentsResponse>;
+    /**
+     * High-level feedbackAuth helper exposed directly on AgenticTrustClient.
+     * This delegates to the shared server-side createFeedbackAuth implementation,
+     * which uses the ReputationClient singleton and IdentityRegistry checks.
+     */
+    createFeedbackAuth(params: RequestAuthParams): Promise<`0x${string}`>;
+    /**
+     * Fetch feedback entries for a given agent.
+     *
+     * Strategy:
+     *  1. Try the discovery indexer's feedback search GraphQL API
+     *     (e.g. searchFeedbacksGraph) when available.
+     *  2. If that fails or is not supported, fall back to on-chain
+     *     `readAllFeedback` on the ReputationRegistry via the ReputationClient.
+     *
+     * The return type is intentionally un-opinionated (`unknown[]`) so callers
+     * can evolve their own view models without being tightly coupled to the
+     * underlying indexer/contract schema.
+     */
+    getAgentFeedback(params: {
+        agentId: string;
+        chainId?: number;
+        clientAddresses?: string[];
+        tag1?: string;
+        tag2?: string;
+        includeRevoked?: boolean;
+        limit?: number;
+        offset?: number;
+    }): Promise<unknown[]>;
+    /**
+     * Get aggregated reputation summary for an agentId from the on-chain
+     * ReputationRegistry via the ReputationClient.
+     */
+    getReputationSummary(params: {
+        agentId: string;
+        chainId?: number;
+        clientAddresses?: string[];
+        tag1?: string;
+        tag2?: string;
+    }): Promise<{
+        count: bigint;
+        averageScore: number;
+    }>;
+    /**
+     * ENS helpers exposed via AgenticTrustClient so that apps do not talk to
+     * the ENS singleton directly.
+     */
+    isENSNameAvailable(ensName: string, chainId?: number): Promise<boolean | null>;
+    getENSInfo(ensName: string, chainId?: number): Promise<{
+        name: string;
+        chainId?: number;
+        available: boolean | null;
+        account: `0x${string}` | string | null;
+        image: string | null;
+        url: string | null;
+        description: string | null;
+    }>;
+    addAgentNameToL1Org(params: {
+        agentName: string;
+        orgName: string;
+        agentAddress: `0x${string}`;
+        agentUrl?: string;
+        chainId?: number;
+    }): Promise<string>;
+    addAgentNameToL2Org(params: {
+        agentName: string;
+        orgName: string;
+        agentAddress: `0x${string}`;
+        agentUrl?: string;
+        agentDescription?: string;
+        agentImage?: string;
+        chainId?: number;
+    }): Promise<{
+        calls: {
+            to: `0x${string}`;
+            data: `0x${string}`;
+            value?: bigint;
+        }[];
+    }>;
+    /**
+     * Set the token URI (registration tokenUri) for an existing agent NFT
+     * in the IdentityRegistry. This delegates to the Admin Agents API and
+     * requires AdminApp / admin permissions to be configured.
+     */
+    setAgentTokenUri(params: {
+        agentId: string | bigint;
+        chainId?: number;
+        tokenUri: string;
+    }): Promise<{
+        txHash: string;
+    }>;
+    /**
+     * Transfer an agent NFT to a new owner address.
+     * Thin wrapper over AgentsAPI.admin.transferAgent.
+     */
+    transferAgent(params: {
+        agentId: string | bigint;
+        to: `0x${string}`;
+        chainId?: number;
+    }): Promise<{
+        txHash: string;
+    }>;
+    /**
+     * Update the on-chain metadata keys `agentName` and/or `agentAccount`
+     * in the IdentityRegistry for an existing agent NFT.
+     *
+     * This is a thin wrapper over AgentsAPI.admin.updateAgent that builds the
+     * appropriate metadata entries. Requires AdminApp / admin permissions.
+     */
+    updateNameAndAccountMetadata(params: {
+        agentId: string | bigint;
+        chainId?: number;
+        agentName?: string | null;
+        agentAccount?: string | null;
+    }): Promise<{
+        txHash: string;
+    }>;
+    /**
+     * Prepare low-level calls for updating an agent's token URI and/or metadata,
+     * suitable for client-side AA/bundler execution. Mirrors AgentsAPI.admin.prepareUpdateAgent.
+     */
+    prepareUpdateAgent(params: {
+        agentId: string | bigint;
+        tokenUri?: string;
+        metadata?: Array<{
+            key: string;
+            value: string;
+        }>;
+        chainId?: number;
+    }): Promise<{
+        chainId: number;
+        identityRegistry: `0x${string}`;
+        bundlerUrl: string;
+        calls: Array<{
+            to: `0x${string}`;
+            data: `0x${string}`;
+            value?: bigint;
+        }>;
+    }>;
+    prepareL1AgentNameInfoCalls(params: {
+        agentAddress: `0x${string}`;
+        orgName: string;
+        agentName: string;
+        agentUrl?: string;
+        agentDescription?: string;
+        chainId?: number;
+    }): Promise<{
+        calls: {
+            to: `0x${string}`;
+            data: `0x${string}`;
+            value?: bigint;
+        }[];
+    }>;
+    prepareL2AgentNameInfoCalls(params: {
+        agentAddress: `0x${string}`;
+        orgName: string;
+        agentName: string;
+        agentUrl?: string;
+        agentDescription?: string;
+        agentImage?: string;
+        chainId?: number;
+    }): Promise<{
+        calls: {
+            to: `0x${string}`;
+            data: `0x${string}`;
+            value?: bigint;
+        }[];
+    }>;
+    /**
+     * High-level createAgent helper that routes to the appropriate underlying
+     * AgentsAPI method based on ownerType (EOA vs AA) and executionMode.
+     *
+     * - ownerType: 'eoa' | 'aa'
+     * - executionMode:
+     *    - 'auto'   (default): use server if an admin/private key is configured, otherwise client
+     *    - 'server' : execute on server (requires admin/private key, otherwise falls back to 'client')
+     *    - 'client' : prepare transactions/calls for client-side signing/execution
+     */
+    createAgent(params: {
+        ownerType: OwnerType;
+        executionMode?: ExecutionMode;
+    } & CreateAgentBaseParams): Promise<CreateAgentResult>;
+    /**
+     * Get a single agent by ID.
+     * Uses loadAgentDetail to get the latest data from the NFT contract,
+     * with discovery data used as fallback for missing fields.
+     */
+    getAgent(agentId: string, chainId?: number): Promise<Agent | null>;
+    /**
+     * Resolve and load an agent by its registered name using the discovery indexer.
+     * Returns an Agent instance bound to this client or null if not found.
+     */
+    getAgentByName(agentName: string): Promise<Agent | null>;
+    /**
+     * Get the on-chain owner (EOA or account) of an agentId from the IdentityRegistry.
+     * Returns null if the owner cannot be resolved (e.g. token does not exist).
+     */
+    getAgentOwner(agentId: string, chainId?: number): Promise<`0x${string}` | null>;
+    /**
+     * Resolve and load an agent by did:8004 identifier.
+     */
+    getAgentByDid(did8004: string): Promise<Agent | null>;
+    /**
+     * Get a fully-hydrated AgentDetail for a given agentId and chainId.
+     * This reuses the shared buildAgentDetail implementation so that
+     * discovery, identity, and registration data are resolved consistently.
+     */
+    getAgentDetails(agentId: string, chainId?: number): Promise<AgentDetail>;
+    /**
+     * Get a fully-hydrated AgentDetail for a given did:8004 identifier.
+     */
+    getAgentDetailsByDid(did8004: string): Promise<AgentDetail>;
+    /**
+     * Resolve an agent by its owner account address.
+     *
+     * Strategy:
+     *  1. Try ENS reverse lookup via ENS client (getAgentIdentityByAccount)
+     *  2. If not found, fall back to discovery search by account address
+     *  3. If an agentId is resolved, return fully-hydrated AgentDetail
+     *
+     * Returns null if no agent can be resolved for the given account.
+     */
+    getAgentByAccount(account: `0x${string}`, chainId?: number): Promise<AgentDetail | null>;
+    /**
+     * Extract an agentId from a transaction receipt using the on-chain IdentityRegistry.
+     * Thin wrapper around AgentsAPI.extractAgentIdFromReceipt so apps can call
+     * client.extractAgentIdFromReceipt(...) directly.
+     */
+    extractAgentIdFromReceipt(receipt: any, chainId?: number): Promise<string | null>;
+    /**
+     * Revoke a previously submitted feedback entry for an agent.
+     *
+     * This is a high-level helper that:
+     *  - resolves the ReputationClient singleton for the given chain
+     *  - converts the provided agentId/feedbackIndex into bigint
+     *  - calls the underlying ReputationRegistry.revokeFeedback(...)
+     */
+    revokeFeedback(params: {
+        agentId: string;
+        feedbackIndex: string | number | bigint;
+        chainId?: number;
+    }): Promise<{
+        txHash: string;
+    }>;
+    /**
+     * Append a response to an existing feedback entry for an agent.
+     *
+     * High-level helper that converts string/number inputs to bigint and delegates
+     * to the ReputationClient's appendToFeedback implementation.
+     */
+    appendToFeedback(params: {
+        agentId: string;
+        clientAddress: `0x${string}`;
+        feedbackIndex: string | number | bigint;
+        responseUri?: string;
+        responseHash?: `0x${string}`;
+        chainId?: number;
+    }): Promise<{
+        txHash: string;
+    }>;
+    /**
+     * Get the ENS client singleton
+     * @returns The ENS client instance
+     */
+    getENSClient(): Promise<any>;
+    getDiscoveryClient(): Promise<any>;
+    /**
+     * Verify a signed challenge
+     * Handles all Veramo agent logic internally - no Veramo exposure at app level
+     *
+     * @param auth - The authentication challenge with signature
+     * @param expectedAudience - Expected audience (provider URL) for validation
+     * @returns Verification result with client address if valid
+     */
+    verifyChallenge(auth: AuthChallenge, expectedAudience: string): Promise<ChallengeVerificationResult>;
+    /**
+     * Initialize reputation client from session package
+     * Uses environment variables only (no overrides allowed)
+     * @internal
+     */
+    private initializeReputationFromSessionPackage;
+    /**
+     * Initialize reputation client from top-level config (identityRegistry and reputationRegistry)
+     * Uses the EOA (Externally Owned Account) derived from the private key
+     * @internal
+     */
+    private initializeClientReputationFromConfig;
+    /**
+     * Execute a GraphQL query
+     */
+    query<T = unknown>(query: string, variables?: Record<string, unknown>): Promise<T>;
+    /**
+     * Execute a GraphQL mutation
+     */
+    mutate<T = unknown>(mutation: string, variables?: Record<string, unknown>): Promise<T>;
+    /**
+     * Get the underlying GraphQL client (for advanced usage)
+     */
+    getGraphQLClient(): GraphQLClient;
+    /**
+     * Update the API key and recreate the client
+     */
+    setApiKey(apiKey: string): void;
+    /**
+     * Get current configuration
+     */
+    getConfig(): Readonly<ApiClientConfig>;
+    /**
+   * Get the admin EOA address derived from AGENTIC_TRUST_ADMIN_PRIVATE_KEY
+   * @returns The admin's Ethereum address
+   * @throws Error if AGENTIC_TRUST_ADMIN_PRIVATE_KEY is not set or invalid
+   */
+    getAdminEOAAddress(): Promise<`0x${string}`>;
+}
+export {};
+//# sourceMappingURL=agenticTrustClient.d.ts.map

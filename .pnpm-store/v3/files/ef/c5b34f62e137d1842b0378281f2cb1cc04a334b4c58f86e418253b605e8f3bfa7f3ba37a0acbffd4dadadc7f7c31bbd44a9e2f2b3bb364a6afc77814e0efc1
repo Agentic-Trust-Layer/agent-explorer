@@ -1,0 +1,62 @@
+{
+  "name": "@veramo/key-manager",
+  "description": "Key Manager plugin for Veramo",
+  "version": "6.0.0",
+  "main": "build/index.js",
+  "exports": "./build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "extract-api": "node ../cli/bin/veramo.js dev extract-api"
+  },
+  "dependencies": {
+    "@noble/curves": "^1.1.0",
+    "@veramo/core-types": "^6.0.0",
+    "@veramo/utils": "^6.0.0",
+    "debug": "^4.3.4",
+    "did-jwt": "^8.0.0",
+    "ethers": "^6.11.1",
+    "uint8arrays": "^4.0.6",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/debug": "4.1.8",
+    "@types/uuid": "9.0.2",
+    "typescript": "5.3.3"
+  },
+  "files": [
+    "build/**/*",
+    "src/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/decentralized-identity/veramo.git",
+    "directory": "packages/key-manager"
+  },
+  "author": "Consensys Mesh R&D <hello@veramo.io>",
+  "contributors": [
+    "Simonas Karuzas <simonas.karuzas@mesh.xyz>",
+    "Mircea Nistor <mircea.nistor@mesh.xyz>"
+  ],
+  "keywords": [
+    "Veramo",
+    "DID",
+    "Verifiable Credential",
+    "veramo-plugin",
+    "aggregator",
+    "key-manager",
+    "KMS"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "moduleDirectories": [
+    "node_modules",
+    "src"
+  ],
+  "gitHead": "9a0e6bd1ec2d49e152b18d086decbe49e6f41028"
+}

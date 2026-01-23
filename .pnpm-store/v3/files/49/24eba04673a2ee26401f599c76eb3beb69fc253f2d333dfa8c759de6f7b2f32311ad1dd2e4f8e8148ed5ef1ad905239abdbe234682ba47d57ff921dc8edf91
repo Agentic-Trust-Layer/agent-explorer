@@ -1,0 +1,12 @@
+import { createHexChecksummedDecoder, createHexChecksummedEncoder, } from "../utils/hex.js";
+const name = "cloLegacy";
+const coinType = 820;
+export const encodeCloLegacyAddress = createHexChecksummedEncoder();
+export const decodeCloLegacyAddress = createHexChecksummedDecoder();
+export const cloLegacy = {
+    name,
+    coinType,
+    encode: encodeCloLegacyAddress,
+    decode: decodeCloLegacyAddress,
+};
+//# sourceMappingURL=cloLegacy.js.map

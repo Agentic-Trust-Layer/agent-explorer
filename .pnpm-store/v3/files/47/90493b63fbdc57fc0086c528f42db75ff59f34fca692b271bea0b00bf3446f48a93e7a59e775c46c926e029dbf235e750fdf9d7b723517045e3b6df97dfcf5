@@ -1,0 +1,66 @@
+{
+  "name": "@veramo/utils",
+  "description": "Helper methods for Veramo plugins",
+  "version": "6.0.0",
+  "main": "build/index.js",
+  "exports": "./build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "extract-api": "node ../cli/bin/veramo.js dev extract-api"
+  },
+  "dependencies": {
+    "@ipld/dag-pb": "^4.0.5",
+    "@noble/curves": "^1.1.0",
+    "@veramo/core-types": "^6.0.0",
+    "credential-status": "^3.0.0",
+    "cross-fetch": "^4.0.0",
+    "debug": "^4.3.3",
+    "did-jwt": "^8.0.0",
+    "did-jwt-vc": "^4.0.0",
+    "did-resolver": "^4.1.0",
+    "ethers": "^6.11.1",
+    "ipfs-unixfs": "^11.1.0",
+    "multiformats": "^13.0.0",
+    "uint8arrays": "^4.0.6"
+  },
+  "devDependencies": {
+    "@types/debug": "4.1.8",
+    "@types/uuid": "9.0.2"
+  },
+  "files": [
+    "build/**/*",
+    "src/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/decentralized-identity/veramo.git",
+    "directory": "packages/utils"
+  },
+  "author": "Consensys Mesh R&D <hello@veramo.io>",
+  "contributors": [
+    "Mircea Nistor <mircea.nistor@mesh.xyz>",
+    "Simonas Karuzas <simonas.karuzas@mesh.xyz>"
+  ],
+  "keywords": [
+    "Veramo",
+    "DID",
+    "Verifiable Credential",
+    "veramo-plugin",
+    "utils",
+    "encoding",
+    "crypto"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "moduleDirectories": [
+    "node_modules",
+    "src"
+  ],
+  "gitHead": "9a0e6bd1ec2d49e152b18d086decbe49e6f41028"
+}

@@ -1,0 +1,853 @@
+/**
+ * Agent class
+ *
+ * Represents a discovered agent with protocol support (A2A, MCP, etc.)
+ * Abstracts protocol details so clients can interact with agents without
+ * knowing the underlying protocol implementation.
+ */
+import { A2AProtocolProvider } from './a2aProtocolProvider';
+import { parseDid8004 } from '@agentic-trust/8004-ext-sdk';
+import { getProviderApp } from '../userApps/providerApp';
+import { getReputationClient } from '../singletons/reputationClient';
+import { getIPFSStorage } from './ipfs';
+import { getIdentityClient } from '../singletons/identityClient';
+import { DEFAULT_CHAIN_ID, requireChainEnvVar } from './chainConfig';
+import { ethers } from 'ethers';
+/**
+ * Agent class - represents a discovered agent with protocol support
+ */
+export class Agent {
+    data;
+    client;
+    a2aProvider = null;
+    agentCard = null;
+    endpoint = null;
+    initialized = false;
+    sessionPackage = null;
+    constructor(data, client) {
+        this.data = data;
+        this.client = client;
+        // Auto-initialize if agent has an a2aEndpoint
+        if (this.data.a2aEndpoint) {
+            this.initialize();
+        }
+    }
+    /**
+     * Get agent ID
+     */
+    get agentId() {
+        const { agentId } = this.data;
+        if (typeof agentId === 'number') {
+            return agentId;
+        }
+        if (typeof agentId === 'string') {
+            const parsed = Number(agentId);
+            return Number.isFinite(parsed) ? parsed : undefined;
+        }
+        return undefined;
+    }
+    /**
+     * Get agent name
+     */
+    get agentName() {
+        return this.data.agentName;
+    }
+    /**
+     * Get agent account address
+     */
+    get agentAccount() {
+        const account = this.data.agentAccount;
+        if (typeof account === 'string' && account.trim().length > 0) {
+            return account;
+        }
+        const legacyAddress = this.data.agentAddress;
+        if (typeof legacyAddress === 'string' && legacyAddress.trim().length > 0) {
+            return legacyAddress;
+        }
+        return undefined;
+    }
+    /**
+     * Backwards-compatible alias for agentAccount
+     */
+    get agentAddress() {
+        return this.agentAccount;
+    }
+    /**
+     * Get agent owner address
+     */
+    get agentOwner() {
+        const owner = this.data.agentOwner;
+        if (typeof owner === 'string' && owner.trim().length > 0) {
+            return owner;
+        }
+        return undefined;
+    }
+    /**
+     * Get identity DID (e.g. did:8004)
+     */
+    get didIdentity() {
+        const value = this.data.didIdentity;
+        if (value === null) {
+            return null;
+        }
+        if (typeof value === 'string' && value.trim().length > 0) {
+            return value.trim();
+        }
+        return undefined;
+    }
+    /**
+     * Get account DID (e.g. did:ethr)
+     */
+    get didAccount() {
+        const value = this.data.didAccount;
+        if (value === null) {
+            return null;
+        }
+        if (typeof value === 'string' && value.trim().length > 0) {
+            return value.trim();
+        }
+        return undefined;
+    }
+    /**
+     * Get name DID (e.g. did:ens)
+     */
+    get didName() {
+        const value = this.data.didName;
+        if (value === null) {
+            return null;
+        }
+        if (typeof value === 'string' && value.trim().length > 0) {
+            return value.trim();
+        }
+        return undefined;
+    }
+    /**
+     * Get A2A endpoint URL
+     */
+    get a2aEndpoint() {
+        return typeof this.data.a2aEndpoint === 'string'
+            ? this.data.a2aEndpoint
+            : undefined;
+    }
+    initialize() {
+        if (this.initialized) {
+            return;
+        }
+        if (!this.data.a2aEndpoint) {
+            return; // No endpoint, agent cannot be initialized
+        }
+        // Get Veramo agent from the client
+        const veramoAgent = this.client.veramo.getAgent();
+        // Create A2A Protocol Provider for this agent
+        // This does NOT fetch the agent card - card is fetched lazily when needed
+        this.a2aProvider = new A2AProtocolProvider(this.data.a2aEndpoint, veramoAgent);
+        this.initialized = true;
+    }
+    isInitialized() {
+        return this.initialized;
+    }
+    async fetchCard() {
+        if (!this.a2aProvider) {
+            throw new Error('Agent not initialized. Call initialize(client) first.');
+        }
+        // Lazy load: only fetch if not already cached
+        if (!this.agentCard) {
+            this.agentCard = await this.a2aProvider.fetchAgentCard();
+        }
+        return this.agentCard;
+    }
+    getCard() {
+        return this.agentCard;
+    }
+    async getSkills() {
+        const card = await this.fetchCard(); // Lazy load
+        return card?.skills || [];
+    }
+    async getCapabilities() {
+        const card = await this.fetchCard(); // Lazy load
+        return card?.capabilities || null;
+    }
+    async supportsProtocol() {
+        if (!this.a2aProvider) {
+            return false;
+        }
+        const card = await this.fetchCard();
+        return card !== null &&
+            card.skills !== undefined &&
+            card.skills.length > 0 &&
+            card.url !== undefined;
+    }
+    async getEndpoint() {
+        if (!this.a2aProvider) {
+            throw new Error('Agent not initialized. Call initialize(client) first.');
+        }
+        if (!this.endpoint) {
+            const endpointInfo = await this.a2aProvider.getA2AEndpoint();
+            if (endpointInfo) {
+                this.endpoint = {
+                    providerId: endpointInfo.providerId,
+                    endpoint: endpointInfo.endpoint,
+                    method: endpointInfo.method,
+                };
+            }
+        }
+        return this.endpoint;
+    }
+    /**
+     * Send a message to the agent
+     */
+    async sendMessage(request) {
+        if (!this.a2aProvider) {
+            throw new Error('Agent not initialized. Call initialize(client) first.');
+        }
+        // Check if agent has a valid A2A endpoint
+        if (!this.data.a2aEndpoint) {
+            throw new Error('Agent does not have an A2A endpoint configured. ' +
+                'The agent must have a valid A2A endpoint URL to receive messages.');
+        }
+        // Build A2A request format
+        const endpointInfo = await this.getEndpoint();
+        if (!endpointInfo) {
+            throw new Error('Agent endpoint not available');
+        }
+        const a2aRequest = {
+            fromAgentId: 'client',
+            toAgentId: endpointInfo.providerId,
+            message: request.message,
+            payload: request.payload,
+            metadata: request.metadata,
+            skillId: request.skillId,
+        };
+        const response = await this.a2aProvider.sendMessage(a2aRequest);
+        return response;
+    }
+    /**
+     * Verify the agent by sending an authentication challenge
+     * Creates a signed challenge and sends it to the agent's endpoint
+     * This will force a fresh authentication challenge even if already authenticated
+     * @returns true if verification passed, false otherwise
+     */
+    async verify() {
+        if (!this.a2aProvider) {
+            throw new Error('Agent not initialized. Call initialize(client) first.');
+        }
+        try {
+            // Get endpoint info
+            const endpointInfo = await this.getEndpoint();
+            if (!endpointInfo) {
+                throw new Error('Agent endpoint not available');
+            }
+            // Get agent card to determine audience for challenge
+            const agentCard = await this.fetchCard();
+            if (!agentCard?.provider?.url) {
+                throw new Error('Agent card URL is required for verification');
+            }
+            // Reset authentication state to force a fresh challenge
+            // Access the private authenticated flag via type assertion
+            this.a2aProvider.authenticated = false;
+            // Create a signed challenge using the A2A protocol provider
+            // We'll send a minimal message with auth to test verification
+            const a2aRequest = {
+                fromAgentId: 'client',
+                toAgentId: endpointInfo.providerId,
+                message: 'verify', // Minimal message for verification
+                payload: {},
+            };
+            // The sendMessage will automatically create and include auth challenge
+            // since we reset authenticated to false
+            const response = await this.a2aProvider.sendMessage(a2aRequest);
+            // If the response is successful and doesn't contain authentication errors,
+            // verification passed
+            if (response.success === false) {
+                // Check if it's an authentication error
+                if (response.error?.includes('authentication') ||
+                    response.error?.includes('Authentication failed')) {
+                    return false;
+                }
+                // Other errors might be acceptable (e.g., agent doesn't understand the message)
+                // but verification itself passed if no auth error
+                return true;
+            }
+            // Success response means verification passed
+            return true;
+        }
+        catch (error) {
+            // If error contains authentication failure, verification failed
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            if (errorMessage.includes('authentication') ||
+                errorMessage.includes('Authentication failed')) {
+                return false;
+            }
+            // Other errors might indicate verification failed
+            console.error('Verification error:', error);
+            return false;
+        }
+    }
+    /**
+     * Request a feedback authorization token from the agent's A2A endpoint.
+     * Automatically verifies the agent (unless skipVerify=true) before sending the requestAuth message.
+     */
+    async getFeedbackAuth(params) {
+        const clientAddress = params.clientAddress?.toLowerCase();
+        if (!clientAddress ||
+            !clientAddress.startsWith('0x') ||
+            clientAddress.length !== 42) {
+            throw new Error('clientAddress must be a 0x-prefixed 20-byte address');
+        }
+        const resolvedChainId = typeof params.chainId === 'number'
+            ? params.chainId
+            : Number.isFinite(this.data?.chainId)
+                ? Number(this.data.chainId)
+                : DEFAULT_CHAIN_ID;
+        const resolveAgentId = (value) => {
+            if (value === undefined || value === null) {
+                return undefined;
+            }
+            try {
+                return BigInt(value).toString();
+            }
+            catch {
+                const stringified = String(value).trim();
+                return stringified.length > 0 ? stringified : undefined;
+            }
+        };
+        const resolvedAgentId = resolveAgentId(params.agentId) ?? resolveAgentId(this.data.agentId);
+        if (!resolvedAgentId) {
+            throw new Error('Agent ID is required to request feedback auth.');
+        }
+        const verified = await this.verify();
+        if (!verified) {
+            throw new Error('Agent verification failed before requesting feedback auth.');
+        }
+        const payload = {
+            clientAddress,
+        };
+        const numericAgentId = Number.parseInt(resolvedAgentId, 10);
+        payload.agentId = Number.isFinite(numericAgentId)
+            ? numericAgentId
+            : resolvedAgentId;
+        if (typeof params.indexLimit === 'number' && params.indexLimit > 0) {
+            payload.indexLimit = params.indexLimit;
+        }
+        if (typeof params.expirySeconds === 'number' && params.expirySeconds > 0) {
+            payload.expirySeconds = params.expirySeconds;
+        }
+        const skillId = params.skillId ?? 'agent.feedback.requestAuth';
+        const message = params.message ?? 'Request feedback authorization';
+        const metadata = {
+            ...(params.metadata || {}),
+            requestType: 'feedbackAuth',
+            agentId: resolvedAgentId,
+            chainId: resolvedChainId,
+        };
+        const messageRequest = {
+            message,
+            payload,
+            metadata,
+            skillId,
+        };
+        const response = await this.sendMessage(messageRequest);
+        if (!response?.success) {
+            throw new Error(response?.error || 'Provider rejected feedback auth request');
+        }
+        const providerPayload = (response.response || {});
+        const feedbackAuthId = providerPayload.feedbackAuth ??
+            providerPayload.feedbackAuthId ??
+            providerPayload.feedbackAuthID ??
+            null;
+        if (!feedbackAuthId) {
+            throw new Error('Provider response did not include feedbackAuth');
+        }
+        return {
+            feedbackAuthId,
+            agentId: resolvedAgentId,
+            chainId: resolvedChainId,
+            payload: providerPayload,
+            response,
+        };
+    }
+    /**
+     * Set SessionPackage for this agent instance.
+     * This allows dynamically setting the SessionPackage based on request context
+     * (e.g., subdomain-based routing in provider apps).
+     *
+     * This is server-side only and specific to providerApp configuration.
+     *
+     * @param sessionPackage - The SessionPackage to use for this agent instance
+     */
+    setSessionPackage(sessionPackage) {
+        this.sessionPackage = sessionPackage;
+    }
+    /**
+     * Build a providerApp-like structure from a SessionPackage.
+     * This is used when a SessionPackage is set on the agent instance.
+     */
+    async buildProviderAppFromSessionPackage(sessionPackage) {
+        const { buildDelegationSetup, buildAgentAccountFromSession } = await import('./sessionPackage');
+        const delegationSetup = buildDelegationSetup(sessionPackage);
+        const agentAccount = await buildAgentAccountFromSession(sessionPackage);
+        // Create wallet client for agent
+        const { createWalletClient, http: httpTransport } = await import('viem');
+        const walletClient = createWalletClient({
+            account: agentAccount,
+            chain: delegationSetup.chain,
+            transport: httpTransport(delegationSetup.rpcUrl),
+        });
+        return {
+            sessionPackage,
+            agentAccount,
+            publicClient: delegationSetup.publicClient,
+            walletClient: walletClient,
+            agentId: BigInt(sessionPackage.agentId),
+        };
+    }
+    /**
+     * Issue a feedback authorization on behalf of this agent using the provider app's signer.
+     * If a SessionPackage is set on this agent instance, it will be used instead of the
+     * singleton providerApp. This allows dynamic SessionPackage selection based on request context.
+     */
+    async requestAuth(params) {
+        // Use SessionPackage from agent instance if set, otherwise use singleton providerApp
+        let providerApp;
+        if (this.sessionPackage) {
+            // Build providerApp from the SessionPackage set on this agent instance
+            providerApp = await this.buildProviderAppFromSessionPackage(this.sessionPackage);
+        }
+        else {
+            // Fall back to singleton providerApp
+            const singletonApp = await getProviderApp();
+            if (!singletonApp) {
+                throw new Error('provider app not initialized. Either set a SessionPackage on the agent instance or configure AGENTIC_TRUST_SESSION_PACKAGE_PATH environment variable.');
+            }
+            providerApp = singletonApp;
+        }
+        const clientAddress = params.clientAddress;
+        if (!clientAddress ||
+            typeof clientAddress !== 'string' ||
+            !clientAddress.startsWith('0x')) {
+            throw new Error('clientAddress must be a 0x-prefixed address');
+        }
+        const agentId = params.agentId
+            ? BigInt(params.agentId)
+            : this.data.agentId
+                ? BigInt(this.data.agentId)
+                : providerApp.agentId;
+        const feedbackAuth = await this.client.createFeedbackAuth({
+            publicClient: providerApp.publicClient,
+            agentId,
+            clientAddress,
+            signer: providerApp.agentAccount,
+            walletClient: providerApp.walletClient,
+            expirySeconds: params.expirySeconds,
+        });
+        return {
+            feedbackAuth,
+            agentId: agentId.toString(),
+            clientAddress,
+            skill: params.skillId || 'agent.feedback.requestAuth',
+        };
+    }
+    async buildFeedbackSubmission(params) {
+        const agentId = params.agentId ?? (this.data.agentId ? this.data.agentId.toString() : undefined);
+        if (!agentId) {
+            throw new Error('agentId is required. Provide it in params or ensure agent has agentId in data.');
+        }
+        const chainId = this.data?.chainId && Number.isFinite(this.data.chainId)
+            ? Number(this.data.chainId)
+            : DEFAULT_CHAIN_ID;
+        const score = Number(params.score ?? 0);
+        if (!Number.isFinite(score)) {
+            throw new Error('score must be a valid number between 0 and 100');
+        }
+        const normalizedScore = Math.max(0, Math.min(100, Math.round(score)));
+        const feedbackAuth = params.feedbackAuth;
+        if (!feedbackAuth) {
+            throw new Error('feedbackAuth is required to submit feedback');
+        }
+        // Prefer an explicit clientAddress from params (e.g. browser wallet / Web3Auth).
+        // Only fall back to ClientApp (server-side private key) when clientAddress is not provided.
+        let clientAddressHex = params.clientAddress;
+        if (!clientAddressHex) {
+            const { getClientApp } = await import('../userApps/clientApp');
+            const clientApp = await getClientApp();
+            clientAddressHex = clientApp?.address;
+        }
+        if (!clientAddressHex) {
+            throw new Error('clientAddress is required to submit feedback');
+        }
+        let agentRegistry = '';
+        try {
+            const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', chainId);
+            agentRegistry = `eip155:${chainId}:${identityRegistry}`;
+        }
+        catch (error) {
+            console.warn('[Agent.buildFeedbackSubmission] Failed to resolve AGENTIC_TRUST_IDENTITY_REGISTRY; feedbackFile.agentRegistry will be empty:', error);
+        }
+        const clientAddressCaip = `eip155:${chainId}:${clientAddressHex}`;
+        const feedbackFile = {
+            agentRegistry,
+            agentId: Number.parseInt(agentId, 10) || 0,
+            clientAddress: clientAddressCaip || clientAddressHex,
+            createdAt: new Date().toISOString(),
+            feedbackAuth,
+            score: normalizedScore,
+        };
+        if (params.tag1)
+            feedbackFile.tag1 = params.tag1;
+        if (params.tag2)
+            feedbackFile.tag2 = params.tag2;
+        if (params.skill)
+            feedbackFile.skill = params.skill;
+        if (params.context)
+            feedbackFile.context = params.context;
+        if (params.capability)
+            feedbackFile.capability = params.capability;
+        let feedbackUriFromIpfs;
+        let feedbackHashFromIpfs;
+        try {
+            const ipfs = getIPFSStorage();
+            const serialized = JSON.stringify(feedbackFile);
+            const uploadResult = await ipfs.upload(serialized, 'feedback.json');
+            feedbackUriFromIpfs = uploadResult.tokenUri;
+            feedbackHashFromIpfs = ethers.keccak256(ethers.toUtf8Bytes(serialized));
+        }
+        catch (error) {
+            console.warn('[Agent.buildFeedbackSubmission] Failed to upload FeedbackFile to IPFS; continuing without feedbackUri/feedbackHash:', error);
+        }
+        const giveParams = {
+            agent: agentId,
+            score: normalizedScore,
+            feedback: params.feedback ?? 'Feedback submitted via Agentic Trust admin app.',
+            tag1: params.tag1,
+            tag2: params.tag2,
+            feedbackUri: feedbackUriFromIpfs,
+            feedbackHash: feedbackHashFromIpfs,
+            agentId,
+            feedbackAuth,
+        };
+        return {
+            chainId,
+            giveParams,
+        };
+    }
+    /**
+     * Submit client feedback to the reputation contract.
+     */
+    async giveFeedback(params) {
+        if (!params.feedbackAuth) {
+            throw new Error('feedbackAuth is required to submit feedback');
+        }
+        const { chainId, giveParams } = await this.buildFeedbackSubmission({
+            ...params,
+            feedbackAuth: params.feedbackAuth,
+        });
+        const reputationClient = await getReputationClient(chainId);
+        return reputationClient.giveClientFeedback(giveParams);
+    }
+    /**
+     * Prepare a giveFeedback transaction for client-side signing.
+     */
+    async prepareGiveFeedback(params) {
+        if (!params.feedbackAuth) {
+            throw new Error('feedbackAuth is required to prepare feedback transaction');
+        }
+        const { chainId, giveParams } = await this.buildFeedbackSubmission({
+            ...params,
+            feedbackAuth: params.feedbackAuth,
+        });
+        const reputationClient = await getReputationClient(chainId);
+        const txRequest = await reputationClient.prepareGiveFeedbackTx(giveParams);
+        const toHex = (value) => typeof value === 'bigint' ? `0x${value.toString(16)}` : undefined;
+        const transaction = {
+            to: txRequest.to,
+            data: txRequest.data,
+            value: toHex(txRequest.value) ?? '0x0',
+            gas: toHex(txRequest.gas),
+            gasPrice: toHex(txRequest.gasPrice),
+            maxFeePerGas: toHex(txRequest.maxFeePerGas),
+            maxPriorityFeePerGas: toHex(txRequest.maxPriorityFeePerGas),
+            nonce: txRequest.nonce,
+            chainId,
+        };
+        return {
+            chainId,
+            transaction,
+        };
+    }
+}
+/**
+ * Load a detailed Agent view using a provided AgenticTrustClient.
+ * This is the core implementation used by admin and other services.
+ */
+export async function loadAgentDetail(client, agentIdentifier, chainId = DEFAULT_CHAIN_ID) {
+    const isDid = typeof agentIdentifier === 'string' && agentIdentifier.trim().startsWith('did:8004:');
+    let resolvedChainId = chainId;
+    let agentId;
+    let agentIdBigInt;
+    let did8004;
+    if (isDid) {
+        did8004 = decodeURIComponent(agentIdentifier.trim());
+        const parsed = parseDid8004(did8004);
+        resolvedChainId = parsed.chainId;
+        agentId = parsed.agentId;
+        try {
+            agentIdBigInt = BigInt(agentId);
+        }
+        catch {
+            throw new Error(`Invalid agentId in did:8004 identifier: ${did8004}`);
+        }
+    }
+    else {
+        const agentIdInput = agentIdentifier;
+        agentIdBigInt =
+            typeof agentIdInput === 'bigint'
+                ? agentIdInput
+                : (() => {
+                    try {
+                        return BigInt(agentIdInput);
+                    }
+                    catch {
+                        throw new Error(`Invalid agentId: ${agentIdInput}`);
+                    }
+                })();
+        agentId = agentIdBigInt.toString();
+    }
+    const identityClient = await getIdentityClient(resolvedChainId);
+    const tokenUri = await identityClient.getTokenURI(agentIdBigInt);
+    const METADATA_KEYS = ['agentName', 'agentAccount'];
+    const metadata = {};
+    for (const key of METADATA_KEYS) {
+        try {
+            const value = await identityClient.getMetadata(agentIdBigInt, key);
+            if (value) {
+                metadata[key] = value;
+            }
+        }
+        catch (error) {
+            console.warn(`Failed to get metadata key ${key}:`, error);
+        }
+    }
+    const identityMetadata = {
+        tokenUri,
+        metadata,
+    };
+    let identityRegistration = null;
+    if (tokenUri) {
+        try {
+            const ipfsStorage = getIPFSStorage();
+            const registration = (await ipfsStorage.getJson(tokenUri));
+            identityRegistration = {
+                tokenUri,
+                registration,
+            };
+        }
+        catch (error) {
+            console.warn('Failed to get IPFS registration:', error);
+            identityRegistration = {
+                tokenUri,
+                registration: null,
+            };
+        }
+    }
+    let discovery = null;
+    try {
+        const agentsApi = client.agents;
+        if (did8004 && typeof agentsApi.getAgentFromDiscoveryByDid === 'function') {
+            discovery = (await agentsApi.getAgentFromDiscoveryByDid(did8004));
+        }
+        else if (typeof agentsApi.getAgentFromDiscovery === 'function') {
+            discovery = (await agentsApi.getAgentFromDiscovery(resolvedChainId, agentId));
+        }
+        else {
+            discovery = null;
+        }
+    }
+    catch (error) {
+        // Check if this is an access code error and provide a clearer message
+        const { rethrowDiscoveryError } = await import('./discoveryErrors');
+        try {
+            rethrowDiscoveryError(error, 'loadAgentDetail');
+        }
+        catch (friendlyError) {
+            // If rethrowDiscoveryError determined it's an access code error, log the friendly message
+            console.error('Failed to get GraphQL agent data:', friendlyError instanceof Error ? friendlyError.message : friendlyError);
+            throw friendlyError; // Re-throw the friendly error
+        }
+        // If it's not an access code error, just log and continue
+        console.warn('Failed to get GraphQL agent data:', error);
+        discovery = null;
+    }
+    const flattened = {};
+    // Priority 1: Data from tokenUri/IPFS registration (highest priority - on-chain source of truth)
+    if (identityRegistration?.registration &&
+        typeof identityRegistration.registration === 'object') {
+        const reg = identityRegistration.registration;
+        if (typeof reg.name === 'string')
+            flattened.name = reg.name;
+        if (typeof reg.description === 'string')
+            flattened.description = reg.description;
+        if (typeof reg.image === 'string')
+            flattened.image = reg.image;
+        if (typeof reg.agentAccount === 'string')
+            flattened.agentAccount = reg.agentAccount;
+        if (reg.endpoints)
+            flattened.endpoints = reg.endpoints;
+        if (reg.supportedTrust)
+            flattened.supportedTrust = reg.supportedTrust;
+        if (typeof reg.createdAt !== 'undefined')
+            flattened.createdAt = reg.createdAt;
+        if (typeof reg.updatedAt !== 'undefined')
+            flattened.updatedAt = reg.updatedAt;
+        // Extract a2aEndpoint from registration
+        // Priority: 1) direct a2aEndpoint field, 2) from endpoints array (name: 'A2A'), 3) from agentUrl
+        if (typeof reg.a2aEndpoint === 'string') {
+            flattened.a2aEndpoint = reg.a2aEndpoint;
+        }
+        else if (Array.isArray(reg.endpoints)) {
+            // Find A2A endpoint in endpoints array
+            const a2aEndpointEntry = reg.endpoints.find((ep) => typeof ep === 'object' &&
+                ep !== null &&
+                'name' in ep &&
+                ep.name === 'A2A' &&
+                'endpoint' in ep &&
+                typeof ep.endpoint === 'string');
+            if (a2aEndpointEntry) {
+                flattened.a2aEndpoint = a2aEndpointEntry.endpoint;
+            }
+        }
+        // If agentUrl exists and a2aEndpoint not found, construct it
+        if (!flattened.a2aEndpoint && typeof reg.agentUrl === 'string') {
+            const baseUrl = reg.agentUrl.replace(/\/$/, '');
+            flattened.a2aEndpoint = `${baseUrl}/.well-known/agent-card.json`;
+        }
+        // Also check external_url as fallback
+        if (!flattened.a2aEndpoint && typeof reg.external_url === 'string') {
+            const baseUrl = reg.external_url.replace(/\/$/, '');
+            flattened.a2aEndpoint = `${baseUrl}/.well-known/agent-card.json`;
+        }
+    }
+    // Priority 2: On-chain metadata (only fill if not already set from registration)
+    if (metadata.agentName && !flattened.name)
+        flattened.name = metadata.agentName;
+    if (metadata.agentName && !flattened.agentName)
+        flattened.agentName = metadata.agentName;
+    if (metadata.agentAccount && !flattened.agentAccount)
+        flattened.agentAccount = metadata.agentAccount;
+    // Priority 3: Discovery data (GraphQL indexer) - only as fallback when not available from on-chain sources
+    const discoveryRecord = discovery || {};
+    if (discovery && typeof discovery === 'object') {
+        // Only use discovery data if not already set from tokenUri/metadata
+        const agentNameFromDiscovery = typeof discoveryRecord.agentName === 'string'
+            ? discoveryRecord.agentName
+            : undefined;
+        if (agentNameFromDiscovery && !flattened.name)
+            flattened.name = agentNameFromDiscovery;
+        if (agentNameFromDiscovery && !flattened.agentName)
+            flattened.agentName = agentNameFromDiscovery;
+        // a2aEndpoint from discovery only if not in registration
+        const a2aEndpointFromDiscovery = typeof discoveryRecord.a2aEndpoint === 'string'
+            ? discoveryRecord.a2aEndpoint
+            : undefined;
+        if (a2aEndpointFromDiscovery && !flattened.a2aEndpoint) {
+            flattened.a2aEndpoint = a2aEndpointFromDiscovery;
+        }
+        // Timestamps from discovery only if not in registration
+        const createdAtTimeFromDiscovery = typeof discoveryRecord.createdAtTime !== 'undefined'
+            ? discoveryRecord.createdAtTime
+            : undefined;
+        if (createdAtTimeFromDiscovery !== undefined && flattened.createdAtTime === undefined) {
+            flattened.createdAtTime = createdAtTimeFromDiscovery;
+        }
+        const updatedAtTimeFromDiscovery = typeof discoveryRecord.updatedAtTime !== 'undefined'
+            ? discoveryRecord.updatedAtTime
+            : undefined;
+        if (updatedAtTimeFromDiscovery !== undefined && flattened.updatedAtTime === undefined) {
+            flattened.updatedAtTime = updatedAtTimeFromDiscovery;
+        }
+        // Fill in any other discovery fields that aren't already set
+        // Exclude tokenUri and rawJson - these should come from on-chain sources only
+        Object.keys(discoveryRecord).forEach((key) => {
+            if (key !== 'agentId' && key !== 'tokenUri' && key !== 'rawJson' && flattened[key] === undefined) {
+                flattened[key] = discoveryRecord[key];
+            }
+        });
+    }
+    // Prioritize: flattened (from tokenUri/IPFS/metadata) > discoveryRecord
+    const agentNameValue = flattened.agentName ??
+        flattened.name ??
+        discoveryRecord.agentName ??
+        '';
+    const agentAccountValue = flattened.agentAccount ??
+        discoveryRecord.agentAccount ??
+        '';
+    const agentOwnerValue = discoveryRecord.agentOwner ?? '';
+    const detail = {
+        // AgentInfo fields
+        agentId,
+        agentName: agentNameValue,
+        chainId: resolvedChainId,
+        agentAccount: agentAccountValue,
+        agentOwner: agentOwnerValue,
+        didIdentity: discoveryRecord.didIdentity ?? null,
+        didAccount: discoveryRecord.didAccount ?? null,
+        didName: discoveryRecord.didName ?? null,
+        // tokenUri and rawJson will be set after the spread to ensure they're not overwritten
+        createdAtBlock: typeof discoveryRecord.createdAtBlock === 'number' ? discoveryRecord.createdAtBlock : 0,
+        createdAtTime: typeof discoveryRecord.createdAtTime === 'number'
+            ? discoveryRecord.createdAtTime
+            : flattened.createdAtTime ?? 0,
+        updatedAtTime: typeof discoveryRecord.updatedAtTime === 'number'
+            ? discoveryRecord.updatedAtTime
+            : flattened.updatedAtTime ?? null,
+        type: discoveryRecord.type ?? null,
+        // Prioritize: flattened (from tokenUri/IPFS) > discoveryRecord
+        description: flattened.description ??
+            discoveryRecord.description ??
+            null,
+        image: flattened.image ??
+            discoveryRecord.image ??
+            null,
+        a2aEndpoint: flattened.a2aEndpoint ??
+            discoveryRecord.a2aEndpoint ??
+            null,
+        ensEndpoint: discoveryRecord.ensEndpoint ?? null,
+        agentAccountEndpoint: discoveryRecord.agentAccountEndpoint ?? null,
+        // Prioritize: flattened (from tokenUri/IPFS) > discoveryRecord
+        supportedTrust: flattened.supportedTrust ??
+            discoveryRecord.supportedTrust ??
+            null,
+        did: discoveryRecord.did ?? null,
+        mcp: typeof discoveryRecord.mcp === 'boolean'
+            ? discoveryRecord.mcp
+            : discoveryRecord.mcp ?? null,
+        x402support: typeof discoveryRecord.x402support === 'boolean'
+            ? discoveryRecord.x402support
+            : discoveryRecord.x402support ?? null,
+        active: typeof discoveryRecord.active === 'boolean'
+            ? discoveryRecord.active
+            : discoveryRecord.active ?? null,
+        // AgentDetail-specific fields
+        success: true,
+        identityMetadata,
+        identityRegistration,
+        discovery,
+        // Flattened extra fields
+        ...flattened,
+    };
+    // Set tokenUri and rawJson AFTER spread to ensure on-chain values take precedence
+    // Use on-chain tokenUri as primary source (from contract), fallback to discovery only if on-chain is null/undefined
+    // Use identityMetadata.tokenUri to ensure we're using the value retrieved from contract
+    detail.tokenUri = (identityMetadata.tokenUri !== null && identityMetadata.tokenUri !== undefined)
+        ? identityMetadata.tokenUri
+        : (discoveryRecord.tokenUri ?? null);
+    // Use registration JSON from tokenUri/IPFS as primary source, fallback to discovery
+    detail.rawJson = identityRegistration?.registration
+        ? JSON.stringify(identityRegistration.registration, null, 2)
+        : (discoveryRecord.rawJson ?? null);
+    return detail;
+}
+/**
+ * @deprecated Use loadAgentDetail instead.
+ */
+export const buildAgentDetail = loadAgentDetail;
+//# sourceMappingURL=agent.js.map

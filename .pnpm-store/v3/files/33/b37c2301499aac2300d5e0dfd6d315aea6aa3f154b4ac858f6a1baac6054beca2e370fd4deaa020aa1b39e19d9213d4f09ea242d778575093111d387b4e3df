@@ -1,0 +1,81 @@
+{
+  "name": "@agentic-trust/core",
+  "version": "1.0.32",
+  "description": "Core SDK for agentic trust systems",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./client": {
+      "import": "./dist/client/walletSigningClient.js",
+      "types": "./dist/client/walletSigningClient.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/index.js",
+      "types": "./dist/server/index.d.ts"
+    }
+  },
+  "dependencies": {
+    "@ensdomains/ensjs": "^3.0.0",
+    "@metamask/delegation-toolkit": "^0.13.0",
+    "@veramo/did-manager": "^6.0.0",
+    "@veramo/did-provider-ethr": "^6.0.0",
+    "@veramo/did-resolver": "^6.0.0",
+    "@veramo/key-manager": "^6.0.0",
+    "@veramo/kms-local": "^6.0.0",
+    "did-resolver": "^4.1.0",
+    "ethers": "^6.15.0",
+    "ethr-did-resolver": "^11.0.5",
+    "graphql-request": "^6.1.0",
+    "permissionless": "^0.2.4",
+    "viem": "^2.38.6",
+    "web3": "1.10.4",
+    "web3.storage": "^4.5.5",
+    "@agentic-trust/veramo-agent-extension": "1.0.32",
+    "@agentic-trust/8004-sdk": "1.0.32",
+    "@agentic-trust/8004-ext-sdk": "1.0.32"
+  },
+  "peerDependencies": {
+    "@veramo/core": "^6.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "eslint": "^8.0.0",
+    "next": "^14.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erc8004/erc-8004-identity-indexer.git",
+    "directory": "packages/core"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+  }
+}

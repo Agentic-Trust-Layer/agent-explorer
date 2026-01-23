@@ -1,0 +1,8 @@
+export declare const encodeSuiAddress: (source: Uint8Array) => string;
+export declare const decodeSuiAddress: (source: string) => Uint8Array;
+export declare const sui: {
+    readonly name: "sui";
+    readonly coinType: 784;
+    readonly encode: (source: Uint8Array) => string;
+    readonly decode: (source: string) => Uint8Array;
+};

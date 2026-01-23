@@ -1,0 +1,70 @@
+import { NamespaceEnv } from "./env";
+import { MintDetailsResponse, MintDetailsRequest, MintTransactionRequest, MintTransactionResponse } from "./types";
+/**
+ * Main client interface for preparing mint transactions and checking
+ * subname availability across L1 and supported L2 networks.
+ *
+ * @example
+ * ```typescript
+ * import { createMintClient } from '@thenamespace/mint-manager';
+ *
+ * // Zero-config (mainnet)
+ * const client = createMintClient();
+ *
+ * // Testnet
+ * const testnet = createMintClient({
+ *   isTestnet: true,
+ *   customRpcUrls: { [baseSepolia.id]: ALCHEMY_BASE_SEPOLIA_RPC }
+ * });
+ * ```
+ */
+export interface MintClient {
+    /** Fetches estimated minting parameters and price quote. */
+    getMintDetails(request: MintDetailsRequest): Promise<MintDetailsResponse>;
+    /**
+     * Returns ABI, args and value for submitting the mint transaction.
+     * Includes resolver data if records are provided.
+     */
+    getMintTransactionParameters(request: MintTransactionRequest): Promise<MintTransactionResponse>;
+    /** Checks availability of an L1 subname using ENS Registry. */
+    isL1SubnameAvailable(subname: string): Promise<boolean>;
+    /** Checks availability of an L2 subname on a specific chain. */
+    isL2SubnameAvailable(subname: string, chainId: number): Promise<boolean>;
+}
+/**
+ * Configuration options for {@link createMintClient}.
+ */
+export interface MintClientConfig {
+    /** When true, uses testnet chains. */
+    isTestnet?: boolean;
+    /** @deprecated Environment is not required by consumers. */
+    environment?: NamespaceEnv;
+    /** Advanced override for List Manager API base URL. */
+    listManagerUri?: string;
+    /** Advanced override for Mint Manager API base URL. */
+    mintManagerUri?: string;
+    /** Cache TTL for listing metadata (ms). Default: 15 minutes. */
+    listingCacheMilliseconds?: number;
+    /** Source tag sent with minting requests. */
+    mintSource?: string;
+    /** Custom RPC URLs. */
+    cursomRpcUrls?: Record<string, string>;
+}
+/**
+ * Create a new MintClient instance.
+ *
+ * @example
+ * ```typescript
+ * import { createMintClient } from '@thenamespace/mint-manager';
+ *
+ * // Mainnet (default)
+ * const mainnet = createMintClient();
+ *
+ * // Testnet
+ * const testnet = createMintClient({
+ *   isTestnet: true,
+ *   customRpcUrls: { [baseSepolia.id]: 'https://base-sepolia.g.alchemy.com/v2/<api-key>>' }
+ * });
+ * ```
+ */
+export declare function createMintClient(config?: MintClientConfig): MintClient;

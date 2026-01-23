@@ -1,0 +1,40 @@
+import { AADidProvider } from './AADidProvider.js';
+import { AbstractKeyManagementSystem } from '@veramo/key-manager';
+import { type DIDDocumentSection, type IAgentContext, type IIdentifier, type IResolver, type MinimalImportableKey, type ManagedKeyInfo, type TKeyType, type IKey } from '@veramo/core-types';
+import { type _ExtendedIKey } from '@veramo/utils';
+import { type DIDResolutionOptions, type VerificationMethod } from 'did-resolver';
+export declare function compressAAIdentifierSecp256k1Keys(identifier: IIdentifier): IKey[];
+export declare function convertAAIdentifierEncryptionKeys(identifier: IIdentifier): IKey[];
+export declare function getAAEthereumAddress(verificationMethod: VerificationMethod): string | undefined;
+export declare function compareBlockchainAccountId(localKey: IKey, verificationMethod: VerificationMethod): boolean;
+export declare function mapAAIdentifierKeysToDoc(identifier: IIdentifier, section: DIDDocumentSection | undefined, context: IAgentContext<IResolver>, resolutionOptions?: DIDResolutionOptions): Promise<_ExtendedIKey[]>;
+export declare class AAKeyManagementSystem extends AbstractKeyManagementSystem {
+    private providers;
+    constructor(providers: Record<string, AADidProvider>);
+    createKey({ type }: {
+        type: TKeyType;
+    }): Promise<ManagedKeyInfo>;
+    importKey(args: Omit<MinimalImportableKey, 'kms'>): Promise<ManagedKeyInfo>;
+    listKeys(): Promise<ManagedKeyInfo[]>;
+    sharedSecret(args: {
+        myKeyRef: Pick<IKey, 'kid'>;
+        theirKey: Pick<IKey, 'type' | 'publicKeyHex'>;
+    }): Promise<string>;
+    deleteKey(args: {
+        kid: string;
+    }): Promise<boolean>;
+    sign({ keyRef, algorithm, data, }: {
+        keyRef: Pick<IKey, 'kid'>;
+        algorithm?: string;
+        data: Uint8Array;
+    }): Promise<string>;
+    /**
+     * @returns a `0x` prefixed hex string representing the signed EIP712 data
+     */
+    private eth_signTypedData;
+    /**
+     * @returns a `0x` prefixed hex string representing the signed message
+     */
+    private eth_signMessage;
+}
+//# sourceMappingURL=AAKeyManagementSystem.d.ts.map

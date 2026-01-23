@@ -1,0 +1,51 @@
+/**
+ * Reputation Client Singleton
+ *
+ * Manages a singleton instance of AIAgentReputationClient
+ * Initialized from session package or environment variables
+ */
+import { AIAgentReputationClient } from '@agentic-trust/8004-ext-sdk';
+import { getChainEnvVar, requireChainEnvVar, DEFAULT_CHAIN_ID } from '../lib/chainConfig';
+import { DomainClient } from './domainClient';
+import { resolveDomainUserApps, resolveReputationAccountProvider } from './domainAccountProviders';
+class ReputationDomainClient extends DomainClient {
+    constructor() {
+        super('reputation');
+    }
+    async buildClient(targetChainId, initArg) {
+        const identityRegistry = requireChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', targetChainId);
+        const reputationRegistry = requireChainEnvVar('AGENTIC_TRUST_REPUTATION_REGISTRY', targetChainId);
+        const ensRegistry = getChainEnvVar('AGENTIC_TRUST_ENS_REGISTRY', targetChainId);
+        const rpcUrl = requireChainEnvVar('AGENTIC_TRUST_RPC_URL', targetChainId);
+        const init = (initArg || {});
+        const userApps = init.userApps ?? (await resolveDomainUserApps());
+        const accountProvider = await resolveReputationAccountProvider(targetChainId, rpcUrl, userApps);
+        const reputationClient = await AIAgentReputationClient.create(accountProvider, identityRegistry, reputationRegistry, (ensRegistry || '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'));
+        return reputationClient;
+    }
+}
+const reputationDomainClient = new ReputationDomainClient();
+/**
+ * Get or create the AIAgentReputationClient singleton
+ * Initializes from session package if available, otherwise uses environment variables
+ */
+export async function getReputationClient(chainId) {
+    // Default to configured chain if no chainId provided
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    return reputationDomainClient.get(targetChainId);
+}
+/**
+ * Check if reputation client is initialized for a specific chain
+ */
+export function isReputationClientInitialized(chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    return reputationDomainClient.isInitialized(targetChainId);
+}
+/**
+ * Reset the reputation client instance for a specific chain (useful for testing)
+ */
+export function resetReputationClient(chainId) {
+    const targetChainId = chainId || DEFAULT_CHAIN_ID;
+    reputationDomainClient.reset(targetChainId);
+}
+//# sourceMappingURL=reputationClient.js.map

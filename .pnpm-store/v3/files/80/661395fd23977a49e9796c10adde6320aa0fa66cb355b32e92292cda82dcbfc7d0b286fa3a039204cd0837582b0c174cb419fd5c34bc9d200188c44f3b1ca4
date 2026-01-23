@@ -1,0 +1,3 @@
+import type { ResolverRegistry } from 'did-resolver';
+export declare function getAAResolver(): ResolverRegistry;
+//# sourceMappingURL=AAResolver.d.ts.map

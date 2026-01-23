@@ -1,0 +1,26 @@
+/**
+ * Express-compatible handler for updating agent registration with Account Abstraction
+ *
+ * Usage in your Express app:
+ *
+ * ```typescript
+ * import express from 'express';
+ * import { updateAgentRegistrationExpressHandler } from '@agentic-trust/core/server/api/agents/express';
+ *
+ * const app = express();
+ * app.use(express.json());
+ *
+ * // For route: /api/agents/:did8004/registration
+ * app.put('/api/agents/:did8004/registration', updateAgentRegistrationExpressHandler);
+ * ```
+ *
+ * Note: The route parameter should be URL-encoded, e.g., `did%3A8004%3A11155111%3A123`
+ */
+type Request = any;
+type Response = any;
+/**
+ * Express handler for updating agent registration
+ */
+export declare function updateAgentRegistrationExpressHandler(req: Request, res: Response): Promise<void>;
+export {};
+//# sourceMappingURL=update-registration.d.ts.map

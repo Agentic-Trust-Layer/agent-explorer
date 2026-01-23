@@ -1,0 +1,68 @@
+/**
+ * ERC-8004 Trustless Agents Client
+ *
+ * This SDK makes ZERO assumptions about implementations beyond what the spec says.
+ * All "MAY" fields in the spec are treated as optional, not mandatory.
+ *
+ * Uses adapter pattern to support any blockchain library (ethers, viem, etc.)
+ *
+ * Usage example:
+ * ```typescript
+ * import { ERC8004Client, EthersAdapter } from 'erc-8004-js';
+ * import { ethers } from 'ethers';
+ *
+ * const provider = new ethers.JsonRpcProvider('http://localhost:8545');
+ * const signer = await provider.getSigner();
+ * const adapter = new EthersAdapter(provider, signer);
+ *
+ * const client = new ERC8004Client({
+ *   adapter,
+ *   addresses: {
+ *     identityRegistry: '0x...',
+ *     reputationRegistry: '0x...',
+ *     validationRegistry: '0x...',
+ *     chainId: 31337
+ *   }
+ * });
+ * ```
+ */
+import { IdentityClient } from './IdentityClient';
+import { ReputationClient } from './ReputationClient';
+import { ValidationClient } from './ValidationClient';
+export class ERC8004Client {
+    identity;
+    reputation;
+    validation;
+    adapter;
+    addresses;
+    constructor(config) {
+        this.adapter = config.adapter;
+        this.addresses = config.addresses;
+        // Initialize Identity Client
+        this.identity = new IdentityClient(this.adapter, this.addresses.identityRegistry);
+        // Initialize Reputation Client
+        this.reputation = new ReputationClient(this.adapter, this.addresses.reputationRegistry, this.addresses.identityRegistry);
+        // Initialize Validation Client
+        this.validation = new ValidationClient(this.adapter, this.addresses.validationRegistry);
+    }
+    /**
+     * Get the current signer/wallet address
+     * Returns null if no signer configured (read-only mode)
+     */
+    async getAddress() {
+        return await this.adapter.getAddress();
+    }
+    /**
+     * Get the chain ID
+     */
+    async getChainId() {
+        return await this.adapter.getChainId();
+    }
+    /**
+     * Get the configured contract addresses
+     */
+    getAddresses() {
+        return { ...this.addresses };
+    }
+}
+//# sourceMappingURL=ERC8004Client.js.map

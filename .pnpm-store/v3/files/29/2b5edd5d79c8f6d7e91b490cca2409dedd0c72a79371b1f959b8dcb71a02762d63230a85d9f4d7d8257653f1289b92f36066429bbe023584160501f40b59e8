@@ -1,0 +1,359 @@
+/**
+ * ENS Client Singleton
+ *
+ * Manages a singleton instance of AIAgentENSClient
+ * Initialized from environment variables using AccountProvider
+ */
+import { AIAgentENSClient, AIAgentL2ENSDurenClient } from '@agentic-trust/8004-ext-sdk';
+import { sepolia, baseSepolia, optimismSepolia } from '../lib/chainConfig';
+import { createPublicClient, createWalletClient, http } from 'viem';
+import { createBundlerClient } from 'viem/account-abstraction';
+import { createPimlicoClient } from 'permissionless/clients/pimlico';
+import { privateKeyToAccount } from 'viem/accounts';
+import { getChainEnvVar, requireChainEnvVar, getEnsOrgAddress, getEnsPrivateKey } from '../lib/chainConfig';
+import { toMetaMaskSmartAccount, Implementation } from '@metamask/delegation-toolkit';
+import { DomainClient } from './domainClient';
+import { resolveDomainUserApps, resolveENSAccountProvider } from './domainAccountProviders';
+class ENSDomainClient extends DomainClient {
+    constructor() {
+        super('ens');
+    }
+    async buildClient(targetChainId, initArg) {
+        // Get RPC URL from environment
+        const rpcUrl = requireChainEnvVar('AGENTIC_TRUST_RPC_URL', targetChainId);
+        // Get ENS registry addresses from environment
+        // Default to standard ENS registry on Sepolia if not provided
+        const defaultEnsRegistry = targetChainId === 11155111
+            ? '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e' // Standard ENS registry on Sepolia
+            : '';
+        const ensRegistryRaw = getChainEnvVar('AGENTIC_TRUST_ENS_REGISTRY', targetChainId) || defaultEnsRegistry;
+        if (!ensRegistryRaw || ensRegistryRaw === '') {
+            const chainSuffix = targetChainId === 11155111 ? 'SEPOLIA' : targetChainId === 84532 ? 'BASE_SEPOLIA' : targetChainId === 11155420 ? 'OPTIMISM_SEPOLIA' : String(targetChainId);
+            throw new Error(`Missing required environment variable: AGENTIC_TRUST_ENS_REGISTRY_${chainSuffix}. ` +
+                `This is required for the ENS client to resolve ENS names on chain ${targetChainId}.`);
+        }
+        const ensRegistry = ensRegistryRaw;
+        const ensResolver = (getChainEnvVar('AGENTIC_TRUST_ENS_RESOLVER', targetChainId) || '');
+        const identityRegistry = (getChainEnvVar('AGENTIC_TRUST_IDENTITY_REGISTRY', targetChainId) ||
+            '0x0000000000000000000000000000000000000000');
+        const init = (initArg || {});
+        const userApps = init.userApps ?? (await resolveDomainUserApps());
+        const accountProvider = await resolveENSAccountProvider(targetChainId, rpcUrl, userApps);
+        // Select chain object
+        const chain = targetChainId === 11155111
+            ? sepolia
+            : targetChainId === 84532
+                ? baseSepolia
+                : targetChainId === 11155420
+                    ? optimismSepolia
+                    : sepolia;
+        // Choose L1 vs L2 ENS client implementation
+        const isL2 = targetChainId === 84532 || targetChainId === 11155420;
+        const ClientCtor = isL2 ? AIAgentL2ENSDurenClient : AIAgentENSClient;
+        return new ClientCtor(chain, rpcUrl, accountProvider, ensRegistry, ensResolver, identityRegistry);
+    }
+}
+const ensDomainClient = new ENSDomainClient();
+/**
+ * Get or create the AIAgentENSClient singleton
+ * Initializes from environment variables using AccountProvider from AdminApp, ClientApp, or ProviderApp
+ */
+export async function getENSClient(chainId) {
+    // Default to Sepolia if no chainId provided
+    const targetChainId = chainId || 11155111;
+    return ensDomainClient.get(targetChainId);
+}
+/**
+ * Check if ENS client is initialized for a specific chain
+ */
+export function isENSClientInitialized(chainId) {
+    const targetChainId = chainId || 11155111;
+    return ensDomainClient.isInitialized(targetChainId);
+}
+/**
+ * Reset the ENS client instance for a specific chain (useful for testing)
+ */
+export function resetENSClient(chainId) {
+    const targetChainId = chainId || 11155111;
+    ensDomainClient.reset(targetChainId);
+}
+/**
+ * Check if an ENS name is available
+ *
+ * @param agentName - The agent name (e.g., "my-agent")
+ * @param orgName - The organization name (e.g., "8004-agent" or "8004-agent.eth")
+ * @returns true if the ENS name is available, false if it's taken, null if check failed
+ */
+/**
+ * Check if an ENS name is available (general purpose)
+ *
+ * @param ensName - Full ENS name (e.g., "agentname.orgname.eth" or "orgname.eth")
+ * @param chainId - Chain ID where the ENS name should be checked
+ * @returns true if the ENS name is available, false if it's taken, null if check failed
+ */
+export async function isENSNameAvailable(ensName, chainId) {
+    try {
+        const ensClient = await getENSClient(chainId);
+        // Normalize the ENS name (ensure it ends with .eth if not already)
+        const normalizedName = ensName.trim().toLowerCase();
+        const fullName = normalizedName.endsWith('.eth') ? normalizedName : `${normalizedName}.eth`;
+        // Check if ENS name is available
+        console.log('*********** zzz isENSNameAvailable fullName', fullName);
+        const existingAccount = await ensClient.getAgentAccountByName(fullName);
+        const isAvailable = !existingAccount || existingAccount === '0x0000000000000000000000000000000000000000';
+        return isAvailable;
+    }
+    catch (error) {
+        console.error('Error checking ENS availability:', error);
+        return null;
+    }
+}
+/**
+ * Check if an ENS name is available (legacy method for backward compatibility)
+ *
+ * @param orgName - The organization name (e.g., "8004-agent" or "8004-agent.eth")
+ * @param agentName - The agent name (e.g., "my-agent")
+ * @param chainId - Chain ID where the ENS name should be checked
+ * @returns true if the ENS name is available, false if it's taken, null if check failed
+ */
+export async function isENSAvailable(orgName, agentName, chainId) {
+    try {
+        // Format: agentName.orgName.eth
+        const agentNameLabel = agentName.toLowerCase().replace(/\s+/g, '-');
+        const orgNameClean = orgName.toLowerCase().replace(/\.eth$/, '');
+        const fullName = `${agentNameLabel}.${orgNameClean}.eth`;
+        return await isENSNameAvailable(fullName, chainId);
+    }
+    catch (error) {
+        console.error('Error checking ENS availability:', error);
+        return null;
+    }
+}
+/**
+ * Get comprehensive ENS name info in one call.
+ * Returns account/address, image/avatar, url, description, and availability.
+ */
+export async function getENSInfo(ensName, chainId) {
+    const normalized = (ensName || '').trim().toLowerCase();
+    const fullName = normalized.endsWith('.eth') ? normalized : `${normalized}.eth`;
+    const [available, client] = await Promise.all([
+        isENSNameAvailable(fullName, chainId),
+        getENSClient(chainId),
+    ]);
+    console.log('*********** zzz isENSNameAvailable:', available);
+    console.log('*********** zzz getENSInfo 0 fullName', fullName);
+    const [account, image, url, description] = await Promise.all([
+        client.getAgentAccountByName(fullName).catch(() => null),
+        client.getAgentImageByName(fullName).catch(() => null),
+        client.getAgentUrlByName(fullName).catch(() => null),
+        client.getAgentDescriptionByName(fullName).catch(() => null),
+    ]);
+    console.log('*********** zzz getENSInfo 1 fullName', fullName, account, image, url, description);
+    return {
+        name: fullName,
+        chainId,
+        available,
+        account: account ?? null,
+        image: image ?? null,
+        url: url ?? null,
+        description: description ?? null,
+    };
+}
+export async function sendSponsoredUserOperation(params) {
+    const { bundlerUrl, chain, accountClient, calls } = params;
+    const pimlicoClient = createPimlicoClient({ transport: http(bundlerUrl) });
+    const bundlerClient = createBundlerClient({
+        transport: http(bundlerUrl),
+        paymaster: true,
+        chain: chain,
+        paymasterContext: { mode: 'SPONSORED' }
+    });
+    const { fast: fee } = await pimlicoClient.getUserOperationGasPrice();
+    const userOpHash = await bundlerClient.sendUserOperation({
+        account: accountClient,
+        calls,
+        ...fee
+    });
+    return userOpHash;
+}
+export async function addAgentNameToL1Org(params) {
+    const { agentAddress, orgName, agentName, agentUrl } = params;
+    console.log("addAgentNameToL1Org: ", agentAddress, orgName, agentName, agentUrl);
+    if (!agentName || !orgName || !agentAddress) {
+        throw new Error('agentName, orgName, and agentAddress are required to add an agent name to an org');
+    }
+    console.log("ensClient get ens for chain: ", params.chainId);
+    const targetChainId = params.chainId || 11155111;
+    const ensClient = await getENSClient(targetChainId);
+    const agentNameLabel = agentName.toLowerCase().replace(/\s+/g, '-');
+    const orgNameClean = orgName.toLowerCase().replace(/\.eth$/, '');
+    const orgAddress = getEnsOrgAddress(targetChainId);
+    // optional TTL (defaults to 0)
+    console.log('********************* prepareAddAgentNameToOrgCalls: orgName: ', orgName, agentName, agentAddress, agentUrl);
+    const { calls: orgCalls } = await ensClient.prepareAddAgentNameToOrgCalls({
+        agentAddress,
+        orgName: orgNameClean,
+        agentName: agentNameLabel,
+        agentUrl: agentUrl || '',
+    });
+    if (ensClient.isL1()) {
+        // Optionally submit server-side if configured (no breaking change: still returns calls)
+        try {
+            const bundlerUrl = getChainEnvVar('AGENTIC_TRUST_BUNDLER_URL', params.chainId || 11155111);
+            const rpcUrl = getChainEnvVar('AGENTIC_TRUST_RPC_URL', params.chainId || 11155111);
+            let ensPrivKey;
+            try {
+                ensPrivKey = getEnsPrivateKey(targetChainId);
+            }
+            catch {
+                ensPrivKey = undefined;
+            }
+            if (ensPrivKey && bundlerUrl && rpcUrl) {
+                const publicClient = createPublicClient({ chain: sepolia, transport: http(rpcUrl) });
+                const orgEOA = privateKeyToAccount(ensPrivKey);
+                const walletClient = createWalletClient({
+                    account: orgEOA,
+                    chain: sepolia,
+                    transport: http(rpcUrl),
+                });
+                const orgAccountClient = await toMetaMaskSmartAccount({
+                    address: orgAddress,
+                    client: publicClient,
+                    implementation: Implementation.Hybrid,
+                    signer: { walletClient: walletClient },
+                });
+                const pimlicoClient = createPimlicoClient({ transport: http(bundlerUrl) });
+                const bundlerClient = createBundlerClient({
+                    transport: http(bundlerUrl),
+                    paymaster: true,
+                    chain: sepolia,
+                    paymasterContext: { mode: 'SPONSORED' },
+                });
+                const { fast: fee } = await pimlicoClient.getUserOperationGasPrice();
+                const userOpHash = await bundlerClient.sendUserOperation({
+                    account: orgAccountClient,
+                    calls: orgCalls,
+                    ...fee,
+                });
+                await bundlerClient.waitForUserOperationReceipt({ hash: userOpHash });
+            }
+        }
+        catch (error) {
+            // If server-side submission fails, just return prepared calls
+            console.error('Error adding agent name to org:', error);
+            throw new Error(`Failed to add agent name to org: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    return "success";
+}
+export async function prepareL1AgentNameInfoCalls(params) {
+    const { agentAddress, orgName, agentName, agentUrl, agentDescription } = params;
+    if (!agentName || !orgName || !agentAddress) {
+        throw new Error('agentName, orgName, and agentAddress are required to prepare ENS agent info calls');
+    }
+    const targetChainId = params.chainId || 11155111;
+    const ensClient = await getENSClient(targetChainId);
+    const orgNameClean = orgName.replace(/\.eth$/i, '').toLowerCase();
+    const orgNamePattern = orgNameClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const agentNameTrimmed = agentName
+        .replace(new RegExp(`^${orgNamePattern}\\.`, 'i'), '')
+        .replace(/\.eth$/i, '')
+        .trim();
+    const agentNameLabel = agentNameTrimmed.toLowerCase().replace(/\s+/g, '-');
+    const { calls } = await ensClient.prepareSetAgentNameInfoCalls({
+        orgName: orgNameClean,
+        agentName: agentNameLabel,
+        agentAddress,
+        agentUrl: agentUrl || '',
+        agentDescription: agentDescription || '',
+    });
+    return {
+        calls,
+    };
+}
+export async function addAgentNameToL2Org(params) {
+    const { agentAddress, orgName, agentName, agentUrl, agentDescription, agentImage } = params;
+    if (!agentName || !orgName || !agentAddress) {
+        throw new Error('agentName, orgName, and agentAddress are required to prepare L2 ENS calls');
+    }
+    console.info("inside addAgentNameToL2Org: ", params);
+    const targetChainId = params.chainId || 11155111;
+    const ensClient = await getENSClient(targetChainId);
+    const orgNameClean = orgName.replace(/\.eth$/i, '').toLowerCase();
+    const orgNamePattern = orgNameClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const agentNameTrimmed = agentName
+        .replace(new RegExp(`^${orgNamePattern}\\.`, 'i'), '')
+        .replace(/\.eth$/i, '')
+        .trim();
+    const agentNameLabel = agentNameTrimmed.toLowerCase().replace(/\s+/g, '-');
+    const calls = [];
+    // Create subdomain if missing
+    console.info("see if agent name is available: ", orgNameClean, agentNameLabel);
+    const hasOwner = await ensClient.hasAgentNameOwner(orgNameClean, agentNameLabel);
+    console.info("hasOwner: ", hasOwner);
+    if (!hasOwner) {
+        console.info("agent name is not available, prepare add agent name to org calls");
+        const { calls: orgCalls } = await ensClient.prepareAddAgentNameToOrgCalls({
+            orgName: orgNameClean,
+            agentName: agentNameLabel,
+            agentAddress,
+            agentUrl: agentUrl || '',
+        });
+        calls.push(...orgCalls);
+    }
+    /*
+    // Metadata (text records)
+    console.info("prepare set agent name info calls");
+    const { calls: infoCalls } = await ensClient.prepareSetAgentNameInfoCalls({
+      orgName: orgNameClean,
+      agentName: agentNameLabel,
+      agentAddress,
+      agentUrl: agentUrl || '',
+      agentDescription: agentDescription || '',
+    });
+    calls.push(...infoCalls);
+  
+    // Optional avatar/image
+    console.info("prepare set name image calls");
+    if (agentImage && agentImage.trim() !== '') {
+      const fullSubname = `${agentNameLabel}.${orgNameClean}.eth`;
+      const { calls: imageCalls } = await (ensClient as any).prepareSetNameImageCalls(fullSubname, agentImage.trim());
+      calls.push(...imageCalls);
+    }
+    */
+    console.info("addAgentNameToL2Org: calls", calls);
+    return { calls };
+}
+export async function prepareL2AgentNameInfoCalls(params) {
+    const { agentAddress, orgName, agentName, agentUrl, agentDescription } = params;
+    console.info("inside addAgentNameToL2Org: ", params);
+    const targetChainId = params.chainId || 11155111;
+    const ensClient = await getENSClient(targetChainId);
+    const orgNameClean = orgName.replace(/\.eth$/i, '').toLowerCase();
+    const orgNamePattern = orgNameClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const agentNameTrimmed = agentName
+        .replace(new RegExp(`^${orgNamePattern}\\.`, 'i'), '')
+        .replace(/\.eth$/i, '')
+        .trim();
+    const agentNameLabel = agentNameTrimmed.toLowerCase().replace(/\s+/g, '-');
+    const calls = [];
+    // Metadata (text records)
+    console.info("prepare set agent name info calls");
+    const { calls: infoCalls } = await ensClient.prepareSetAgentNameInfoCalls({
+        orgName: orgNameClean,
+        agentName: agentNameLabel,
+        agentAddress,
+        agentUrl: agentUrl || '',
+        agentDescription: agentDescription || '',
+    });
+    calls.push(...infoCalls);
+    // Optional avatar/image
+    console.info("prepare set name image calls");
+    if (params.agentImage && params.agentImage.trim() !== '') {
+        const fullSubname = `${agentNameLabel}.${orgNameClean}.eth`;
+        const { calls: imageCalls } = await ensClient.prepareSetNameImageCalls(fullSubname, params.agentImage.trim());
+        calls.push(...imageCalls);
+    }
+    return { calls };
+}
+//# sourceMappingURL=ensClient.js.map

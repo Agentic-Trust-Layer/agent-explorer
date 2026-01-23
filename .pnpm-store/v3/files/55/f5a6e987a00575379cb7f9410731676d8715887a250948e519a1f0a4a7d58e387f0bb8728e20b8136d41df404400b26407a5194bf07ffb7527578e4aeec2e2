@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.LibEnvironment = void 0;
+exports.LibEnvironment = {
+    listingApi: {
+        production: "https://list-manager.namespace.ninja",
+        staging: "https://staging.list-manager.namespace.ninja"
+    },
+    mintingApi: {
+        production: "https://mint-manager.namespace.ninja",
+        staging: "https://staging.mint-manager.namespace.ninja"
+    }
+};
