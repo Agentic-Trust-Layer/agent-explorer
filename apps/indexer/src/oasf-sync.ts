@@ -38,9 +38,17 @@ interface GitHubFileContent {
 
 const GITHUB_API_BASE = 'https://api.github.com';
 const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com';
-const OASF_REPO = 'agntcy/oasf';
+// Allow syncing from a fork/branch so custom extensions can be ingested.
+// Examples:
+// - OASF_REPO="agntcy/oasf" OASF_REF="main" (default)
+// - OASF_REPO="yourorg/oasf" OASF_REF="main"
+// - OASF_REPO="yourorg/oasf" OASF_REF="heads/feature/trust-ext"
+// - OASF_REPO="yourorg/oasf" OASF_REF="tags/v0.2.0"
+const OASF_REPO = (process.env.OASF_REPO || 'agentic-trust-layer/oasf').trim() || 'agentic-trust-layer/oasf';
+const OASF_REF = (process.env.OASF_REF || 'main').trim() || 'main';
 const DOMAINS_PATH = 'schema/domains';
 const SKILLS_PATH = 'schema/skills';
+const EXTENSIONS_PATH = 'schema/extensions';
 const DOMAIN_CATEGORIES_PATH = 'schema/domain_categories.json';
 const SKILL_CATEGORIES_PATH = 'schema/skill_categories.json';
 const DICTIONARY_PATH = 'schema/dictionary.json';
@@ -59,7 +67,8 @@ async function fetchGitHubApi(endpoint: string, retries = 3): Promise<any> {
   // Optional: Add GitHub token from env for rate limiting
   const githubToken = process.env.GITHUB_TOKEN;
   if (githubToken) {
-    headers['Authorization'] = `token ${githubToken}`;
+    // Fine-grained PATs are "github_pat_..." and require Bearer; Bearer also works for classic PATs.
+    headers['Authorization'] = `Bearer ${githubToken}`;
   }
 
   const timeoutMs = Number(process.env.GITHUB_HTTP_TIMEOUT_MS ?? 20_000);
@@ -91,10 +100,78 @@ async function fetchGitHubApi(endpoint: string, retries = 3): Promise<any> {
       throw err;
     }
 
+    // Better error message for 404s to help debug repo/ref issues
+    if (response.status === 404) {
+      throw new Error(
+        `GitHub API error 404: Repository or ref not found. ` +
+        `Trying repo="${OASF_REPO}" endpoint="${endpoint}". ` +
+        `Check that: (1) repo exists and is accessible, (2) ref="${OASF_REF}" exists, (3) GITHUB_TOKEN has access if private. ` +
+        `Response: ${text || response.statusText}`
+      );
+    }
+
     throw new Error(`GitHub API error ${response.status}: ${text || response.statusText}`);
   }
 
   return response.json();
+}
+
+function normalizeGitRef(ref: string): { apiRefPath: string; rawRef: string } {
+  const trimmed = (ref || '').trim() || 'main';
+  // Allow passing:
+  // - "main"
+  // - "heads/main"
+  // - "tags/v0.2.0"
+  // - "refs/heads/main"
+  // - "refs/tags/v0.2.0"
+  const withoutRefsPrefix = trimmed.startsWith('refs/') ? trimmed.slice('refs/'.length) : trimmed;
+  const apiRefPath = withoutRefsPrefix.includes('/') ? withoutRefsPrefix : `heads/${withoutRefsPrefix}`;
+  const rawRef =
+    apiRefPath.startsWith('heads/') ? apiRefPath.slice('heads/'.length) :
+    apiRefPath.startsWith('tags/') ? apiRefPath.slice('tags/'.length) :
+    apiRefPath;
+  return { apiRefPath, rawRef };
+}
+
+async function fetchGitHubContentJson<T = any>(filePath: string): Promise<T> {
+  const { rawRef } = normalizeGitRef(OASF_REF);
+  const url = `${GITHUB_API_BASE}/repos/${OASF_REPO}/contents/${filePath}?ref=${encodeURIComponent(rawRef)}`;
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'agentic-trust-indexer',
+  };
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (githubToken) headers['Authorization'] = `Bearer ${githubToken}`;
+
+  const timeoutMs = Number(process.env.GITHUB_HTTP_TIMEOUT_MS ?? 20_000);
+  const response = await fetchWithRetry(url, { headers }, {
+    timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 20_000,
+    retries: 6,
+    retryOnStatuses: [429, 500, 502, 503, 504],
+    minBackoffMs: 750,
+    maxBackoffMs: 60_000,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    if (response.status === 404) {
+      throw new Error(
+        `GitHub contents error 404: File not found. ` +
+        `Trying repo="${OASF_REPO}" ref="${OASF_REF}" path="${filePath}". ` +
+        `Check that the file exists at that path in the repo. ` +
+        `Response: ${text || response.statusText}`
+      );
+    }
+    throw new Error(`GitHub contents error ${response.status}: ${text || response.statusText}`);
+  }
+  const data = (await response.json().catch(() => null)) as any;
+  const content = typeof data?.content === 'string' ? data.content : '';
+  const encoding = typeof data?.encoding === 'string' ? data.encoding : '';
+  if (!content || encoding !== 'base64') {
+    throw new Error(`GitHub contents returned unexpected payload for ${filePath}`);
+  }
+  const jsonText = Buffer.from(content, 'base64').toString('utf8');
+  return JSON.parse(jsonText) as T;
 }
 
 function stripPrefix(value: string, prefix: string): string {
@@ -117,6 +194,94 @@ function oasfCategoryKeyFromGithubPath(githubPath: string, kind: 'domains' | 'sk
   const parts = rel.split('/').filter(Boolean);
   const categoryKey = parts.length >= 2 ? parts[0] : null;
   return categoryKey && categoryKey.trim() ? categoryKey.trim() : null;
+}
+
+function oasfExtensionNameFromGithubPath(githubPath: string): string | null {
+  const prefix = 'schema/extensions/';
+  if (!githubPath.startsWith(prefix)) return null;
+  const rel = stripPrefix(githubPath, prefix);
+  const parts = rel.split('/').filter(Boolean);
+  const name = parts.length >= 1 ? parts[0] : null;
+  return name && name.trim() ? name.trim() : null;
+}
+
+function oasfExtensionSkillIdFromGithubPath(githubPath: string): string | null {
+  // schema/extensions/<extName>/skills/<category>/<skill>.json => "<category>/<skill>"
+  const prefix = 'schema/extensions/';
+  if (!githubPath.startsWith(prefix)) return null;
+  const rel = stripPrefix(githubPath, prefix);
+  const parts = rel.split('/').filter(Boolean);
+  if (parts.length < 4) return null;
+  if (parts[1] !== 'skills') return null;
+  const rest = parts.slice(2).join('/');
+  if (!rest.endsWith('.json')) return null;
+  const id = stripSuffix(rest, '.json');
+  return id && id.trim() ? id.trim() : null;
+}
+
+function oasfExtensionSkillCategoryFromGithubPath(githubPath: string): string | null {
+  const id = oasfExtensionSkillIdFromGithubPath(githubPath);
+  if (!id) return null;
+  const parts = id.split('/').filter(Boolean);
+  const cat = parts.length >= 2 ? parts[0] : null;
+  return cat && cat.trim() ? cat.trim() : null;
+}
+
+async function ensureOasfExtensionTable(db: AnyDb): Promise<void> {
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS oasf_extensions (
+        key TEXT PRIMARY KEY,
+        uid INTEGER,
+        caption TEXT,
+        version TEXT,
+        schemaJson TEXT,
+        githubPath TEXT,
+        githubSha TEXT,
+        lastFetchedAt INTEGER NOT NULL,
+        createdAt INTEGER NOT NULL,
+        updatedAt INTEGER NOT NULL
+      );
+    `).run();
+    await db.prepare(`CREATE INDEX IF NOT EXISTS idx_oasf_extensions_uid ON oasf_extensions(uid);`).run();
+  } catch {
+    // best-effort
+  }
+}
+
+async function upsertOasfSkillCategory(
+  db: AnyDb,
+  key: string,
+  fields: {
+    uid?: number | null;
+    caption?: string | null;
+    description?: string | null;
+    schemaJson?: string | null;
+    githubPath?: string | null;
+    githubSha?: string | null;
+  },
+  now: number,
+): Promise<void> {
+  const uid = fields.uid ?? null;
+  const caption = fields.caption ?? key;
+  const description = fields.description ?? null;
+  const schemaJson = fields.schemaJson ?? null;
+  const githubPath = fields.githubPath ?? null;
+  const githubSha = fields.githubSha ?? null;
+
+  await db.prepare(`
+    INSERT INTO oasf_skill_categories (key, uid, caption, description, schemaJson, githubPath, githubSha, lastFetchedAt, createdAt, updatedAt)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(key) DO UPDATE SET
+      uid=COALESCE(excluded.uid, oasf_skill_categories.uid),
+      caption=COALESCE(excluded.caption, oasf_skill_categories.caption),
+      description=COALESCE(excluded.description, oasf_skill_categories.description),
+      schemaJson=COALESCE(excluded.schemaJson, oasf_skill_categories.schemaJson),
+      githubPath=COALESCE(excluded.githubPath, oasf_skill_categories.githubPath),
+      githubSha=COALESCE(excluded.githubSha, oasf_skill_categories.githubSha),
+      lastFetchedAt=excluded.lastFetchedAt,
+      updatedAt=excluded.updatedAt
+  `).run(key, uid, caption, description, schemaJson, githubPath, githubSha, now, now, now);
 }
 
 async function backfillCategoryFromGithubPath(db: AnyDb, kind: 'domains' | 'skills'): Promise<void> {
@@ -160,7 +325,8 @@ async function backfillCategoryFromGithubPath(db: AnyDb, kind: 'domains' | 'skil
 }
 
 async function fetchOasfRawJson<T = any>(path: string): Promise<T> {
-  const url = `${GITHUB_RAW_BASE}/${OASF_REPO}/main/${path}`;
+  const { rawRef } = normalizeGitRef(OASF_REF);
+  const url = `${GITHUB_RAW_BASE}/${OASF_REPO}/${rawRef}/${path}`;
   const timeoutMs = Number(process.env.GITHUB_RAW_TIMEOUT_MS ?? 45_000);
   const res = await fetchWithRetry(url, undefined as any, {
     timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 30_000,
@@ -170,6 +336,11 @@ async function fetchOasfRawJson<T = any>(path: string): Promise<T> {
     maxBackoffMs: 30_000,
   });
   if (!res.ok) {
+    // raw.githubusercontent.com returns 404 for private repos and for missing files.
+    // If a GitHub token is present, fall back to the Contents API which supports private repos.
+    if (res.status === 404 && process.env.GITHUB_TOKEN) {
+      return await fetchGitHubContentJson<T>(path);
+    }
     const text = await res.text().catch(() => '');
     throw new Error(`GitHub RAW error ${res.status}: ${text || res.statusText}`);
   }
@@ -178,9 +349,16 @@ async function fetchOasfRawJson<T = any>(path: string): Promise<T> {
 }
 
 async function fetchGitHubTree(path: string): Promise<GitHubTreeResponse> {
-  // Get the main branch SHA first
-  const ref = await fetchGitHubApi(`git/refs/heads/main`);
-  const mainSha = ref.object.sha;
+  const { apiRefPath } = normalizeGitRef(OASF_REF);
+  // Get the ref SHA first (GitHub uses singular "ref"; keep a fallback for older endpoint shapes).
+  let ref: any;
+  try {
+    ref = await fetchGitHubApi(`git/ref/${apiRefPath}`);
+  } catch {
+    ref = await fetchGitHubApi(`git/refs/${apiRefPath}`);
+  }
+  const mainSha = ref?.object?.sha;
+  if (!mainSha) throw new Error(`Could not resolve git ref sha for ${apiRefPath}`);
   
   // Get the tree for main branch recursively
   const treeData = await fetchGitHubApi(`git/trees/${mainSha}?recursive=1`);
@@ -521,11 +699,9 @@ export async function syncOASFSkills(db: AnyDb): Promise<{ synced: number; updat
           } catch {
             await db.prepare(`
               UPDATE oasf_skills SET
-                nameKey = ?,
-                uid = ?,
-                caption = ?,
+                name = ?,
                 description = ?,
-                extendsKey = ?,
+                category = ?,
                 schemaJson = ?,
                 githubPath = ?,
                 githubSha = ?,
@@ -534,8 +710,6 @@ export async function syncOASFSkills(db: AnyDb): Promise<{ synced: number; updat
               WHERE id = ?
             `).run(
               nameKey,
-              uid,
-              caption,
               description,
               extendsKey,
               schemaJson,
@@ -633,8 +807,204 @@ export async function syncOASFSkills(db: AnyDb): Promise<{ synced: number; updat
   return { synced, updated, errors };
 }
 
+export async function syncOASFExtensions(db: AnyDb): Promise<{ synced: number; updated: number; errors: number }> {
+  const now = Math.floor(Date.now() / 1000);
+  let synced = 0;
+  let updated = 0;
+  let errors = 0;
+  let completed = true;
+
+  await ensureOasfExtensionTable(db);
+
+  try {
+    console.log('[oasf-sync] Fetching OASF extensions from GitHub...');
+    const tree = await fetchGitHubTree(EXTENSIONS_PATH);
+    const lastSha = await getCheckpointValue(db, 'oasf_extensions_tree_sha');
+
+    if (lastSha === tree.sha) {
+      console.log('[oasf-sync] Extensions tree unchanged, skipping sync');
+      return { synced: 0, updated: 0, errors: 0 };
+    }
+
+    console.log(`[oasf-sync] Found ${tree.tree.length} extension JSON files`);
+
+    for (let i = 0; i < tree.tree.length; i++) {
+      const item = tree.tree[i];
+      try {
+        if (i > 0) await sleep(250);
+
+        // extension.json (metadata about the extension)
+        if (/^schema\/extensions\/[^/]+\/extension\.json$/i.test(item.path)) {
+          const extName = oasfExtensionNameFromGithubPath(item.path);
+          if (!extName) continue;
+          const ext = await fetchOasfRawJson<any>(item.path);
+          const uid = Number.isFinite(Number(ext?.uid)) ? Number(ext.uid) : null;
+          const caption = typeof ext?.caption === 'string' ? ext.caption : extName;
+          const version = typeof ext?.version === 'string' ? ext.version : null;
+          const schemaJson = JSON.stringify(ext);
+
+          const existing = await db.prepare('SELECT githubSha FROM oasf_extensions WHERE key = ? LIMIT 1').get(extName);
+          if (existing && String((existing as any)?.githubSha ?? '') === item.sha) continue;
+
+          await db.prepare(`
+            INSERT INTO oasf_extensions (key, uid, caption, version, schemaJson, githubPath, githubSha, lastFetchedAt, createdAt, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+              uid=excluded.uid,
+              caption=excluded.caption,
+              version=excluded.version,
+              schemaJson=excluded.schemaJson,
+              githubPath=excluded.githubPath,
+              githubSha=excluded.githubSha,
+              lastFetchedAt=excluded.lastFetchedAt,
+              updatedAt=excluded.updatedAt
+          `).run(extName, uid, caption, version, schemaJson, item.path, item.sha, now, now, now);
+
+          if (existing) updated++; else synced++;
+          continue;
+        }
+
+        // main_skills.json (extension-defined skill categories)
+        if (/^schema\/extensions\/[^/]+\/main_skills\.json$/i.test(item.path)) {
+          const raw = await fetchOasfRawJson<any>(item.path);
+          const categories =
+            (raw && typeof raw === 'object' && (raw as any).categories && typeof (raw as any).categories === 'object')
+              ? (raw as any).categories
+              : (raw && typeof raw === 'object' && (raw as any).skill_categories && typeof (raw as any).skill_categories === 'object')
+                ? (raw as any).skill_categories
+                : null;
+          if (categories && typeof categories === 'object') {
+            for (const [catKeyRaw, catValRaw] of Object.entries(categories)) {
+              const catKey = String(catKeyRaw || '').trim();
+              if (!catKey) continue;
+              const c: any = catValRaw as any;
+              const uid = Number.isFinite(Number(c?.uid)) ? Number(c.uid) : null;
+              const caption = typeof c?.caption === 'string' ? c.caption : catKey;
+              const description = typeof c?.description === 'string' ? c.description : null;
+              const schemaJson = JSON.stringify(c);
+              await upsertOasfSkillCategory(
+                db,
+                catKey,
+                { uid, caption, description, schemaJson, githubPath: item.path, githubSha: item.sha },
+                now,
+              );
+            }
+          }
+          updated++;
+          continue;
+        }
+
+        // extension skills: schema/extensions/<ext>/skills/<category>/<skill>.json
+        if (item.path.includes('/skills/') && item.path.endsWith('.json')) {
+          const skillId = oasfExtensionSkillIdFromGithubPath(item.path);
+          if (!skillId) continue;
+          const categoryKey = oasfExtensionSkillCategoryFromGithubPath(item.path);
+          const skillData = await fetchOasfRawJson<any>(item.path);
+
+          const id = `oasf-skill-${skillId}`;
+          const nameKey = skillData?.name != null ? String(skillData.name) : null;
+          const uid = Number.isFinite(Number(skillData?.uid)) ? Number(skillData.uid) : null;
+          const caption =
+            typeof skillData?.caption === 'string'
+              ? skillData.caption
+              : (typeof skillData?.title === 'string' ? skillData.title : skillId);
+          const description = typeof skillData?.description === 'string' ? skillData.description : null;
+          const extendsKey = categoryKey ?? (typeof skillData?.extends === 'string' ? String(skillData.extends) : null);
+          const schemaJson = JSON.stringify(skillData);
+
+          if (categoryKey) {
+            await upsertOasfSkillCategory(db, categoryKey, { caption: categoryKey }, now);
+          }
+
+          const existing = await db
+            .prepare('SELECT id, githubSha FROM oasf_skills WHERE githubPath = ? OR skillId = ? LIMIT 1')
+            .get(item.path, skillId);
+          if (existing && String((existing as any)?.githubSha ?? '') === item.sha) continue;
+
+          if (existing) {
+            try {
+              await db.prepare(`
+                UPDATE oasf_skills SET
+                  nameKey = ?,
+                  uid = ?,
+                  caption = ?,
+                  description = ?,
+                  extendsKey = ?,
+                  category = ?,
+                  schemaJson = ?,
+                  githubPath = ?,
+                  githubSha = ?,
+                  lastFetchedAt = ?,
+                  updatedAt = ?
+                WHERE id = ?
+              `).run(nameKey, uid, caption, description, extendsKey, extendsKey, schemaJson, item.path, item.sha, now, now, (existing as any).id);
+            } catch {
+              await db.prepare(`
+                UPDATE oasf_skills SET
+                  name = ?,
+                  description = ?,
+                  category = ?,
+                  schemaJson = ?,
+                  githubPath = ?,
+                  githubSha = ?,
+                  lastFetchedAt = ?,
+                  updatedAt = ?
+                WHERE id = ?
+              `).run(nameKey, description, extendsKey, schemaJson, item.path, item.sha, now, now, (existing as any).id);
+            }
+            updated++;
+          } else {
+            try {
+              await db.prepare(`
+                INSERT INTO oasf_skills (
+                  id, skillId, nameKey, uid, caption, description, extendsKey, category,
+                  schemaJson, githubPath, githubSha, lastFetchedAt, createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).run(id, skillId, nameKey, uid, caption, description, extendsKey, extendsKey, schemaJson, item.path, item.sha, now, now, now);
+            } catch {
+              await db.prepare(`
+                INSERT INTO oasf_skills (
+                  id, skillId, name, description, category,
+                  schemaJson, githubPath, githubSha, lastFetchedAt, createdAt, updatedAt
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).run(id, skillId, nameKey, description, extendsKey, schemaJson, item.path, item.sha, now, now, now);
+            }
+            synced++;
+          }
+        }
+      } catch (error) {
+        if ((error as any)?.name === 'GitHubRateLimitError') {
+          completed = false;
+          const resetEpoch = Number((error as any)?.resetEpoch ?? NaN);
+          console.warn(
+            `[oasf-sync] GitHub rate limit hit while syncing extensions; stopping early (set GITHUB_TOKEN).` +
+              (Number.isFinite(resetEpoch) ? ` Reset at epoch ${resetEpoch}.` : ''),
+          );
+          break;
+        }
+        console.error(`[oasf-sync] Error processing extension file ${item.path}:`, error);
+        errors++;
+      }
+    }
+
+    if (completed) {
+      await setCheckpointValue(db, 'oasf_extensions_tree_sha', tree.sha);
+      await setCheckpointValue(db, 'oasf_extensions_last_sync', String(now));
+    } else {
+      console.warn('[oasf-sync] Extensions sync incomplete; checkpoints not advanced');
+    }
+
+    console.log(`[oasf-sync] Extensions sync complete: ${synced} new, ${updated} updated, ${errors} errors`);
+  } catch (error) {
+    console.error('[oasf-sync] Error syncing extensions:', error);
+    throw error;
+  }
+
+  return { synced, updated, errors };
+}
+
 export async function syncOASF(db: AnyDb): Promise<void> {
-  console.log('[oasf-sync] Starting OASF synchronization...');
+  console.log('[oasf-sync] Starting OASF synchronization...', { repo: OASF_REPO, ref: OASF_REF });
   
   try {
     // Sync categories + dictionary via raw fetch (small, stable files)
@@ -740,6 +1110,9 @@ export async function syncOASF(db: AnyDb): Promise<void> {
     // Add delay between domains and skills sync
     await sleep(1000);
     await syncOASFSkills(db);
+    // Extensions can add new categories/skills; sync them after the base schema.
+    await sleep(500);
+    await syncOASFExtensions(db);
     console.log('[oasf-sync] OASF synchronization complete');
   } catch (error) {
     console.error('[oasf-sync] OASF synchronization failed:', error);

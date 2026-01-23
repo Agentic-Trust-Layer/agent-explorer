@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "scripts": {
     "sync:check": "bash sync-check.sh",
-    "dev": "tsx src/indexer.ts",
+    "dev": "tsx src/dev-indexer-menu.ts",
     "dev:agent": "tsx src/indexer.ts",
     "dev:graphql": "tsx src/graphql-server.ts",
     "dev:yoga": "tsx src/graphql-yoga-server.ts",

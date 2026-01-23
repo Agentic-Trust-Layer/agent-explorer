@@ -216,6 +216,8 @@ export default {
         typeDefs: graphQLSchemaString,
         resolvers: {
           Query: {
+            oasfSkills: (_p: any, args: any, ctx: any) => ctx.dbQueries.oasfSkills(args),
+            oasfDomains: (_p: any, args: any, ctx: any) => ctx.dbQueries.oasfDomains(args),
             agents: (_p: any, args: any, ctx: any) => ctx.dbQueries.agents(args),
             agent: (_p: any, args: any, ctx: any) => ctx.dbQueries.agent(args),
             agentByName: (_p: any, args: any, ctx: any) => ctx.dbQueries.agentByName(args),

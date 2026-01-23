@@ -353,11 +353,14 @@ export const graphQLSchemaString = `
     agent: Agent
     score: Float!
     matchReasons: [String!]
+    matchedSkills: [String!]
+    matchedOsafSkills: [String!]
   }
 
   type SemanticAgentSearchResult {
     matches: [SemanticAgentMatch!]!
     total: Int!
+    intentType: String
   }
 
   input SemanticAgentSearchInput {
@@ -367,6 +370,8 @@ export const graphQLSchemaString = `
     intentJson: String
     topK: Int
     minScore: Float
+    requiredSkills: [String!]
+    requiredOsafSkills: [String!]
     filters: SemanticSearchFilterInput
   }
 

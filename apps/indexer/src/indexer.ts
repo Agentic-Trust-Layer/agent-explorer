@@ -584,6 +584,25 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
     }
   }
   applyMetadataHints(preFetchedMetadata);
+  // Inline data URIs don't require network; parse even when IPFS fetch is disabled.
+  if (!preFetchedMetadata && resolvedTokenURI && resolvedTokenURI.startsWith('data:application/json')) {
+    try {
+      const inlineMetadata = await fetchIpfsJson(resolvedTokenURI);
+      if (inlineMetadata && typeof inlineMetadata === 'object') {
+        preFetchedMetadata = inlineMetadata;
+        if (!metadataJsonRaw) {
+          try {
+            metadataJsonRaw = JSON.stringify(inlineMetadata);
+          } catch {
+            metadataJsonRaw = null;
+          }
+        }
+        applyMetadataHints(preFetchedMetadata);
+      }
+    } catch (e) {
+      console.warn("............upsertFromTransfer: Failed to parse inline agentUri data:", e);
+    }
+  }
   // IPFS metadata fetch is very slow during big backfills; keep it opt-in.
   const allowIpfsMetadataFetch = process.env.FETCH_IPFS_METADATA_ON_WRITE === '1';
   if (!preFetchedMetadata && resolvedTokenURI && allowIpfsMetadataFetch) {
@@ -737,6 +756,17 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           Array.isArray(meta.supportedTrust) ? meta.supportedTrust.map(String) :
           Array.isArray((meta as any).supportedTrusts) ? (meta as any).supportedTrusts.map(String) :
           [];
+        const activeFromMeta: number | null = (() => {
+          const v = (meta as any)?.active;
+          if (v === undefined || v === null) return null;
+          if (v === true || v === 1) return 1;
+          if (v === false || v === 0) return 0;
+          const s = typeof v === 'string' ? v.trim().toLowerCase() : '';
+          if (!s) return null;
+          if (s === '1' || s === 'true' || s === 'active' || s === 'enabled' || s === 'on' || s === 'yes' || s === 'y') return 1;
+          if (s === '0' || s === 'false' || s === 'inactive' || s === 'disabled' || s === 'off' || s === 'no' || s === 'n') return 0;
+          return null;
+        })();
 
         // ---- Registration JSON ingest: OASF skills/domains + protocol versions ----
         // From example: endpoints[] contains an OASF entry with {skills[], domains[]}
@@ -870,6 +900,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
               ELSE a2aEndpoint 
             END,
             supportedTrust = COALESCE(?, supportedTrust),
+            active = COALESCE(?, active),
             didIdentity = COALESCE(?, didIdentity),
             didAccount = COALESCE(?, didAccount),
             didName = COALESCE(?, didName),
@@ -884,6 +915,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           img, img, img,
           a2aEndpoint, a2aEndpoint, a2aEndpoint,
           JSON.stringify(supportedTrust),
+          activeFromMeta,
           didIdentity,
           didAccountValue,
           didNameValue,
@@ -2801,7 +2833,14 @@ export async function backfill(
   const ROOT_AGENT_REGISTRATION_FILES_FIELD = 'agentRegistrationFiles';
   const ROOT_TRANSFERS_FIELD = 'agentTransfers';
   const ROOT_URI_UPDATES_FIELD = 'agentURIUpdates';
-  const ROOT_AGENT_METADATA_FIELD = 'agentMetadatas';
+  const ROOT_AGENT_METADATA_FIELD =
+    (queryFields.has('agentMetadatas') && 'agentMetadatas') ||
+    (queryFields.has('agentMetadataEntries') && 'agentMetadataEntries') ||
+    null;
+  const AGENT_METADATA_COLLECTION_FIELD = queryFields.has('agentMetadata_collection')
+    ? 'agentMetadata_collection'
+    : null;
+  const hasAgentMetadataField = Boolean(ROOT_AGENT_METADATA_FIELD || AGENT_METADATA_COLLECTION_FIELD);
   const ROOT_FEEDBACKS_FIELD = 'repFeedbacks';
   const ROOT_FEEDBACK_REVOKEDS_FIELD = 'repFeedbackRevokeds';
   const ROOT_FEEDBACK_RESPONSES_FIELD = 'repResponseAppendeds';
@@ -3398,41 +3437,86 @@ export async function backfill(
     }
   }
 
-  const agentMetadataQuery = `query AgentMetadatas($first: Int!, $skip: Int!, $minBlock: BigInt!) {
-    agentMetadatas(
-      first: $first,
-      skip: $skip,
-      orderBy: blockNumber,
-      orderDirection: asc,
-      where: { blockNumber_gt: $minBlock }
-    ) {
-      id
-      agent { id }
-      key
-      value
-      indexedKey
-      setAt
-      setBy
-      txHash
-      blockNumber
-      timestamp
-    }
-  }`;
-
   const minTokenMetadataBlock = lastAgentMetadata > 0n ? lastAgentMetadata : 0n;
-  const tokenMetadataItems = await fetchAllFromSubgraph(
-    ROOT_AGENT_METADATA_FIELD,
-    agentMetadataQuery,
-    ROOT_AGENT_METADATA_FIELD,
-    {
-      optional: true,
-      buildVariables: ({ first, skip }) => ({
-        first,
-        skip,
-        minBlock: minTokenMetadataBlock.toString(),
-      }),
-    },
-  );
+  let tokenMetadataItems: any[] = [];
+  if (ROOT_AGENT_METADATA_FIELD) {
+    const agentMetadataQuery = `query AgentMetadatas($first: Int!, $skip: Int!, $minBlock: BigInt!) {
+      ${ROOT_AGENT_METADATA_FIELD}(
+        first: $first,
+        skip: $skip,
+        orderBy: blockNumber,
+        orderDirection: asc,
+        where: { blockNumber_gt: $minBlock }
+      ) {
+        id
+        agent { id }
+        key
+        value
+        indexedKey
+        setAt
+        setBy
+        txHash
+        blockNumber
+        timestamp
+      }
+    }`;
+    tokenMetadataItems = await fetchAllFromSubgraph(
+      ROOT_AGENT_METADATA_FIELD,
+      agentMetadataQuery,
+      ROOT_AGENT_METADATA_FIELD,
+      {
+        optional: true,
+        buildVariables: ({ first, skip }) => ({
+          first,
+          skip,
+          minBlock: minTokenMetadataBlock.toString(),
+        }),
+      },
+    );
+  } else if (AGENT_METADATA_COLLECTION_FIELD) {
+    const agentMetadataCollectionQuery = `query AgentMetadataCollection($first: Int!, $skip: Int!, $chainId: Int!) {
+      ${AGENT_METADATA_COLLECTION_FIELD}(
+        chainId: $chainId,
+        first: $first,
+        skip: $skip
+      ) {
+        id
+        agent { id }
+        key
+        value
+        indexedKey
+        setAt
+        setBy
+        txHash
+        blockNumber
+        timestamp
+      }
+    }`;
+    tokenMetadataItems = await fetchAllFromSubgraph(
+      AGENT_METADATA_COLLECTION_FIELD,
+      agentMetadataCollectionQuery,
+      AGENT_METADATA_COLLECTION_FIELD,
+      {
+        optional: true,
+        buildVariables: ({ first, skip }) => ({
+          first,
+          skip,
+          chainId,
+        }),
+      },
+    );
+    // Collection roots don't accept block filters; filter client-side to honor checkpoint.
+    tokenMetadataItems = tokenMetadataItems.filter((meta) => {
+      const bn = meta?.blockNumber ?? meta?.block?.number ?? 0;
+      try {
+        return bn ? BigInt(bn) > minTokenMetadataBlock : false;
+      } catch {
+        return false;
+      }
+    });
+  } else {
+    console.warn('............[agentMetadata] Skipping: subgraph does not expose agent metadata root field');
+  }
 
   if (!selected.has('agentMetadata')) {
     // skip

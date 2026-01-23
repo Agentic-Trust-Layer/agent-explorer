@@ -22,6 +22,13 @@ function pickString(value: unknown): string | null {
   return trimmed.length ? trimmed : null;
 }
 
+export type ParsedIntent = {
+  intentType?: string;
+  action?: string;
+  query?: string;
+  raw?: AnyRecord | string | null;
+};
+
 function pickStringArray(value: unknown): string[] {
   if (!value) return [];
   if (Array.isArray(value)) {
@@ -177,6 +184,42 @@ export function intentJsonToSearchText(intentJsonOrObject: unknown): string {
   }
 
   return segments.filter(Boolean).join('\n');
+}
+
+export function parseIntentJson(intentJsonOrObject: unknown): ParsedIntent {
+  let parsed: unknown = intentJsonOrObject;
+  if (typeof intentJsonOrObject === 'string') {
+    const trimmed = intentJsonOrObject.trim();
+    if (!trimmed) return {};
+    parsed = safeJsonParse(trimmed) ?? trimmed;
+  }
+
+  if (typeof parsed === 'string') {
+    return { query: parsed };
+  }
+
+  if (!isPlainObject(parsed)) {
+    return {};
+  }
+
+  const candidates = findAllIntentObjects(parsed);
+  const firstIntent = candidates.length ? candidates[0] : parsed;
+  const fields = extractIntentLikeFields(firstIntent);
+
+  const query =
+    pickString((firstIntent as AnyRecord).query) ??
+    pickString((firstIntent as AnyRecord).text) ??
+    pickString((firstIntent as AnyRecord).prompt) ??
+    pickString((parsed as AnyRecord).query) ??
+    pickString((parsed as AnyRecord).text) ??
+    undefined;
+
+  return {
+    intentType: fields.intentType,
+    action: fields.action,
+    query,
+    raw: firstIntent,
+  };
 }
 
 

@@ -1,5 +1,6 @@
 import type { SemanticSearchService } from './semantic/semantic-search-service.js';
-import { intentJsonToSearchText } from './semantic/intent-text.js';
+import { intentJsonToSearchText, parseIntentJson } from './semantic/intent-text.js';
+import { buildIntentQueryText, resolveIntentRequirements } from './semantic/intent-mapping.js';
 import type { VectorQueryMatch } from './semantic/interfaces.js';
 
 /**
@@ -1881,28 +1882,96 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         intentJson?: string | null;
         topK?: number;
         minScore?: number;
+        requiredSkills?: string[] | null;
+        requiredOsafSkills?: string[] | null;
         filters?: any;
       };
     }) => {
       const semanticSearch = options?.semanticSearchService ?? null;
       if (!semanticSearch) {
         console.warn('[semanticAgentSearch] Semantic search not configured');
-        return { matches: [], total: 0 };
+        return { matches: [], total: 0, intentType: null };
       }
 
       const input = args?.input;
       const text = typeof input?.text === 'string' ? input.text.trim() : '';
       const intentJson = typeof input?.intentJson === 'string' ? input.intentJson.trim() : '';
-      const intentText = intentJson ? intentJsonToSearchText(intentJson) : '';
-      const combined = [text, intentText].filter((s) => typeof s === 'string' && s.trim().length > 0).join('\n\n');
+      const parsedIntent = intentJson ? parseIntentJson(intentJson) : {};
+      const intentType = parsedIntent.intentType;
+      const intentQuery = parsedIntent.query;
+      const intentText = buildIntentQueryText({ intentType, intentQuery });
+      const intentFallbackText = intentJson ? intentJsonToSearchText(intentJson) : '';
+      const combined = [text, intentText || intentFallbackText]
+        .filter((s) => typeof s === 'string' && s.trim().length > 0)
+        .join('\n\n');
+
+      const normalizeSkillId = (raw: string): string | null => {
+        const trimmed = raw.trim();
+        if (!trimmed) return null;
+        if (trimmed.startsWith('oasf:')) {
+          const withoutPrefix = trimmed.slice('oasf:'.length);
+          return normalizeSkillId(withoutPrefix);
+        }
+        if (trimmed.startsWith('trust/')) {
+          const tail = trimmed.slice('trust/'.length);
+          if (tail.startsWith('trust_validate_')) {
+            const suffix = tail.slice('trust_validate_'.length);
+            return `governance_and_trust/trust/trust_validate_${suffix}`;
+          }
+          return trimmed;
+        }
+        if (trimmed.startsWith('trust_validate_')) {
+          const suffix = trimmed.slice('trust_validate_'.length);
+          return `governance_and_trust/trust/trust_validate_${suffix}`;
+        }
+        if (trimmed.startsWith('trust.validate.')) {
+          const suffix = trimmed.slice('trust.validate.'.length);
+          return `governance_and_trust/trust/trust_validate_${suffix}`;
+        }
+        if (trimmed === 'trust.feedback.authorization') {
+          return 'governance_and_trust/trust/trust_feedback_authorization';
+        }
+        return trimmed;
+      };
+
+      const normalizeSkillList = (list: string[]) =>
+        Array.from(
+          new Set(
+            list
+              .map((s) => normalizeSkillId(s))
+              .filter((s): s is string => typeof s === 'string' && s.trim().length > 0),
+          ),
+        );
+
+      const requiredSkillsInput = Array.isArray(input?.requiredSkills)
+        ? normalizeSkillList(input.requiredSkills.filter((s) => typeof s === 'string'))
+        : [];
+      const requiredOsafSkillsInput = Array.isArray(input?.requiredOsafSkills)
+        ? normalizeSkillList(input.requiredOsafSkills.filter((s) => typeof s === 'string'))
+        : [];
+      const intentDefaults = resolveIntentRequirements(intentType);
+      const requiredSkills = normalizeSkillList([
+        ...(requiredSkillsInput.length ? requiredSkillsInput : intentDefaults.requiredSkills),
+        ...intentDefaults.requiredOsafSkills,
+        ...requiredOsafSkillsInput,
+      ]);
+      const requiredOsafSkills: string[] = [];
 
       if (!input || !combined.trim()) {
-        return { matches: [], total: 0 };
+        return { matches: [], total: 0, intentType: intentType ?? null };
       }
 
       try {
         // Force semantic search to only consider vectors that were embedded with an A2A agent card.
-        const enforcedFilters = { ...(input.filters ?? {}), hasAgentCard: true };
+        const enforcedFilters: Record<string, unknown> = { ...(input.filters ?? {}), hasAgentCard: true };
+        const skillFilters: Array<Record<string, unknown>> = [];
+        if (requiredSkills.length) {
+          skillFilters.push({ a2aSkills: { $in: requiredSkills } });
+        }
+        // OASF skills are normalized into executable skillIds.
+        if (skillFilters.length) {
+          enforcedFilters.$or = skillFilters;
+        }
         const matches = await semanticSearch.search({
           text: combined,
           topK: input.topK,
@@ -1911,11 +1980,64 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         });
 
         if (!matches.length) {
-          return { matches: [], total: 0 };
+          return { matches: [], total: 0, intentType: intentType ?? null };
         }
 
-        const hydrated = await hydrateSemanticMatches(db, matches);
-        return { matches: hydrated, total: hydrated.length };
+        const normalizeStringArray = (value: unknown): string[] =>
+          Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+        const intersection = (a: string[], b: string[]) => a.filter((x) => b.includes(x));
+
+        const withSkillMatches = matches.map((match) => {
+          const metadata = (match.metadata ?? {}) as Record<string, unknown>;
+          const a2aSkills = normalizeStringArray(metadata.a2aSkills);
+          const matchedSkills = requiredSkills.length ? intersection(requiredSkills, a2aSkills) : [];
+          const matchedOsafSkills: string[] = [];
+          return {
+            match,
+            matchedSkills,
+            matchedOsafSkills,
+            keep:
+              !requiredSkills.length && !requiredOsafSkills.length
+                ? true
+                : matchedSkills.length > 0 || matchedOsafSkills.length > 0,
+          };
+        });
+
+        const filteredMatches = withSkillMatches.filter((entry) => entry.keep);
+        if (!filteredMatches.length) {
+          return { matches: [], total: 0, intentType: intentType ?? null };
+        }
+
+        const hydrated = await hydrateSemanticMatches(db, filteredMatches.map((entry) => entry.match));
+        const merged = hydrated.map((entry, index) => ({
+          ...entry,
+          matchedSkills: filteredMatches[index]?.matchedSkills ?? [],
+          matchedOsafSkills: filteredMatches[index]?.matchedOsafSkills ?? [],
+        }));
+        try {
+          console.info('[semanticAgentSearch] returned agents', {
+            intentType: intentType ?? null,
+            intentJson: intentJson || null,
+            parsedIntent: parsedIntent || null,
+            queryText: combined,
+            requiredSkills,
+            total: merged.length,
+            agents: merged.map((entry, idx) => ({
+              idx,
+              agentId: entry.agent?.agentId ?? null,
+              chainId: entry.agent?.chainId ?? null,
+              name: entry.agent?.agentName ?? null,
+              score: entry.score,
+              matchedSkills: entry.matchedSkills ?? [],
+              a2aSkills: Array.isArray((filteredMatches[idx]?.match.metadata as any)?.a2aSkills)
+                ? (filteredMatches[idx]?.match.metadata as any).a2aSkills
+                : [],
+            })),
+          });
+        } catch {
+          // logging only
+        }
+        return { matches: merged, total: merged.length, intentType: intentType ?? null };
       } catch (error) {
         console.error('❌ Error in semanticAgentSearch resolver:', error);
         throw error;

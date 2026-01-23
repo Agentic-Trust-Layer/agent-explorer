@@ -1,11 +1,14 @@
 export interface SemanticSearchFilters {
   capabilities?: string[];
+  a2aSkills?: string[];
+  oasfSkills?: string[];
   inputMode?: string;
   outputMode?: string;
   tags?: string[];
   defaultInputModes?: string[];
   defaultOutputModes?: string[];
   minScore?: number;
+  $or?: Array<Record<string, unknown>>;
   [key: string]: unknown;
 }
 

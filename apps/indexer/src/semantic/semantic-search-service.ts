@@ -399,6 +399,10 @@ export class SemanticSearchService {
     if (record.capabilities?.length) metadata.capabilities = record.capabilities;
     if (record.defaultInputModes?.length) metadata.defaultInputModes = record.defaultInputModes;
     if (record.defaultOutputModes?.length) metadata.defaultOutputModes = record.defaultOutputModes;
+    const a2aSkills = Array.isArray((record.metadata as any)?.a2aSkills)
+      ? ((record.metadata as any).a2aSkills as unknown[]).filter((v) => typeof v === 'string')
+      : [];
+    if (a2aSkills.length) metadata.a2aSkills = a2aSkills;
     if (record.metadata && Object.keys(record.metadata).length > 0) {
       metadata.details = record.metadata;
     }
@@ -463,6 +467,7 @@ export class SemanticSearchService {
     handleArray('Supported trust', metadata['supportedTrust']);
     handleArray('Operators', metadata['operators']);
     handleArray('Skills', metadata['skills']);
+    handleArray('Executable skills', metadata['a2aSkills']);
     handleArray('Prompts', metadata['prompts']);
     handleArray('MCP tools', metadata['mcpTools']);
     handleArray('MCP resources', metadata['mcpResources']);

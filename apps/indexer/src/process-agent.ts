@@ -409,7 +409,17 @@ export async function processAgentDirectly(
         const did = typeof meta.did === 'string' ? meta.did : null;
         const mcp = !!(meta.mcp === true || meta.mcp === 1 || String(meta.mcp).toLowerCase() === 'true');
         const x402support = !!(meta.x402support === true || meta.x402support === 1 || String(meta.x402support).toLowerCase() === 'true');
-        const active = !!(meta.active === true || meta.active === 1 || String(meta.active).toLowerCase() === 'true');
+        const activeValue: number | null = (() => {
+          const v = (meta as any)?.active;
+          if (v === undefined || v === null) return null;
+          if (v === true || v === 1) return 1;
+          if (v === false || v === 0) return 0;
+          const s = typeof v === 'string' ? v.trim().toLowerCase() : '';
+          if (!s) return null;
+          if (s === '1' || s === 'true' || s === 'active' || s === 'enabled' || s === 'on' || s === 'yes' || s === 'y') return 1;
+          if (s === '0' || s === 'false' || s === 'inactive' || s === 'disabled' || s === 'off' || s === 'no' || s === 'n') return 0;
+          return null;
+        })();
         const agentCategory = readAgentCategory(meta);
         const operators = Array.isArray((meta.operators ?? meta.Operators)) ? (meta.operators ?? meta.Operators) : [];
         const a2aSkills = Array.isArray(meta.a2aSkills) ? meta.a2aSkills : [];
@@ -458,7 +468,7 @@ export async function processAgentDirectly(
           didNameValue,
           mcp ? 1 : 0,
           x402support ? 1 : 0,
-          active ? 1 : 0,
+          activeValue,
           agentCategory, agentCategory, agentCategory,
           JSON.stringify(meta),
           updateTime,

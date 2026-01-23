@@ -135,6 +135,103 @@ function dedupeStrings(values: string[]): string[] {
   return Array.from(new Set(values.filter((value) => value && value.length > 0)));
 }
 
+const OASF_TO_EXECUTABLE_SKILLS: Record<string, string> = {
+  'trust.validate.name': 'governance_and_trust/trust/trust_validate_name',
+  'trust.validate.account': 'governance_and_trust/trust/trust_validate_account',
+  'trust.validate.app': 'governance_and_trust/trust/trust_validate_app',
+  'trust.feedback.authorization': 'governance_and_trust/trust/trust_feedback_authorization',
+};
+
+function normalizeSkillId(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('oasf:')) {
+    const withoutPrefix = trimmed.slice('oasf:'.length);
+    return normalizeSkillId(withoutPrefix);
+  }
+  if (trimmed.startsWith('trust/')) {
+    const tail = trimmed.slice('trust/'.length);
+    if (tail.startsWith('trust_validate_')) {
+      const suffix = tail.slice('trust_validate_'.length);
+      return `governance_and_trust/trust/trust_validate_${suffix}`;
+    }
+    return trimmed;
+  }
+  if (trimmed.startsWith('trust_validate_')) {
+    const suffix = trimmed.slice('trust_validate_'.length);
+    return `governance_and_trust/trust/trust_validate_${suffix}`;
+  }
+  if (trimmed.startsWith('trust.validate.')) {
+    const suffix = trimmed.slice('trust.validate.'.length);
+    return `governance_and_trust/trust/trust_validate_${suffix}`;
+  }
+  if (trimmed === 'trust.feedback.authorization') {
+    return 'governance_and_trust/trust/trust_feedback_authorization';
+  }
+  const mapped = OASF_TO_EXECUTABLE_SKILLS[trimmed];
+  return mapped ?? trimmed;
+}
+
+function normalizeSkillArray(values: string[]): string[] {
+  const normalized = values
+    .map((value) => normalizeSkillId(value))
+    .filter((value): value is string => Boolean(value));
+  return dedupeStrings(normalized);
+}
+
+function takeObjectArray(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return Object.values(value as Record<string, unknown>);
+  return [];
+}
+
+function extractA2aSkillsFromRegistration(rawJson: Record<string, unknown> | null): string[] {
+  if (!rawJson) return [];
+  const endpoints = takeObjectArray((rawJson as any).endpoints);
+  const skills: string[] = [];
+  for (const endpoint of endpoints) {
+    if (!endpoint || typeof endpoint !== 'object') continue;
+    const a2aSkills = parseStringArray((endpoint as any).a2aSkills);
+    skills.push(...a2aSkills);
+  }
+  return normalizeSkillArray(skills);
+}
+
+function extractA2aSkillsFromAgentCard(agentCardJson: Record<string, unknown> | null): string[] {
+  if (!agentCardJson) return [];
+  const skills: string[] = [];
+  const list = Array.isArray((agentCardJson as any).skills) ? (agentCardJson as any).skills : [];
+  for (const entry of list) {
+    if (typeof entry === 'string') {
+      const trimmed = entry.trim();
+      if (trimmed) skills.push(trimmed);
+      continue;
+    }
+    if (entry && typeof entry === 'object') {
+      const id = typeof (entry as any).id === 'string' ? (entry as any).id.trim() : '';
+      const name = typeof (entry as any).name === 'string' ? (entry as any).name.trim() : '';
+      if (id) skills.push(id);
+      else if (name) skills.push(name);
+    }
+  }
+  return normalizeSkillArray(skills);
+}
+
+function extractOasfSkillsFromAgentCard(agentCardJson: Record<string, unknown> | null): string[] {
+  if (!agentCardJson) return [];
+  const skills: string[] = [];
+  const extensions = Array.isArray((agentCardJson as any).capabilities?.extensions)
+    ? (agentCardJson as any).capabilities.extensions
+    : [];
+  for (const ext of extensions) {
+    if (!ext || typeof ext !== 'object') continue;
+    const params = (ext as any).params;
+    if (!params || typeof params !== 'object') continue;
+    skills.push(...parseStringArray((params as any).skills));
+  }
+  return normalizeSkillArray(skills);
+}
+
 function buildMetadataMap(entries: any[]): Record<string, unknown> {
   const map: Record<string, unknown> = {};
   for (const entry of entries) {
@@ -167,7 +264,7 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
     return null;
   }
 
-  const skills = parseStringArray(safeJsonParse(row.skillsJson, []));
+  const skills = normalizeSkillArray(parseStringArray(safeJsonParse(row.skillsJson, [])));
   const prompts = parseStringArray(safeJsonParse(row.promptsJson, []));
   const trustFromTable = parseStringArray(safeJsonParse(row.trustJson, []));
   const trustFromColumn = parseStringArray(row.supportedTrust);
@@ -185,7 +282,17 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
     return null;
   }
 
-  const tags = dedupeStrings([...skills, ...prompts]);
+  const a2aSkillsFromRegistration = extractA2aSkillsFromRegistration(rawJson);
+  const a2aSkillsFromAgentCard = extractA2aSkillsFromAgentCard(agentCardJson);
+  const oasfSkills = extractOasfSkillsFromAgentCard(agentCardJson);
+  const a2aSkills = dedupeStrings([
+    ...skills,
+    ...a2aSkillsFromRegistration,
+    ...a2aSkillsFromAgentCard,
+    ...oasfSkills,
+  ]);
+
+  const tags = dedupeStrings([...skills, ...prompts, ...a2aSkills]);
   const capabilities = dedupeStrings([...trustFromTable, ...trustFromColumn, ...tools, ...resources]);
   const inputModesFromMetadata = extractStringArrayFromMetadata(agentMetadataMap, 'defaultInputModes');
   const inputModesFromRaw = extractStringArrayFromMetadata(rawJson ?? {}, 'defaultInputModes');
@@ -198,6 +305,7 @@ function mapRowToSemanticRecord(row: AgentSemanticRow): SemanticAgentRecord | nu
   const metadata: Record<string, unknown> = {};
   if (operators.length) metadata.operators = operators;
   if (skills.length) metadata.skills = skills;
+  if (a2aSkills.length) metadata.a2aSkills = a2aSkills;
   if (prompts.length) metadata.prompts = prompts;
   if (trustFromTable.length || trustFromColumn.length) metadata.supportedTrust = dedupeStrings([...trustFromTable, ...trustFromColumn]);
   if (tools.length) metadata.mcpTools = tools;

@@ -185,6 +185,14 @@ export class PineconeVectorStore implements VectorStoreProvider {
       result.capabilities = { $in: filters.capabilities };
     }
 
+    if (filters.a2aSkills && filters.a2aSkills.length > 0) {
+      result.a2aSkills = { $in: filters.a2aSkills };
+    }
+
+    if (filters.oasfSkills && filters.oasfSkills.length > 0) {
+      result.oasfSkills = { $in: filters.oasfSkills };
+    }
+
     if (filters.inputMode) {
       result.defaultInputModes = { $in: [filters.inputMode] };
     }
