@@ -107,5 +107,5 @@
   a :IntentTaskMapping ;
   :mapsIntentType :intent.validateAgentIdentity ;
   :mapsTaskType :task.performNameValidation ;
-  :requiresSkill oasf:skill/governance_and_trust/trust/trust_validate_name ;
-  :mayUseSkill oasf:skill/governance_and_trust/trust/trust_validate_account .
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_name> ;
+  :mayUseSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_account> .

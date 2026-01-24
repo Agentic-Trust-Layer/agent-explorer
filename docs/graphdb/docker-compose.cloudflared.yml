@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:2024.12.2
+    container_name: agentkg-cloudflared
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - /etc/cloudflared:/etc/cloudflared:ro
+    command: tunnel --config /etc/cloudflared/config.yml run

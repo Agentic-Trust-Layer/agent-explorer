@@ -1,0 +1,7 @@
+tunnel: agentkg-graphdb
+credentials-file: /etc/cloudflared/2ab98a21-b2f1-4eed-9173-f6e443887e23.json
+
+ingress:
+  - hostname: graphdb.agentkg.io
+    service: http://localhost:7200
+  - service: http_status:404

@@ -8,10 +8,10 @@ import { exportOasfTtl } from './oasf-export';
 import { exportIntentTaskTtl } from './intent-task-export';
 
 async function listOntologyFiles(): Promise<string[]> {
-  const ontologyDir = path.resolve(process.cwd(), '../badge-admin/public/ontology');
+  const ontologyDir = path.resolve(process.cwd(), '../ontology/ontology');
   const entries = await fs.readdir(ontologyDir, { withFileTypes: true });
   return entries
-    .filter((e) => e.isFile() && e.name.toLowerCase().endsWith('.owl'))
+    .filter((e) => e.isFile() && /\.ttl$/i.test(e.name))
     .map((e) => path.resolve(ontologyDir, e.name))
     .sort((a, b) => a.localeCompare(b));
 }

@@ -7,13 +7,23 @@ function envString(key: string): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 }
 
+function cfAccessHeaders(): Record<string, string> {
+  const clientId = envString('GRAPHDB_CF_ACCESS_CLIENT_ID');
+  const clientSecret = envString('GRAPHDB_CF_ACCESS_CLIENT_SECRET');
+  if (!clientId || !clientSecret) return {};
+  return {
+    'CF-Access-Client-Id': clientId,
+    'CF-Access-Client-Secret': clientSecret,
+  };
+}
+
 export function getGraphdbConfigFromEnv(): {
   baseUrl: string;
   repository: string;
   auth: GraphdbAuth;
 } {
-  const baseUrl = envString('GRAPHDB_BASE_URL') ?? 'http://localhost:7200';
-  const repository = envString('GRAPHDB_REPOSITORY') ?? 'agentictrust';
+  const baseUrl = envString('GRAPHDB_BASE_URL') ?? 'https://graphdb.agentkg.io';
+  const repository = envString('GRAPHDB_REPOSITORY') ?? 'agentkg';
   const user = envString('GRAPHDB_USERNAME');
   const pass = envString('GRAPHDB_PASSWORD');
   const auth = user && pass ? { username: user, password: pass } : null;
@@ -43,6 +53,9 @@ async function graphdbFetch(
     const headers = new Headers(init.headers || {});
     const authHeader = basicAuthHeader(init.auth ?? null);
     if (authHeader) headers.set('Authorization', authHeader);
+    const accessHeaders = cfAccessHeaders();
+    if (accessHeaders['CF-Access-Client-Id']) headers.set('CF-Access-Client-Id', accessHeaders['CF-Access-Client-Id']);
+    if (accessHeaders['CF-Access-Client-Secret']) headers.set('CF-Access-Client-Secret', accessHeaders['CF-Access-Client-Secret']);
     return await fetch(url, { ...init, headers, signal: controller.signal });
   } finally {
     clearTimeout(t);
