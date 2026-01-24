@@ -134,7 +134,7 @@ We extract string skill IDs/domains from:
 - `skills[]` if strings
 - `skills[]` objects via `.id` (fallback `.name`)
 - `capabilities.extensions[].params.skills` / `capabilities.extensions[].params.domains`
-- `skills[].tags` like `osafDomain:governance-and-trust`
+
 
 ## SPARQL: Agent Skill Classifications (with related info)
 

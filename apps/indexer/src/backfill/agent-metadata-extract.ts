@@ -69,14 +69,6 @@ function takeStringSetFromAgentCard(card: any): { skills: string[]; domains: str
         if (id) outSkills.add(id);
         else if (name) outSkills.add(name);
 
-        // tags sometimes include osafDomain:xyz
-        if (Array.isArray((s as any).tags)) {
-          for (const t of (s as any).tags) {
-            if (typeof t !== 'string') continue;
-            const m = t.match(/^osafDomain:(.+)$/i);
-            if (m && m[1]?.trim()) outDomains.add(m[1].trim());
-          }
-        }
       }
     }
   }

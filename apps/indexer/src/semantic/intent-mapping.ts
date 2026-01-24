@@ -104,17 +104,15 @@ function humanizeIntentType(intentType: string): string {
 
 export function resolveIntentRequirements(intentType?: string | null): {
   requiredSkills: string[];
-  requiredOsafSkills: string[];
   label?: string;
   description?: string;
 } {
   if (!intentType) {
-    return { requiredSkills: [], requiredOsafSkills: [] };
+    return { requiredSkills: [] };
   }
   const mapping = EXECUTABLE_INTENT_MAP[intentType];
   return {
     requiredSkills: mapping?.executable ?? [],
-    requiredOsafSkills: mapping?.oasf ?? [],
     label: mapping?.label ?? humanizeIntentType(intentType),
     description: mapping?.description,
   };

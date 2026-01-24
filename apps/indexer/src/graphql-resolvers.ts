@@ -1883,7 +1883,6 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         topK?: number;
         minScore?: number;
         requiredSkills?: string[] | null;
-        requiredOsafSkills?: string[] | null;
         filters?: any;
       };
     }) => {
@@ -1946,16 +1945,12 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const requiredSkillsInput = Array.isArray(input?.requiredSkills)
         ? normalizeSkillList(input.requiredSkills.filter((s) => typeof s === 'string'))
         : [];
-      const requiredOsafSkillsInput = Array.isArray(input?.requiredOsafSkills)
-        ? normalizeSkillList(input.requiredOsafSkills.filter((s) => typeof s === 'string'))
-        : [];
+
       const intentDefaults = resolveIntentRequirements(intentType);
       const requiredSkills = normalizeSkillList([
         ...(requiredSkillsInput.length ? requiredSkillsInput : intentDefaults.requiredSkills),
-        ...intentDefaults.requiredOsafSkills,
-        ...requiredOsafSkillsInput,
       ]);
-      const requiredOsafSkills: string[] = [];
+
 
       if (!input || !combined.trim()) {
         return { matches: [], total: 0, intentType: intentType ?? null };
@@ -1991,15 +1986,13 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
           const metadata = (match.metadata ?? {}) as Record<string, unknown>;
           const a2aSkills = normalizeStringArray(metadata.a2aSkills);
           const matchedSkills = requiredSkills.length ? intersection(requiredSkills, a2aSkills) : [];
-          const matchedOsafSkills: string[] = [];
           return {
             match,
             matchedSkills,
-            matchedOsafSkills,
             keep:
-              !requiredSkills.length && !requiredOsafSkills.length
+              !requiredSkills.length
                 ? true
-                : matchedSkills.length > 0 || matchedOsafSkills.length > 0,
+                : matchedSkills.length > 0,
           };
         });
 
@@ -2012,7 +2005,6 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         const merged = hydrated.map((entry, index) => ({
           ...entry,
           matchedSkills: filteredMatches[index]?.matchedSkills ?? [],
-          matchedOsafSkills: filteredMatches[index]?.matchedOsafSkills ?? [],
         }));
         try {
           console.info('[semanticAgentSearch] returned agents', {
