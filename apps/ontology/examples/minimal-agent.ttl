@@ -1,0 +1,3 @@
+@prefix : <https://agentictrust.io/ontology/core#> .
+
+:agent-1 a :Agent .

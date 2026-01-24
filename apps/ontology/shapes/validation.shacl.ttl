@@ -1,0 +1,5 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+
+:AgentShape a sh:NodeShape ;
+  sh:targetClass :Agent .

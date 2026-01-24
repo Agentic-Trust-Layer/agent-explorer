@@ -1,0 +1,111 @@
+@base <https://agentictrust.io/ontology/core#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix oasf: <https://agentictrust.io/ontology/oasf#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:Ontology a owl:Ontology ;
+  rdfs:label "Agentic Trust Core Ontology" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:imports <http://purl.org/net/p-plan#> ;
+  owl:imports <http://purl.org/dc/terms/> .
+
+:Agent a owl:Class ;
+  rdfs:label "Agent" .
+
+:TrustAssertion a owl:Class ;
+  rdfs:label "Trust Assertion" .
+
+:hasTrustScore a owl:DatatypeProperty ;
+  rdfs:label "has trust score" ;
+  rdfs:domain :TrustAssertion ;
+  rdfs:range xsd:decimal .
+
+########
+# Intent/Task orchestration core
+########
+
+:IntentType a owl:Class ;
+  rdfs:label "Intent Type" ;
+  rdfs:subClassOf skos:Concept .
+
+:TaskType a owl:Class ;
+  rdfs:label "Task Type" ;
+  rdfs:subClassOf skos:Concept .
+
+:Skill a owl:Class ;
+  rdfs:label "Skill" ;
+  rdfs:subClassOf oasf:Skill .
+
+:IntentTaskMapping a owl:Class ;
+  rdfs:label "Intent Task Mapping" .
+
+:TaskSkillRequirement a owl:Class ;
+  rdfs:label "Task Skill Requirement" .
+
+:intentTypeToTaskType a owl:ObjectProperty ;
+  rdfs:label "intent type to task type" ;
+  rdfs:domain :IntentType ;
+  rdfs:range :TaskType .
+
+:mapsIntentType a owl:ObjectProperty ;
+  rdfs:label "maps intent type" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range :IntentType .
+
+:mapsTaskType a owl:ObjectProperty ;
+  rdfs:label "maps task type" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range :TaskType .
+
+:requiresSkill a owl:ObjectProperty ;
+  rdfs:label "requires skill" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range oasf:Skill .
+
+:mayUseSkill a owl:ObjectProperty ;
+  rdfs:label "may use skill" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range oasf:Skill .
+
+:requiresSkillLevel a owl:DatatypeProperty ;
+  rdfs:label "requires skill level" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range xsd:string .
+
+:requiresEvidence a owl:DatatypeProperty ;
+  rdfs:label "requires evidence" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range xsd:string .
+
+:IntentTaxonomy a skos:ConceptScheme ;
+  rdfs:label "Intent Taxonomy" .
+
+:TaskTaxonomy a skos:ConceptScheme ;
+  rdfs:label "Task Taxonomy" .
+
+:intent.validateAgentIdentity
+  a skos:Concept, :IntentType ;
+  skos:inScheme :IntentTaxonomy ;
+  skos:prefLabel "Validate agent identity"@en ;
+  skos:altLabel "Verify agent identity"@en ;
+  skos:broader :intent.establishTrust .
+
+:task.performNameValidation
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Perform name validation"@en ;
+  skos:broader :task.performValidation .
+
+:mapping.validateIdentity.name
+  a :IntentTaskMapping ;
+  :mapsIntentType :intent.validateAgentIdentity ;
+  :mapsTaskType :task.performNameValidation ;
+  :requiresSkill oasf:skill/governance_and_trust/trust/trust_validate_name ;
+  :mayUseSkill oasf:skill/governance_and_trust/trust/trust_validate_account .

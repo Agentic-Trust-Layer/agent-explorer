@@ -1,0 +1,11 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+:TrustAssertionShape a sh:NodeShape ;
+  sh:targetClass :TrustAssertion ;
+  sh:property [
+    sh:path :hasTrustScore ;
+    sh:datatype xsd:decimal ;
+    sh:minCount 0 ;
+  ] .

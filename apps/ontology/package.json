@@ -1,0 +1,30 @@
+{
+  "name": "@agentic-trust/ontology",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "files": [
+    "ontology/",
+    "data/",
+    "shapes/",
+    "sparql/",
+    "vocab/",
+    "examples/",
+    "dist/",
+    "README.md"
+  ],
+  "exports": {
+    "./core": "./ontology/core.ttl",
+    "./eth": "./ontology/eth.ttl",
+    "./erc8004": "./ontology/erc8004.ttl",
+    "./oasf": "./ontology/oasf.ttl",
+    "./jsonld": "./ontology/core.jsonld",
+    "./sparql": "./sparql/",
+    "./shacl": "./shapes/"
+  },
+  "scripts": {
+    "build": "node scripts/build.js",
+    "validate": "node scripts/validate.js",
+    "publish": "node scripts/publish.js"
+  }
+}

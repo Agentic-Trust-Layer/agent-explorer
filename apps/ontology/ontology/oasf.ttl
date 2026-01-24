@@ -1,0 +1,43 @@
+@base <https://agentictrust.io/ontology/oasf#> .
+@prefix oasf: <https://agentictrust.io/ontology/oasf#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+oasf:Ontology a owl:Ontology ;
+  rdfs:label "OASF Ontology" ;
+  owl:versionInfo "0.1.0" .
+
+oasf:Skill a owl:Class ;
+  rdfs:label "OASF Skill" .
+
+oasf:Domain a owl:Class ;
+  rdfs:label "OASF Domain" .
+
+oasf:key a owl:DatatypeProperty ;
+  rdfs:label "key" ;
+  rdfs:range xsd:string .
+
+oasf:name a owl:DatatypeProperty ;
+  rdfs:label "name" ;
+  rdfs:range xsd:string .
+
+oasf:caption a owl:DatatypeProperty ;
+  rdfs:label "caption" ;
+  rdfs:range xsd:string .
+
+oasf:description a owl:DatatypeProperty ;
+  rdfs:label "description" ;
+  rdfs:range xsd:string .
+
+oasf:uid a owl:DatatypeProperty ;
+  rdfs:label "uid" ;
+  rdfs:range xsd:integer .
+
+oasf:category a owl:DatatypeProperty ;
+  rdfs:label "category" ;
+  rdfs:range xsd:string .
+
+oasf:extends a owl:ObjectProperty ;
+  rdfs:label "extends" ;
+  rdfs:range owl:Thing .

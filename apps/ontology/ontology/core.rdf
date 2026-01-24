@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<rdf:RDF
+  xmlns="https://agentictrust.io/ontology/core#"
+  xml:base="https://agentictrust.io/ontology/core"
+  xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+  xmlns:owl="http://www.w3.org/2002/07/owl#"
+  xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+  xmlns:oasf="https://agentictrust.io/ontology/oasf#"
+  xmlns:skos="http://www.w3.org/2004/02/skos/core#"
+  xmlns:prov="http://www.w3.org/ns/prov#"
+  xmlns:p-plan="http://purl.org/net/p-plan#"
+  xmlns:dcterms="http://purl.org/dc/terms/">
+  <owl:Ontology rdf:about="https://agentictrust.io/ontology/core#Ontology">
+    <rdfs:label>Agentic Trust Core Ontology</rdfs:label>
+    <owl:versionInfo>0.1.0</owl:versionInfo>
+    <owl:imports rdf:resource="http://www.w3.org/ns/prov-o#"/>
+    <owl:imports rdf:resource="http://purl.org/net/p-plan#"/>
+    <owl:imports rdf:resource="http://purl.org/dc/terms/"/>
+  </owl:Ontology>
+  <owl:Class rdf:about="https://agentictrust.io/ontology/core#IntentType">
+    <rdfs:label>Intent Type</rdfs:label>
+    <rdfs:subClassOf rdf:resource="http://www.w3.org/2004/02/skos/core#Concept"/>
+  </owl:Class>
+  <owl:Class rdf:about="https://agentictrust.io/ontology/core#TaskType">
+    <rdfs:label>Task Type</rdfs:label>
+    <rdfs:subClassOf rdf:resource="http://www.w3.org/2004/02/skos/core#Concept"/>
+  </owl:Class>
+  <owl:Class rdf:about="https://agentictrust.io/ontology/core#Skill">
+    <rdfs:label>Skill</rdfs:label>
+    <rdfs:subClassOf rdf:resource="https://agentictrust.io/ontology/oasf#Skill"/>
+  </owl:Class>
+  <owl:Class rdf:about="https://agentictrust.io/ontology/core#IntentTaskMapping">
+    <rdfs:label>Intent Task Mapping</rdfs:label>
+  </owl:Class>
+  <owl:Class rdf:about="https://agentictrust.io/ontology/core#TaskSkillRequirement">
+    <rdfs:label>Task Skill Requirement</rdfs:label>
+  </owl:Class>
+  <owl:ObjectProperty rdf:about="https://agentictrust.io/ontology/core#intentTypeToTaskType">
+    <rdfs:label>intent type to task type</rdfs:label>
+    <rdfs:domain rdf:resource="https://agentictrust.io/ontology/core#IntentType"/>
+    <rdfs:range rdf:resource="https://agentictrust.io/ontology/core#TaskType"/>
+  </owl:ObjectProperty>
+  <owl:ObjectProperty rdf:about="https://agentictrust.io/ontology/core#mapsIntentType">
+    <rdfs:label>maps intent type</rdfs:label>
+    <rdfs:domain rdf:resource="https://agentictrust.io/ontology/core#IntentTaskMapping"/>
+    <rdfs:range rdf:resource="https://agentictrust.io/ontology/core#IntentType"/>
+  </owl:ObjectProperty>
+  <owl:ObjectProperty rdf:about="https://agentictrust.io/ontology/core#mapsTaskType">
+    <rdfs:label>maps task type</rdfs:label>
+    <rdfs:domain rdf:resource="https://agentictrust.io/ontology/core#IntentTaskMapping"/>
+    <rdfs:range rdf:resource="https://agentictrust.io/ontology/core#TaskType"/>
+  </owl:ObjectProperty>
+  <owl:ObjectProperty rdf:about="https://agentictrust.io/ontology/core#requiresSkill">
+    <rdfs:label>requires skill</rdfs:label>
+    <rdfs:domain rdf:resource="https://agentictrust.io/ontology/core#IntentTaskMapping"/>
+    <rdfs:range rdf:resource="https://agentictrust.io/ontology/oasf#Skill"/>
+  </owl:ObjectProperty>
+  <owl:ObjectProperty rdf:about="https://agentictrust.io/ontology/core#mayUseSkill">
+    <rdfs:label>may use skill</rdfs:label>
+    <rdfs:domain rdf:resource="https://agentictrust.io/ontology/core#IntentTaskMapping"/>
+    <rdfs:range rdf:resource="https://agentictrust.io/ontology/oasf#Skill"/>
+  </owl:ObjectProperty>
+  <owl:DatatypeProperty rdf:about="https://agentictrust.io/ontology/core#requiresSkillLevel">
+    <rdfs:label>requires skill level</rdfs:label>
+    <rdfs:domain rdf:resource="https://agentictrust.io/ontology/core#IntentTaskMapping"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+  <owl:DatatypeProperty rdf:about="https://agentictrust.io/ontology/core#requiresEvidence">
+    <rdfs:label>requires evidence</rdfs:label>
+    <rdfs:domain rdf:resource="https://agentictrust.io/ontology/core#IntentTaskMapping"/>
+    <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+  </owl:DatatypeProperty>
+  <skos:ConceptScheme rdf:about="https://agentictrust.io/ontology/core#IntentTaxonomy">
+    <rdfs:label>Intent Taxonomy</rdfs:label>
+  </skos:ConceptScheme>
+  <skos:ConceptScheme rdf:about="https://agentictrust.io/ontology/core#TaskTaxonomy">
+    <rdfs:label>Task Taxonomy</rdfs:label>
+  </skos:ConceptScheme>
+  <skos:Concept rdf:about="https://agentictrust.io/ontology/core#intent.validateAgentIdentity">
+    <rdf:type rdf:resource="https://agentictrust.io/ontology/core#IntentType"/>
+    <skos:inScheme rdf:resource="https://agentictrust.io/ontology/core#IntentTaxonomy"/>
+    <skos:prefLabel xml:lang="en">Validate agent identity</skos:prefLabel>
+    <skos:altLabel xml:lang="en">Verify agent identity</skos:altLabel>
+    <skos:broader rdf:resource="https://agentictrust.io/ontology/core#intent.establishTrust"/>
+  </skos:Concept>
+  <skos:Concept rdf:about="https://agentictrust.io/ontology/core#task.performNameValidation">
+    <rdf:type rdf:resource="https://agentictrust.io/ontology/core#TaskType"/>
+    <skos:inScheme rdf:resource="https://agentictrust.io/ontology/core#TaskTaxonomy"/>
+    <skos:prefLabel xml:lang="en">Perform name validation</skos:prefLabel>
+    <skos:broader rdf:resource="https://agentictrust.io/ontology/core#task.performValidation"/>
+  </skos:Concept>
+  <rdf:Description rdf:about="https://agentictrust.io/ontology/core#mapping.validateIdentity.name">
+    <rdf:type rdf:resource="https://agentictrust.io/ontology/core#IntentTaskMapping"/>
+    <mapsIntentType rdf:resource="https://agentictrust.io/ontology/core#intent.validateAgentIdentity"/>
+    <mapsTaskType rdf:resource="https://agentictrust.io/ontology/core#task.performNameValidation"/>
+    <requiresSkill rdf:resource="https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_name"/>
+    <mayUseSkill rdf:resource="https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_account"/>
+  </rdf:Description>
+</rdf:RDF>

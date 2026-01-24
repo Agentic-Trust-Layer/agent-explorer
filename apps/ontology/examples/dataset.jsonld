@@ -1,0 +1,11 @@
+{
+  "@context": {
+    "@base": "https://agentictrust.io/ontology/core#"
+  },
+  "@graph": [
+    {
+      "@id": "agent-1",
+      "@type": "Agent"
+    }
+  ]
+}

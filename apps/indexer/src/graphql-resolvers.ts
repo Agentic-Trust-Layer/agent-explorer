@@ -2,6 +2,7 @@ import type { SemanticSearchService } from './semantic/semantic-search-service.j
 import { intentJsonToSearchText, parseIntentJson } from './semantic/intent-text.js';
 import { buildIntentQueryText, resolveIntentRequirements } from './semantic/intent-mapping.js';
 import type { VectorQueryMatch } from './semantic/interfaces.js';
+import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb/graphdb-http';
 
 /**
  * Shared GraphQL resolvers that work with both D1 adapter and native D1
@@ -1320,6 +1321,35 @@ async function fetchTrustLedgerBadgeDefinitions(db: any, args?: { program?: stri
  * @param options - Additional options (like env for indexAgent)
  */
 export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions) {
+  const CORE_INTENT_BASE = 'https://agentictrust.io/ontology/core/intent/';
+  const CORE_TASK_BASE = 'https://agentictrust.io/ontology/core/task/';
+  const OASF_SKILL_BASE = 'https://agentictrust.io/ontology/oasf#skill/';
+  const OASF_DOMAIN_BASE = 'https://agentictrust.io/ontology/oasf#domain/';
+
+  const decodeKey = (value: string): string => {
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      return value;
+    }
+  };
+
+  const keyFromIri = (iri: string, base: string): string | null => {
+    if (!iri.startsWith(base)) return null;
+    return decodeKey(iri.slice(base.length));
+  };
+
+  const skillKeyFromIri = (iri: string): string | null => keyFromIri(iri, OASF_SKILL_BASE);
+  const domainKeyFromIri = (iri: string): string | null => keyFromIri(iri, OASF_DOMAIN_BASE);
+  const intentKeyFromIri = (iri: string): string | null => keyFromIri(iri, CORE_INTENT_BASE);
+  const taskKeyFromIri = (iri: string): string | null => keyFromIri(iri, CORE_TASK_BASE);
+
+  async function runGraphdbQuery(sparql: string): Promise<any[]> {
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    const result = await queryGraphdb(baseUrl, repository, auth, sparql);
+    return Array.isArray(result?.results?.bindings) ? result.results.bindings : [];
+  }
+
   return {
     oasfSkills: async (args: {
       key?: string;
@@ -1334,134 +1364,44 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const { key, nameKey, category, extendsKey } = args || {};
       const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
+      const order = args?.orderDirection === 'desc' ? 'DESC' : 'ASC';
+      const orderBy = args?.orderBy === 'caption' ? '?caption' : args?.orderBy === 'uid' ? '?uid' : '?key';
 
-      // OASF schema evolved over migrations; handle both modern + legacy shapes.
-      const runModern = async () => {
-        const conditions: string[] = [];
-        const params: any[] = [];
-        if (key) {
-          conditions.push('skillId = ?');
-          params.push(key);
-        }
-        if (nameKey) {
-          conditions.push('nameKey = ?');
-          params.push(nameKey);
-        }
-        if (category) {
-          conditions.push('category = ?');
-          params.push(category);
-        }
-        if (extendsKey) {
-          conditions.push('extendsKey = ?');
-          params.push(extendsKey);
-        }
-        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-        const orderByClause = buildOasfOrderByClause({
-          orderBy: args?.orderBy,
-          orderDirection: args?.orderDirection,
-          fieldToColumn: {
-            key: 'skillId',
-            nameKey: 'nameKey',
-            uid: 'uid',
-            caption: 'caption',
-            extendsKey: 'extendsKey',
-            category: 'category',
-          },
-          validColumns: ['skillId', 'nameKey', 'uid', 'caption', 'extendsKey', 'category'],
-          defaultColumn: 'skillId',
-        });
-        const rows = await executeQuery(
-          db,
-          `
-            SELECT skillId, nameKey, uid, caption, extendsKey, category
-            FROM oasf_skills
-            ${where}
-            ${orderByClause}
-            LIMIT ? OFFSET ?
-          `,
-          [...params, limit, offset],
-        );
-        const out = rows.map((r) => ({
-          key: String((r as any)?.skillId ?? ''),
-          nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
-          uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
-          caption: (r as any)?.caption != null ? String((r as any).caption) : null,
-          extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
-          category: (r as any)?.category != null ? String((r as any).category) : null,
-        }));
-        console.log('[oasfSkills] mode=modern', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
-        return out;
-      };
+      const filters: string[] = [];
+      if (key) filters.push(`?key = "${key}"`);
+      if (nameKey) filters.push(`?name = "${nameKey}"`);
+      if (category) filters.push(`?category = "${category}"`);
+      if (extendsKey) filters.push(`?extendsKey = "${extendsKey}"`);
 
-      const runLegacy = async () => {
-        const conditions: string[] = [];
-        const params: any[] = [];
-        if (key) {
-          conditions.push('skillId = ?');
-          params.push(key);
-        }
-        if (nameKey) {
-          // Legacy schema used `name` rather than `nameKey`.
-          conditions.push('name = ?');
-          params.push(nameKey);
-        }
-        if (category) {
-          conditions.push('category = ?');
-          params.push(category);
-        }
-        if (extendsKey) {
-          // Legacy schema did not have extendsKey; treat as category filter.
-          conditions.push('category = ?');
-          params.push(extendsKey);
-        }
-        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-        const orderByClause = buildOasfOrderByClause({
-          orderBy: args?.orderBy,
-          orderDirection: args?.orderDirection,
-          fieldToColumn: {
-            key: 'skillId',
-            nameKey: 'name',
-            uid: 'id',
-            caption: 'name',
-            extendsKey: 'category',
-            category: 'category',
-          },
-          validColumns: ['skillId', 'name', 'category', 'id'],
-          defaultColumn: 'skillId',
-        });
-        const rows = await executeQuery(
-          db,
-          `
-            SELECT skillId, name, category
-            FROM oasf_skills
-            ${where}
-            ${orderByClause}
-            LIMIT ? OFFSET ?
-          `,
-          [...params, limit, offset],
-        );
-        const out = rows.map((r) => ({
-          key: String((r as any)?.skillId ?? ''),
-          nameKey: (r as any)?.name != null ? String((r as any).name) : null,
-          uid: null,
-          caption: (r as any)?.name != null ? String((r as any).name) : null,
-          extendsKey: null,
-          category: (r as any)?.category != null ? String((r as any).category) : null,
-        }));
-        console.log('[oasfSkills] mode=legacy', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
-        return out;
-      };
+      const sparql = [
+        'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
+        'SELECT ?skill ?key ?name ?uid ?caption ?extends ?category ?extendsKey WHERE {',
+        '  ?skill a oasf:Skill .',
+        '  OPTIONAL { ?skill oasf:key ?key }',
+        '  OPTIONAL { ?skill oasf:name ?name }',
+        '  OPTIONAL { ?skill oasf:uid ?uid }',
+        '  OPTIONAL { ?skill oasf:caption ?caption }',
+        '  OPTIONAL { ?skill oasf:extends ?extends }',
+        '  OPTIONAL { ?skill oasf:category ?category }',
+        `  BIND(IF(BOUND(?extends), REPLACE(STR(?extends), "${OASF_SKILL_BASE}", ""), "") AS ?extendsKey)`,
+        filters.length ? `  FILTER(${filters.join(' && ')})` : '',
+        '}',
+        `ORDER BY ${order} ${orderBy}`,
+        `LIMIT ${limit}`,
+        `OFFSET ${offset}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
 
-      try {
-        return await runModern();
-      } catch (e: any) {
-        const msg = String(e?.message || e);
-        console.log('[oasfSkills] modern failed; falling back', { message: msg });
-        if (msg.includes('no such column')) {
-          return await runLegacy();
-        }
-        throw e;
-      }
+      const rows = await runGraphdbQuery(sparql);
+      return rows.map((row: any) => ({
+        key: row.key?.value ?? '',
+        nameKey: row.name?.value ?? null,
+        uid: row.uid?.value != null ? Number(row.uid.value) : null,
+        caption: row.caption?.value ?? null,
+        extendsKey: row.extendsKey?.value ? decodeKey(row.extendsKey.value) : null,
+        category: row.category?.value ?? null,
+      }));
     },
 
     oasfDomains: async (args: {
@@ -1477,195 +1417,179 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const { key, nameKey, category, extendsKey } = args || {};
       const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
+      const order = args?.orderDirection === 'desc' ? 'DESC' : 'ASC';
+      const orderBy = args?.orderBy === 'caption' ? '?caption' : args?.orderBy === 'uid' ? '?uid' : '?key';
 
-      const runModern = async () => {
-        const conditions: string[] = [];
-        const params: any[] = [];
-        if (key) {
-          conditions.push('domainId = ?');
-          params.push(key);
-        }
-        if (nameKey) {
-          conditions.push('nameKey = ?');
-          params.push(nameKey);
-        }
-        // Note: older/normalized schema used extendsKey for category; newer also has category as back-compat.
-        if (category) {
-          // Prefer category if present; fallback handled by legacy path.
-          conditions.push('category = ?');
-          params.push(category);
-        }
-        if (extendsKey) {
-          conditions.push('extendsKey = ?');
-          params.push(extendsKey);
-        }
-        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-        const orderByClause = buildOasfOrderByClause({
-          orderBy: args?.orderBy,
-          orderDirection: args?.orderDirection,
-          fieldToColumn: {
-            key: 'domainId',
-            nameKey: 'nameKey',
-            uid: 'uid',
-            caption: 'caption',
-            extendsKey: 'extendsKey',
-            category: 'category',
-          },
-          validColumns: ['domainId', 'nameKey', 'uid', 'caption', 'extendsKey', 'category'],
-          defaultColumn: 'domainId',
-        });
-        const rows = await executeQuery(
-          db,
-          `
-            SELECT domainId, nameKey, uid, caption, extendsKey, category
-            FROM oasf_domains
-            ${where}
-            ${orderByClause}
-            LIMIT ? OFFSET ?
-          `,
-          [...params, limit, offset],
-        );
-        const out = rows.map((r) => ({
-          key: String((r as any)?.domainId ?? ''),
-          nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
-          uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
-          caption: (r as any)?.caption != null ? String((r as any).caption) : null,
-          extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
-          category: (r as any)?.category != null ? String((r as any).category) : null,
-        }));
-        console.log('[oasfDomains] mode=modern', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
-        return out;
-      };
+      const filters: string[] = [];
+      if (key) filters.push(`?key = "${key}"`);
+      if (nameKey) filters.push(`?name = "${nameKey}"`);
+      if (category) filters.push(`?category = "${category}"`);
+      if (extendsKey) filters.push(`?extendsKey = "${extendsKey}"`);
 
-      const runSemiModernNoCategory = async () => {
-        const conditions: string[] = [];
-        const params: any[] = [];
-        if (key) {
-          conditions.push('domainId = ?');
-          params.push(key);
-        }
-        if (nameKey) {
-          conditions.push('nameKey = ?');
-          params.push(nameKey);
-        }
-        if (category) {
-          // category not present; treat category filter as extendsKey.
-          conditions.push('extendsKey = ?');
-          params.push(category);
-        }
-        if (extendsKey) {
-          conditions.push('extendsKey = ?');
-          params.push(extendsKey);
-        }
-        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-        const orderByClause = buildOasfOrderByClause({
-          orderBy: args?.orderBy === 'category' ? 'extendsKey' : args?.orderBy,
-          orderDirection: args?.orderDirection,
-          fieldToColumn: {
-            key: 'domainId',
-            nameKey: 'nameKey',
-            uid: 'uid',
-            caption: 'caption',
-            extendsKey: 'extendsKey',
-            category: 'extendsKey',
-          },
-          validColumns: ['domainId', 'nameKey', 'uid', 'caption', 'extendsKey'],
-          defaultColumn: 'domainId',
-        });
-        const rows = await executeQuery(
-          db,
-          `
-            SELECT domainId, nameKey, uid, caption, extendsKey
-            FROM oasf_domains
-            ${where}
-            ${orderByClause}
-            LIMIT ? OFFSET ?
-          `,
-          [...params, limit, offset],
-        );
-        const out = rows.map((r) => ({
-          key: String((r as any)?.domainId ?? ''),
-          nameKey: (r as any)?.nameKey != null ? String((r as any).nameKey) : null,
-          uid: (r as any)?.uid != null ? Number((r as any).uid) : null,
-          caption: (r as any)?.caption != null ? String((r as any).caption) : null,
-          extendsKey: (r as any)?.extendsKey != null ? String((r as any).extendsKey) : null,
-          category: null,
-        }));
-        console.log('[oasfDomains] mode=semi-modern', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
-        return out;
-      };
+      const sparql = [
+        'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
+        'SELECT ?domain ?key ?name ?uid ?caption ?extends ?category ?extendsKey WHERE {',
+        '  ?domain a oasf:Domain .',
+        '  OPTIONAL { ?domain oasf:key ?key }',
+        '  OPTIONAL { ?domain oasf:name ?name }',
+        '  OPTIONAL { ?domain oasf:uid ?uid }',
+        '  OPTIONAL { ?domain oasf:caption ?caption }',
+        '  OPTIONAL { ?domain oasf:extends ?extends }',
+        '  OPTIONAL { ?domain oasf:category ?category }',
+        `  BIND(IF(BOUND(?extends), REPLACE(STR(?extends), "${OASF_DOMAIN_BASE}", ""), "") AS ?extendsKey)`,
+        filters.length ? `  FILTER(${filters.join(' && ')})` : '',
+        '}',
+        `ORDER BY ${order} ${orderBy}`,
+        `LIMIT ${limit}`,
+        `OFFSET ${offset}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
 
-      const runLegacy = async () => {
-        const conditions: string[] = [];
-        const params: any[] = [];
-        if (key) {
-          conditions.push('domainId = ?');
-          params.push(key);
-        }
-        if (nameKey) {
-          // Legacy schema used `name` rather than `nameKey`.
-          conditions.push('name = ?');
-          params.push(nameKey);
-        }
-        if (category) {
-          conditions.push('category = ?');
-          params.push(category);
-        }
-        if (extendsKey) {
-          conditions.push('category = ?');
-          params.push(extendsKey);
-        }
-        const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-        const orderByClause = buildOasfOrderByClause({
-          orderBy: args?.orderBy,
-          orderDirection: args?.orderDirection,
-          fieldToColumn: {
-            key: 'domainId',
-            nameKey: 'name',
-            uid: 'id',
-            caption: 'name',
-            extendsKey: 'category',
-            category: 'category',
-          },
-          validColumns: ['domainId', 'name', 'category', 'id'],
-          defaultColumn: 'domainId',
-        });
-        const rows = await executeQuery(
-          db,
-          `
-            SELECT domainId, name, category
-            FROM oasf_domains
-            ${where}
-            ${orderByClause}
-            LIMIT ? OFFSET ?
-          `,
-          [...params, limit, offset],
-        );
-        const out = rows.map((r) => ({
-          key: String((r as any)?.domainId ?? ''),
-          nameKey: (r as any)?.name != null ? String((r as any).name) : null,
-          uid: null,
-          caption: (r as any)?.name != null ? String((r as any).name) : null,
-          extendsKey: null,
-          category: (r as any)?.category != null ? String((r as any).category) : null,
-        }));
-        console.log('[oasfDomains] mode=legacy', { filters: { key, nameKey, category, extendsKey }, limit, offset, rows: out.length });
-        return out;
-      };
+      const rows = await runGraphdbQuery(sparql);
+      return rows.map((row: any) => ({
+        key: row.key?.value ?? '',
+        nameKey: row.name?.value ?? null,
+        uid: row.uid?.value != null ? Number(row.uid.value) : null,
+        caption: row.caption?.value ?? null,
+        extendsKey: row.extendsKey?.value ? decodeKey(row.extendsKey.value) : null,
+        category: row.category?.value ?? null,
+      }));
+    },
 
-      try {
-        return await runModern();
-      } catch (e: any) {
-        const msg = String(e?.message || e);
-        console.log('[oasfDomains] modern failed; falling back', { message: msg });
-        if (msg.includes('no such column: category')) {
-          return await runSemiModernNoCategory();
+    intentTypes: async (args: { key?: string; label?: string; limit?: number; offset?: number }) => {
+      const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
+      const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
+      const filters: string[] = [];
+      if (args?.label) filters.push(`?label = "${args.label}"`);
+      if (args?.key) filters.push(`?key = "${args.key}"`);
+
+      const sparql = [
+        'PREFIX core: <https://agentictrust.io/ontology/core#>',
+        'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
+        'SELECT ?intent ?label ?description ?key WHERE {',
+        '  ?intent a core:IntentType .',
+        '  OPTIONAL { ?intent rdfs:label ?label }',
+        '  OPTIONAL { ?intent rdfs:comment ?description }',
+        `  BIND(REPLACE(STR(?intent), "${CORE_INTENT_BASE}", "") AS ?key)`,
+        filters.length ? `  FILTER(${filters.join(' && ')})` : '',
+        '}',
+        'ORDER BY ?key',
+        `LIMIT ${limit}`,
+        `OFFSET ${offset}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const rows = await runGraphdbQuery(sparql);
+      return rows.map((row: any) => ({
+        key: decodeKey(row.key?.value ?? ''),
+        label: row.label?.value ?? null,
+        description: row.description?.value ?? null,
+      }));
+    },
+
+    taskTypes: async (args: { key?: string; label?: string; limit?: number; offset?: number }) => {
+      const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
+      const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
+      const filters: string[] = [];
+      if (args?.label) filters.push(`?label = "${args.label}"`);
+      if (args?.key) filters.push(`?key = "${args.key}"`);
+
+      const sparql = [
+        'PREFIX core: <https://agentictrust.io/ontology/core#>',
+        'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
+        'SELECT ?task ?label ?description ?key WHERE {',
+        '  ?task a core:TaskType .',
+        '  OPTIONAL { ?task rdfs:label ?label }',
+        '  OPTIONAL { ?task rdfs:comment ?description }',
+        `  BIND(REPLACE(STR(?task), "${CORE_TASK_BASE}", "") AS ?key)`,
+        filters.length ? `  FILTER(${filters.join(' && ')})` : '',
+        '}',
+        'ORDER BY ?key',
+        `LIMIT ${limit}`,
+        `OFFSET ${offset}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const rows = await runGraphdbQuery(sparql);
+      return rows.map((row: any) => ({
+        key: decodeKey(row.key?.value ?? ''),
+        label: row.label?.value ?? null,
+        description: row.description?.value ?? null,
+      }));
+    },
+
+    intentTaskMappings: async (args: { intentKey?: string; taskKey?: string; limit?: number; offset?: number }) => {
+      const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
+      const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
+      const filters: string[] = [];
+      if (args?.intentKey) filters.push(`?intentKey = "${args.intentKey}"`);
+      if (args?.taskKey) filters.push(`?taskKey = "${args.taskKey}"`);
+
+      const sparql = [
+        'PREFIX core: <https://agentictrust.io/ontology/core#>',
+        'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
+        'SELECT ?mapping ?intent ?task ?intentKey ?taskKey ?intentLabel ?taskLabel ?intentDesc ?taskDesc ?req ?opt WHERE {',
+        '  ?mapping a core:IntentTaskMapping ;',
+        '    core:mapsIntentType ?intent ;',
+        '    core:mapsTaskType ?task .',
+        '  OPTIONAL { ?mapping core:requiresSkill ?req }',
+        '  OPTIONAL { ?mapping core:mayUseSkill ?opt }',
+        '  OPTIONAL { ?intent rdfs:label ?intentLabel }',
+        '  OPTIONAL { ?intent rdfs:comment ?intentDesc }',
+        '  OPTIONAL { ?task rdfs:label ?taskLabel }',
+        '  OPTIONAL { ?task rdfs:comment ?taskDesc }',
+        `  BIND(REPLACE(STR(?intent), "${CORE_INTENT_BASE}", "") AS ?intentKey)`,
+        `  BIND(REPLACE(STR(?task), "${CORE_TASK_BASE}", "") AS ?taskKey)`,
+        filters.length ? `  FILTER(${filters.join(' && ')})` : '',
+        '}',
+        'ORDER BY ?intentKey ?taskKey',
+        `LIMIT ${limit}`,
+        `OFFSET ${offset}`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const rows = await runGraphdbQuery(sparql);
+      const map = new Map<string, any>();
+      for (const row of rows) {
+        const intentKey = decodeKey(row.intentKey?.value ?? '');
+        const taskKey = decodeKey(row.taskKey?.value ?? '');
+        const mapKey = `${intentKey}::${taskKey}`;
+        if (!map.has(mapKey)) {
+          map.set(mapKey, {
+            intent: {
+              key: intentKey,
+              label: row.intentLabel?.value ?? null,
+              description: row.intentDesc?.value ?? null,
+            },
+            task: {
+              key: taskKey,
+              label: row.taskLabel?.value ?? null,
+              description: row.taskDesc?.value ?? null,
+            },
+            requiredSkills: new Set<string>(),
+            optionalSkills: new Set<string>(),
+          });
         }
-        if (msg.includes('no such column')) {
-          return await runLegacy();
+        const entry = map.get(mapKey);
+        if (row.req?.value) {
+          const key = skillKeyFromIri(String(row.req.value));
+          if (key) entry.requiredSkills.add(key);
         }
-        throw e;
+        if (row.opt?.value) {
+          const key = skillKeyFromIri(String(row.opt.value));
+          if (key) entry.optionalSkills.add(key);
+        }
       }
+      return Array.from(map.values()).map((entry) => ({
+        intent: entry.intent,
+        task: entry.task,
+        requiredSkills: Array.from(entry.requiredSkills),
+        optionalSkills: Array.from(entry.optionalSkills),
+      }));
     },
 
     agents: async (args: {
@@ -1898,7 +1822,13 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const parsedIntent = intentJson ? parseIntentJson(intentJson) : {};
       const intentType = parsedIntent.intentType;
       const intentQuery = parsedIntent.query;
-      const intentText = buildIntentQueryText({ intentType, intentQuery });
+      const intentDefaults = await resolveIntentRequirements(intentType);
+      const intentText = buildIntentQueryText({
+        intentType,
+        intentQuery,
+        label: intentDefaults.label,
+        description: intentDefaults.description,
+      });
       const intentFallbackText = intentJson ? intentJsonToSearchText(intentJson) : '';
       const combined = [text, intentText || intentFallbackText]
         .filter((s) => typeof s === 'string' && s.trim().length > 0)
@@ -1946,7 +1876,6 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         ? normalizeSkillList(input.requiredSkills.filter((s) => typeof s === 'string'))
         : [];
 
-      const intentDefaults = resolveIntentRequirements(intentType);
       const requiredSkills = normalizeSkillList([
         ...(requiredSkillsInput.length ? requiredSkillsInput : intentDefaults.requiredSkills),
       ]);
@@ -2021,9 +1950,13 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
               name: entry.agent?.agentName ?? null,
               score: entry.score,
               matchedSkills: entry.matchedSkills ?? [],
+              matchedSkillsList: (entry.matchedSkills ?? []).join(', '),
               a2aSkills: Array.isArray((filteredMatches[idx]?.match.metadata as any)?.a2aSkills)
                 ? (filteredMatches[idx]?.match.metadata as any).a2aSkills
                 : [],
+              a2aSkillsList: Array.isArray((filteredMatches[idx]?.match.metadata as any)?.a2aSkills)
+                ? ((filteredMatches[idx]?.match.metadata as any).a2aSkills as string[]).join(', ')
+                : '',
             })),
           });
         } catch {

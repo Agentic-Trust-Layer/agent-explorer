@@ -23,6 +23,25 @@ export const graphQLSchemaString = `
     category: String
   }
 
+  type IntentType {
+    key: String!
+    label: String
+    description: String
+  }
+
+  type TaskType {
+    key: String!
+    label: String
+    description: String
+  }
+
+  type IntentTaskMapping {
+    intent: IntentType!
+    task: TaskType!
+    requiredSkills: [String!]!
+    optionalSkills: [String!]!
+  }
+
   type Agent {
     chainId: Int!
 
@@ -592,6 +611,27 @@ export const graphQLSchemaString = `
       orderBy: String
       orderDirection: String
     ): [OasfDomain!]!
+
+    intentTypes(
+      key: String
+      label: String
+      limit: Int
+      offset: Int
+    ): [IntentType!]!
+
+    taskTypes(
+      key: String
+      label: String
+      limit: Int
+      offset: Int
+    ): [TaskType!]!
+
+    intentTaskMappings(
+      intentKey: String
+      taskKey: String
+      limit: Int
+      offset: Int
+    ): [IntentTaskMapping!]!
 
     agents(
       chainId: Int

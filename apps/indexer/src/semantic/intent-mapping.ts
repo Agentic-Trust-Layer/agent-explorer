@@ -1,98 +1,19 @@
-type IntentSkillMapping = {
-  executable?: string[];
-  oasf?: string[];
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { getGraphdbConfigFromEnv, queryGraphdb } from '../graphdb/graphdb-http';
+
+type IntentRequirement = {
+  requiredSkills: string[];
   label?: string;
   description?: string;
 };
 
-export const INTENT_TO_SKILLS_MAP: Record<string, IntentSkillMapping> = {
-  'governance.membership.add': {
-    executable: ['governance_and_trust/membership/add_member'],
-    label: 'Add Member',
-    description: 'Add a member to a membership group.',
-  },
-  'governance.membership.remove': {
-    executable: ['governance_and_trust/membership/remove_member'],
-    label: 'Remove Member',
-    description: 'Remove a member from a membership group.',
-  },
-  'governance.membership.verify': {
-    executable: ['governance_and_trust/membership/verify_membership'],
-    label: 'Verify Membership',
-    description: 'Verify that an account is a member of a membership group.',
-  },
-  'governance.alliance.join': {
-    executable: ['governance_and_trust/alliance/join_alliance'],
-    label: 'Join Alliance',
-    description: 'Join an alliance group.',
-  },
-  'governance.alliance.leave': {
-    executable: ['governance_and_trust/alliance/leave_alliance'],
-    label: 'Leave Alliance',
-    description: 'Leave an alliance group.',
-  },
-  'governance.alliance.verify': {
-    executable: ['governance_and_trust/alliance/verify_alliance_membership'],
-    label: 'Verify Alliance Membership',
-    description: 'Verify membership in an alliance.',
-  },
-  'governance.delegation.add': {
-    executable: ['governance_and_trust/delegation/add_delegation'],
-    label: 'Add Delegation',
-    description: 'Create a delegation from one party to another.',
-  },
-  'governance.delegation.revoke': {
-    executable: ['governance_and_trust/delegation/revoke_delegation'],
-    label: 'Revoke Delegation',
-    description: 'Revoke an existing delegation.',
-  },
-  'governance.delegation.verify': {
-    executable: ['governance_and_trust/delegation/verify_delegation'],
-    label: 'Verify Delegation',
-    description: 'Verify that a delegation exists.',
-  },
-  'trust.name_validation': {
-    executable: ['governance_and_trust/trust/trust_validate_name'],
-    oasf: ['trust.validate.name'],
-    label: 'Validate Name',
-    description: 'Validate a claimed name.',
-  },
-  'trust.account_validation': {
-    executable: ['governance_and_trust/trust/trust_validate_account'],
-    oasf: ['trust.validate.account'],
-    label: 'Validate Account',
-    description: 'Validate account ownership or binding.',
-  },
-  'trust.app_validation': {
-    executable: ['governance_and_trust/trust/trust_validate_app'],
-    oasf: ['trust.validate.app'],
-    label: 'Validate App',
-    description: 'Validate an app identity and provenance.',
-  },
-  'trust.feedback': {
-    executable: ['governance_and_trust/trust/trust_feedback_authorization'],
-    oasf: ['trust.feedback.authorization'],
-    label: 'Feedback Authorization',
-    description: 'Authorize or validate trust feedback.',
-  },
-  'trust.association': {
-    oasf: ['trust.association.attestation'],
-    label: 'Association Attestation',
-    description: 'Attest or validate an association.',
-  },
-  'trust.membership': {
-    oasf: ['trust.association.attestation'],
-    label: 'Membership Attestation',
-    description: 'Legacy membership attestation.',
-  },
-  'trust.delegation': {
-    oasf: ['trust.association.attestation'],
-    label: 'Delegation Attestation',
-    description: 'Legacy delegation attestation.',
-  },
-};
+type IntentCacheEntry = IntentRequirement & { cachedAt: number };
 
-const EXECUTABLE_INTENT_MAP = INTENT_TO_SKILLS_MAP;
+const CORE_INTENT_BASE = 'https://agentictrust.io/ontology/core/intent/';
+const OASF_SKILL_BASE = 'https://agentictrust.io/ontology/oasf#skill/';
+const DEFAULT_CACHE_MS = 5 * 60_000;
+const intentCache = new Map<string, IntentCacheEntry>();
 
 function humanizeIntentType(intentType: string): string {
   const tail = intentType.split('.').pop() || intentType;
@@ -102,32 +23,114 @@ function humanizeIntentType(intentType: string): string {
     .join(' ');
 }
 
-export function resolveIntentRequirements(intentType?: string | null): {
-  requiredSkills: string[];
-  label?: string;
-  description?: string;
-} {
-  if (!intentType) {
-    return { requiredSkills: [] };
+function intentIri(intentType: string): string {
+  return `${CORE_INTENT_BASE}${encodeURIComponent(intentType)}`;
+}
+
+function skillKeyFromIri(iri: string): string | null {
+  if (iri.startsWith(OASF_SKILL_BASE)) {
+    return iri.slice(OASF_SKILL_BASE.length);
   }
-  const mapping = EXECUTABLE_INTENT_MAP[intentType];
-  return {
-    requiredSkills: mapping?.executable ?? [],
-    label: mapping?.label ?? humanizeIntentType(intentType),
-    description: mapping?.description,
+  return null;
+}
+
+async function loadIntentFile(): Promise<Record<string, IntentRequirement>> {
+  const filePath = path.resolve(process.cwd(), '../ontology/data/intent-task-mappings.json');
+  const text = await fs.readFile(filePath, 'utf8');
+  const json = JSON.parse(text) as {
+    intents?: Array<{ id: string; label?: string; description?: string; tasks?: string[] }>;
+    mappings?: Array<{ intentId: string; taskId: string; requiredSkills?: string[] }>;
   };
+  const out: Record<string, IntentRequirement> = {};
+  const mappingsByIntent = new Map<string, string[]>();
+  for (const mapping of json.mappings ?? []) {
+    const list = mappingsByIntent.get(mapping.intentId) ?? [];
+    list.push(...(mapping.requiredSkills ?? []));
+    mappingsByIntent.set(mapping.intentId, list);
+  }
+  for (const intent of json.intents ?? []) {
+    out[intent.id] = {
+      requiredSkills: mappingsByIntent.get(intent.id) ?? [],
+      label: intent.label,
+      description: intent.description,
+    };
+  }
+  return out;
+}
+
+export async function resolveIntentRequirements(intentType?: string | null): Promise<IntentRequirement> {
+  if (!intentType) return { requiredSkills: [] };
+  const cacheMs = Number(process.env.INTENT_REQUIREMENTS_CACHE_MS || DEFAULT_CACHE_MS);
+  const cached = intentCache.get(intentType);
+  if (cached && Date.now() - cached.cachedAt < cacheMs) {
+    return cached;
+  }
+
+  try {
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    const intent = intentIri(intentType);
+    const sparql = [
+      'PREFIX core: <https://agentictrust.io/ontology/core#>',
+      'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
+      'SELECT ?label ?description ?skill WHERE {',
+      `  BIND(<${intent}> AS ?intent)`,
+      '  OPTIONAL { ?intent rdfs:label ?label }',
+      '  OPTIONAL { ?intent rdfs:comment ?description }',
+      '  OPTIONAL {',
+      '    ?mapping a core:IntentTaskMapping ;',
+      '      core:mapsIntentType ?intent ;',
+      '      core:requiresSkill ?skill .',
+      '  }',
+      '}',
+    ].join('\n');
+    const result = await queryGraphdb(baseUrl, repository, auth, sparql);
+    const bindings = Array.isArray(result?.results?.bindings) ? result.results.bindings : [];
+    const skills = new Set<string>();
+    let label: string | undefined;
+    let description: string | undefined;
+    for (const row of bindings) {
+      if (!label && row.label?.value) label = String(row.label.value);
+      if (!description && row.description?.value) description = String(row.description.value);
+      if (row.skill?.value) {
+        const key = skillKeyFromIri(String(row.skill.value));
+        if (key) skills.add(key);
+      }
+    }
+    const resolved = {
+      requiredSkills: Array.from(skills),
+      label: label ?? humanizeIntentType(intentType),
+      description,
+    };
+    intentCache.set(intentType, { ...resolved, cachedAt: Date.now() });
+    return resolved;
+  } catch (err) {
+    try {
+      const fileData = await loadIntentFile();
+      const fallback = fileData[intentType] ?? { requiredSkills: [] };
+      const resolved = {
+        requiredSkills: fallback.requiredSkills ?? [],
+        label: fallback.label ?? humanizeIntentType(intentType),
+        description: fallback.description,
+      };
+      intentCache.set(intentType, { ...resolved, cachedAt: Date.now() });
+      return resolved;
+    } catch {
+      return { requiredSkills: [], label: humanizeIntentType(intentType) };
+    }
+  }
 }
 
 export function buildIntentQueryText(args: {
   intentType?: string | null;
   intentQuery?: string | null;
+  label?: string;
+  description?: string;
 }): string {
-  const { intentType, intentQuery } = args;
+  const { intentType, intentQuery, label, description } = args;
   const parts: string[] = [];
   if (intentType) {
-    const resolved = resolveIntentRequirements(intentType);
-    if (resolved.label) parts.push(resolved.label);
-    if (resolved.description) parts.push(resolved.description);
+    if (label) parts.push(label);
+    if (description) parts.push(description);
   }
   if (intentQuery && intentQuery.trim()) {
     parts.push(intentQuery.trim());

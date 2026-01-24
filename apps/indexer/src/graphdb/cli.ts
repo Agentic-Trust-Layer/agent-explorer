@@ -6,7 +6,7 @@ function usage(): never {
       'Usage:',
       '  tsx src/graphdb/cli.ts repos',
       '  tsx src/graphdb/cli.ts create-repo [--force]',
-      '  tsx src/graphdb/cli.ts ingest [all|agents|ontologies] [--reset]',
+      '  tsx src/graphdb/cli.ts ingest [all|agents|ontologies|oasf|intents] [--reset]',
       '  tsx src/graphdb/cli.ts ingest-hol [all|agents|ontologies] [--reset]',
       '',
       'Env:',
@@ -61,12 +61,22 @@ async function main(): Promise<void> {
       await mod.ingestAgentsRdfToGraphdb({ resetContext: reset });
       return;
     }
+    if (target === 'oasf') {
+      await mod.ingestOasfToGraphdb({ resetContext: reset });
+      return;
+    }
+    if (target === 'intents') {
+      await mod.ingestIntentTaskMappingsToGraphdb({ resetContext: reset });
+      return;
+    }
     if (target === 'ontologies') {
       await mod.ingestOntologiesToGraphdb({ resetContext: reset });
       return;
     }
     if (target === 'all') {
       await mod.ingestOntologiesToGraphdb({ resetContext: reset });
+      await mod.ingestOasfToGraphdb({ resetContext: reset });
+      await mod.ingestIntentTaskMappingsToGraphdb({ resetContext: reset });
       await mod.ingestAgentsRdfToGraphdb({ resetContext: reset });
       return;
     }

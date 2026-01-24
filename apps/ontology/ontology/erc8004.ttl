@@ -1,0 +1,14 @@
+@base <https://agentictrust.io/ontology/erc8004#> .
+@prefix : <https://agentictrust.io/ontology/erc8004#> .
+@prefix eth: <https://agentictrust.io/ontology/eth#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+:Ontology a owl:Ontology ;
+  rdfs:label "ERC-8004 Ontology" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/eth> .
+
+:AgentAccount a owl:Class ;
+  rdfs:label "ERC-8004 Agent Account" ;
+  rdfs:subClassOf eth:EthereumAccount .

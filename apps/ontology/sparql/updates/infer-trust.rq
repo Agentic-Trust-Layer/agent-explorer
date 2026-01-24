@@ -1,0 +1,9 @@
+PREFIX : <https://agentictrust.io/ontology/core#>
+
+INSERT {
+  ?assertion :hasTrustScore ?score .
+}
+WHERE {
+  ?assertion a :TrustAssertion ;
+    :hasTrustScore ?score .
+}

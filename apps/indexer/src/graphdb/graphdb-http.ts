@@ -223,4 +223,28 @@ export async function uploadFileToRepository(
   return { bytes: stat.size };
 }
 
+export async function queryGraphdb(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  sparql: string,
+): Promise<any> {
+  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}`);
+  const res = await graphdbFetch(url, {
+    method: 'POST',
+    auth,
+    timeoutMs: 30_000,
+    headers: {
+      'Content-Type': 'application/sparql-query',
+      Accept: 'application/sparql-results+json',
+    },
+    body: sparql,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GraphDB SPARQL query failed: HTTP ${res.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+  }
+  return res.json();
+}
+
 

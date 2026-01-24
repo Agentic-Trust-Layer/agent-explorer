@@ -1,0 +1,4 @@
+@prefix : <https://agentictrust.io/ontology/core#> .
+
+:assertion-1 a :TrustAssertion ;
+  :hasTrustScore 0.75 .

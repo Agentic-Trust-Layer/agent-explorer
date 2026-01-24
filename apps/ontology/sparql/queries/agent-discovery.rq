@@ -1,0 +1,5 @@
+PREFIX : <https://agentictrust.io/ontology/core#>
+
+SELECT ?agent WHERE {
+  ?agent a :Agent .
+}

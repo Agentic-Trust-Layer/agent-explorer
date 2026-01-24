@@ -1,0 +1,4 @@
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+
+# Place owl:equivalentClass or owl:sameAs mappings here.
