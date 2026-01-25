@@ -1,0 +1,122 @@
+@base <https://agentictrust.io/ontology/erc8092#> .
+@prefix : <https://agentictrust.io/ontology/erc8092#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix eth: <https://agentictrust.io/ontology/eth#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/erc8092> a owl:Ontology ;
+  rdfs:label "ERC-8092 Ontology" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/trust> ;
+  owl:imports <https://agentictrust.io/ontology/eth> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> .
+
+:TrustAssertion a owl:Class ;
+  rdfs:label "TrustAssertion8092" ;
+  rdfs:subClassOf core:RelationshipTrustAssertion .
+
+:TrustAssertionAct a owl:Class ;
+  rdfs:label "TrustAssertionAct8092" ;
+  rdfs:subClassOf core:RelationshipTrustAssertionAct .
+
+:AssociatedAccounts8092 a owl:Class ;
+  rdfs:label "AssociatedAccounts8092" ;
+  rdfs:comment "Account association relationship record." ;
+  rdfs:subClassOf :TrustAssertion .
+
+:AssociatedAccountsAct8092 a owl:Class ;
+  rdfs:label "AssociatedAccountsAct8092" ;
+  rdfs:subClassOf :TrustAssertionAct .
+
+:AssociatedAccountsRevocation8092 a owl:Class ;
+  rdfs:label "AssociatedAccountsRevocation8092" ;
+  rdfs:subClassOf :TrustAssertion .
+
+:AssociatedAccountsRevocationAct8092 a owl:Class ;
+  rdfs:label "AssociatedAccountsRevocationAct8092" ;
+  rdfs:subClassOf :TrustAssertionAct .
+
+:associationId a owl:DatatypeProperty ;
+  rdfs:label "associationId" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:string .
+
+:relationshipAssertionId a owl:DatatypeProperty ;
+  rdfs:label "relationshipAssertionId" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:string .
+
+:initiator a owl:ObjectProperty ;
+  rdfs:label "initiator" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range prov:Agent .
+
+:approver a owl:ObjectProperty ;
+  rdfs:label "approver" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range prov:Agent .
+
+:initiatorAccountId a owl:DatatypeProperty ;
+  rdfs:label "initiatorAccountId" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:string .
+
+:approverAccountId a owl:DatatypeProperty ;
+  rdfs:label "approverAccountId" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:string .
+
+:hasAssociatedAccounts a owl:ObjectProperty ;
+  rdfs:label "hasAssociatedAccounts" ;
+  rdfs:domain eth:Account ;
+  rdfs:range :AssociatedAccounts8092 .
+
+:interfaceId a owl:DatatypeProperty ;
+  rdfs:label "interfaceId" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:string .
+
+:validAt a owl:DatatypeProperty ;
+  rdfs:label "validAt" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:dateTime .
+
+:validUntil a owl:DatatypeProperty ;
+  rdfs:label "validUntil" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:dateTime .
+
+:revokedAt a owl:DatatypeProperty ;
+  rdfs:label "revokedAt" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:dateTime .
+
+:dataHex a owl:DatatypeProperty ;
+  rdfs:label "dataHex" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:string .
+
+:createdTxHash a owl:DatatypeProperty ;
+  rdfs:label "createdTxHash" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:string .
+
+:createdBlockNumber a owl:DatatypeProperty ;
+  rdfs:label "createdBlockNumber" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:integer .
+
+:createdTimestamp a owl:DatatypeProperty ;
+  rdfs:label "createdTimestamp" ;
+  rdfs:domain :AssociatedAccounts8092 ;
+  rdfs:range xsd:integer .
+
+:revocationOfAssociatedAccounts a owl:ObjectProperty ;
+  rdfs:label "revocationOfAssociatedAccounts" ;
+  rdfs:domain :AssociatedAccountsRevocation8092 ;
+  rdfs:range :AssociatedAccounts8092 .

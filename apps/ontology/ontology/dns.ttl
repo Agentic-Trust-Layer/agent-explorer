@@ -1,0 +1,46 @@
+@base <https://agentictrust.io/ontology/dns#> .
+@prefix : <https://agentictrust.io/ontology/dns#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/dns> a owl:Ontology ;
+  rdfs:label "Agentic Trust DNS Ontology" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/identity> ;
+  owl:imports <https://agentictrust.io/ontology/core/descriptors> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> .
+
+:DnsName a owl:Class ;
+  rdfs:label "DNS Name" ;
+  rdfs:comment "DNS-based agent name." ;
+  rdfs:subClassOf core:AgentName ;
+  rdfs:subClassOf prov:Entity .
+
+:DnsNameIdentifier a owl:Class ;
+  rdfs:label "DNS Name Identifier" ;
+  rdfs:subClassOf core:Identifier ;
+  rdfs:subClassOf prov:Entity .
+
+:DnsNameDescriptor a owl:Class ;
+  rdfs:label "DNS Name Descriptor" ;
+  rdfs:subClassOf core:AgentNameDescriptor .
+
+:hasDnsName a owl:ObjectProperty ;
+  rdfs:label "has DNS name" ;
+  rdfs:domain prov:Agent ;
+  rdfs:range :DnsName .
+
+:dnsName a owl:DatatypeProperty ;
+  rdfs:label "dns name" ;
+  rdfs:domain :DnsName ;
+  rdfs:range xsd:string .
+
+:hasDnsNameIdentifier a owl:ObjectProperty ;
+  rdfs:label "has DNS name identifier" ;
+  rdfs:domain :DnsName ;
+  rdfs:range :DnsNameIdentifier .

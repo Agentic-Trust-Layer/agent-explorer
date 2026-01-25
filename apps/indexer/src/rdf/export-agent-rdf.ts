@@ -14,17 +14,23 @@ function rdfPrefixes(): string {
     '@prefix prov: <http://www.w3.org/ns/prov#> .',
     '@prefix p-plan: <http://purl.org/net/p-plan#> .',
     '@prefix dcterms: <http://purl.org/dc/terms/> .',
-    '@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .',
-    '@prefix agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#> .',
-    '@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .',
-    '@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .',
+    '@prefix core: <https://agentictrust.io/ontology/core#> .',
+    '@prefix eth: <https://agentictrust.io/ontology/eth#> .',
+    '@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .',
+    '@prefix erc8092: <https://agentictrust.io/ontology/erc8092#> .',
+    '@prefix oasf: <https://agentictrust.io/ontology/oasf#> .',
     '',
     // Provide an ontology header so Protégé auto-loads imports instead of requiring manual import.
     '<https://www.agentictrust.io/data/agents> a owl:Ontology ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-eth> ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/ERC8004> ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/ERC8092> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/descriptors> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/identifier> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/identity> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/trust> ;',
+    '  owl:imports <https://agentictrust.io/ontology/oasf> ;',
+    '  owl:imports <https://agentictrust.io/ontology/eth> ;',
+    '  owl:imports <https://agentictrust.io/ontology/erc8004> ;',
+    '  owl:imports <https://agentictrust.io/ontology/erc8092> ;',
     '  .',
     '',
   ].join('\n');
@@ -43,17 +49,23 @@ function rdfPrefixesForAgent(agent?: ExportOneAgent): string {
     '@prefix prov: <http://www.w3.org/ns/prov#> .',
     '@prefix p-plan: <http://purl.org/net/p-plan#> .',
     '@prefix dcterms: <http://purl.org/dc/terms/> .',
-    '@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .',
-    '@prefix agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#> .',
-    '@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .',
-    '@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .',
+    '@prefix core: <https://agentictrust.io/ontology/core#> .',
+    '@prefix eth: <https://agentictrust.io/ontology/eth#> .',
+    '@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .',
+    '@prefix erc8092: <https://agentictrust.io/ontology/erc8092#> .',
+    '@prefix oasf: <https://agentictrust.io/ontology/oasf#> .',
     '',
     // Provide an ontology header so Protégé auto-loads imports instead of requiring manual import.
     `${ontologyIri} a owl:Ontology ;`,
-    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-core> ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/agentictrust-eth> ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/ERC8004> ;',
-    '  owl:imports <https://www.agentictrust.io/ontology/ERC8092> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/descriptors> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/identifier> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/identity> ;',
+    '  owl:imports <https://agentictrust.io/ontology/core/trust> ;',
+    '  owl:imports <https://agentictrust.io/ontology/oasf> ;',
+    '  owl:imports <https://agentictrust.io/ontology/eth> ;',
+    '  owl:imports <https://agentictrust.io/ontology/erc8004> ;',
+    '  owl:imports <https://agentictrust.io/ontology/erc8092> ;',
     '  .',
     '',
   ].join('\n');
@@ -219,7 +231,7 @@ function situationIri(chainId: number, agentId: string, situationType: string, s
 }
 
 function intentTypeIri(intentTypeName: string): string {
-  return `https://www.agentictrust.io/ontology/agentictrust-core/intentType/${iriEncodeSegment(intentTypeName)}`;
+  return `https://agentictrust.io/ontology/core/intentType/${iriEncodeSegment(intentTypeName)}`;
 }
 
 function domainIri(domainName: string): string {
@@ -328,10 +340,10 @@ function ensureAccountNode(
   // Account is prov:SoftwareAgent (enabling participation in relationships), inherits from prov:Agent
   // Account is Ethereum-specific, uses agentictrustEth prefix
   chunks.push(
-    `${acctIri} a agentictrustEth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;\n` +
-      `  agentictrustEth:accountChainId ${chainId} ;\n` +
-      `  agentictrustEth:accountAddress "${escapeTurtleString(addr.toLowerCase())}" ;\n` +
-      `  agentictrustEth:accountType "${accountType}" .\n\n`,
+    `${acctIri} a eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;\n` +
+      `  eth:accountChainId ${chainId} ;\n` +
+      `  eth:accountAddress "${escapeTurtleString(addr.toLowerCase())}" ;\n` +
+      `  eth:accountType "${accountType}" .\n\n`,
   );
 }
 
@@ -528,10 +540,10 @@ function renderAgentSection(
   const afterAgent: string[] = [];
 
   // Agent
-  lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
-  lines.push(`  a agentictrustEth:Account ;`);
-  lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
-  if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
+  lines.push(`${aIri} a core:AIAgent, prov:SoftwareAgent ;`);
+  lines.push(`  a eth:Account ;`);
+  lines.push(`  core:agentId "${escapeTurtleString(String(agentId))}" ;`);
+  if (row?.agentName) lines.push(`  core:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
 
   // AgentRegistration8004 (ERC-8004 registration descriptor extracted from rawJson)
   const adIri = agentDescriptorIri(chainId, agentId, didAccountValue);
@@ -543,7 +555,7 @@ function renderAgentSection(
     // Do NOT link registration descriptor directly off the Agent.
     // Preferred path: Agent -> hasIdentity -> (AgentIdentity8004) -> hasDescriptor -> AgentRegistration8004.
   } else {
-    lines.push(`  agentictrust:hasAgentDescriptor ${adIri} ;`);
+    lines.push(`  core:hasAgentDescriptor ${adIri} ;`);
   }
   
   // Identity8004 and IdentityIdentifier8004 for didIdentity
@@ -555,15 +567,15 @@ function renderAgentSection(
         : null;
 
   if (didIdentityValue) {
-    lines.push(`  agentictrust:didIdentity "${escapeTurtleString(didIdentityValue)}" ;`);
+    lines.push(`  core:didIdentity "${escapeTurtleString(didIdentityValue)}" ;`);
     const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(didIdentityValue)}>`;
     
     // Create Identity8004 instance
     const identity8004IriValue = identity8004Iri(chainId, agentId, didIdentityValue);
-    lines.push(`  agentictrust:hasIdentity ${identity8004IriValue} ;`);
+    lines.push(`  core:hasIdentity ${identity8004IriValue} ;`);
 
     // Link identity -> registration descriptor (preferred discovery path)
-    accountChunks.push(`${identity8004IriValue} agentictrust:hasDescriptor ${adIri} .\n\n`);
+    accountChunks.push(`${identity8004IriValue} core:hasDescriptor ${adIri} .\n\n`);
     
     // Create IdentityIdentifier8004 instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', didIdentityValue);
@@ -571,29 +583,29 @@ function renderAgentSection(
     // Emit AgentIdentity8004
     accountChunks.push(
       `${identity8004IriValue} a erc8004:AgentIdentity8004, prov:Entity ;\n` +
-        `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
+        `  core:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
     // Emit IdentityIdentifier8004
     const identityDescriptorIriValue = identifierDescriptorIri(identityIdentifierIri, '8004');
     accountChunks.push(
-      `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
-        `  agentictrust:hasDescriptor ${identityDescriptorIriValue} .\n\n`,
+      `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, core:UniversalIdentifier, core:Identifier, prov:Entity ;\n` +
+        `  core:identifierType erc8004:IdentifierType_8004 ;\n` +
+        `  core:hasDescriptor ${identityDescriptorIriValue} .\n\n`,
     );
     
     // Emit IdentifierDescriptor for IdentityIdentifier8004 with DID
     accountChunks.push(
-      `${identityDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
-        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
+      `${identityDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity ;\n` +
+        `  core:hasDID ${didIdentityIri} .\n\n`,
     );
     
     // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
     // DID identifies the IdentityIdentifier8004 via identifies property
     // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifies ${identityIdentifierIri} .\n\n`,
+      `${didIdentityIri} a core:DID, core:DecentralizedIdentifier, core:Identifier, prov:Entity ;\n` +
+        `  core:identifies ${identityIdentifierIri} .\n\n`,
     );
   }
   
@@ -606,101 +618,101 @@ function renderAgentSection(
     // Create NameIdentifierENS instance
     const ensIdentifierIri = identifierIri(chainId, agentId, 'ens', null, ensName);
     // Link agent directly to NameENSIdentifier via hasIdentifier
-    lines.push(`  agentictrust:hasIdentifier ${ensIdentifierIri} ;`);
+    lines.push(`  core:hasIdentifier ${ensIdentifierIri} ;`);
     
     // Create NameENS instance
     const ensNameIriValue = ensNameIri(chainId, ensName);
-    lines.push(`  agentictrust:hasName ${ensNameIriValue} ;`);
+    lines.push(`  core:hasName ${ensNameIriValue} ;`);
     
     // Emit NameENS
     accountChunks.push(
-      `${ensNameIriValue} a agentictrustEth:AgentNameENS, agentictrust:AgentName, prov:Entity ;\n` +
-        `  agentictrustEth:ensName "${escapeTurtleString(ensName)}" ;\n` +
-        `  agentictrustEth:ensChainId ${chainId} ;\n` +
-        `  agentictrustEth:hasIdentifier ${ensIdentifierIri} .\n\n`,
+      `${ensNameIriValue} a eth:AgentNameENS, core:AgentName, prov:Entity ;\n` +
+        `  eth:ensName "${escapeTurtleString(ensName)}" ;\n` +
+        `  eth:ensChainId ${chainId} ;\n` +
+        `  eth:hasIdentifier ${ensIdentifierIri} .\n\n`,
     );
     
     // Emit NameIdentifierENS
     const ensDescriptorIriValue = identifierDescriptorIri(ensIdentifierIri, 'ens');
     accountChunks.push(
-      `${ensIdentifierIri} a agentictrustEth:NameIdentifierENS, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
+      `${ensIdentifierIri} a eth:NameIdentifierENS, core:Identifier, prov:Entity ;\n` +
+        `  core:identifierType eth:IdentifierType_ens ;\n` +
         `  rdfs:label "${escapeTurtleString(ensName)}" ;\n` +
-        `  agentictrust:hasDescriptor ${ensDescriptorIriValue} .\n\n`,
+        `  core:hasDescriptor ${ensDescriptorIriValue} .\n\n`,
     );
     
     // Emit IdentifierDescriptor for NameIdentifierENS with DID
     accountChunks.push(
-      `${ensDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
-        `  agentictrust:hasDID ${ensDidIri} .\n\n`,
+      `${ensDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity ;\n` +
+        `  core:hasDID ${ensDidIri} .\n\n`,
     );
     
     // Emit DID for ENS name (DID is a DecentralizedIdentifier, which is a type of Identifier)
     // DID identifies the NameIdentifierENS via identifies property
     // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifies ${ensIdentifierIri} .\n\n`,
+      `${ensDidIri} a core:DID, core:DecentralizedIdentifier, core:Identifier, prov:Entity ;\n` +
+        `  core:identifies ${ensIdentifierIri} .\n\n`,
     );
   }
   
-  if (row?.didAccount) lines.push(`  agentictrust:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
-  if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
+  if (row?.didAccount) lines.push(`  core:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
+  if (row?.didName) lines.push(`  core:didName "${escapeTurtleString(String(row.didName))}" ;`);
   if (row?.agentAccount) {
-    lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
+    lines.push(`  core:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
     // Link to AccountIdentifier instance (agentAccount is the canonical on-chain address for the agent)
     const acctIri = accountIri(chainId, String(row.agentAccount));
     const accountIdentifierIriValue = accountIdentifierIri(chainId, String(row.agentAccount));
     // Link agent to AccountIdentifier via hasAccountIdentifier
-    lines.push(`  agentictrustEth:hasAccountIdentifier ${accountIdentifierIriValue} ;`);
+    lines.push(`  eth:hasAccountIdentifier ${accountIdentifierIriValue} ;`);
     // Also link via core hasIdentifier for protocol-agnostic access
-    lines.push(`  agentictrust:hasIdentifier ${accountIdentifierIriValue} ;`);
+    lines.push(`  core:hasIdentifier ${accountIdentifierIriValue} ;`);
     
     // Emit AccountIdentifier instance
     const accountIdentifierLines: string[] = [];
     const accountDescriptorIriValue = identifierDescriptorIri(accountIdentifierIriValue, 'account');
-    accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
-    accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
-    accountIdentifierLines.push(`  agentictrust:hasDescriptor ${accountDescriptorIriValue} ;`);
+    accountIdentifierLines.push(`${accountIdentifierIriValue} a eth:AccountIdentifier, core:Identifier, prov:Entity ;`);
+    accountIdentifierLines.push(`  core:identifierType eth:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  core:hasDescriptor ${accountDescriptorIriValue} ;`);
     // Link Account -> AccountIdentifier (canonical direction in agentictrust-eth)
-    accountChunks.push(`${acctIri} agentictrustEth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
+    accountChunks.push(`${acctIri} eth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
       // Emit IdentifierDescriptor for AccountIdentifier with DID
       accountChunks.push(
-        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
-          `  agentictrust:hasDID ${didIri} .\n\n`,
+        `${accountDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity ;\n` +
+          `  core:hasDID ${didIri} .\n\n`,
       );
       // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
       // DID identifies the AccountIdentifier via identifies property
       // Note: hasDID is only for Descriptor → DID, not Identifier → DID
       accountChunks.push(
-        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-          `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
+        `${didIri} a core:DID, core:DecentralizedIdentifier, core:Identifier, prov:Entity ;\n` +
+          `  core:identifies ${accountIdentifierIriValue} .\n\n`,
       );
     } else {
       // Emit IdentifierDescriptor for AccountIdentifier without DID
       accountChunks.push(
-        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity .\n\n`,
+        `${accountDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity .\n\n`,
       );
     }
     accountChunks.push(accountIdentifierLines.join('\n') + ' .\n\n');
     
     // Emit Account instance with account properties
     const accountLines: string[] = [];
-    accountLines.push(`${acctIri} a agentictrustEth:Account, prov:Entity ;`);
-    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
-    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
-    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
-    accountLines.push(`  agentictrustEth:hasIdentifier ${accountIdentifierIriValue} ;`);
+    accountLines.push(`${acctIri} a eth:Account, prov:Entity ;`);
+    accountLines.push(`  eth:accountChainId ${chainId} ;`);
+    accountLines.push(`  eth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
+    accountLines.push(`  eth:accountType "SmartAccount" ;`);
+    accountLines.push(`  eth:hasIdentifier ${accountIdentifierIriValue} ;`);
     // Link Agent Account to EOA owner if present
     if (row?.eoaAgentAccount) {
       const eoaAddr = normalizeHex(String(row.eoaAgentAccount));
       if (eoaAddr) {
         const eoaIri = accountIri(chainId, eoaAddr);
-        accountLines.push(`  agentictrustEth:hasEOAOwner ${eoaIri} ;`);
-        accountLines.push(`  agentictrustEth:signingAuthority ${eoaIri} ;`);
+        accountLines.push(`  eth:hasEOAOwner ${eoaIri} ;`);
+        accountLines.push(`  eth:signingAuthority ${eoaIri} ;`);
         // Emit EOA Account instance
         ensureAccountNode(accountChunks, chainId, eoaAddr, 'EOA');
       }
@@ -708,22 +720,22 @@ function renderAgentSection(
     accountLines.push(`  .\n`);
     accountChunks.push(accountLines.join('\n'));
   }
-  if (row?.agentIdentityOwnerAccount) lines.push(`  agentictrust:agentIdentityOwnerAccount "${escapeTurtleString(String(row.agentIdentityOwnerAccount))}" ;`);
-  if (row?.eoaAgentIdentityOwnerAccount) lines.push(`  agentictrust:eoaAgentIdentityOwnerAccount "${escapeTurtleString(String(row.eoaAgentIdentityOwnerAccount))}" ;`);
-  if (row?.eoaAgentAccount) lines.push(`  agentictrust:eoaAgentAccount "${escapeTurtleString(String(row.eoaAgentAccount))}" ;`);
+  if (row?.agentIdentityOwnerAccount) lines.push(`  core:agentIdentityOwnerAccount "${escapeTurtleString(String(row.agentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentIdentityOwnerAccount) lines.push(`  core:eoaAgentIdentityOwnerAccount "${escapeTurtleString(String(row.eoaAgentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentAccount) lines.push(`  core:eoaAgentAccount "${escapeTurtleString(String(row.eoaAgentAccount))}" ;`);
   if (row?.agentUri) {
     const tok = turtleIriOrLiteral(String(row.agentUri));
-    if (tok) lines.push(`  agentictrust:agentUri ${tok} ;`);
+    if (tok) lines.push(`  core:agentUri ${tok} ;`);
   }
   if (row?.a2aEndpoint) {
     const tok = turtleIriOrLiteral(String(row.a2aEndpoint));
-    if (tok) lines.push(`  agentictrust:a2aEndpoint ${tok} ;`);
+    if (tok) lines.push(`  core:a2aEndpoint ${tok} ;`);
   }
   // Removed: ensEndpoint / agentAccountEndpoint (columns removed; derive didName / CAIP10 when needed)
-  if (row?.supportedTrust) lines.push(`  agentictrust:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
-  if (row?.createdAtTime) lines.push(`  agentictrust:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
-  if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
-  if (row?.rawJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
+  if (row?.supportedTrust) lines.push(`  core:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
+  if (row?.createdAtTime) lines.push(`  core:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
+  if (row?.updatedAtTime) lines.push(`  core:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
+  if (row?.rawJson) lines.push(`  core:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
   lines.push(`  .\n`);
 
   // Populate AgentDescriptor with OASF skills/domains from agent card + agentURI registration JSON (if present)
@@ -755,35 +767,35 @@ function renderAgentSection(
   // Emit AgentRegistration8004 or AgentDescriptor node and links
   const adLines: string[] = [];
   if (isERC8004) {
-    adLines.push(`${adIri} a erc8004:AgentRegistration8004, agentictrust:AgentIdentityDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+    adLines.push(`${adIri} a erc8004:AgentRegistration8004, core:AgentIdentityDescriptor, core:Descriptor, prov:Entity ;`);
   } else {
-    adLines.push(`${adIri} a agentictrust:AgentDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+    adLines.push(`${adIri} a core:AgentDescriptor, core:Descriptor, prov:Entity ;`);
   }
   
   // Extract and populate data from rawJson (registration JSON) for ERC-8004 agents
   if (isERC8004 && tokenUriData) {
     // Name, Description, Image
     if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
-      adLines.push(`  agentictrust:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+      adLines.push(`  core:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
       adLines.push(`  rdfs:label "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
     } else if (row?.agentName) {
-      adLines.push(`  agentictrust:descriptorName "${escapeTurtleString(String(row.agentName))}" ;`);
+      adLines.push(`  core:descriptorName "${escapeTurtleString(String(row.agentName))}" ;`);
       adLines.push(`  rdfs:label "${escapeTurtleString(String(row.agentName))}" ;`);
     }
     
     if (typeof tokenUriData?.description === 'string' && tokenUriData.description.trim()) {
-      adLines.push(`  agentictrust:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
+      adLines.push(`  core:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
     }
     
     if (tokenUriData?.image != null) {
       const imgUrl = String(tokenUriData.image).trim();
       if (imgUrl) {
         const imgIri = turtleIriOrLiteral(imgUrl);
-        if (imgIri) adLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+        if (imgIri) adLines.push(`  core:descriptorImage ${imgIri} ;`);
       }
     } else if (row?.image) {
       const imgIri = turtleIriOrLiteral(String(row.image));
-      if (imgIri) adLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+      if (imgIri) adLines.push(`  core:descriptorImage ${imgIri} ;`);
     }
     
     // Endpoints from rawJson
@@ -794,7 +806,7 @@ function renderAgentSection(
       if (!epName || !epUrl) continue;
       
       const epIri = `<https://www.agentictrust.io/id/endpoint/${chainId}/${iriEncodeSegment(agentId)}/${iriEncodeSegment(epName)}>`;
-      adLines.push(`  agentictrust:hasEndpoint ${epIri} ;`);
+      adLines.push(`  core:hasEndpoint ${epIri} ;`);
       
       // Determine endpoint type
       let endpointType = 'unknown';
@@ -803,19 +815,19 @@ function renderAgentSection(
       else if (epName === 'ens') endpointType = 'ens';
       else if (epName === 'agentwallet' || epName === 'agent-wallet') endpointType = 'agentAccount';
       
-      const endpointTypeIri = `<https://www.agentictrust.io/ontology/agentictrust-core/endpointType/${endpointType}>`;
+      const endpointTypeIri = `<https://agentictrust.io/ontology/core/endpointType/${endpointType}>`;
       const endpointLines: string[] = [];
-      endpointLines.push(`${epIri} a agentictrust:Endpoint, prov:Entity ;`);
-      endpointLines.push(`  agentictrust:endpointName "${escapeTurtleString(epName)}" ;`);
+      endpointLines.push(`${epIri} a core:Endpoint, prov:Entity ;`);
+      endpointLines.push(`  core:endpointName "${escapeTurtleString(epName)}" ;`);
       const urlIri = turtleIriOrLiteral(epUrl);
-      if (urlIri) endpointLines.push(`  agentictrust:endpointUrl ${urlIri} ;`);
+      if (urlIri) endpointLines.push(`  core:endpointUrl ${urlIri} ;`);
       if (typeof ep?.version === 'string' && ep.version.trim()) {
-        endpointLines.push(`  agentictrust:endpointVersion "${escapeTurtleString(ep.version.trim())}" ;`);
+        endpointLines.push(`  core:endpointVersion "${escapeTurtleString(ep.version.trim())}" ;`);
       }
-      endpointLines.push(`  agentictrust:endpointType ${endpointTypeIri} ;`);
+      endpointLines.push(`  core:endpointType ${endpointTypeIri} ;`);
       endpointLines.push(`  .\n`);
       accountChunks.push(endpointLines.join('\n'));
-      accountChunks.push(`${endpointTypeIri} a agentictrust:EndpointType, prov:Entity ; rdfs:label "${endpointType}" .\n\n`);
+      accountChunks.push(`${endpointTypeIri} a core:EndpointType, prov:Entity ; rdfs:label "${endpointType}" .\n\n`);
     }
     
     // Trust types/models from rawJson (ERC-8004 registration JSON)
@@ -830,14 +842,14 @@ function renderAgentSection(
 
       // Keep the existing TrustType emission (verbatim)
       const trustTypeIri = `<https://www.agentictrust.io/id/trust-type/${iriEncodeSegment(trustTypeValue)}>`;
-      adLines.push(`  agentictrust:hasTrustType ${trustTypeIri} ;`);
-      accountChunks.push(`${trustTypeIri} a agentictrust:TrustType, prov:Entity ; agentictrust:trustTypeValue "${escapeTurtleString(trustTypeValue)}" .\n\n`);
+      adLines.push(`  core:hasTrustType ${trustTypeIri} ;`);
+      accountChunks.push(`${trustTypeIri} a core:TrustType, prov:Entity ; core:trustTypeValue "${escapeTurtleString(trustTypeValue)}" .\n\n`);
 
       // Also emit canonical TrustModel categories for discovery/UI
       const model = canonicalTrustModel(trustTypeValue);
       if (model) {
-        const trustModelIri = `<https://www.agentictrust.io/ontology/agentictrust-core#TrustModel_${trustModelLocalName(model)}>`;
-        adLines.push(`  agentictrust:hasTrustModel ${trustModelIri} ;`);
+        const trustModelIri = `<https://agentictrust.io/ontology/core#TrustModel_${trustModelLocalName(model)}>`;
+        adLines.push(`  core:hasTrustModel ${trustModelIri} ;`);
       }
     }
     
@@ -845,8 +857,8 @@ function renderAgentSection(
     if (typeof tokenUriData?.did === 'string' && tokenUriData.did.trim()) {
       const didValue = tokenUriData.did.trim();
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(didValue)}>`;
-      adLines.push(`  agentictrust:hasDID ${didIri} ;`);
-      accountChunks.push(`${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, prov:Entity .\n\n`);
+      adLines.push(`  core:hasDID ${didIri} ;`);
+      accountChunks.push(`${didIri} a core:DID, core:DecentralizedIdentifier, prov:Entity .\n\n`);
     }
     
     // DomainName from rawJson (if agentName is a domain name)
@@ -855,8 +867,8 @@ function renderAgentSection(
       // Check if it's a domain name (contains dots but not .eth which is ENS)
       if (nameValue.includes('.') && !nameValue.endsWith('.eth')) {
         const domainNameIri = `<https://www.agentictrust.io/id/domain-name/${iriEncodeSegment(nameValue)}>`;
-        adLines.push(`  agentictrust:hasDomainName ${domainNameIri} ;`);
-        accountChunks.push(`${domainNameIri} a agentictrust:DomainName, prov:Entity ; agentictrust:domainNameValue "${escapeTurtleString(nameValue)}" .\n\n`);
+        adLines.push(`  core:hasDomainName ${domainNameIri} ;`);
+        accountChunks.push(`${domainNameIri} a core:DomainName, prov:Entity ; core:domainNameValue "${escapeTurtleString(nameValue)}" .\n\n`);
       }
     }
   } else {
@@ -869,20 +881,20 @@ function renderAgentSection(
     for (const dom of declaredOasfDomains) {
       const domClassIri = oasfDomainIri(dom);
       const domIri = agentDomainIri(chainId, agentId, dom, didAccountValue);
-      adLines.push(`  agentictrust:hasDomain ${domIri} ;`);
-      accountChunks.push(`${domIri} a agentictrust:AgentDomain, prov:Entity ; agentictrust:hasDomainClassification ${domClassIri} .\n\n`);
-      // Emit a minimal OASFDomain node (full node also emitted from DB if present)
-      accountChunks.push(`${domClassIri} a agentictrust:OASFDomain, agentictrust:AgentDomainClassification, prov:Entity ; agentictrust:oasfDomainId "${escapeTurtleString(dom)}" .\n\n`);
+      adLines.push(`  core:hasDomain ${domIri} ;`);
+      accountChunks.push(`${domIri} a core:AgentDomain, prov:Entity ; core:hasDomainClassification ${domClassIri} .\n\n`);
+      // Emit a minimal OASF Domain node (full node also emitted from DB if present)
+      accountChunks.push(`${domClassIri} a oasf:Domain, prov:Entity ; oasf:key "${escapeTurtleString(dom)}" .\n\n`);
     }
   }
   if (declaredOasfSkills.size) {
     for (const sk of declaredOasfSkills) {
       const skClassIri = oasfSkillIri(sk);
       const skIri = agentSkillIri(chainId, agentId, sk, didAccountValue);
-      adLines.push(`  agentictrust:hasSkill ${skIri} ;`);
-      accountChunks.push(`${skIri} a agentictrust:AgentSkill, prov:Entity ; agentictrust:hasSkillClassification ${skClassIri} .\n\n`);
-      // Emit a minimal OASFSkill node (full node also emitted from DB if present)
-      accountChunks.push(`${skClassIri} a agentictrust:OASFSkill, agentictrust:AgentSkillClassification, prov:Entity ; agentictrust:oasfSkillId "${escapeTurtleString(sk)}" .\n\n`);
+      adLines.push(`  core:hasSkill ${skIri} ;`);
+      accountChunks.push(`${skIri} a core:AgentSkill, prov:Entity ; core:hasSkillClassification ${skClassIri} .\n\n`);
+      // Emit a minimal OASF Skill node (full node also emitted from DB if present)
+      accountChunks.push(`${skClassIri} a oasf:Skill, prov:Entity ; oasf:key "${escapeTurtleString(sk)}" .\n\n`);
     }
   }
   adLines.push(`  .\n`);
@@ -895,12 +907,12 @@ function renderAgentSection(
     
     // Link Identity8004 to its Descriptor
     accountChunks.push(
-      `${identity8004IriValue} agentictrust:hasDescriptor ${identityDescriptorIri} .\n\n`,
+      `${identity8004IriValue} core:hasDescriptor ${identityDescriptorIri} .\n\n`,
     );
     
     // Create IdentityDescriptor8004
     const descriptorLines: string[] = [];
-    descriptorLines.push(`${identityDescriptorIri} a erc8004:IdentityDescriptor8004, agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+    descriptorLines.push(`${identityDescriptorIri} a erc8004:IdentityDescriptor8004, core:IdentifierDescriptor, core:Descriptor, prov:Entity ;`);
     
     if (tokenUriData) {
       if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
@@ -917,26 +929,26 @@ function renderAgentSection(
         if (!id) continue;
         const sClassIri = skillIri(chainId, agentId, id, didAccountValue);
         const sIri = agentSkillIri(chainId, agentId, id, didAccountValue);
-        descriptorLines.push(`  agentictrust:hasSkill ${sIri} ;`);
-        accountChunks.push(`${sIri} a agentictrust:AgentSkill, prov:Entity ; agentictrust:hasSkillClassification ${sClassIri} .\n\n`);
+        descriptorLines.push(`  core:hasSkill ${sIri} ;`);
+        accountChunks.push(`${sIri} a core:AgentSkill, prov:Entity ; core:hasSkillClassification ${sClassIri} .\n\n`);
         
         // Create SkillClassification instance
         const skillLines: string[] = [];
-        skillLines.push(`${sClassIri} a agentictrust:AgentSkillClassification, prov:Entity ;`);
-        skillLines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
+        skillLines.push(`${sClassIri} a core:AgentSkillClassification, prov:Entity ;`);
+        skillLines.push(`  core:skillId "${escapeTurtleString(id)}" ;`);
         if (typeof skill?.name === 'string' && skill.name.trim()) {
-          skillLines.push(`  agentictrust:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
+          skillLines.push(`  core:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
         }
         if (typeof skill?.description === 'string' && skill.description.trim()) {
-          skillLines.push(`  agentictrust:skillDescription "${escapeTurtleString(skill.description.trim())}" ;`);
+          skillLines.push(`  core:skillDescription "${escapeTurtleString(skill.description.trim())}" ;`);
         }
         
-        // Extract Domain from skill (emit classification, but do NOT link via agentictrust:hasDomain since
-        // agentictrust:hasDomain is now Descriptor -> AgentDomain)
+        // Extract Domain from skill (emit classification, but do NOT link via core:hasDomain since
+        // core:hasDomain is now Descriptor -> AgentDomain)
         if (typeof skill?.domain === 'string' && skill.domain.trim()) {
           const domainName = skill.domain.trim();
           const domainClassIri = domainIri(domainName);
-          accountChunks.push(`${domainClassIri} a agentictrust:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+          accountChunks.push(`${domainClassIri} a core:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
         }
         
         // Link IntentType to Skill via targetsSkill
@@ -944,7 +956,7 @@ function renderAgentSection(
         const skillDomain = typeof skill?.domain === 'string' ? skill.domain.trim() : '';
         if (skillDomain) {
           const intentTypeName = `trust.${skillDomain}`;
-          accountChunks.push(`<${intentTypeIri(intentTypeName)}> agentictrust:targetsSkill ${sClassIri} .\n\n`);
+          accountChunks.push(`<${intentTypeIri(intentTypeName)}> core:targetsSkill ${sClassIri} .\n\n`);
         }
         
         // Extract tags
@@ -952,8 +964,8 @@ function renderAgentSection(
         for (const t of tags) {
           if (typeof t === 'string' && t.trim()) {
             const tagIri = `<https://www.agentictrust.io/id/tag/${iriEncodeSegment(t.trim())}>`;
-            skillLines.push(`  agentictrust:hasTag ${tagIri} ;`);
-            accountChunks.push(`${tagIri} a agentictrust:Tag, prov:Entity ; rdfs:label "${escapeTurtleString(t.trim())}" .\n\n`);
+            skillLines.push(`  core:hasTag ${tagIri} ;`);
+            accountChunks.push(`${tagIri} a core:Tag, prov:Entity ; rdfs:label "${escapeTurtleString(t.trim())}" .\n\n`);
           }
         }
         
@@ -966,23 +978,23 @@ function renderAgentSection(
         const domainName = tokenUriData.domain.trim();
         const domainClassIri = domainIri(domainName);
         const domainIriValue = agentDomainIri(chainId, agentId, domainName, didAccountValue);
-        descriptorLines.push(`  agentictrust:hasDomain ${domainIriValue} ;`);
-        accountChunks.push(`${domainIriValue} a agentictrust:AgentDomain, prov:Entity ; agentictrust:hasDomainClassification ${domainClassIri} .\n\n`);
-        accountChunks.push(`${domainClassIri} a agentictrust:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
+        descriptorLines.push(`  core:hasDomain ${domainIriValue} ;`);
+        accountChunks.push(`${domainIriValue} a core:AgentDomain, prov:Entity ; core:hasDomainClassification ${domainClassIri} .\n\n`);
+        accountChunks.push(`${domainClassIri} a core:AgentDomainClassification, prov:Entity ; rdfs:label "${escapeTurtleString(domainName)}" .\n\n`);
       }
       
       // Extract Name, Description, Image for IdentityDescriptor8004
       if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
-        descriptorLines.push(`  agentictrust:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+        descriptorLines.push(`  core:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
       }
       if (typeof tokenUriData?.description === 'string' && tokenUriData.description.trim()) {
-        descriptorLines.push(`  agentictrust:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
+        descriptorLines.push(`  core:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
       }
       if (tokenUriData?.image != null) {
         const imgUrl = String(tokenUriData.image).trim();
         if (imgUrl) {
           const imgIri = turtleIriOrLiteral(imgUrl);
-          if (imgIri) descriptorLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+          if (imgIri) descriptorLines.push(`  core:descriptorImage ${imgIri} ;`);
         }
       }
     }
@@ -1012,37 +1024,37 @@ function renderAgentSection(
     const protocolIri = `<https://www.agentictrust.io/id/protocol/a2a/${didForProtocol}>`;
 
     // Protocol instance + descriptor link (so Protocol → ProtocolDescriptor is queryable)
-    afterAgent.push(`${protocolIri} a agentictrust:Protocol, prov:Entity .\n`);
-    afterAgent.push(`${protocolIri} agentictrust:hasProtocolDescriptor ${protocolDescriptorIri} .\n`);
+    afterAgent.push(`${protocolIri} a core:Protocol, prov:Entity .\n`);
+    afterAgent.push(`${protocolIri} core:hasProtocolDescriptor ${protocolDescriptorIri} .\n`);
 
     // AgentDescriptor assembled from this protocol descriptor component
-    afterAgent.push(`${adIri} agentictrust:assembledFromMetadata ${protocolDescriptorIri} .\n`);
+    afterAgent.push(`${adIri} core:assembledFromMetadata ${protocolDescriptorIri} .\n`);
 
     const protocolDescriptorLines: string[] = [];
-    protocolDescriptorLines.push(`${protocolDescriptorIri} a agentictrust:A2AProtocolDescriptor, agentictrust:ProtocolDescriptor, agentictrust:Descriptor, prov:Entity ;`);
+    protocolDescriptorLines.push(`${protocolDescriptorIri} a core:A2AProtocolDescriptor, core:ProtocolDescriptor, core:Descriptor, prov:Entity ;`);
     
     // Core protocol fields
     if (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim())
-      protocolDescriptorLines.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
+      protocolDescriptorLines.push(`  core:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
     if (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim())
-      protocolDescriptorLines.push(`  agentictrust:preferredTransport "${escapeTurtleString(agentCard.preferredTransport.trim())}" ;`);
+      protocolDescriptorLines.push(`  core:preferredTransport "${escapeTurtleString(agentCard.preferredTransport.trim())}" ;`);
     if (typeof agentCard?.url === 'string' && agentCard.url.trim()) {
       const tok = turtleIriOrLiteral(agentCard.url.trim());
-      if (tok) protocolDescriptorLines.push(`  agentictrust:serviceUrl ${tok} ;`);
+      if (tok) protocolDescriptorLines.push(`  core:serviceUrl ${tok} ;`);
     }
     
     // Descriptor fields (name, description, image) - ProtocolDescriptor inherits from Descriptor
     if (typeof agentCard?.name === 'string' && agentCard.name.trim()) {
-      protocolDescriptorLines.push(`  agentictrust:descriptorName "${escapeTurtleString(agentCard.name.trim())}" ;`);
+      protocolDescriptorLines.push(`  core:descriptorName "${escapeTurtleString(agentCard.name.trim())}" ;`);
       protocolDescriptorLines.push(`  rdfs:label "${escapeTurtleString(agentCard.name.trim())}" ;`);
     }
     if (typeof agentCard?.description === 'string' && agentCard.description.trim())
-      protocolDescriptorLines.push(`  agentictrust:descriptorDescription "${escapeTurtleString(agentCard.description.trim())}" ;`);
+      protocolDescriptorLines.push(`  core:descriptorDescription "${escapeTurtleString(agentCard.description.trim())}" ;`);
     if (agentCard?.image != null) {
       const imgUrl = String(agentCard.image).trim();
       if (imgUrl) {
         const imgIri = turtleIriOrLiteral(imgUrl);
-        if (imgIri) protocolDescriptorLines.push(`  agentictrust:descriptorImage ${imgIri} ;`);
+        if (imgIri) protocolDescriptorLines.push(`  core:descriptorImage ${imgIri} ;`);
       }
     }
     
@@ -1050,7 +1062,7 @@ function renderAgentSection(
     if (typeof agentCard?.version === 'string' && agentCard.version.trim()) {
       const hasProtocolVersion = protocolDescriptorLines.some(l => l.includes('protocolVersion'));
       if (!hasProtocolVersion) {
-        protocolDescriptorLines.push(`  agentictrust:protocolVersion "${escapeTurtleString(agentCard.version.trim())}" ;`);
+        protocolDescriptorLines.push(`  core:protocolVersion "${escapeTurtleString(agentCard.version.trim())}" ;`);
       }
     }
     
@@ -1059,8 +1071,8 @@ function renderAgentSection(
     for (const cap of capabilities) {
       if (typeof cap === 'string' && cap.trim()) {
         const capIri = `<https://www.agentictrust.io/id/capability/${iriEncodeSegment(cap.trim())}>`;
-        protocolDescriptorLines.push(`  agentictrust:hasCapability ${capIri} ;`);
-        accountChunks.push(`${capIri} a agentictrust:Capability, prov:Entity ; rdfs:label "${escapeTurtleString(cap.trim())}" .\n\n`);
+        protocolDescriptorLines.push(`  core:hasCapability ${capIri} ;`);
+        accountChunks.push(`${capIri} a core:Capability, prov:Entity ; rdfs:label "${escapeTurtleString(cap.trim())}" .\n\n`);
       }
     }
     
@@ -1069,8 +1081,8 @@ function renderAgentSection(
     for (const op of operators) {
       if (typeof op === 'string' && op.trim()) {
         const opIri = `<https://www.agentictrust.io/id/operator/${iriEncodeSegment(op.trim())}>`;
-        protocolDescriptorLines.push(`  agentictrust:hasOperator ${opIri} ;`);
-        accountChunks.push(`${opIri} a agentictrust:Operator, prov:Entity ; rdfs:label "${escapeTurtleString(op.trim())}" .\n\n`);
+        protocolDescriptorLines.push(`  core:hasOperator ${opIri} ;`);
+        accountChunks.push(`${opIri} a core:Operator, prov:Entity ; rdfs:label "${escapeTurtleString(op.trim())}" .\n\n`);
       }
     }
     
@@ -1079,8 +1091,8 @@ function renderAgentSection(
     for (const mode of inputModes) {
       if (typeof mode === 'string' && mode.trim()) {
         const modeIri = `<https://www.agentictrust.io/id/input-mode/${iriEncodeSegment(mode.trim())}>`;
-        protocolDescriptorLines.push(`  agentictrust:hasDefaultInputMode ${modeIri} ;`);
-        accountChunks.push(`${modeIri} a agentictrust:InputMode, prov:Entity ; rdfs:label "${escapeTurtleString(mode.trim())}" .\n\n`);
+        protocolDescriptorLines.push(`  core:hasDefaultInputMode ${modeIri} ;`);
+        accountChunks.push(`${modeIri} a core:InputMode, prov:Entity ; rdfs:label "${escapeTurtleString(mode.trim())}" .\n\n`);
       }
     }
     
@@ -1088,8 +1100,8 @@ function renderAgentSection(
     for (const mode of outputModes) {
       if (typeof mode === 'string' && mode.trim()) {
         const modeIri = `<https://www.agentictrust.io/id/output-mode/${iriEncodeSegment(mode.trim())}>`;
-        protocolDescriptorLines.push(`  agentictrust:hasDefaultOutputMode ${modeIri} ;`);
-        accountChunks.push(`${modeIri} a agentictrust:OutputMode, prov:Entity ; rdfs:label "${escapeTurtleString(mode.trim())}" .\n\n`);
+        protocolDescriptorLines.push(`  core:hasDefaultOutputMode ${modeIri} ;`);
+        accountChunks.push(`${modeIri} a core:OutputMode, prov:Entity ; rdfs:label "${escapeTurtleString(mode.trim())}" .\n\n`);
       }
     }
     
@@ -1112,11 +1124,11 @@ function renderAgentSection(
     if (!id) continue;
     const sIri = skillIri(chainId, agentId, id, didAccountValue);
     const afterSkill: string[] = [];
-    lines.push(`${sIri} a agentictrust:AgentSkillClassification, prov:Entity ;`);
-    lines.push(`  agentictrust:skillId "${escapeTurtleString(id)}" ;`);
-    if (typeof skill?.name === 'string' && skill.name.trim()) lines.push(`  agentictrust:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
+    lines.push(`${sIri} a core:AgentSkillClassification, prov:Entity ;`);
+    lines.push(`  core:skillId "${escapeTurtleString(id)}" ;`);
+    if (typeof skill?.name === 'string' && skill.name.trim()) lines.push(`  core:skillName "${escapeTurtleString(skill.name.trim())}" ;`);
     if (typeof skill?.description === 'string' && skill.description.trim())
-      lines.push(`  agentictrust:skillDescription "${escapeTurtleString(skill.description.trim())}" ;`);
+      lines.push(`  core:skillDescription "${escapeTurtleString(skill.description.trim())}" ;`);
 
     const inputSchema =
       skill?.inputSchema && typeof skill.inputSchema === 'object' ? skill.inputSchema :
@@ -1124,10 +1136,10 @@ function renderAgentSection(
       null;
     if (inputSchema) {
       const schemaIri = skillSchemaIri(chainId, agentId, id, 'input', didAccountValue);
-      lines.push(`  agentictrust:hasInputSchema ${schemaIri} ;`);
+      lines.push(`  core:hasInputSchema ${schemaIri} ;`);
       try {
-        afterSkill.push(`${schemaIri} a agentictrust:JsonSchema, prov:Entity ;`);
-        afterSkill.push(`  agentictrust:schemaJson ${turtleJsonLiteral(JSON.stringify(inputSchema))} ;`);
+        afterSkill.push(`${schemaIri} a core:JsonSchema, prov:Entity ;`);
+        afterSkill.push(`  core:schemaJson ${turtleJsonLiteral(JSON.stringify(inputSchema))} ;`);
         afterSkill.push(`  .\n`);
       } catch {
         // ignore
@@ -1140,10 +1152,10 @@ function renderAgentSection(
       null;
     if (outputSchema) {
       const schemaIri = skillSchemaIri(chainId, agentId, id, 'output', didAccountValue);
-      lines.push(`  agentictrust:hasOutputSchema ${schemaIri} ;`);
+      lines.push(`  core:hasOutputSchema ${schemaIri} ;`);
       try {
-        afterSkill.push(`${schemaIri} a agentictrust:JsonSchema, prov:Entity ;`);
-        afterSkill.push(`  agentictrust:schemaJson ${turtleJsonLiteral(JSON.stringify(outputSchema))} ;`);
+        afterSkill.push(`${schemaIri} a core:JsonSchema, prov:Entity ;`);
+        afterSkill.push(`  core:schemaJson ${turtleJsonLiteral(JSON.stringify(outputSchema))} ;`);
         afterSkill.push(`  .\n`);
       } catch {
         // ignore
@@ -1156,7 +1168,7 @@ function renderAgentSection(
         const tag = t.trim();
         allTags.push(tag);
         const tagIri = `<https://www.agentictrust.io/id/tag/${iriEncodeSegment(tag)}>`;
-        lines.push(`  agentictrust:hasTag ${tagIri} ;`);
+        lines.push(`  core:hasTag ${tagIri} ;`);
       }
     }
 
@@ -1165,13 +1177,13 @@ function renderAgentSection(
     for (const ex of examples) {
       exampleIndex += 1;
       const exIri = `<https://www.agentictrust.io/id/example/${chainId}/${iriEncodeSegment(agentId)}/${iriEncodeSegment(id)}/${exampleIndex}>`;
-      lines.push(`  agentictrust:hasExample ${exIri} ;`);
+      lines.push(`  core:hasExample ${exIri} ;`);
 
       const title = typeof ex?.title === 'string' ? ex.title.trim() : '';
-      afterSkill.push(`${exIri} a agentictrust:SkillExample, prov:Entity ;`);
+      afterSkill.push(`${exIri} a core:SkillExample, prov:Entity ;`);
       if (title) afterSkill.push(`  rdfs:label "${escapeTurtleString(title)}" ;`);
       try {
-        afterSkill.push(`  agentictrust:json ${turtleJsonLiteral(JSON.stringify(ex))} ;`);
+        afterSkill.push(`  core:json ${turtleJsonLiteral(JSON.stringify(ex))} ;`);
       } catch {
         // ignore
       }
@@ -1188,7 +1200,7 @@ function renderAgentSection(
   // Tag individuals (duplicates are OK in Turtle, but we de-dupe within this agent)
   for (const t of Array.from(new Set(allTags))) {
     const tagIri = `<https://www.agentictrust.io/id/tag/${iriEncodeSegment(t)}>`;
-    lines.push(`${tagIri} a agentictrust:Tag, prov:Entity ; rdfs:label "${escapeTurtleString(t)}" .`);
+    lines.push(`${tagIri} a core:Tag, prov:Entity ; rdfs:label "${escapeTurtleString(t)}" .`);
   }
   lines.push('');
 
@@ -1209,19 +1221,19 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
       : `did:ethr:${chainId}:${acctNorm.toLowerCase()}`;
 
   const lines: string[] = [];
-  lines.push(`${aIri} a agentictrust:AIAgent, prov:SoftwareAgent ;`);
-  lines.push(`  a agentictrustEth:Account ;`);
-  lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
-  if (row?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
+  lines.push(`${aIri} a core:AIAgent, prov:SoftwareAgent ;`);
+  lines.push(`  a eth:Account ;`);
+  lines.push(`  core:agentId "${escapeTurtleString(String(agentId))}" ;`);
+  if (row?.agentName) lines.push(`  core:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
   
   // Identity8004 and IdentityIdentifier8004 for didIdentity
   if (row?.didIdentity) {
-    lines.push(`  agentictrust:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
+    lines.push(`  core:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
     const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didIdentity))}>`;
     
     // Create Identity8004 instance
     const identity8004IriValue = identity8004Iri(chainId, agentId, row.didIdentity);
-    lines.push(`  agentictrust:hasIdentity ${identity8004IriValue} ;`);
+    lines.push(`  core:hasIdentity ${identity8004IriValue} ;`);
     
     // Create IdentityIdentifier8004 instance
     const identityIdentifierIri = identifierIri(chainId, agentId, '8004', row.didIdentity);
@@ -1229,29 +1241,29 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     // Emit AgentIdentity8004
     accountChunks.push(
       `${identity8004IriValue} a erc8004:AgentIdentity8004, prov:Entity ;\n` +
-        `  agentictrust:hasIdentifier ${identityIdentifierIri} .\n\n`,
+        `  core:hasIdentifier ${identityIdentifierIri} .\n\n`,
     );
     
     // Emit IdentityIdentifier8004
     const identityDescriptorIriValue = identifierDescriptorIri(identityIdentifierIri, '8004');
     accountChunks.push(
-      `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, agentictrust:UniversalIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType erc8004:IdentifierType_8004 ;\n` +
-        `  agentictrust:hasDescriptor ${identityDescriptorIriValue} .\n\n`,
+      `${identityIdentifierIri} a erc8004:IdentityIdentifier8004, core:UniversalIdentifier, core:Identifier, prov:Entity ;\n` +
+        `  core:identifierType erc8004:IdentifierType_8004 ;\n` +
+        `  core:hasDescriptor ${identityDescriptorIriValue} .\n\n`,
     );
     
     // Emit IdentifierDescriptor for IdentityIdentifier8004 with DID
     accountChunks.push(
-      `${identityDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
-        `  agentictrust:hasDID ${didIdentityIri} .\n\n`,
+      `${identityDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity ;\n` +
+        `  core:hasDID ${didIdentityIri} .\n\n`,
     );
     
     // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
     // DID identifies the IdentityIdentifier8004 via identifies property
     // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${didIdentityIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifies ${identityIdentifierIri} .\n\n`,
+      `${didIdentityIri} a core:DID, core:DecentralizedIdentifier, core:Identifier, prov:Entity ;\n` +
+        `  core:identifies ${identityIdentifierIri} .\n\n`,
     );
   }
   
@@ -1264,101 +1276,101 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     // Create NameIdentifierENS instance
     const ensIdentifierIri = identifierIri(chainId, agentId, 'ens', null, ensName);
     // Link agent directly to NameENSIdentifier via hasIdentifier
-    lines.push(`  agentictrust:hasIdentifier ${ensIdentifierIri} ;`);
+    lines.push(`  core:hasIdentifier ${ensIdentifierIri} ;`);
     
     // Create NameENS instance
     const ensNameIriValue = ensNameIri(chainId, ensName);
-    lines.push(`  agentictrust:hasName ${ensNameIriValue} ;`);
+    lines.push(`  core:hasName ${ensNameIriValue} ;`);
     
     // Emit NameENS
     accountChunks.push(
-      `${ensNameIriValue} a agentictrustEth:AgentNameENS, agentictrust:AgentName, prov:Entity ;\n` +
-        `  agentictrustEth:ensName "${escapeTurtleString(ensName)}" ;\n` +
-        `  agentictrustEth:ensChainId ${chainId} ;\n` +
-        `  agentictrustEth:hasIdentifier ${ensIdentifierIri} .\n\n`,
+      `${ensNameIriValue} a eth:AgentNameENS, core:AgentName, prov:Entity ;\n` +
+        `  eth:ensName "${escapeTurtleString(ensName)}" ;\n` +
+        `  eth:ensChainId ${chainId} ;\n` +
+        `  eth:hasIdentifier ${ensIdentifierIri} .\n\n`,
     );
     
     // Emit NameIdentifierENS
     const ensDescriptorIriValue = identifierDescriptorIri(ensIdentifierIri, 'ens');
     accountChunks.push(
-      `${ensIdentifierIri} a agentictrustEth:NameIdentifierENS, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;\n` +
+      `${ensIdentifierIri} a eth:NameIdentifierENS, core:Identifier, prov:Entity ;\n` +
+        `  core:identifierType eth:IdentifierType_ens ;\n` +
         `  rdfs:label "${escapeTurtleString(ensName)}" ;\n` +
-        `  agentictrust:hasDescriptor ${ensDescriptorIriValue} .\n\n`,
+        `  core:hasDescriptor ${ensDescriptorIriValue} .\n\n`,
     );
     
     // Emit IdentifierDescriptor for NameIdentifierENS with DID
     accountChunks.push(
-      `${ensDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
-        `  agentictrust:hasDID ${ensDidIri} .\n\n`,
+      `${ensDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity ;\n` +
+        `  core:hasDID ${ensDidIri} .\n\n`,
     );
     
     // Emit DID for ENS name (DID is a DecentralizedIdentifier, which is a type of Identifier)
     // DID identifies the NameIdentifierENS via identifies property
     // Note: hasDID is only for Descriptor → DID, not Identifier → DID
     accountChunks.push(
-      `${ensDidIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-        `  agentictrust:identifies ${ensIdentifierIri} .\n\n`,
+      `${ensDidIri} a core:DID, core:DecentralizedIdentifier, core:Identifier, prov:Entity ;\n` +
+        `  core:identifies ${ensIdentifierIri} .\n\n`,
     );
   }
   
-  if (row?.didAccount) lines.push(`  agentictrust:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
-  if (row?.didName) lines.push(`  agentictrust:didName "${escapeTurtleString(String(row.didName))}" ;`);
+  if (row?.didAccount) lines.push(`  core:didAccount "${escapeTurtleString(String(row.didAccount))}" ;`);
+  if (row?.didName) lines.push(`  core:didName "${escapeTurtleString(String(row.didName))}" ;`);
   if (row?.agentAccount) {
-    lines.push(`  agentictrust:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
+    lines.push(`  core:agentAccount "${escapeTurtleString(String(row.agentAccount))}" ;`);
     // Link to AccountIdentifier instance (agentAccount is the canonical on-chain address for the agent)
     const acctIri = accountIri(chainId, String(row.agentAccount));
     const accountIdentifierIriValue = accountIdentifierIri(chainId, String(row.agentAccount));
     // Link agent to AccountIdentifier via hasAccountIdentifier
-    lines.push(`  agentictrustEth:hasAccountIdentifier ${accountIdentifierIriValue} ;`);
+    lines.push(`  eth:hasAccountIdentifier ${accountIdentifierIriValue} ;`);
     // Also link via core hasIdentifier for protocol-agnostic access
-    lines.push(`  agentictrust:hasIdentifier ${accountIdentifierIriValue} ;`);
+    lines.push(`  core:hasIdentifier ${accountIdentifierIriValue} ;`);
     
     // Emit AccountIdentifier instance
     const accountIdentifierLines: string[] = [];
     const accountDescriptorIriValue = identifierDescriptorIri(accountIdentifierIriValue, 'account');
-    accountIdentifierLines.push(`${accountIdentifierIriValue} a agentictrustEth:AccountIdentifier, agentictrust:Identifier, prov:Entity ;`);
-    accountIdentifierLines.push(`  agentictrust:identifierType agentictrustEth:IdentifierType_account ;`);
-    accountIdentifierLines.push(`  agentictrust:hasDescriptor ${accountDescriptorIriValue} ;`);
+    accountIdentifierLines.push(`${accountIdentifierIriValue} a eth:AccountIdentifier, core:Identifier, prov:Entity ;`);
+    accountIdentifierLines.push(`  core:identifierType eth:IdentifierType_account ;`);
+    accountIdentifierLines.push(`  core:hasDescriptor ${accountDescriptorIriValue} ;`);
     // Link Account -> AccountIdentifier (canonical direction in agentictrust-eth)
-    accountChunks.push(`${acctIri} agentictrustEth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
+    accountChunks.push(`${acctIri} eth:hasIdentifier ${accountIdentifierIriValue} .\n\n`);
     // Link AccountIdentifier to DID if present
     if (row?.didAccount) {
       const didIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didAccount))}>`;
       // Emit IdentifierDescriptor for AccountIdentifier with DID
       accountChunks.push(
-        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity ;\n` +
-          `  agentictrust:hasDID ${didIri} .\n\n`,
+        `${accountDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity ;\n` +
+          `  core:hasDID ${didIri} .\n\n`,
       );
       // Emit DID instance (DID is a DecentralizedIdentifier, which is a type of Identifier)
       // DID identifies the AccountIdentifier via identifies property
       // Note: hasDID is only for Descriptor → DID, not Identifier → DID
       accountChunks.push(
-        `${didIri} a agentictrust:DID, agentictrust:DecentralizedIdentifier, agentictrust:Identifier, prov:Entity ;\n` +
-          `  agentictrust:identifies ${accountIdentifierIriValue} .\n\n`,
+        `${didIri} a core:DID, core:DecentralizedIdentifier, core:Identifier, prov:Entity ;\n` +
+          `  core:identifies ${accountIdentifierIriValue} .\n\n`,
       );
     } else {
       // Emit IdentifierDescriptor for AccountIdentifier without DID
       accountChunks.push(
-        `${accountDescriptorIriValue} a agentictrust:IdentifierDescriptor, agentictrust:Descriptor, prov:Entity .\n\n`,
+        `${accountDescriptorIriValue} a core:IdentifierDescriptor, core:Descriptor, prov:Entity .\n\n`,
       );
     }
     accountChunks.push(accountIdentifierLines.join('\n') + ' .\n\n');
     
     // Emit Account instance with account properties
     const accountLines: string[] = [];
-    accountLines.push(`${acctIri} a agentictrustEth:Account, prov:Entity ;`);
-    accountLines.push(`  agentictrustEth:accountChainId ${chainId} ;`);
-    accountLines.push(`  agentictrustEth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
-    accountLines.push(`  agentictrustEth:accountType "SmartAccount" ;`);
-    accountLines.push(`  agentictrustEth:hasIdentifier ${accountIdentifierIriValue} ;`);
+    accountLines.push(`${acctIri} a eth:Account, prov:Entity ;`);
+    accountLines.push(`  eth:accountChainId ${chainId} ;`);
+    accountLines.push(`  eth:accountAddress "${escapeTurtleString(String(row.agentAccount).toLowerCase())}" ;`);
+    accountLines.push(`  eth:accountType "SmartAccount" ;`);
+    accountLines.push(`  eth:hasIdentifier ${accountIdentifierIriValue} ;`);
     // Link Agent Account to EOA owner if present
     if (row?.eoaAgentAccount) {
       const eoaAddr = normalizeHex(String(row.eoaAgentAccount));
       if (eoaAddr) {
         const eoaIri = accountIri(chainId, eoaAddr);
-        accountLines.push(`  agentictrustEth:hasEOAOwner ${eoaIri} ;`);
-        accountLines.push(`  agentictrustEth:signingAuthority ${eoaIri} ;`);
+        accountLines.push(`  eth:hasEOAOwner ${eoaIri} ;`);
+        accountLines.push(`  eth:signingAuthority ${eoaIri} ;`);
         // Emit EOA Account instance
         ensureAccountNode(accountChunks, chainId, eoaAddr, 'EOA');
       }
@@ -1366,22 +1378,22 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
     accountLines.push(`  .\n`);
     accountChunks.push(accountLines.join('\n'));
   }
-  if (row?.agentIdentityOwnerAccount) lines.push(`  agentictrust:agentIdentityOwnerAccount "${escapeTurtleString(String(row.agentIdentityOwnerAccount))}" ;`);
-  if (row?.eoaAgentIdentityOwnerAccount) lines.push(`  agentictrust:eoaAgentIdentityOwnerAccount "${escapeTurtleString(String(row.eoaAgentIdentityOwnerAccount))}" ;`);
-  if (row?.eoaAgentAccount) lines.push(`  agentictrust:eoaAgentAccount "${escapeTurtleString(String(row.eoaAgentAccount))}" ;`);
+  if (row?.agentIdentityOwnerAccount) lines.push(`  core:agentIdentityOwnerAccount "${escapeTurtleString(String(row.agentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentIdentityOwnerAccount) lines.push(`  core:eoaAgentIdentityOwnerAccount "${escapeTurtleString(String(row.eoaAgentIdentityOwnerAccount))}" ;`);
+  if (row?.eoaAgentAccount) lines.push(`  core:eoaAgentAccount "${escapeTurtleString(String(row.eoaAgentAccount))}" ;`);
   if (row?.agentUri) {
     const tok = turtleIriOrLiteral(String(row.agentUri));
-    if (tok) lines.push(`  agentictrust:agentUri ${tok} ;`);
+    if (tok) lines.push(`  core:agentUri ${tok} ;`);
   }
   if (row?.a2aEndpoint) {
     const tok = turtleIriOrLiteral(String(row.a2aEndpoint));
-    if (tok) lines.push(`  agentictrust:a2aEndpoint ${tok} ;`);
+    if (tok) lines.push(`  core:a2aEndpoint ${tok} ;`);
   }
   // Removed: ensEndpoint / agentAccountEndpoint (columns removed; derive didName / CAIP10 when needed)
-  if (row?.supportedTrust) lines.push(`  agentictrust:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
-  if (row?.createdAtTime) lines.push(`  agentictrust:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
-  if (row?.updatedAtTime) lines.push(`  agentictrust:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
-  if (row?.rawJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
+  if (row?.supportedTrust) lines.push(`  core:supportedTrust "${escapeTurtleString(String(row.supportedTrust))}" ;`);
+  if (row?.createdAtTime) lines.push(`  core:createdAtTime ${Number(row.createdAtTime) || 0} ;`);
+  if (row?.updatedAtTime) lines.push(`  core:updatedAtTime ${Number(row.updatedAtTime) || 0} ;`);
+  if (row?.rawJson) lines.push(`  core:json ${turtleJsonLiteral(String(row.rawJson))} ;`);
   lines.push(`  .\n`);
 
   return lines.join('\n');
@@ -1560,9 +1572,9 @@ async function exportAgentsRdfInternal(
     const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
     if (!ai) return;
     const lines: string[] = [];
-    lines.push(`${ai} a agentictrust:AIAgent, prov:SoftwareAgent, agentictrustEth:Account ;`);
-    lines.push(`  agentictrust:agentId "${escapeTurtleString(String(agentId))}" ;`);
-    if (meta?.agentName) lines.push(`  agentictrust:agentName "${escapeTurtleString(String(meta.agentName))}" ;`);
+    lines.push(`${ai} a core:AIAgent, prov:SoftwareAgent, eth:Account ;`);
+    lines.push(`  core:agentId "${escapeTurtleString(String(agentId))}" ;`);
+    if (meta?.agentName) lines.push(`  core:agentName "${escapeTurtleString(String(meta.agentName))}" ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   };
@@ -1630,8 +1642,8 @@ async function exportAgentsRdfInternal(
     lines.push(`${iri} a prov:Entity ;`);
     lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
     if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
-    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
-    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  core:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (schemaJson.trim()) lines.push(`  core:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   }
@@ -1648,8 +1660,8 @@ async function exportAgentsRdfInternal(
     lines.push(`${iri} a prov:Entity ;`);
     lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
     if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
-    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
-    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  core:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (schemaJson.trim()) lines.push(`  core:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   }
@@ -1666,18 +1678,18 @@ async function exportAgentsRdfInternal(
     const githubPath = d?.githubPath != null ? String(d.githubPath) : '';
     const githubSha = d?.githubSha != null ? String(d.githubSha) : '';
     const lines: string[] = [];
-    lines.push(`${iri} a agentictrust:OASFDomain, prov:Entity ;`);
-    lines.push(`  agentictrust:oasfDomainId "${escapeTurtleString(domainId)}" ;`);
+    lines.push(`${iri} a oasf:Domain, prov:Entity ;`);
+    lines.push(`  oasf:key "${escapeTurtleString(domainId)}" ;`);
     lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
     if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
-    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  core:oasfUid ${Math.trunc(uid as any)} ;`);
     if (extendsKey.trim()) {
-      lines.push(`  agentictrust:oasfExtendsKey "${escapeTurtleString(extendsKey)}" ;`);
-      lines.push(`  agentictrust:oasfCategory ${oasfCategoryIri('domain', extendsKey)} ;`);
+      lines.push(`  core:oasfExtendsKey "${escapeTurtleString(extendsKey)}" ;`);
+      lines.push(`  core:oasfCategory ${oasfCategoryIri('domain', extendsKey)} ;`);
     }
-    if (githubPath.trim()) lines.push(`  agentictrust:githubPath "${escapeTurtleString(githubPath)}" ;`);
-    if (githubSha.trim()) lines.push(`  agentictrust:githubSha "${escapeTurtleString(githubSha)}" ;`);
-    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    if (githubPath.trim()) lines.push(`  core:githubPath "${escapeTurtleString(githubPath)}" ;`);
+    if (githubSha.trim()) lines.push(`  core:githubSha "${escapeTurtleString(githubSha)}" ;`);
+    if (schemaJson.trim()) lines.push(`  core:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   }
@@ -1694,18 +1706,18 @@ async function exportAgentsRdfInternal(
     const githubPath = s?.githubPath != null ? String(s.githubPath) : '';
     const githubSha = s?.githubSha != null ? String(s.githubSha) : '';
     const lines: string[] = [];
-    lines.push(`${iri} a agentictrust:OASFSkill, prov:Entity ;`);
-    lines.push(`  agentictrust:oasfSkillId "${escapeTurtleString(skillId)}" ;`);
+    lines.push(`${iri} a oasf:Skill, prov:Entity ;`);
+    lines.push(`  oasf:key "${escapeTurtleString(skillId)}" ;`);
     lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
     if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
-    if (Number.isFinite(uid as any)) lines.push(`  agentictrust:oasfUid ${Math.trunc(uid as any)} ;`);
+    if (Number.isFinite(uid as any)) lines.push(`  core:oasfUid ${Math.trunc(uid as any)} ;`);
     if (extendsKey.trim()) {
-      lines.push(`  agentictrust:oasfExtendsKey "${escapeTurtleString(extendsKey)}" ;`);
-      lines.push(`  agentictrust:oasfCategory ${oasfCategoryIri('skill', extendsKey)} ;`);
+      lines.push(`  core:oasfExtendsKey "${escapeTurtleString(extendsKey)}" ;`);
+      lines.push(`  core:oasfCategory ${oasfCategoryIri('skill', extendsKey)} ;`);
     }
-    if (githubPath.trim()) lines.push(`  agentictrust:githubPath "${escapeTurtleString(githubPath)}" ;`);
-    if (githubSha.trim()) lines.push(`  agentictrust:githubSha "${escapeTurtleString(githubSha)}" ;`);
-    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    if (githubPath.trim()) lines.push(`  core:githubPath "${escapeTurtleString(githubPath)}" ;`);
+    if (githubSha.trim()) lines.push(`  core:githubSha "${escapeTurtleString(githubSha)}" ;`);
+    if (schemaJson.trim()) lines.push(`  core:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   }
@@ -1723,9 +1735,9 @@ async function exportAgentsRdfInternal(
     lines.push(`${iri} a prov:Entity ;`);
     lines.push(`  rdfs:label "${escapeTurtleString(caption)}" ;`);
     if (description.trim()) lines.push(`  rdfs:comment "${escapeTurtleString(description)}" ;`);
-    if (type.trim()) lines.push(`  agentictrust:oasfType "${escapeTurtleString(type)}" ;`);
-    if (referencesJson.trim()) lines.push(`  agentictrust:oasfReferencesJson """${escapeTurtleString(referencesJson)}"""^^xsd:string ;`);
-    if (schemaJson.trim()) lines.push(`  agentictrust:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
+    if (type.trim()) lines.push(`  core:oasfType "${escapeTurtleString(type)}" ;`);
+    if (referencesJson.trim()) lines.push(`  core:oasfReferencesJson """${escapeTurtleString(referencesJson)}"""^^xsd:string ;`);
+    if (schemaJson.trim()) lines.push(`  core:oasfSchemaJson """${escapeTurtleString(schemaJson)}"""^^xsd:string ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   }
@@ -1831,27 +1843,27 @@ async function exportAgentsRdfInternal(
     const actIri = actIriFromRecordIri(fi);
 
     // Feedback is a durable trust assertion record (Entity) generated by a feedback act (Activity).
-    recordLines.push(`${fi} a erc8004:Feedback, agentictrust:ReputationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
+    recordLines.push(`${fi} a erc8004:Feedback, core:ReputationTrustAssertion, core:TrustAssertion, prov:Entity ;`);
     recordLines.push(`  erc8004:feedbackIndex ${feedbackIndex} ;`);
     
     // Create ReputationSituation and link to Feedback
     const repSituationIri = situationIri(chainId, agentId, 'reputation', `${client}:${feedbackIndex}`, meta?.didIdentity);
     // Situation is an epistemic object (prov:Entity); the Feedback itself is the asserting activity.
-    chunks.push(`${repSituationIri} a agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    chunks.push(`${repSituationIri} a core:ReputationTrustSituation, core:TrustSituation, prov:Entity ;`);
     // Situation is about the agent being evaluated.
-    chunks.push(`  agentictrust:isAboutAgent ${ai} ;`);
-    if (meta?.identity8004Iri) chunks.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
-    chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
+    chunks.push(`  core:isAboutAgent ${ai} ;`);
+    if (meta?.identity8004Iri) chunks.push(`  core:aboutSubject ${meta.identity8004Iri} ;`);
+    chunks.push(`  core:satisfiesIntent <${intentTypeIri('trust.feedback')}> ;`);
     chunks.push(`  .\n`);
     // Link record and act to the asserted situation.
-    chunks.push(`${fi} agentictrust:recordsSituation ${repSituationIri} .\n`);
-    chunks.push(`${actIri} a erc8004:FeedbackAct, agentictrust:ReputationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;\n`);
-    chunks.push(`  agentictrust:assertsSituation ${repSituationIri} ;\n`);
-    chunks.push(`  agentictrust:generatedAssertionRecord ${fi} ;\n`);
+    chunks.push(`${fi} core:recordsSituation ${repSituationIri} .\n`);
+    chunks.push(`${actIri} a erc8004:FeedbackAct, core:ReputationTrustAssertionAct, core:TrustAssertionAct, prov:Activity ;\n`);
+    chunks.push(`  core:assertsSituation ${repSituationIri} ;\n`);
+    chunks.push(`  core:generatedAssertionRecord ${fi} ;\n`);
     if (client) {
       const clientIri = accountIri(chainId, client);
       chunks.push(`  prov:wasAssociatedWith ${clientIri} ;\n`);
-      chunks.push(`  agentictrust:assertedBy ${clientIri} ;\n`);
+      chunks.push(`  core:assertedBy ${clientIri} ;\n`);
       // Attribute the record to the client as the author/source.
       recordLines.push(`  prov:wasAttributedTo ${clientIri} ;`);
     }
@@ -1860,11 +1872,11 @@ async function exportAgentsRdfInternal(
     // Emit Situation participants as separate triples (outside the act node's predicate list).
     if (client) {
       const clientIri = accountIri(chainId, client);
-      chunks.push(`${repSituationIri} agentictrust:hasSituationParticipant ${clientIri} .\n`);
+      chunks.push(`${repSituationIri} core:hasSituationParticipant ${clientIri} .\n`);
     }
 
     // Inverse link for query convenience.
-    chunks.push(`${fi} agentictrust:assertionRecordOf ${actIri} .\n`);
+    chunks.push(`${fi} core:assertionRecordOf ${actIri} .\n`);
     if (client) {
       ensureAccountNode(chunks, chainId, client, 'EOA'); // Feedback client is typically EOA
       recordLines.push(`  erc8004:feedbackClient ${accountIri(chainId, client)} ;`);
@@ -1883,7 +1895,7 @@ async function exportAgentsRdfInternal(
     if (domain) {
       recordLines.push(`  erc8004:feedbackIntentType <${intentTypeIri(domain)}> ;`);
     }
-    if (f?.feedbackJson) recordLines.push(`  agentictrust:json ${turtleJsonLiteral(String(f.feedbackJson))} ;`);
+    if (f?.feedbackJson) recordLines.push(`  core:json ${turtleJsonLiteral(String(f.feedbackJson))} ;`);
     const fbObj = safeJsonObject(f?.feedbackJson);
     if (fbObj) {
       const offIri = feedbackOffchainIri(chainId, String(f?.id ?? `${agentId}:${client}:${feedbackIndex}`));
@@ -1973,7 +1985,7 @@ async function exportAgentsRdfInternal(
     const onchainDelegation = feedbackAuthToken ? delegationByFeedbackAuth.get(feedbackAuthToken) : undefined;
     if (onchainDelegation) {
       // Prefer ERC-8092 delegation assertion if present.
-      recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${onchainDelegation} ;`);
+      recordLines.push(`  core:wasAuthorizedByDelegation ${onchainDelegation} ;`);
     } else if (!feedbackAuthToken && client) {
       // Permissioned feedback (extension): link feedback to a matching ERC-8092 delegation by (agent, client)
       // even when feedbackAuth is absent (Jan 2026 core flow).
@@ -1984,7 +1996,7 @@ async function exportAgentsRdfInternal(
         return out.length === 40 ? out : null;
       })();
       const del = c40 ? delegationByAgentClientSuffix.get(`${chainId}|${ai}|${c40}`) : undefined;
-      if (del) recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${del} ;`);
+      if (del) recordLines.push(`  core:wasAuthorizedByDelegation ${del} ;`);
     } else if (feedbackAuthToken && client) {
       ensureAccountNode(chunks, chainId, client, 'EOA');
       const clientIri = accountIri(chainId, client);
@@ -1996,26 +2008,26 @@ async function exportAgentsRdfInternal(
 
         const reqLines: string[] = [];
         reqLines.push(
-          `${reqIri} a agentictrust:FeedbackAuthRequestSituation, agentictrust:ReputationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`,
+          `${reqIri} a core:FeedbackAuthRequestSituation, core:ReputationTrustSituation, core:TrustSituation, prov:Entity ;`,
         );
-        reqLines.push(`  agentictrust:isAboutAgent ${ai} ;`);
-        if (meta?.identity8004Iri) reqLines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
-        reqLines.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.feedbackAuth')}> ;`);
+        reqLines.push(`  core:isAboutAgent ${ai} ;`);
+        if (meta?.identity8004Iri) reqLines.push(`  core:aboutSubject ${meta.identity8004Iri} ;`);
+        reqLines.push(`  core:satisfiesIntent <${intentTypeIri('trust.feedbackAuth')}> ;`);
 
         // Delegation shape: agent grants client permission to give feedback.
-        reqLines.push(`  agentictrust:delegationDelegator ${ai} ;`);
-        reqLines.push(`  agentictrust:delegationDelegatee ${clientIri} ;`);
-        reqLines.push(`  agentictrust:delegationAuthorityValue "${escapeTurtleString(feedbackAuthToken)}" ;`);
+        reqLines.push(`  core:delegationDelegator ${ai} ;`);
+        reqLines.push(`  core:delegationDelegatee ${clientIri} ;`);
+        reqLines.push(`  core:delegationAuthorityValue "${escapeTurtleString(feedbackAuthToken)}" ;`);
 
         const permIri = delegationPermissionIri(chainId, 'feedback-auth', `${agentId}/${client}/${feedbackIndex}`);
-        reqLines.push(`  agentictrust:delegationGrantsPermission ${permIri} ;`);
+        reqLines.push(`  core:delegationGrantsPermission ${permIri} ;`);
         reqLines.push(`  .\n`);
         chunks.push(reqLines.join('\n'));
 
         const permLines: string[] = [];
-        permLines.push(`${permIri} a agentictrust:DelegationPermission, prov:Entity ;`);
-        permLines.push(`  agentictrust:permissionAction "giveFeedback" ;`);
-        permLines.push(`  agentictrust:permissionResource "${escapeTurtleString(String(ai))}" ;`);
+        permLines.push(`${permIri} a core:DelegationPermission, prov:Entity ;`);
+        permLines.push(`  core:permissionAction "giveFeedback" ;`);
+        permLines.push(`  core:permissionResource "${escapeTurtleString(String(ai))}" ;`);
         permLines.push(`  .\n`);
         chunks.push(permLines.join('\n'));
 
@@ -2025,31 +2037,31 @@ async function exportAgentsRdfInternal(
         const delActIri = actIriFromRecordIri(delIri);
 
         const delRec: string[] = [];
-        delRec.push(`${delIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
-        delRec.push(`  agentictrust:recordsSituation ${reqIri} ;`);
-        delRec.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
+        delRec.push(`${delIri} a core:DelegationTrustAssertion, core:TrustAssertion, prov:Entity ;`);
+        delRec.push(`  core:recordsSituation ${reqIri} ;`);
+        delRec.push(`  core:assertionRecordOf ${delActIri} ;`);
         delRec.push(`  prov:wasAttributedTo ${ai} ;`);
-        if (meta?.identity8004Iri) delRec.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+        if (meta?.identity8004Iri) delRec.push(`  core:aboutSubject ${meta.identity8004Iri} ;`);
         delRec.push(`  .\n`);
         chunks.push(delRec.join('\n'));
 
         const delAct: string[] = [];
-        delAct.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
-        delAct.push(`  agentictrust:assertsSituation ${reqIri} ;`);
-        delAct.push(`  agentictrust:generatedAssertionRecord ${delIri} ;`);
+        delAct.push(`${delActIri} a core:DelegationTrustAssertionAct, core:TrustAssertionAct, prov:Activity ;`);
+        delAct.push(`  core:assertsSituation ${reqIri} ;`);
+        delAct.push(`  core:generatedAssertionRecord ${delIri} ;`);
         delAct.push(`  prov:wasAssociatedWith ${ai} ;`);
-        delAct.push(`  agentictrust:assertedBy ${ai} ;`);
+        delAct.push(`  core:assertedBy ${ai} ;`);
         delAct.push(`  .\n`);
         chunks.push(delAct.join('\n'));
 
         // Situation participants
-        chunks.push(`${reqIri} agentictrust:hasSituationParticipant ${clientIri} .\n`);
-        chunks.push(`${reqIri} agentictrust:hasSituationParticipant ${ai} .\n`);
+        chunks.push(`${reqIri} core:hasSituationParticipant ${clientIri} .\n`);
+        chunks.push(`${reqIri} core:hasSituationParticipant ${ai} .\n`);
       }
 
       // Link Feedback (GiveFeedback) to delegation grant that authorized it.
       const del = feedbackAuthDelegationByRequest.get(reqIri);
-      if (del) recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${del} ;`);
+      if (del) recordLines.push(`  core:wasAuthorizedByDelegation ${del} ;`);
     }
     recordLines.push(`  .\n`);
     chunks.push(recordLines.join('\n'));
@@ -2075,8 +2087,8 @@ async function exportAgentsRdfInternal(
     chunks.push(`${ai} erc8004:hasFeedback ${ri} .\n`);
     if (meta?.identity8004Iri) chunks.push(`${meta.identity8004Iri} erc8004:hasFeedback ${ri} .\n`);
     const lines: string[] = [];
-    lines.push(`${ri} a erc8004:FeedbackResponse, agentictrust:ReputationTrustAssertion, prov:Activity ;`);
-    if (r?.responseJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(r.responseJson))} ;`);
+    lines.push(`${ri} a erc8004:FeedbackResponse, core:ReputationTrustAssertion, prov:Activity ;`);
+    if (r?.responseJson) lines.push(`  core:json ${turtleJsonLiteral(String(r.responseJson))} ;`);
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   }
@@ -2099,38 +2111,38 @@ async function exportAgentsRdfInternal(
     if (!agentId) continue;
     ensureAgentNode(chainId, agentId);
     const vi = validationRequestIri(chainId, id);
-    // No direct agent link for requests; link agent via ValidationResponse using agentictrust:hasValidation.
+    // No direct agent link for requests; link agent via ValidationResponse using core:hasValidation.
     const lines: string[] = [];
     // ValidationRequestSituation is a Situation (Entity) being asserted/answered by later responses.
     // We model ERC-8004 validation requests as erc8004:ValidationRequestSituation (a concrete subclass of
-    // agentictrust:VerificationRequestSituation) so ERC-8004 queries can stay vocabulary-native.
+    // core:VerificationRequestSituation) so ERC-8004 queries can stay vocabulary-native.
     const meta = agentMetaByKey.get(`${chainId}|${agentId}`);
     const ai = meta?.agentAnchorIri ? String(meta.agentAnchorIri) : null;
     if (!ai) continue;
-    lines.push(`${vi} a erc8004:ValidationRequestSituation, agentictrust:VerificationTrustSituation, agentictrust:TrustSituation, prov:Entity ;`);
-    lines.push(`  agentictrust:isAboutAgent ${ai} ;`);
-    if (meta?.identity8004Iri) lines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+    lines.push(`${vi} a erc8004:ValidationRequestSituation, core:VerificationTrustSituation, core:TrustSituation, prov:Entity ;`);
+    lines.push(`  core:isAboutAgent ${ai} ;`);
+    if (meta?.identity8004Iri) lines.push(`  core:aboutSubject ${meta.identity8004Iri} ;`);
     const validator = normalizeHex(v?.validatorAddress);
     lines.push(`  erc8004:validationChainId ${chainId} ;`);
     lines.push(`  erc8004:requestingAgentId "${escapeTurtleString(agentId)}" ;`);
     // Link VerificationTrustSituation to IntentType via satisfiesIntent
-    lines.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.validation')}> ;`);
+    lines.push(`  core:satisfiesIntent <${intentTypeIri('trust.validation')}> ;`);
     if (validator) {
       ensureAccountNode(chunks, chainId, validator, 'SmartAccount'); // Validator is typically agentAccount
       lines.push(`  erc8004:validatorAddress "${escapeTurtleString(validator)}" ;`);
       lines.push(`  erc8004:validationValidator ${accountIri(chainId, validator)} ;`);
-      lines.push(`  agentictrust:hasSituationParticipant ${accountIri(chainId, validator)} ;`);
+      lines.push(`  core:hasSituationParticipant ${accountIri(chainId, validator)} ;`);
       const mapped = agentByAccountKey.get(`${chainId}|${validator}`);
       if (mapped) {
         lines.push(`  erc8004:validatorAgent ${mapped} ;`);
-        lines.push(`  agentictrust:hasSituationParticipant ${mapped} ;`);
+        lines.push(`  core:hasSituationParticipant ${mapped} ;`);
         const mk = agentKeyByAccountKey.get(`${chainId}|${validator}`);
         if (mk) ensureAgentNode(mk.chainId, mk.agentId);
       }
     }
     const requestHash = typeof v?.requestHash === 'string' ? v.requestHash.trim() : '';
     if (requestHash) lines.push(`  erc8004:requestHash "${escapeTurtleString(String(requestHash))}" ;`);
-    if (v?.requestJson) lines.push(`  agentictrust:json ${turtleJsonLiteral(String(v.requestJson))} ;`);
+    if (v?.requestJson) lines.push(`  core:json ${turtleJsonLiteral(String(v.requestJson))} ;`);
     const reqObj = safeJsonObject(v?.requestJson);
     let deadlineLit: string | null = null;
     if (reqObj) {
@@ -2194,23 +2206,23 @@ async function exportAgentsRdfInternal(
     }
 
     // Delegation metadata for the validation request (requester delegates authority-to-validate to validator).
-    lines.push(`  agentictrust:delegationDelegator ${ai} ;`);
+    lines.push(`  core:delegationDelegator ${ai} ;`);
     if (validator) {
       const delegateTok = agentByAccountKey.get(`${chainId}|${validator}`) ?? accountIri(chainId, validator);
-      lines.push(`  agentictrust:delegationDelegatee ${delegateTok} ;`);
+      lines.push(`  core:delegationDelegatee ${delegateTok} ;`);
     }
-    if (deadlineLit) lines.push(`  agentictrust:delegationExpiresAtTime ${deadlineLit} ;`);
+    if (deadlineLit) lines.push(`  core:delegationExpiresAtTime ${deadlineLit} ;`);
     const permIri = delegationPermissionIri(chainId, 'validation-request', id);
-    lines.push(`  agentictrust:delegationGrantsPermission ${permIri} ;`);
+    lines.push(`  core:delegationGrantsPermission ${permIri} ;`);
 
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
 
     // Permission node
     const permLines: string[] = [];
-    permLines.push(`${permIri} a agentictrust:DelegationPermission, prov:Entity ;`);
-    permLines.push(`  agentictrust:permissionAction "validate" ;`);
-    permLines.push(`  agentictrust:permissionResource "${escapeTurtleString(String(ai))}" ;`);
+    permLines.push(`${permIri} a core:DelegationPermission, prov:Entity ;`);
+    permLines.push(`  core:permissionAction "validate" ;`);
+    permLines.push(`  core:permissionResource "${escapeTurtleString(String(ai))}" ;`);
     permLines.push(`  .\n`);
     chunks.push(permLines.join('\n'));
 
@@ -2224,20 +2236,20 @@ async function exportAgentsRdfInternal(
       delegationByRequestIri.set(vi, delIri);
       const delActIri = actIriFromRecordIri(delIri);
       const delRec: string[] = [];
-      delRec.push(`${delIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
-      delRec.push(`  agentictrust:recordsSituation ${vi} ;`);
-      delRec.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
+      delRec.push(`${delIri} a core:DelegationTrustAssertion, core:TrustAssertion, prov:Entity ;`);
+      delRec.push(`  core:recordsSituation ${vi} ;`);
+      delRec.push(`  core:assertionRecordOf ${delActIri} ;`);
       delRec.push(`  prov:wasAttributedTo ${ai} ;`);
-      if (meta?.identity8004Iri) delRec.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+      if (meta?.identity8004Iri) delRec.push(`  core:aboutSubject ${meta.identity8004Iri} ;`);
       delRec.push(`  .\n`);
       chunks.push(delRec.join('\n'));
 
       const delAct: string[] = [];
-      delAct.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
-      delAct.push(`  agentictrust:assertsSituation ${vi} ;`);
-      delAct.push(`  agentictrust:generatedAssertionRecord ${delIri} ;`);
+      delAct.push(`${delActIri} a core:DelegationTrustAssertionAct, core:TrustAssertionAct, prov:Activity ;`);
+      delAct.push(`  core:assertsSituation ${vi} ;`);
+      delAct.push(`  core:generatedAssertionRecord ${delIri} ;`);
       delAct.push(`  prov:wasAssociatedWith ${ai} ;`);
-      delAct.push(`  agentictrust:assertedBy ${ai} ;`);
+      delAct.push(`  core:assertedBy ${ai} ;`);
       delAct.push(`  .\n`);
       chunks.push(delAct.join('\n'));
     }
@@ -2271,8 +2283,8 @@ async function exportAgentsRdfInternal(
 
     const recordLines: string[] = [];
     // ValidationResponse is a durable assertion record (Entity) generated by a validation-response act (Activity).
-    recordLines.push(`${vi} a erc8004:ValidationResponse, agentictrust:VerificationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
-    if (meta?.identity8004Iri) recordLines.push(`  agentictrust:aboutSubject ${meta.identity8004Iri} ;`);
+    recordLines.push(`${vi} a erc8004:ValidationResponse, core:VerificationTrustAssertion, core:TrustAssertion, prov:Entity ;`);
+    if (meta?.identity8004Iri) recordLines.push(`  core:aboutSubject ${meta.identity8004Iri} ;`);
     recordLines.push(`  erc8004:validationChainIdForResponse ${chainId} ;`);
     recordLines.push(`  erc8004:requestingAgentIdForResponse "${escapeTurtleString(agentId)}" ;`);
     if (typeof v?.response === 'number' || typeof v?.response === 'string')
@@ -2281,21 +2293,21 @@ async function exportAgentsRdfInternal(
       recordLines.push(`  erc8004:responseHash "${escapeTurtleString(String(v.responseHash))}" ;`);
     if (typeof v?.tag === 'string' && v.tag.trim()) recordLines.push(`  erc8004:validationTagCheck <${checkIri(v.tag.trim())}> ;`);
     // Link record <-> act (always), and optionally link to the request situation.
-    recordLines.push(`  agentictrust:assertionRecordOf ${actIri} ;`);
+    recordLines.push(`  core:assertionRecordOf ${actIri} ;`);
 
     const actLines: string[] = [];
-    actLines.push(`${actIri} a erc8004:ValidationResponseAct, agentictrust:VerificationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
-    actLines.push(`  agentictrust:generatedAssertionRecord ${vi} ;`);
+    actLines.push(`${actIri} a erc8004:ValidationResponseAct, core:VerificationTrustAssertionAct, core:TrustAssertionAct, prov:Activity ;`);
+    actLines.push(`  core:generatedAssertionRecord ${vi} ;`);
 
     const reqHash = typeof v?.requestHash === 'string' ? v.requestHash.trim() : '';
     if (reqHash) recordLines.push(`  erc8004:requestHash "${escapeTurtleString(reqHash)}" ;`);
     const reqIri = reqHash ? requestByHash.get(`${chainId}|${reqHash}`) : undefined;
     if (reqIri) {
       recordLines.push(`  erc8004:validationRespondsToRequest ${reqIri} ;`);
-      recordLines.push(`  agentictrust:recordsSituation ${reqIri} ;`);
-      actLines.push(`  agentictrust:assertsSituation ${reqIri} ;`);
+      recordLines.push(`  core:recordsSituation ${reqIri} ;`);
+      actLines.push(`  core:assertsSituation ${reqIri} ;`);
       const del = delegationByRequestIri.get(reqIri);
-      if (del) recordLines.push(`  agentictrust:wasAuthorizedByDelegation ${del} ;`);
+      if (del) recordLines.push(`  core:wasAuthorizedByDelegation ${del} ;`);
     }
     const validator = normalizeHex(v?.validatorAddress);
     if (validator) {
@@ -2309,10 +2321,10 @@ async function exportAgentsRdfInternal(
       // Best-effort provenance: associate act with validator account.
       ensureAccountNode(chunks, chainId, validator, 'SmartAccount');
       actLines.push(`  prov:wasAssociatedWith ${accountIri(chainId, validator)} ;`);
-      actLines.push(`  agentictrust:assertedBy ${mapped ?? accountIri(chainId, validator)} ;`);
+      actLines.push(`  core:assertedBy ${mapped ?? accountIri(chainId, validator)} ;`);
       recordLines.push(`  prov:wasAttributedTo ${accountIri(chainId, validator)} ;`);
     }
-    if (v?.responseJson) recordLines.push(`  agentictrust:json ${turtleJsonLiteral(String(v.responseJson))} ;`);
+    if (v?.responseJson) recordLines.push(`  core:json ${turtleJsonLiteral(String(v.responseJson))} ;`);
     const respObj = safeJsonObject(v?.responseJson);
     if (respObj) {
       const offIri = validationOffchainIri(chainId, 'response', id);
@@ -2507,13 +2519,13 @@ async function exportAgentsRdfInternal(
     const lines: string[] = [];
     // Create RelationshipTrustSituation (the situation IS the relationship state)
     const relSituationIri = situationIri(chainId, associationId, 'relationship', relationshipId, undefined);
-    chunks.push(`${relSituationIri} a agentictrust:RelationshipTrustSituation, agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Entity ;`);
+    chunks.push(`${relSituationIri} a core:RelationshipTrustSituation, core:RelationshipSituation, core:TrustSituation, prov:Entity ;`);
     // Expose "about agent" hooks:
     // - always about the participant Accounts (prov:Agent), and
     // - additionally about AIAgents when we can map the account -> agent.
     // - also about base accounts when prefixed ERC-8092 accounts are detected
     if (initiator) {
-      chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, initiator)} ;`);
+      chunks.push(`  core:isAboutAgent ${accountIri(chainId, initiator)} ;`);
       // If this is a prefixed ERC-8092 account, also link to the base account
       const last40 = initiator.replace(/^0x/i, '').slice(-40);
       if (last40.length === 40 && initiator.length > 42) {
@@ -2521,12 +2533,12 @@ async function exportAgentsRdfInternal(
         const baseAccountKey = `${chainId}|${baseAccount}`;
         // Check if base account exists in our mapping (has an identifier)
         if (agentByAccountKey.has(baseAccountKey) || agentByAccountSuffixKey.has(`${chainId}|${last40}`)) {
-          chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, baseAccount)} ;`);
+          chunks.push(`  core:isAboutAgent ${accountIri(chainId, baseAccount)} ;`);
         }
       }
     }
     if (approver) {
-      chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, approver)} ;`);
+      chunks.push(`  core:isAboutAgent ${accountIri(chainId, approver)} ;`);
       // If this is a prefixed ERC-8092 account, also link to the base account
       const last40 = approver.replace(/^0x/i, '').slice(-40);
       if (last40.length === 40 && approver.length > 42) {
@@ -2534,38 +2546,38 @@ async function exportAgentsRdfInternal(
         const baseAccountKey = `${chainId}|${baseAccount}`;
         // Check if base account exists in our mapping (has an identifier)
         if (agentByAccountKey.has(baseAccountKey) || agentByAccountSuffixKey.has(`${chainId}|${last40}`)) {
-          chunks.push(`  agentictrust:isAboutAgent ${accountIri(chainId, baseAccount)} ;`);
+          chunks.push(`  core:isAboutAgent ${accountIri(chainId, baseAccount)} ;`);
         }
       }
     }
-    if (initiatorAgent) chunks.push(`  agentictrust:isAboutAgent ${initiatorAgent} ;`);
-    if (approverAgent) chunks.push(`  agentictrust:isAboutAgent ${approverAgent} ;`);
-    chunks.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);
+    if (initiatorAgent) chunks.push(`  core:isAboutAgent ${initiatorAgent} ;`);
+    if (approverAgent) chunks.push(`  core:isAboutAgent ${approverAgent} ;`);
+    chunks.push(`  core:satisfiesIntent <${intentTypeIri('trust.relationship')}> ;`);
     chunks.push(`  .\n`);
 
     // Also emit unqualified situation participants (accounts + mapped agents) for convenience.
     if (initiator) {
       const initiatorAccountIri = accountIri(chainId, initiator);
       ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
-      chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${initiatorAccountIri} .\n`);
-      if (initiatorAgent) chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${initiatorAgent} .\n`);
+      chunks.push(`${relSituationIri} core:hasSituationParticipant ${initiatorAccountIri} .\n`);
+      if (initiatorAgent) chunks.push(`${relSituationIri} core:hasSituationParticipant ${initiatorAgent} .\n`);
     }
     if (approver) {
       const approverAccountIri = accountIri(chainId, approver);
       ensureAccountNode(chunks, chainId, approver, 'SmartAccount');
-      chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${approverAccountIri} .\n`);
-      if (approverAgent) chunks.push(`${relSituationIri} agentictrust:hasSituationParticipant ${approverAgent} .\n`);
+      chunks.push(`${relSituationIri} core:hasSituationParticipant ${approverAccountIri} .\n`);
+      if (approverAgent) chunks.push(`${relSituationIri} core:hasSituationParticipant ${approverAgent} .\n`);
     }
 
     const actIri = actIriFromRecordIri(raIri);
 
     // Account association assertion record (ERC-8092 on-chain association row)
-    lines.push(`${raIri} a agentictrust:TrustAssertion, erc8092:AssociatedAccounts8092, prov:Entity ;`);
+    lines.push(`${raIri} a core:TrustAssertion, erc8092:AssociatedAccounts8092, prov:Entity ;`);
     lines.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(associationId)}" ;`);
     lines.push(`  erc8092:associationId "${escapeTurtleString(associationId)}" ;`);
     // Record links to asserted situation; act asserts it.
-    lines.push(`  agentictrust:recordsSituation ${relSituationIri} ;`);
-    lines.push(`  agentictrust:assertionRecordOf ${actIri} ;`);
+    lines.push(`  core:recordsSituation ${relSituationIri} ;`);
+    lines.push(`  core:assertionRecordOf ${actIri} ;`);
     if (initiator) {
       // initiator/approver reference agentAccount, not eoaAgentIdentityOwnerAccount
       ensureAccountNode(chunks, chainId, initiator, 'SmartAccount');
@@ -2620,15 +2632,15 @@ async function exportAgentsRdfInternal(
 
       // Delegation situation (state/constraints)
       const s: string[] = [];
-      s.push(`${delSituationIri} a agentictrust:DelegationTrustSituation, agentictrust:DelegationSituation, agentictrust:TrustSituation, prov:Entity ;`);
-      s.push(`  agentictrust:assertedIn ${raIri} ;`);
-      s.push(`  agentictrust:satisfiesIntent <${intentTypeIri('trust.delegation')}> ;`);
-      if (initiator) s.push(`  agentictrust:delegationDelegator ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
-      if (approver) s.push(`  agentictrust:delegationDelegatee ${approverAgent ?? accountIri(chainId, approver)} ;`);
+      s.push(`${delSituationIri} a core:DelegationTrustSituation, core:DelegationSituation, core:TrustSituation, prov:Entity ;`);
+      s.push(`  core:assertedIn ${raIri} ;`);
+      s.push(`  core:satisfiesIntent <${intentTypeIri('trust.delegation')}> ;`);
+      if (initiator) s.push(`  core:delegationDelegator ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
+      if (approver) s.push(`  core:delegationDelegatee ${approverAgent ?? accountIri(chainId, approver)} ;`);
       if (typeof drow?.ipfsCid === 'string' && drow.ipfsCid.trim())
-        s.push(`  agentictrust:delegationAuthorityValue "${escapeTurtleString(drow.ipfsCid.trim())}" ;`);
-      if (delegationJsonText) s.push(`  agentictrust:json ${turtleJsonLiteral(delegationJsonText)} ;`);
-      else s.push(`  agentictrust:json ${turtleJsonLiteral(JSON.stringify({ raw: decodedText }))} ;`);
+        s.push(`  core:delegationAuthorityValue "${escapeTurtleString(drow.ipfsCid.trim())}" ;`);
+      if (delegationJsonText) s.push(`  core:json ${turtleJsonLiteral(delegationJsonText)} ;`);
+      else s.push(`  core:json ${turtleJsonLiteral(JSON.stringify({ raw: decodedText }))} ;`);
       s.push(`  .\n`);
       chunks.push(s.join('\n'));
 
@@ -2644,40 +2656,40 @@ async function exportAgentsRdfInternal(
 
       const permIri = erc8092DelegationPermissionIri(chainId, associationId, 1);
       const p: string[] = [];
-      p.push(`${permIri} a agentictrust:DelegationPermission, prov:Entity ;`);
-      if (permAction) p.push(`  agentictrust:permissionAction "${escapeTurtleString(permAction)}" ;`);
+      p.push(`${permIri} a core:DelegationPermission, prov:Entity ;`);
+      if (permAction) p.push(`  core:permissionAction "${escapeTurtleString(permAction)}" ;`);
       p.push(`  .\n`);
       chunks.push(p.join('\n'));
-      chunks.push(`${delSituationIri} agentictrust:delegationGrantsPermission ${permIri} .\n`);
+      chunks.push(`${delSituationIri} core:delegationGrantsPermission ${permIri} .\n`);
 
       // Delegation assertion record + act
       const r: string[] = [];
-      r.push(`${delAssertionIri} a agentictrust:DelegationTrustAssertion, agentictrust:TrustAssertion, prov:Entity ;`);
-      r.push(`  agentictrust:recordsSituation ${delSituationIri} ;`);
-      r.push(`  agentictrust:assertionRecordOf ${delActIri} ;`);
+      r.push(`${delAssertionIri} a core:DelegationTrustAssertion, core:TrustAssertion, prov:Entity ;`);
+      r.push(`  core:recordsSituation ${delSituationIri} ;`);
+      r.push(`  core:assertionRecordOf ${delActIri} ;`);
       r.push(`  prov:wasDerivedFrom ${raIri} ;`);
       if (initiator) r.push(`  prov:wasAttributedTo ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
       r.push(`  .\n`);
       chunks.push(r.join('\n'));
 
       const a: string[] = [];
-      a.push(`${delActIri} a agentictrust:DelegationTrustAssertionAct, agentictrust:TrustAssertionAct, prov:Activity ;`);
-      a.push(`  agentictrust:generatedAssertionRecord ${delAssertionIri} ;`);
-      a.push(`  agentictrust:assertsSituation ${delSituationIri} ;`);
+      a.push(`${delActIri} a core:DelegationTrustAssertionAct, core:TrustAssertionAct, prov:Activity ;`);
+      a.push(`  core:generatedAssertionRecord ${delAssertionIri} ;`);
+      a.push(`  core:assertsSituation ${delSituationIri} ;`);
       if (initiator) a.push(`  prov:wasAssociatedWith ${initiatorAgent ?? accountIri(chainId, initiator)} ;`);
       a.push(`  .\n`);
       chunks.push(a.join('\n'));
     }
 
     // Act: provenance-bearing activity that generated the record and asserted the situation.
-    chunks.push(`${actIri} a erc8092:AssociatedAccountsAct8092, agentictrust:TrustAssertionAct, prov:Activity ;\n`);
-    chunks.push(`  agentictrust:generatedAssertionRecord ${raIri} ;\n`);
-    chunks.push(`  agentictrust:assertsSituation ${relSituationIri} ;\n`);
+    chunks.push(`${actIri} a erc8092:AssociatedAccountsAct8092, core:TrustAssertionAct, prov:Activity ;\n`);
+    chunks.push(`  core:generatedAssertionRecord ${raIri} ;\n`);
+    chunks.push(`  core:assertsSituation ${relSituationIri} ;\n`);
     // Best-effort: associate the act with a participant account if present.
     if (initiator) {
       const initiatorTok = initiatorAgent ?? accountIri(chainId, initiator);
       chunks.push(`  prov:wasAssociatedWith ${initiatorTok} ;\n`);
-      chunks.push(`  agentictrust:assertedBy ${initiatorTok} ;\n`);
+      chunks.push(`  core:assertedBy ${initiatorTok} ;\n`);
     }
     chunks.push(`  .\n`);
 
@@ -2691,7 +2703,7 @@ async function exportAgentsRdfInternal(
       rr.push(`${rIri} a erc8092:AssociatedAccountsRevocation8092, prov:Entity ;`);
       rr.push(`  erc8092:relationshipAssertionId "${escapeTurtleString(rid)}" ;`);
       rr.push(`  erc8092:revocationOfAssociatedAccounts ${raIri} ;`);
-      rr.push(`  agentictrust:assertionRecordOf ${rActIri} ;`);
+      rr.push(`  core:assertionRecordOf ${rActIri} ;`);
       if (r?.revokedAt != null) rr.push(`  erc8092:revokedAt ${Number(r.revokedAt) || 0} ;`);
       if (r?.txHash) rr.push(`  erc8092:revocationTxHash "${escapeTurtleString(String(r.txHash))}" ;`);
       if (r?.blockNumber != null) rr.push(`  erc8092:revocationBlockNumber ${Number(r.blockNumber) || 0} ;`);
@@ -2701,9 +2713,9 @@ async function exportAgentsRdfInternal(
 
       // Act for revocation
       const rrAct: string[] = [];
-      rrAct.push(`${rActIri} a erc8092:AssociatedAccountsRevocationAct8092, agentictrust:TrustAssertionAct, prov:Activity ;`);
-      rrAct.push(`  agentictrust:generatedAssertionRecord ${rIri} ;`);
-      rrAct.push(`  agentictrust:assertsSituation ${relSituationIri} ;`);
+      rrAct.push(`${rActIri} a erc8092:AssociatedAccountsRevocationAct8092, core:TrustAssertionAct, prov:Activity ;`);
+      rrAct.push(`  core:generatedAssertionRecord ${rIri} ;`);
+      rrAct.push(`  core:assertsSituation ${relSituationIri} ;`);
       rrAct.push(`  .\n`);
       chunks.push(rrAct.join('\n'));
     }

@@ -26,7 +26,7 @@ A “validation agents collection” is a curated set of agents allowed to perfo
 - **Skills** (OASF):
   - `oasf:key` under `validation_collection/*` (eligibility, evidence, submit, monitor)
 
-This example data is shipped in `apps/ontology/ontology/core.ttl` and ingested into GraphDB with `graphdb:ingest ontologies`.
+This example data is shipped in `apps/ontology/ontology/usecase-validator-collection.ttl` (with shared discovery primitives in `apps/ontology/ontology/discovery.ttl`) and ingested into GraphDB with `graphdb:ingest ontologies`.
 
 ## A2A alignment (terms)
 

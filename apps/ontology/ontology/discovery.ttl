@@ -1,0 +1,141 @@
+@base <https://agentictrust.io/ontology/core#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix oasf: <https://agentictrust.io/ontology/oasf#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/core/discovery> a owl:Ontology ;
+  rdfs:label "Agentic Trust Discovery & Planning Module" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> .
+
+########
+# Intent -> task -> skill mapping model (discovery/planning)
+########
+
+:IntentTaskMapping a owl:Class ;
+  rdfs:label "Intent Task Mapping" .
+
+:TaskSkillRequirement a owl:Class ;
+  rdfs:label "Task Skill Requirement" .
+
+:intentTypeToTaskType a owl:ObjectProperty ;
+  rdfs:label "intent type to task type" ;
+  rdfs:domain :IntentType ;
+  rdfs:range :TaskType .
+
+:mapsIntentType a owl:ObjectProperty ;
+  rdfs:label "maps intent type" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range :IntentType .
+
+:mapsTaskType a owl:ObjectProperty ;
+  rdfs:label "maps task type" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range :TaskType .
+
+:requiresSkill a owl:ObjectProperty ;
+  rdfs:label "requires skill" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range oasf:Skill .
+
+:mayUseSkill a owl:ObjectProperty ;
+  rdfs:label "may use skill" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range oasf:Skill .
+
+:requiresSkillLevel a owl:DatatypeProperty ;
+  rdfs:label "requires skill level" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range xsd:string .
+
+:requiresEvidence a owl:DatatypeProperty ;
+  rdfs:label "requires evidence" ;
+  rdfs:domain :IntentTaskMapping ;
+  rdfs:range xsd:string .
+
+########
+# Taxonomies (SKOS)
+########
+
+:IntentTaxonomy a skos:ConceptScheme ;
+  rdfs:label "Intent Taxonomy" .
+
+:TaskTaxonomy a skos:ConceptScheme ;
+  rdfs:label "Task Taxonomy" .
+
+########
+# Cross-domain building blocks used by multiple scenarios
+########
+
+:intentType.membershipQualification
+  a skos:Concept, :IntentType ;
+  skos:inScheme :IntentTaxonomy ;
+  skos:prefLabel "Membership qualification"@en ;
+  rdfs:comment "Outcome requires third-party eligibility verification and evidence review (regulated access / professional affiliation)."@en .
+
+:taskType.eligibilityAssessment
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Eligibility assessment"@en ;
+  rdfs:comment "Assess whether a user meets a target organization's membership eligibility criteria."@en .
+
+:taskType.evidenceCollection
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Evidence collection"@en ;
+  rdfs:comment "Collect and normalize evidence required for a membership application."@en .
+
+:taskType.applicationSubmission
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Application submission"@en ;
+  rdfs:comment "Submit a membership application to an organization, including required evidence and fees."@en .
+
+:taskType.statusMonitoring
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Status monitoring"@en ;
+  rdfs:comment "Monitor application status and notify stakeholders of changes."@en .
+
+:skillType.eligibilityAnalysis
+  a skos:Concept, :SkillType ;
+  skos:prefLabel "Eligibility analysis skill"@en .
+
+:skillType.credentialEvidence
+  a skos:Concept, :SkillType ;
+  skos:prefLabel "Credential & evidence skill"@en .
+
+:skillType.applicationExecution
+  a skos:Concept, :SkillType ;
+  skos:prefLabel "Application execution skill"@en .
+
+:skillType.processMonitoring
+  a skos:Concept, :SkillType ;
+  skos:prefLabel "Process monitoring skill"@en .
+
+:skillType.advisoryStrategy
+  a skos:Concept, :SkillType ;
+  skos:prefLabel "Advisory strategy skill"@en .
+
+########
+# Generic action types (used across plans)
+########
+
+:actionType.httpGet
+  a skos:Concept, :ActionType ;
+  skos:prefLabel "HTTP GET"@en .
+
+:actionType.apiCall
+  a skos:Concept, :ActionType ;
+  skos:prefLabel "API call"@en .
+
+:actionType.fileUpload
+  a skos:Concept, :ActionType ;
+  skos:prefLabel "File upload"@en .
+
+:actionType.statusCheck
+  a skos:Concept, :ActionType ;
+  skos:prefLabel "Status check"@en .

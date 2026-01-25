@@ -236,6 +236,43 @@ export async function uploadFileToRepository(
   return { bytes: stat.size };
 }
 
+export async function uploadTurtleToRepository(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  params: { turtle: string; context?: string | null },
+): Promise<{ bytes: number }> {
+  const context = params.context && params.context.trim() ? params.context.trim() : null;
+  const qs = context ? `?context=${encodeURIComponent(`<${context}>`)}` : '';
+  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}/statements${qs}`);
+  const bytes = Buffer.byteLength(params.turtle, 'utf8');
+
+  const res = await graphdbFetch(url, {
+    method: 'POST',
+    auth,
+    timeoutMs: 10 * 60_000,
+    headers: {
+      'Content-Type': 'text/turtle',
+      'Content-Length': String(bytes),
+    },
+    body: params.turtle,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const lineMatch = text.match(/line\s+(\d+)/i) || text.match(/\[line\s+(\d+)\]/i) || text.match(/at\s+line\s+(\d+)/i);
+    const iriMatch =
+      text.match(/IRI[:\s]+<([^>]+)>/i) ||
+      text.match(/IRI[:\s]+(https?:\/\/[^\s<>"{}|^`\n]+)/i) ||
+      text.match(/IRI[:\s]+([a-z][a-z0-9+.-]*:[^\s<>"{}|^`\n]+)/i);
+    const lineInfo = lineMatch ? ` (line ${lineMatch[1]})` : '';
+    const iriInfo = iriMatch ? ` (problematic IRI: ${iriMatch[1].slice(0, 150)})` : '';
+    const fullError = text ? `\nFull error: ${text}` : '';
+    throw new Error(`GraphDB upload failed (inline turtle)${lineInfo}${iriInfo}${fullError.slice(0, 2000)}`);
+  }
+
+  return { bytes };
+}
+
 export async function queryGraphdb(
   baseUrl: string,
   repository: string,

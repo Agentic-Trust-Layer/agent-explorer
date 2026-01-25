@@ -1,0 +1,241 @@
+@base <https://agentictrust.io/ontology/core#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/core/identifier> a owl:Ontology ;
+  rdfs:label "Agentic Trust Identifier Module" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/trust> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:imports <http://purl.org/dc/terms/> .
+
+########
+# Identifier artifacts + routing metadata
+########
+
+:Identifier a owl:Class ;
+  rdfs:label "Identifier" ;
+  rdfs:comment "An identifier artifact (string/URI) and its metadata/bindings." ;
+  rdfs:subClassOf prov:Entity .
+
+:UniversalIdentifier a owl:Class ;
+  rdfs:label "UniversalIdentifier" ;
+  rdfs:comment "A normalized identifier artifact that may carry routing metadata (registry/proto/native id)." ;
+  rdfs:subClassOf :Identifier .
+
+:IdentifierArtifact a owl:Class ;
+  rdfs:label "IdentifierArtifact" ;
+  rdfs:subClassOf prov:Entity .
+
+:IdentifierType a owl:Class ;
+  rdfs:label "IdentifierType" ;
+  rdfs:subClassOf prov:Entity .
+
+:ProtocolType a owl:Class ;
+  rdfs:label "ProtocolType" ;
+  rdfs:subClassOf prov:Entity .
+
+:hasIdentifier a owl:ObjectProperty ;
+  rdfs:label "has identifier" ;
+  rdfs:comment "Links an Agent to an Identifier artifact." ;
+  rdfs:domain prov:Agent ;
+  rdfs:range :Identifier .
+
+:identifierType a owl:ObjectProperty ;
+  rdfs:label "identifier type" ;
+  rdfs:domain :Identifier ;
+  rdfs:range :IdentifierType .
+
+:supportsProtocol a owl:ObjectProperty ;
+  rdfs:label "supports protocol" ;
+  rdfs:domain :UniversalIdentifier ;
+  rdfs:range :ProtocolType .
+
+:assertsIdentifierTrust a owl:ObjectProperty ;
+  rdfs:label "asserts identifier trust" ;
+  rdfs:domain :TrustAssertion ;
+  rdfs:range :UniversalIdentifier .
+
+########
+# DID spine (Identifier -> Controller -> Subject)
+########
+
+:DecentralizedIdentifier a owl:Class ;
+  rdfs:label "DecentralizedIdentifier" ;
+  rdfs:comment "Base class for decentralized identifiers (DID, CAIP-10, URL, DNS name)." ;
+  rdfs:subClassOf prov:Entity .
+
+:DID a owl:Class ;
+  rdfs:label "DID" ;
+  rdfs:subClassOf :DecentralizedIdentifier .
+
+:DIDMethod a owl:Class ;
+  rdfs:label "DIDMethod" ;
+  rdfs:subClassOf prov:Entity .
+
+:DIDDocument a owl:Class ;
+  rdfs:label "DIDDocument" ;
+  rdfs:subClassOf prov:Entity .
+
+:VerificationMethod a owl:Class ;
+  rdfs:label "VerificationMethod" ;
+  rdfs:subClassOf prov:Entity .
+
+:controlledBy a owl:ObjectProperty ;
+  rdfs:label "controlled by" ;
+  rdfs:comment "Links an Identifier to the controller Agent who can prove control." ;
+  rdfs:domain :DecentralizedIdentifier ;
+  rdfs:range prov:Agent .
+
+:identifies a owl:ObjectProperty ;
+  rdfs:label "identifies" ;
+  rdfs:comment "Links an Identifier to the subject it identifies." ;
+  rdfs:domain :DecentralizedIdentifier ;
+  rdfs:range prov:Entity .
+
+:didMethod a owl:ObjectProperty ;
+  rdfs:label "did method" ;
+  rdfs:domain :DID ;
+  rdfs:range :DIDMethod .
+
+:resolvesToDocument a owl:ObjectProperty ;
+  rdfs:label "resolves to document" ;
+  rdfs:domain :DID ;
+  rdfs:range :DIDDocument .
+
+:assertedIn a owl:ObjectProperty ;
+  rdfs:label "asserted in" ;
+  rdfs:comment "Links an Identifier or DIDDocument to a TrustAssertion/Situation where it is asserted." ;
+  rdfs:domain prov:Entity ;
+  rdfs:range prov:Entity .
+
+########
+# Routing metadata (HCS-14 style)
+########
+
+:registryNamespace a owl:DatatypeProperty ;
+  rdfs:label "registry namespace" ;
+  rdfs:domain :UniversalIdentifier ;
+  rdfs:range xsd:string .
+
+:protocolIdentifier a owl:DatatypeProperty ;
+  rdfs:label "protocol identifier" ;
+  rdfs:domain :UniversalIdentifier ;
+  rdfs:range xsd:string .
+
+:nativeUniqueId a owl:DatatypeProperty ;
+  rdfs:label "native unique id" ;
+  rdfs:domain :UniversalIdentifier ;
+  rdfs:range xsd:string .
+
+:uidIdentifier a owl:DatatypeProperty ;
+  rdfs:label "uid identifier" ;
+  rdfs:domain :UniversalIdentifier ;
+  rdfs:range xsd:string .
+
+:domainIdentifier a owl:DatatypeProperty ;
+  rdfs:label "domain identifier" ;
+  rdfs:domain :UniversalIdentifier ;
+  rdfs:range xsd:string .
+
+:methodParameter a owl:DatatypeProperty ;
+  rdfs:label "method parameter" ;
+  rdfs:domain :UniversalIdentifier ;
+  rdfs:range xsd:string .
+
+########
+# Verifiable credentials + DID-linked resources (minimal)
+########
+
+:VerifiableCredential a owl:Class ;
+  rdfs:label "VerifiableCredential" ;
+  rdfs:subClassOf :AttestedAssertion, prov:Entity .
+
+:CredentialSchema a owl:Class ;
+  rdfs:label "CredentialSchema" ;
+  rdfs:subClassOf prov:Entity .
+
+:CredentialIssuer a owl:Class ;
+  rdfs:label "CredentialIssuer" ;
+  rdfs:subClassOf prov:Entity .
+
+:CredentialSubject a owl:Class ;
+  rdfs:label "CredentialSubject" ;
+  rdfs:subClassOf prov:Entity .
+
+:CredentialPresentation a owl:Class ;
+  rdfs:label "CredentialPresentation" ;
+  rdfs:subClassOf :AttestedAssertion, prov:Entity .
+
+:DIDLinkedResource a owl:Class ;
+  rdfs:label "DIDLinkedResource" ;
+  rdfs:subClassOf prov:Entity .
+
+:DIDLinkedResourceType a owl:Class ;
+  rdfs:label "DIDLinkedResourceType" ;
+  rdfs:subClassOf prov:Entity .
+
+:credentialSchema a owl:ObjectProperty ;
+  rdfs:label "credential schema" ;
+  rdfs:domain :VerifiableCredential ;
+  rdfs:range :CredentialSchema .
+
+:credentialIssuerAgent a owl:ObjectProperty ;
+  rdfs:label "credential issuer agent" ;
+  rdfs:domain :VerifiableCredential ;
+  rdfs:range prov:Agent .
+
+:credentialIssuerEntity a owl:ObjectProperty ;
+  rdfs:label "credential issuer entity" ;
+  rdfs:domain :VerifiableCredential ;
+  rdfs:range :CredentialIssuer .
+
+:credentialSubjectEntity a owl:ObjectProperty ;
+  rdfs:label "credential subject entity" ;
+  rdfs:domain :VerifiableCredential ;
+  rdfs:range prov:Entity .
+
+:presentsCredential a owl:ObjectProperty ;
+  rdfs:label "presents credential" ;
+  rdfs:domain :CredentialPresentation ;
+  rdfs:range :VerifiableCredential .
+
+:presentationHolder a owl:ObjectProperty ;
+  rdfs:label "presentation holder" ;
+  rdfs:domain :CredentialPresentation ;
+  rdfs:range prov:Agent .
+
+:credentialTypeValue a owl:DatatypeProperty ;
+  rdfs:label "credential type value" ;
+  rdfs:domain :VerifiableCredential ;
+  rdfs:range xsd:string .
+
+:didLinkedResourceOf a owl:ObjectProperty ;
+  rdfs:label "did linked resource of" ;
+  rdfs:domain :DIDLinkedResource ;
+  rdfs:range :DID .
+
+:didLinkedResourceType a owl:ObjectProperty ;
+  rdfs:label "did linked resource type" ;
+  rdfs:domain :DIDLinkedResource ;
+  rdfs:range :DIDLinkedResourceType .
+
+:didLinkedResourceUri a owl:DatatypeProperty ;
+  rdfs:label "did linked resource uri" ;
+  rdfs:domain :DIDLinkedResource ;
+  rdfs:range xsd:string .
+
+:didLinkedResourceMediaType a owl:DatatypeProperty ;
+  rdfs:label "did linked resource media type" ;
+  rdfs:domain :DIDLinkedResource ;
+  rdfs:range xsd:string .
+
+:didLinkedResourceJson a owl:DatatypeProperty ;
+  rdfs:label "did linked resource json" ;
+  rdfs:domain :DIDLinkedResource ;
+  rdfs:range xsd:string .

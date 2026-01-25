@@ -1,0 +1,210 @@
+@base <https://agentictrust.io/ontology/core#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix oasf: <https://agentictrust.io/ontology/oasf#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<https://agentictrust.io/ontology/core/usecase/validator-collection> a owl:Ontology ;
+  rdfs:label "Use Case: Validator Agent Joins Validation Collection" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/discovery> .
+
+########
+# Example: "Become a member of validation agents collection" (simpler regulated membership)
+########
+
+:intentType.joinValidationAgentsCollection
+  a skos:Concept, :IntentType ;
+  skos:inScheme :IntentTaxonomy ;
+  skos:prefLabel "Join validation agents collection"@en ;
+  skos:broader :intentType.membershipQualification ;
+  rdfs:comment "Regulated membership in a curated set of validator agents. Requires policy check, evidence bundle, submission, and decision."@en .
+
+:taskType.validationCollection.checkRequirements
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Check collection requirements"@en ;
+  skos:broader :taskType.eligibilityAssessment ;
+  rdfs:comment "Fetch and interpret membership criteria/policy and assess applicant eligibility."@en .
+
+:taskType.validationCollection.prepareEvidence
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Prepare membership evidence bundle"@en ;
+  skos:broader :taskType.evidenceCollection ;
+  rdfs:comment "Assemble identity, endpoints, supported validations, and optional attestations into a bundle for review."@en .
+
+:taskType.validationCollection.submitRequest
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Submit collection membership request"@en ;
+  skos:broader :taskType.applicationSubmission ;
+  rdfs:comment "Submit membership request and capture receipt/reference id."@en .
+
+:taskType.validationCollection.monitorStatus
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Monitor collection membership status"@en ;
+  skos:broader :taskType.statusMonitoring ;
+  rdfs:comment "Monitor request status (pending/accepted/rejected) and notify stakeholders."@en .
+
+:intent.joinValidationAgentsCollection
+  a :Intent ;
+  :hasIntentType :intentType.joinValidationAgentsCollection ;
+  :targetOrganization "Validation Agents Collection" ;
+  :desiredStatus "Member" ;
+  dcterms:description "I am added to the validation agents collection."@en .
+
+:plan.joinValidationAgentsCollection
+  a :Plan ;
+  dcterms:title "Join validation agents collection plan"@en ;
+  :planForIntent :intent.joinValidationAgentsCollection ;
+  :hasStep :planStep.validationCollection.1_checkRequirements ;
+  :hasStep :planStep.validationCollection.2_prepareEvidence ;
+  :hasStep :planStep.validationCollection.3_submitRequest ;
+  :hasStep :planStep.validationCollection.4_monitorStatus .
+
+:planStep.validationCollection.1_checkRequirements
+  a :PlanStep ;
+  :stepOrder 1 ;
+  :stepTaskType :taskType.validationCollection.checkRequirements ;
+  :stepActionType :actionType.httpGet ;
+  p-plan:hasInputVar :intent.joinValidationAgentsCollection ;
+  p-plan:hasOutputVar :task.checkCollectionRequirements ;
+  rdfs:comment "Fetch membership criteria/policy for the collection and assess if the applicant agent is eligible."@en .
+
+:planStep.validationCollection.2_prepareEvidence
+  a :PlanStep ;
+  :stepOrder 2 ;
+  :stepTaskType :taskType.validationCollection.prepareEvidence ;
+  :stepActionType :actionType.apiCall ;
+  p-plan:hasOutputVar :task.prepareValidationEvidence ;
+  rdfs:comment "Assemble a minimal evidence bundle: agent identity, endpoints, supported validations, and supporting attestations."@en .
+
+:planStep.validationCollection.3_submitRequest
+  a :PlanStep ;
+  :stepOrder 3 ;
+  :stepTaskType :taskType.validationCollection.submitRequest ;
+  :stepActionType :actionType.fileUpload ;
+  p-plan:hasOutputVar :task.submitCollectionMembershipRequest ;
+  rdfs:comment "Submit the membership request to the collection (registry / portal / on-chain transaction) and capture receipt/reference."@en .
+
+:planStep.validationCollection.4_monitorStatus
+  a :PlanStep ;
+  :stepOrder 4 ;
+  :stepTaskType :taskType.validationCollection.monitorStatus ;
+  :stepActionType :actionType.statusCheck ;
+  p-plan:hasOutputVar :task.monitorCollectionMembershipStatus ;
+  rdfs:comment "Monitor request status (pending/accepted/rejected) and notify the agent owner."@en .
+
+# Example OASF skills for this scenario (kept in oasf namespace for discovery)
+<https://agentictrust.io/ontology/oasf#skill/validation_collection/eligibility_evaluate>
+  a oasf:Skill ;
+  oasf:key "validation_collection/eligibility_evaluate" ;
+  oasf:caption "Validation collection eligibility evaluation" ;
+  oasf:description "Evaluate whether an agent meets the membership criteria for a validation agents collection." ;
+  oasf:category "validation_collection" ;
+  :hasSkillType :skillType.eligibilityAnalysis .
+
+<https://agentictrust.io/ontology/oasf#skill/validation_collection/evidence_bundle_prepare>
+  a oasf:Skill ;
+  oasf:key "validation_collection/evidence_bundle_prepare" ;
+  oasf:caption "Validation membership evidence bundle preparation" ;
+  oasf:description "Prepare a membership evidence bundle (identity, endpoints, supported validations, trust model, attestations)." ;
+  oasf:category "validation_collection" ;
+  :hasSkillType :skillType.credentialEvidence .
+
+<https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_request_submit>
+  a oasf:Skill ;
+  oasf:key "validation_collection/membership_request_submit" ;
+  oasf:caption "Validation collection membership request submission" ;
+  oasf:description "Submit a membership request to a validation agents collection and capture receipt/reference id." ;
+  oasf:category "validation_collection" ;
+  :hasSkillType :skillType.applicationExecution .
+
+<https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_status_monitor>
+  a oasf:Skill ;
+  oasf:key "validation_collection/membership_status_monitor" ;
+  oasf:caption "Validation collection membership status monitoring" ;
+  oasf:description "Monitor membership request status and notify stakeholders of changes." ;
+  oasf:category "validation_collection" ;
+  :hasSkillType :skillType.processMonitoring .
+
+:task.checkCollectionRequirements
+  a :Task ;
+  :hasTaskType :taskType.validationCollection.checkRequirements ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/eligibility_evaluate> ;
+  prov:used :intent.joinValidationAgentsCollection .
+
+:task.prepareValidationEvidence
+  a :Task ;
+  :hasTaskType :taskType.validationCollection.prepareEvidence ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/evidence_bundle_prepare> ;
+  prov:used :intent.joinValidationAgentsCollection .
+
+:task.submitCollectionMembershipRequest
+  a :Task ;
+  :hasTaskType :taskType.validationCollection.submitRequest ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_request_submit> ;
+  prov:used :intent.joinValidationAgentsCollection .
+
+:task.monitorCollectionMembershipStatus
+  a :Task ;
+  :hasTaskType :taskType.validationCollection.monitorStatus ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_status_monitor> ;
+  prov:used :intent.joinValidationAgentsCollection .
+
+:mapping.joinValidationAgentsCollection.checkRequirements
+  a :IntentTaskMapping ;
+  :mapsIntentType :intentType.joinValidationAgentsCollection ;
+  :mapsTaskType :taskType.validationCollection.checkRequirements ;
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/eligibility_evaluate> .
+
+:mapping.joinValidationAgentsCollection.prepareEvidence
+  a :IntentTaskMapping ;
+  :mapsIntentType :intentType.joinValidationAgentsCollection ;
+  :mapsTaskType :taskType.validationCollection.prepareEvidence ;
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/evidence_bundle_prepare> .
+
+:mapping.joinValidationAgentsCollection.submitRequest
+  a :IntentTaskMapping ;
+  :mapsIntentType :intentType.joinValidationAgentsCollection ;
+  :mapsTaskType :taskType.validationCollection.submitRequest ;
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_request_submit> .
+
+:mapping.joinValidationAgentsCollection.monitorStatus
+  a :IntentTaskMapping ;
+  :mapsIntentType :intentType.joinValidationAgentsCollection ;
+  :mapsTaskType :taskType.validationCollection.monitorStatus ;
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_status_monitor> .
+
+# Example executable actions (atomic)
+:action.fetchValidationCollectionPolicy
+  a :Action ;
+  :actionTarget "https://example.org/validation-collection/policy" ;
+  :actionTool "http" ;
+  :actionParametersJson "{\"method\":\"GET\"}" ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/eligibility_evaluate> .
+
+:action.queryAgentDescriptorAndAttestations
+  a :Action ;
+  :actionTool "graphdb" ;
+  :actionParametersJson "{\"query\":\"describe-agent-and-attestations\"}" ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/evidence_bundle_prepare> .
+
+:action.submitMembershipRequest
+  a :Action ;
+  :actionTool "registry" ;
+  :actionParametersJson "{\"action\":\"submit\",\"target\":\"validation-collection\"}" ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_request_submit> .
+
+:action.pollMembershipStatus
+  a :Action ;
+  :actionTool "registry" ;
+  :actionParametersJson "{\"action\":\"status\",\"intervalDays\":7}" ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/validation_collection/membership_status_monitor> .

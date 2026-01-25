@@ -1,0 +1,113 @@
+@base <https://agentictrust.io/ontology/hol#> .
+@prefix : <https://agentictrust.io/ontology/hol#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/hol> a owl:Ontology ;
+  rdfs:label "Agentic Trust HOL Ontology" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/identity> ;
+  owl:imports <https://agentictrust.io/ontology/core/descriptors> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> .
+
+########
+# HOL identity layer
+########
+
+:AgentIdentityRegistryHOL a owl:Class ;
+  rdfs:label "AgentIdentityRegistryHOL" ;
+  rdfs:subClassOf core:AgentRegistry ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentIdentityHOL a owl:Class ;
+  rdfs:label "AgentIdentityHOL" ;
+  rdfs:subClassOf core:AgentIdentity ;
+  rdfs:subClassOf prov:Entity .
+
+:IdentityIdentifierHOL a owl:Class ;
+  rdfs:label "IdentityIdentifierHOL" ;
+  rdfs:subClassOf core:UniversalIdentifier ;
+  rdfs:subClassOf prov:Entity .
+
+:IdentityDescriptorHOL a owl:Class ;
+  rdfs:label "IdentityDescriptorHOL" ;
+  rdfs:subClassOf core:AgentIdentityDescriptor .
+
+:AgentProfileHOL a owl:Class ;
+  rdfs:label "AgentProfileHOL" ;
+  rdfs:subClassOf prov:Entity .
+
+:hasAgentProfileHOL a owl:ObjectProperty ;
+  rdfs:label "hasAgentProfileHOL" ;
+  rdfs:domain :AgentIdentityHOL ;
+  rdfs:range :AgentProfileHOL .
+
+:uaid a owl:DatatypeProperty ;
+  rdfs:label "uaid" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:originalId a owl:DatatypeProperty ;
+  rdfs:label "originalId" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:registry a owl:DatatypeProperty ;
+  rdfs:label "registry" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:displayName a owl:DatatypeProperty ;
+  rdfs:label "displayName" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:bio a owl:DatatypeProperty ;
+  rdfs:label "bio" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:rating a owl:DatatypeProperty ;
+  rdfs:label "rating" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:decimal .
+
+:trustScore a owl:DatatypeProperty ;
+  rdfs:label "trustScore" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:decimal .
+
+:totalInteractions a owl:DatatypeProperty ;
+  rdfs:label "totalInteractions" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:integer .
+
+:availabilityScore a owl:DatatypeProperty ;
+  rdfs:label "availabilityScore" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:decimal .
+
+:availabilityLatencyMs a owl:DatatypeProperty ;
+  rdfs:label "availabilityLatencyMs" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:integer .
+
+:available a owl:DatatypeProperty ;
+  rdfs:label "available" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:boolean .
+
+:lastIndexed a owl:DatatypeProperty ;
+  rdfs:label "lastIndexed" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:dateTime .
+
+:lastSeen a owl:DatatypeProperty ;
+  rdfs:label "lastSeen" ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:dateTime .

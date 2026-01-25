@@ -276,19 +276,17 @@ ERC ontologies
 
 ## Ontology Source Files
 
-Ontology sources live in `apps/badge-admin/public/ontology/`:
+Ontology sources live in `apps/ontology/ontology/` (Turtle; composed via `owl:imports`):
 
-- `agentictrust-core.owl`: Core trust model (DnS + PROV-O + P-PLAN) + common agent/intent/task/skill vocabulary
-- `agentictrust-eth.owl`: Ethereum-specific extensions (Account, ENSName)
-- `agentictrust-dns.owl`: DNS-specific extensions (DNSName)
-- `agentictrust-hol.owl`: HOL search-hit descriptor extensions (HOLAgentDescriptor)
-- `NANDA.owl`: NANDA-specific extensions (NANDAIdentity)
-- `ERC8004.owl`: ERC-8004 registration + validation + feedback layers
-- `ERC8092.owl`: ERC-8092 relationship assertions layer
-- `hol.owl`: HOL identity + profile descriptors (AgentIdentityHOL, IdentityDescriptorHOL, AgentProfileHOL)
+- `core.ttl`: upper ontology (cross-domain primitives)
+- `trust.ttl`: trust model (situations, assertions, delegation, relationships)
+- `identifier.ttl`: identifiers + DID/VC primitives + routing metadata
+- `identity.ttl`: identities + registries + names
+- `descriptors.ttl`: descriptor model (agent/identity/protocol metadata)
+- `discovery.ttl`: intent/task taxonomy + intent→task→skill mappings
+- `eth.ttl`, `erc8004.ttl`, `nanda.ttl`, `dns.ttl`, `erc8092.ttl`, `hol.ttl`: derived protocol/registry modules
+- `oasf.ttl`: OASF ontology (skills/domains classes + properties)
 
 ## Protégé Note
 
-If Protégé can't resolve imports offline, use the XML catalog:
-
-- `apps/badge-admin/public/ontology/catalog-v001.xml`
+If Protégé can't resolve imports offline, open the `.ttl` files directly (imports resolve best when the base IRIs are reachable).

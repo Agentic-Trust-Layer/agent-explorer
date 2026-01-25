@@ -1,6 +1,6 @@
 # Screen Writers Guild (WGA) membership use-case
 
-Outcome: **"I want to be added to the movie writers guild."**
+Outcome: **"I am added to the movie writers guild."**
 
 This use-case is intentionally domain-heavy: joining a guild is a **regulated, evidence-based, long-running** process with third-party adjudication. That makes it ideal for drawing out the differences between **intent**, **task**, **plan**, **action**, and **skill**.
 
@@ -104,7 +104,7 @@ It is grounded with:
 
 ### 3) TaskTypes (reusable categories of work)
 
-In `core.ttl` we model task types that generalize across guilds and licensing boards:
+In `discovery.ttl` we model task types that generalize across guilds and licensing boards:
 - eligibility assessment
 - evidence collection
 - application submission
@@ -157,7 +157,7 @@ Both tasks and actions can:
 
 ## Example data (ingested into GraphDB)
 
-This use-case ships as concrete instances in `apps/ontology/ontology/core.ttl`:
+This use-case ships as concrete instances in `apps/ontology/ontology/usecase-professional-membership.ttl` (with shared discovery primitives in `apps/ontology/ontology/discovery.ttl`):
 - `core:intent.joinWgaMembership`
 - `core:plan.joinWgaMembership` + `core:planStep.joinWga.*`
 - `core:task.*`

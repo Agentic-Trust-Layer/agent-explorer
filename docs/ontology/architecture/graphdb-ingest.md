@@ -2,9 +2,8 @@
 
 This uses the indexer CLI (`pnpm --filter erc8004-indexer graphdb:ingest ...`) to:
 
-- generate `agents.ttl` from the indexer DB via `exportAllAgentsRdf()`
-- upload ontologies (`apps/badge-admin/public/ontology/*.owl`) into GraphDB
-- upload the generated agent data into GraphDB
+- upload ontology modules from `apps/ontology/ontology/*.ttl` into GraphDB
+- (optional) generate and upload agent RDF into GraphDB via `exportAllAgentsRdf()`
 
 ### Prereqs
 
@@ -47,7 +46,7 @@ pnpm --filter erc8004-indexer graphdb:ingest all --reset
 pnpm --filter erc8004-indexer graphdb:ingest all
 ```
 
-- **ontologies**: upload only OWL files
+- **ontologies**: upload only ontology TTL files
 
 ```bash
 pnpm --filter erc8004-indexer graphdb:ingest ontologies --reset
@@ -63,8 +62,11 @@ pnpm --filter erc8004-indexer graphdb:ingest agents --reset
 
 - `--reset` clears the target named graph context before loading (recommended for local dev).
 - Default contexts:
-  - ontologies: `https://www.agentictrust.io/graph/ontology`
+  - ontologies: `https://www.agentictrust.io/graph/ontology/core`
   - agents: `https://www.agentictrust.io/graph/data/agents`
-- In this repo, the `*.owl` files are **Turtle**; the ingest uploader sends them as `text/turtle`.
+
+Notes:
+- ontology ingestion reads `apps/ontology/ontology/*.ttl` (not `badge-admin`).
+- OASF skills/domains + intent/task mappings can be ingested separately via `graphdb:ingest oasf` and `graphdb:ingest intents`.
 
 

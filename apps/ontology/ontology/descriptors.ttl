@@ -1,0 +1,332 @@
+@base <https://agentictrust.io/ontology/core#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<https://agentictrust.io/ontology/core/descriptors> a owl:Ontology ;
+  rdfs:label "Agentic Trust Descriptor Model" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/identity> ;
+  owl:imports <https://agentictrust.io/ontology/oasf> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:imports <http://purl.org/dc/terms/> .
+
+########
+# Agent / org / deployment concepts (metadata layer)
+########
+
+:AgentPortfolio a owl:Class ;
+  rdfs:label "AgentPortfolio" ;
+  rdfs:subClassOf prov:Collection .
+
+:AgentDeployment a owl:Class ;
+  rdfs:label "AgentDeployment" ;
+  rdfs:comment "Executable agent application deployment (service instance)." ;
+  rdfs:subClassOf prov:SoftwareAgent .
+
+:Organization a owl:Class ;
+  rdfs:label "Organization" ;
+  rdfs:subClassOf prov:Agent .
+
+:AIAgentProvider a owl:Class ;
+  rdfs:label "AIAgentProvider" ;
+  rdfs:subClassOf :Organization .
+
+:AgentModel a owl:Class ;
+  rdfs:label "AgentModel" ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# Descriptor strategy
+########
+
+:AIAgent a owl:Class ;
+  rdfs:label "AIAgent" ;
+  rdfs:comment "Discoverable AI agent identity node used for GraphDB discovery." ;
+  rdfs:subClassOf :Agent ;
+  rdfs:subClassOf prov:SoftwareAgent .
+
+:Descriptor a owl:Class ;
+  rdfs:label "Descriptor" ;
+  rdfs:comment "Resolver-produced normalized view used for discovery/validation/interaction." ;
+  rdfs:subClassOf prov:Entity .
+
+:IdentifierDescriptor a owl:Class ;
+  rdfs:label "IdentifierDescriptor" ;
+  rdfs:subClassOf :Descriptor .
+
+:AgentIdentityDescriptor a owl:Class ;
+  rdfs:label "AgentIdentityDescriptor" ;
+  rdfs:subClassOf :Descriptor .
+
+:AgentNameDescriptor a owl:Class ;
+  rdfs:label "AgentNameDescriptor" ;
+  rdfs:subClassOf :Descriptor .
+
+:AgentDescriptor a owl:Class ;
+  rdfs:label "AgentDescriptor" ;
+  rdfs:subClassOf :Descriptor .
+
+:Protocol a owl:Class ;
+  rdfs:label "Protocol" ;
+  rdfs:subClassOf prov:Entity .
+
+:ProtocolDescriptor a owl:Class ;
+  rdfs:label "ProtocolDescriptor" ;
+  rdfs:subClassOf :Descriptor .
+
+:A2AProtocolDescriptor a owl:Class ;
+  rdfs:label "A2AProtocolDescriptor" ;
+  rdfs:subClassOf :ProtocolDescriptor .
+
+:MCPProtocolDescriptor a owl:Class ;
+  rdfs:label "MCPProtocolDescriptor" ;
+  rdfs:subClassOf :ProtocolDescriptor .
+
+:Endpoint a owl:Class ;
+  rdfs:label "Endpoint" ;
+  rdfs:subClassOf prov:Entity .
+
+:EndpointType a owl:Class ;
+  rdfs:label "EndpointType" ;
+  rdfs:subClassOf prov:Entity .
+
+:TrustType a owl:Class ;
+  rdfs:label "TrustType" ;
+  rdfs:subClassOf prov:Entity .
+
+:TrustModel a owl:Class ;
+  rdfs:label "TrustModel" ;
+  rdfs:subClassOf prov:Entity .
+
+:DomainName a owl:Class ;
+  rdfs:label "DomainName" ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentDomain a owl:Class ;
+  rdfs:label "AgentDomain" ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentSkill a owl:Class ;
+  rdfs:label "AgentSkill" ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentSkillClassification a owl:Class ;
+  rdfs:label "AgentSkillClassification" ;
+  rdfs:subClassOf prov:Entity .
+
+:Tag a owl:Class ;
+  rdfs:label "Tag" ;
+  rdfs:subClassOf prov:Entity .
+
+:TransportBinding a owl:Class ;
+  rdfs:label "TransportBinding" ;
+  rdfs:subClassOf prov:Entity .
+
+########
+# Descriptor links
+########
+
+:hasDescriptor a owl:ObjectProperty ;
+  rdfs:label "has descriptor" ;
+  rdfs:comment "Broad link from a thing (Agent/Identifier/Protocol/Identity/Name) to a resolver-produced Descriptor entity." ;
+  rdfs:domain prov:Entity ;
+  rdfs:range :Descriptor .
+
+:agentId a owl:DatatypeProperty ;
+  rdfs:label "agentId" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:agentName a owl:DatatypeProperty ;
+  rdfs:label "agentName" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:didIdentity a owl:DatatypeProperty ;
+  rdfs:label "didIdentity" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:didAccount a owl:DatatypeProperty ;
+  rdfs:label "didAccount" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:didName a owl:DatatypeProperty ;
+  rdfs:label "didName" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:agentAccount a owl:DatatypeProperty ;
+  rdfs:label "agentAccount" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:agentIdentityOwnerAccount a owl:DatatypeProperty ;
+  rdfs:label "agentIdentityOwnerAccount" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:eoaAgentIdentityOwnerAccount a owl:DatatypeProperty ;
+  rdfs:label "eoaAgentIdentityOwnerAccount" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:eoaAgentAccount a owl:DatatypeProperty ;
+  rdfs:label "eoaAgentAccount" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:agentUri a owl:ObjectProperty ;
+  rdfs:label "agentUri" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range owl:Thing .
+
+:a2aEndpoint a owl:ObjectProperty ;
+  rdfs:label "a2aEndpoint" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range owl:Thing .
+
+:supportedTrust a owl:DatatypeProperty ;
+  rdfs:label "supportedTrust" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:createdAtTime a owl:DatatypeProperty ;
+  rdfs:label "createdAtTime" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:updatedAtTime a owl:DatatypeProperty ;
+  rdfs:label "updatedAtTime" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:json a owl:DatatypeProperty ;
+  rdfs:label "json" ;
+  rdfs:domain owl:Thing ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:hasAgentDescriptor a owl:ObjectProperty ;
+  rdfs:label "hasAgentDescriptor" ;
+  rdfs:domain :AIAgent ;
+  rdfs:range :AgentDescriptor .
+
+:descriptorName a owl:DatatypeProperty ;
+  rdfs:label "descriptorName" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:descriptorDescription a owl:DatatypeProperty ;
+  rdfs:label "descriptorDescription" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:descriptorImage a owl:ObjectProperty ;
+  rdfs:label "descriptorImage" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range owl:Thing .
+
+:hasEndpoint a owl:ObjectProperty ;
+  rdfs:label "hasEndpoint" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range :Endpoint .
+
+:endpointName a owl:DatatypeProperty ;
+  rdfs:label "endpointName" ;
+  rdfs:domain :Endpoint ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:endpointUrl a owl:ObjectProperty ;
+  rdfs:label "endpointUrl" ;
+  rdfs:domain :Endpoint ;
+  rdfs:range owl:Thing .
+
+:endpointVersion a owl:DatatypeProperty ;
+  rdfs:label "endpointVersion" ;
+  rdfs:domain :Endpoint ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:endpointType a owl:ObjectProperty ;
+  rdfs:label "endpointType" ;
+  rdfs:domain :Endpoint ;
+  rdfs:range :EndpointType .
+
+:hasTrustType a owl:ObjectProperty ;
+  rdfs:label "hasTrustType" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range :TrustType .
+
+:trustTypeValue a owl:DatatypeProperty ;
+  rdfs:label "trustTypeValue" ;
+  rdfs:domain :TrustType ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:hasTrustModel a owl:ObjectProperty ;
+  rdfs:label "hasTrustModel" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range :TrustModel .
+
+:hasDID a owl:ObjectProperty ;
+  rdfs:label "hasDID" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range :DID .
+
+:hasDomainName a owl:ObjectProperty ;
+  rdfs:label "hasDomainName" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range :DomainName .
+
+:domainNameValue a owl:DatatypeProperty ;
+  rdfs:label "domainNameValue" ;
+  rdfs:domain :DomainName ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:hasDomain a owl:ObjectProperty ;
+  rdfs:label "hasDomain" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range :AgentDomain .
+
+:hasDomainClassification a owl:ObjectProperty ;
+  rdfs:label "hasDomainClassification" ;
+  rdfs:domain :AgentDomain ;
+  rdfs:range <https://agentictrust.io/ontology/oasf#Domain> .
+
+:hasSkill a owl:ObjectProperty ;
+  rdfs:label "hasSkill" ;
+  rdfs:domain :Descriptor ;
+  rdfs:range :AgentSkill .
+
+:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:label "hasSkillClassification" ;
+  rdfs:domain :AgentSkill ;
+  rdfs:range <https://agentictrust.io/ontology/oasf#Skill> .
+
+:skillId a owl:DatatypeProperty ;
+  rdfs:label "skillId" ;
+  rdfs:domain :AgentSkillClassification ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:skillName a owl:DatatypeProperty ;
+  rdfs:label "skillName" ;
+  rdfs:domain :AgentSkillClassification ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:skillDescription a owl:DatatypeProperty ;
+  rdfs:label "skillDescription" ;
+  rdfs:domain :AgentSkillClassification ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:hasTag a owl:ObjectProperty ;
+  rdfs:label "hasTag" ;
+  rdfs:domain :AgentSkillClassification ;
+  rdfs:range :Tag .
+
+:deploymentOf a owl:ObjectProperty ;
+  rdfs:label "deployment of" ;
+  rdfs:domain :AgentDeployment ;
+  rdfs:range :Agent .

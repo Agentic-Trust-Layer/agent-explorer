@@ -1,0 +1,214 @@
+@base <https://agentictrust.io/ontology/core#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix oasf: <https://agentictrust.io/ontology/oasf#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix p-plan: <http://purl.org/net/p-plan#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+<https://agentictrust.io/ontology/core/usecase/request-validation> a owl:Ontology ;
+  rdfs:label "Use Case: Client Requests a Validator" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/discovery> .
+
+########
+# Example: "Request a validator" (name/account/app endpoint validation service)
+########
+
+:intentType.requestValidation
+  a skos:Concept, :IntentType ;
+  skos:inScheme :IntentTaxonomy ;
+  skos:prefLabel "Request validation"@en ;
+  rdfs:comment "Request that a validator agent evaluate a claim and return a validation result."@en .
+
+:intentType.requestValidation.name
+  a skos:Concept, :IntentType ;
+  skos:inScheme :IntentTaxonomy ;
+  skos:prefLabel "Request name validation"@en ;
+  skos:broader :intentType.requestValidation ;
+  rdfs:comment "Request validation of an agent name claim (e.g., ENS/DNS/registry name binding)."@en .
+
+:intentType.requestValidation.account
+  a skos:Concept, :IntentType ;
+  skos:inScheme :IntentTaxonomy ;
+  skos:prefLabel "Request account validation"@en ;
+  skos:broader :intentType.requestValidation ;
+  rdfs:comment "Request validation of an agent account/address claim (ownership/control)."@en .
+
+:intentType.requestValidation.appEndpoint
+  a skos:Concept, :IntentType ;
+  skos:inScheme :IntentTaxonomy ;
+  skos:prefLabel "Request app endpoint validation"@en ;
+  skos:broader :intentType.requestValidation ;
+  rdfs:comment "Request validation of an application endpoint claim (binding, reachability, TLS, etc.)."@en .
+
+:taskType.validation.requestIntake
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Validation request intake"@en ;
+  rdfs:comment "Normalize request parameters, required evidence, and validation scope."@en .
+
+:taskType.validation.performValidation
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Perform validation"@en ;
+  rdfs:comment "Execute the validation procedure for the requested claim."@en .
+
+:taskType.validation.issueResponse
+  a skos:Concept, :TaskType ;
+  skos:inScheme :TaskTaxonomy ;
+  skos:prefLabel "Issue validation response"@en ;
+  rdfs:comment "Produce and return a validation result (accept/reject + reasons + evidence references)."@en .
+
+:intent.requestValidation.name
+  a :Intent ;
+  :hasIntentType :intentType.requestValidation.name ;
+  :targetOrganization "Validation Agents Collection" ;
+  :desiredStatus "Validated" ;
+  dcterms:description "Validate the agent name claim."@en .
+
+:intent.requestValidation.account
+  a :Intent ;
+  :hasIntentType :intentType.requestValidation.account ;
+  :targetOrganization "Validation Agents Collection" ;
+  :desiredStatus "Validated" ;
+  dcterms:description "Validate the agent account/address claim."@en .
+
+:intent.requestValidation.appEndpoint
+  a :Intent ;
+  :hasIntentType :intentType.requestValidation.appEndpoint ;
+  :targetOrganization "Validation Agents Collection" ;
+  :desiredStatus "Validated" ;
+  dcterms:description "Validate the agent application endpoint claim."@en .
+
+:plan.requestValidation.name
+  a :Plan ;
+  dcterms:title "Request name validation plan"@en ;
+  :planForIntent :intent.requestValidation.name ;
+  :hasStep :planStep.requestValidation.1_intake ;
+  :hasStep :planStep.requestValidation.2_validateName ;
+  :hasStep :planStep.requestValidation.3_issueResponse .
+
+:plan.requestValidation.account
+  a :Plan ;
+  dcterms:title "Request account validation plan"@en ;
+  :planForIntent :intent.requestValidation.account ;
+  :hasStep :planStep.requestValidation.1_intake ;
+  :hasStep :planStep.requestValidation.2_validateAccount ;
+  :hasStep :planStep.requestValidation.3_issueResponse .
+
+:plan.requestValidation.appEndpoint
+  a :Plan ;
+  dcterms:title "Request app endpoint validation plan"@en ;
+  :planForIntent :intent.requestValidation.appEndpoint ;
+  :hasStep :planStep.requestValidation.1_intake ;
+  :hasStep :planStep.requestValidation.2_validateAppEndpoint ;
+  :hasStep :planStep.requestValidation.3_issueResponse .
+
+:planStep.requestValidation.1_intake
+  a :PlanStep ;
+  :stepOrder 1 ;
+  :stepTaskType :taskType.validation.requestIntake ;
+  :stepActionType :actionType.apiCall ;
+  rdfs:comment "Normalize intent parameters and gather required evidence."@en .
+
+:planStep.requestValidation.2_validateName
+  a :PlanStep ;
+  :stepOrder 2 ;
+  :stepTaskType :taskType.validation.performValidation ;
+  :stepActionType :actionType.apiCall ;
+  rdfs:comment "Run the name validation procedure."@en .
+
+:planStep.requestValidation.2_validateAccount
+  a :PlanStep ;
+  :stepOrder 2 ;
+  :stepTaskType :taskType.validation.performValidation ;
+  :stepActionType :actionType.apiCall ;
+  rdfs:comment "Run the account validation procedure."@en .
+
+:planStep.requestValidation.2_validateAppEndpoint
+  a :PlanStep ;
+  :stepOrder 2 ;
+  :stepTaskType :taskType.validation.performValidation ;
+  :stepActionType :actionType.apiCall ;
+  rdfs:comment "Run the app endpoint validation procedure."@en .
+
+:planStep.requestValidation.3_issueResponse
+  a :PlanStep ;
+  :stepOrder 3 ;
+  :stepTaskType :taskType.validation.issueResponse ;
+  :stepActionType :actionType.apiCall ;
+  rdfs:comment "Produce a validation response and return it to the client."@en .
+
+# Tasks for name validation request
+:task.validationRequestIntake.name
+  a :Task ;
+  :hasTaskType :taskType.validation.requestIntake ;
+  prov:used :intent.requestValidation.name .
+
+:task.performNameValidation
+  a :Task ;
+  :hasTaskType :taskType.validation.performValidation ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_name> ;
+  prov:used :intent.requestValidation.name .
+
+:task.issueValidationResponse.name
+  a :Task ;
+  :hasTaskType :taskType.validation.issueResponse ;
+  prov:used :intent.requestValidation.name .
+
+# Tasks for account validation request
+:task.validationRequestIntake.account
+  a :Task ;
+  :hasTaskType :taskType.validation.requestIntake ;
+  prov:used :intent.requestValidation.account .
+
+:task.performAccountValidation
+  a :Task ;
+  :hasTaskType :taskType.validation.performValidation ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_account> ;
+  prov:used :intent.requestValidation.account .
+
+:task.issueValidationResponse.account
+  a :Task ;
+  :hasTaskType :taskType.validation.issueResponse ;
+  prov:used :intent.requestValidation.account .
+
+# Tasks for app endpoint validation request
+:task.validationRequestIntake.appEndpoint
+  a :Task ;
+  :hasTaskType :taskType.validation.requestIntake ;
+  prov:used :intent.requestValidation.appEndpoint .
+
+:task.performAppEndpointValidation
+  a :Task ;
+  :hasTaskType :taskType.validation.performValidation ;
+  :usesSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_app> ;
+  prov:used :intent.requestValidation.appEndpoint .
+
+:task.issueValidationResponse.appEndpoint
+  a :Task ;
+  :hasTaskType :taskType.validation.issueResponse ;
+  prov:used :intent.requestValidation.appEndpoint .
+
+# Intent -> task -> skill mappings (for discovery/planning)
+:mapping.requestValidation.name
+  a :IntentTaskMapping ;
+  :mapsIntentType :intentType.requestValidation.name ;
+  :mapsTaskType :taskType.validation.performValidation ;
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_name> .
+
+:mapping.requestValidation.account
+  a :IntentTaskMapping ;
+  :mapsIntentType :intentType.requestValidation.account ;
+  :mapsTaskType :taskType.validation.performValidation ;
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_account> .
+
+:mapping.requestValidation.appEndpoint
+  a :IntentTaskMapping ;
+  :mapsIntentType :intentType.requestValidation.appEndpoint ;
+  :mapsTaskType :taskType.validation.performValidation ;
+  :requiresSkill <https://agentictrust.io/ontology/oasf#skill/governance_and_trust/trust/trust_validate_app> .

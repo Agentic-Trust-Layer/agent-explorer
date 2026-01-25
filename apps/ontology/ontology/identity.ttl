@@ -1,0 +1,66 @@
+@base <https://agentictrust.io/ontology/core#> .
+@prefix : <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/core/identity> a owl:Ontology ;
+  rdfs:label "Agentic Trust Identity Module" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/trust> ;
+  owl:imports <https://agentictrust.io/ontology/core/identifier> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> ;
+  owl:imports <http://purl.org/dc/terms/> .
+
+########
+# Identities / registries / names
+########
+
+:Identity a owl:Class ;
+  rdfs:label "Identity" ;
+  rdfs:comment "A protocol-scoped identity entity (e.g., ERC-8004 identity, NANDA identity).";
+  rdfs:subClassOf prov:Entity .
+
+:AgentRegistry a owl:Class ;
+  rdfs:label "AgentRegistry" ;
+  rdfs:comment "Registry/namespace that anchors identity/registrations for agents." ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentIdentityRegistration a owl:Class ;
+  rdfs:label "AgentIdentityRegistration" ;
+  rdfs:comment "Registration record anchoring an agent identity within a registry." ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentIdentity a owl:Class ;
+  rdfs:label "AgentIdentity" ;
+  rdfs:comment "Agent identity entity (protocol-scoped), linkable from an agent via core:hasIdentity." ;
+  rdfs:subClassOf :Identity .
+
+:AgentName a owl:Class ;
+  rdfs:label "AgentName" ;
+  rdfs:comment "Abstract name for an agent (protocol-specific realizations include ENS, DNS, etc.)." ;
+  rdfs:subClassOf prov:Entity .
+
+:hasIdentity a owl:ObjectProperty ;
+  rdfs:label "has identity" ;
+  rdfs:domain prov:Agent ;
+  rdfs:range :AgentIdentity .
+
+:identityOf a owl:ObjectProperty ;
+  rdfs:label "identity of" ;
+  rdfs:domain :AgentIdentity ;
+  rdfs:range prov:Agent .
+
+:identityRegistry a owl:ObjectProperty ;
+  rdfs:label "identity registry" ;
+  rdfs:domain :AgentIdentity ;
+  rdfs:range :AgentRegistry .
+
+:hasName a owl:ObjectProperty ;
+  rdfs:label "has name" ;
+  rdfs:domain prov:Agent ;
+  rdfs:range :AgentName .
+

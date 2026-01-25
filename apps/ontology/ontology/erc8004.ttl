@@ -7,8 +7,54 @@
 :Ontology a owl:Ontology ;
   rdfs:label "ERC-8004 Ontology" ;
   owl:versionInfo "0.1.0" ;
-  owl:imports <https://agentictrust.io/ontology/eth> .
+  owl:imports <https://agentictrust.io/ontology/eth> ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/trust> ;
+  owl:imports <https://agentictrust.io/ontology/core/identity> ;
+  owl:imports <https://agentictrust.io/ontology/core/descriptors> .
+
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
 :AgentAccount a owl:Class ;
   rdfs:label "ERC-8004 Agent Account" ;
-  rdfs:subClassOf eth:EthereumAccount .
+  rdfs:subClassOf eth:Account .
+
+:AgentIdentityRegistry8004 a owl:Class ;
+  rdfs:label "AgentIdentityRegistry8004" ;
+  rdfs:comment "ERC-8004 identity registry." ;
+  rdfs:subClassOf core:AgentRegistry ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentIdentity8004 a owl:Class ;
+  rdfs:label "AgentIdentity8004" ;
+  rdfs:comment "ERC-8004 agent identity." ;
+  rdfs:subClassOf core:AgentIdentity ;
+  rdfs:subClassOf prov:Entity .
+
+:IdentityIdentifier8004 a owl:Class ;
+  rdfs:label "IdentityIdentifier8004" ;
+  rdfs:comment "ERC-8004 agent identity identifier (did:8004:chainId:agentId)." ;
+  rdfs:subClassOf core:UniversalIdentifier ;
+  rdfs:subClassOf prov:Entity .
+
+:IdentityDescriptor8004 a owl:Class ;
+  rdfs:label "IdentityDescriptor8004" ;
+  rdfs:comment "Descriptor for an ERC-8004 identity." ;
+  rdfs:subClassOf core:AgentIdentityDescriptor .
+
+:ValidationRequestSituation a owl:Class ;
+  rdfs:label "ValidationRequestSituation" ;
+  rdfs:comment "ERC-8004 validation request record modeled as a Situation." ;
+  rdfs:subClassOf core:VerificationRequestSituation .
+
+:ValidationResponse a owl:Class ;
+  rdfs:label "ValidationResponse" ;
+  rdfs:comment "ERC-8004 validation response record." ;
+  rdfs:subClassOf core:VerificationTrustAssertion .
+
+:Feedback a owl:Class ;
+  rdfs:label "Feedback" ;
+  rdfs:comment "ERC-8004 feedback record." ;
+  rdfs:subClassOf core:ReputationTrustAssertion .

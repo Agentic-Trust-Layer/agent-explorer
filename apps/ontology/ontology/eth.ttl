@@ -7,8 +7,109 @@
 :Ontology a owl:Ontology ;
   rdfs:label "Agentic Trust Ethereum Ontology" ;
   owl:versionInfo "0.1.0" ;
-  owl:imports <https://agentictrust.io/ontology/core> .
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/identity> ;
+  owl:imports <https://agentictrust.io/ontology/core/descriptors> .
 
-:EthereumAccount a owl:Class ;
-  rdfs:label "Ethereum Account" ;
-  rdfs:subClassOf core:Agent .
+:Account a owl:Class ;
+  rdfs:label "Account" ;
+  rdfs:comment "Ethereum account (EOA or Smart Account) identified by chainId and address." ;
+  rdfs:subClassOf <http://www.w3.org/ns/prov#SoftwareAgent> .
+
+:accountChainId a owl:DatatypeProperty ;
+  rdfs:label "accountChainId" ;
+  rdfs:domain :Account ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:accountAddress a owl:DatatypeProperty ;
+  rdfs:label "accountAddress" ;
+  rdfs:domain :Account ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:accountType a owl:DatatypeProperty ;
+  rdfs:label "accountType" ;
+  rdfs:domain :Account ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:hasEOAOwner a owl:ObjectProperty ;
+  rdfs:label "hasEOAOwner" ;
+  rdfs:domain :Account ;
+  rdfs:range :Account .
+
+:signingAuthority a owl:ObjectProperty ;
+  rdfs:label "signingAuthority" ;
+  rdfs:domain :Account ;
+  rdfs:range :Account .
+
+:validatesSignature a owl:ObjectProperty ;
+  rdfs:label "validatesSignature" ;
+  rdfs:domain :Account ;
+  rdfs:range core:VerificationMethod .
+
+:AccountIdentifier a owl:Class ;
+  rdfs:label "AccountIdentifier" ;
+  rdfs:comment "Identifier for an Ethereum Account." ;
+  rdfs:subClassOf core:Identifier ;
+  rdfs:subClassOf <http://www.w3.org/ns/prov#Entity> .
+
+:AgentNameENS a owl:Class ;
+  rdfs:label "AgentNameENS" ;
+  rdfs:comment "ENS name (e.g., alice.eth)." ;
+  rdfs:subClassOf core:AgentName ;
+  rdfs:subClassOf <http://www.w3.org/ns/prov#Entity> .
+
+:ensName a owl:DatatypeProperty ;
+  rdfs:label "ensName" ;
+  rdfs:domain :AgentNameENS ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:ensChainId a owl:DatatypeProperty ;
+  rdfs:label "ensChainId" ;
+  rdfs:domain :AgentNameENS ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:ensResolvesTo a owl:ObjectProperty ;
+  rdfs:label "ensResolvesTo" ;
+  rdfs:domain :AgentNameENS ;
+  rdfs:range :Account .
+
+:ensController a owl:ObjectProperty ;
+  rdfs:label "ensController" ;
+  rdfs:domain :AgentNameENS ;
+  rdfs:range :Account .
+
+:AccountDescriptor a owl:Class ;
+  rdfs:label "AccountDescriptor" ;
+  rdfs:comment "Descriptor for an Ethereum Account." ;
+  rdfs:subClassOf core:IdentifierDescriptor .
+
+:AgentNameENSDescriptor a owl:Class ;
+  rdfs:label "AgentNameENSDescriptor" ;
+  rdfs:comment "Descriptor for an ENS name." ;
+  rdfs:subClassOf core:AgentNameDescriptor .
+
+########
+# Identifier glue used by agent export
+########
+
+:NameIdentifierENS a owl:Class ;
+  rdfs:label "NameIdentifierENS" ;
+  rdfs:comment "Identifier artifact for an ENS name." ;
+  rdfs:subClassOf core:Identifier ;
+  rdfs:subClassOf <http://www.w3.org/ns/prov#Entity> .
+
+:hasIdentifier a owl:ObjectProperty ;
+  rdfs:label "hasIdentifier" ;
+  rdfs:domain :Account ;
+  rdfs:range core:Identifier .
+
+:hasAccountIdentifier a owl:ObjectProperty ;
+  rdfs:label "hasAccountIdentifier" ;
+  rdfs:domain :Account ;
+  rdfs:range :AccountIdentifier .
+
+:IdentifierType_account a core:IdentifierType ;
+  rdfs:label "IdentifierType_account" .
+
+:IdentifierType_ens a core:IdentifierType ;
+  rdfs:label "IdentifierType_ens" .
