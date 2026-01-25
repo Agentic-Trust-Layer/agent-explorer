@@ -4,6 +4,7 @@
 
 - **[Ontology Overview](./agentictrust-overview.md)**: Design patterns, core classes, and key relationships
 - **[Philosophy](./philosophy.md)**: Modeling principles and alignment with ERC-8004/8092, DnS, PROV-O, p-plan, DIDs, OASF
+- **[Use Cases](#use-cases)**: Concrete end-to-end examples (intent → plan → tasks → skills → actions)
 - **[Documentation Index](#documentation-structure)**: Complete list of documentation files
 - **[Ontology Source Files](#ontology-source-files)**: Location of OWL files
 
@@ -97,6 +98,12 @@ Examples of DID anchoring by ecosystem/registry:
 - **DNS / web-based identities**: commonly anchored in `did:web` (and other web/DNS-adjacent DID methods), aligning with name resolution and web PKI.
 
 Key idea: **Identifier** is the abstract model; **DID** is one concrete identifier family whose methods let you align different agent registries with different resolution/verification assumptions, without changing the core trust graph semantics.
+
+## Use Cases
+
+- **[Screen Writers Guild (WGA) membership](./use-cases/screen-writers-guild.md)**: regulated outcome modeled as intent → plan → tasks → skills → actions
+- **[Validator agent joins validation collection](./use-cases/validator-joins-validation-collection.md)**: a validator agent applies to join a curated validator collection
+- **[Request a validator (name/account/app)](./use-cases/request-validator.md)**: a client agent requests a validator agent to validate identity claims
 
 ## Ontology Hierarchy
 

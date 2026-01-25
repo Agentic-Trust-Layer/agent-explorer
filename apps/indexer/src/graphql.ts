@@ -163,6 +163,14 @@ export function createGraphQLServer(port: number = 4000) {
   // Parse JSON body - graphql-http's Express handler expects req.body to be parsed
   app.use(express.json());
 
+  // Prevent caching of API responses (skills/taxonomy in particular)
+  app.use((req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    next();
+  });
+
   // Request logging middleware (after body parsing)
   // Only log, don't modify req.body - graphql-http needs it intact
   app.use((req, res, next) => {
@@ -171,6 +179,80 @@ export function createGraphQLServer(port: number = 4000) {
       console.log(`📥 Request details - URL: ${req.url}, Method: ${req.method}, Headers:`, JSON.stringify(req.headers).substring(0, 100));
     }
     next();
+  });
+
+  // Discovery taxonomy endpoint (always fetches from GraphDB; no caching)
+  app.get('/api/discovery/taxonomy', async (_req, res) => {
+    try {
+      const [intentTypes, taskTypes, intentTaskMappings, oasfSkills, oasfDomains] = await Promise.all([
+        (root as any).intentTypes?.({ limit: 5000, offset: 0 }) ?? [],
+        (root as any).taskTypes?.({ limit: 5000, offset: 0 }) ?? [],
+        (root as any).intentTaskMappings?.({ limit: 5000, offset: 0 }) ?? [],
+        (root as any).oasfSkills?.({ limit: 5000, offset: 0 }) ?? [],
+        (root as any).oasfDomains?.({ limit: 5000, offset: 0 }) ?? [],
+      ]);
+      res.json({
+        intentTypes,
+        taskTypes,
+        intentTaskMappings,
+        oasfSkills,
+        oasfDomains,
+        fetchedAt: new Date().toISOString(),
+        source: 'graphdb',
+      });
+    } catch (e: any) {
+      res.status(500).json({
+        error: String(e?.message || e),
+        fetchedAt: new Date().toISOString(),
+        source: 'graphdb',
+      });
+    }
+  });
+
+  // OASF skills endpoint (always fetches from GraphDB; no caching)
+  app.get('/api/oasf/skills', async (req, res) => {
+    try {
+      const limit = req.query?.limit != null ? Number(req.query.limit) : 5000;
+      const offset = req.query?.offset != null ? Number(req.query.offset) : 0;
+      const skills = await (root as any).oasfSkills?.({ limit, offset }) ?? [];
+      res.json({
+        skills,
+        count: Array.isArray(skills) ? skills.length : 0,
+        fetchedAt: new Date().toISOString(),
+        source: 'graphdb',
+      });
+    } catch (e: any) {
+      res.status(500).json({
+        skills: [],
+        count: 0,
+        error: String(e?.message || e),
+        fetchedAt: new Date().toISOString(),
+        source: 'graphdb',
+      });
+    }
+  });
+
+  // OASF domains endpoint (always fetches from GraphDB; no caching)
+  app.get('/api/oasf/domains', async (req, res) => {
+    try {
+      const limit = req.query?.limit != null ? Number(req.query.limit) : 5000;
+      const offset = req.query?.offset != null ? Number(req.query.offset) : 0;
+      const domains = await (root as any).oasfDomains?.({ limit, offset }) ?? [];
+      res.json({
+        domains,
+        count: Array.isArray(domains) ? domains.length : 0,
+        fetchedAt: new Date().toISOString(),
+        source: 'graphdb',
+      });
+    } catch (e: any) {
+      res.status(500).json({
+        domains: [],
+        count: 0,
+        error: String(e?.message || e),
+        fetchedAt: new Date().toISOString(),
+        source: 'graphdb',
+      });
+    }
   });
 
   // Access code authentication middleware - using shared handler logic

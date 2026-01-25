@@ -1325,6 +1325,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
   const CORE_TASK_BASE = 'https://agentictrust.io/ontology/core/task/';
   const OASF_SKILL_BASE = 'https://agentictrust.io/ontology/oasf#skill/';
   const OASF_DOMAIN_BASE = 'https://agentictrust.io/ontology/oasf#domain/';
+  const GRAPHDB_ONTOLOGY_CONTEXT = 'https://www.agentictrust.io/graph/ontology/core';
 
   const decodeKey = (value: string): string => {
     try {
@@ -1366,6 +1367,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
       const order = args?.orderDirection === 'desc' ? 'DESC' : 'ASC';
       const orderBy = args?.orderBy === 'caption' ? '?caption' : args?.orderBy === 'uid' ? '?uid' : '?key';
+      const orderExpr = order === 'DESC' ? `DESC(${orderBy})` : `ASC(${orderBy})`;
 
       const filters: string[] = [];
       if (key) filters.push(`?key = "${key}"`);
@@ -1376,17 +1378,19 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const sparql = [
         'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
         'SELECT ?skill ?key ?name ?uid ?caption ?extends ?category ?extendsKey WHERE {',
-        '  ?skill a oasf:Skill .',
-        '  OPTIONAL { ?skill oasf:key ?key }',
-        '  OPTIONAL { ?skill oasf:name ?name }',
-        '  OPTIONAL { ?skill oasf:uid ?uid }',
-        '  OPTIONAL { ?skill oasf:caption ?caption }',
-        '  OPTIONAL { ?skill oasf:extends ?extends }',
-        '  OPTIONAL { ?skill oasf:category ?category }',
+        `  GRAPH <${GRAPHDB_ONTOLOGY_CONTEXT}> {`,
+        '    ?skill a oasf:Skill .',
+        '    OPTIONAL { ?skill oasf:key ?key }',
+        '    OPTIONAL { ?skill oasf:name ?name }',
+        '    OPTIONAL { ?skill oasf:uid ?uid }',
+        '    OPTIONAL { ?skill oasf:caption ?caption }',
+        '    OPTIONAL { ?skill oasf:extends ?extends }',
+        '    OPTIONAL { ?skill oasf:category ?category }',
+        '  }',
         `  BIND(IF(BOUND(?extends), REPLACE(STR(?extends), "${OASF_SKILL_BASE}", ""), "") AS ?extendsKey)`,
         filters.length ? `  FILTER(${filters.join(' && ')})` : '',
         '}',
-        `ORDER BY ${order} ${orderBy}`,
+        `ORDER BY ${orderExpr}`,
         `LIMIT ${limit}`,
         `OFFSET ${offset}`,
       ]
@@ -1419,6 +1423,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
       const order = args?.orderDirection === 'desc' ? 'DESC' : 'ASC';
       const orderBy = args?.orderBy === 'caption' ? '?caption' : args?.orderBy === 'uid' ? '?uid' : '?key';
+      const orderExpr = order === 'DESC' ? `DESC(${orderBy})` : `ASC(${orderBy})`;
 
       const filters: string[] = [];
       if (key) filters.push(`?key = "${key}"`);
@@ -1429,17 +1434,19 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       const sparql = [
         'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
         'SELECT ?domain ?key ?name ?uid ?caption ?extends ?category ?extendsKey WHERE {',
-        '  ?domain a oasf:Domain .',
-        '  OPTIONAL { ?domain oasf:key ?key }',
-        '  OPTIONAL { ?domain oasf:name ?name }',
-        '  OPTIONAL { ?domain oasf:uid ?uid }',
-        '  OPTIONAL { ?domain oasf:caption ?caption }',
-        '  OPTIONAL { ?domain oasf:extends ?extends }',
-        '  OPTIONAL { ?domain oasf:category ?category }',
+        `  GRAPH <${GRAPHDB_ONTOLOGY_CONTEXT}> {`,
+        '    ?domain a oasf:Domain .',
+        '    OPTIONAL { ?domain oasf:key ?key }',
+        '    OPTIONAL { ?domain oasf:name ?name }',
+        '    OPTIONAL { ?domain oasf:uid ?uid }',
+        '    OPTIONAL { ?domain oasf:caption ?caption }',
+        '    OPTIONAL { ?domain oasf:extends ?extends }',
+        '    OPTIONAL { ?domain oasf:category ?category }',
+        '  }',
         `  BIND(IF(BOUND(?extends), REPLACE(STR(?extends), "${OASF_DOMAIN_BASE}", ""), "") AS ?extendsKey)`,
         filters.length ? `  FILTER(${filters.join(' && ')})` : '',
         '}',
-        `ORDER BY ${order} ${orderBy}`,
+        `ORDER BY ${orderExpr}`,
         `LIMIT ${limit}`,
         `OFFSET ${offset}`,
       ]
@@ -1468,9 +1475,11 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         'PREFIX core: <https://agentictrust.io/ontology/core#>',
         'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
         'SELECT ?intent ?label ?description ?key WHERE {',
-        '  ?intent a core:IntentType .',
-        '  OPTIONAL { ?intent rdfs:label ?label }',
-        '  OPTIONAL { ?intent rdfs:comment ?description }',
+        `  GRAPH <${GRAPHDB_ONTOLOGY_CONTEXT}> {`,
+        '    ?intent a core:IntentType .',
+        '    OPTIONAL { ?intent rdfs:label ?label }',
+        '    OPTIONAL { ?intent rdfs:comment ?description }',
+        '  }',
         `  BIND(REPLACE(STR(?intent), "${CORE_INTENT_BASE}", "") AS ?key)`,
         filters.length ? `  FILTER(${filters.join(' && ')})` : '',
         '}',
@@ -1500,9 +1509,11 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         'PREFIX core: <https://agentictrust.io/ontology/core#>',
         'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
         'SELECT ?task ?label ?description ?key WHERE {',
-        '  ?task a core:TaskType .',
-        '  OPTIONAL { ?task rdfs:label ?label }',
-        '  OPTIONAL { ?task rdfs:comment ?description }',
+        `  GRAPH <${GRAPHDB_ONTOLOGY_CONTEXT}> {`,
+        '    ?task a core:TaskType .',
+        '    OPTIONAL { ?task rdfs:label ?label }',
+        '    OPTIONAL { ?task rdfs:comment ?description }',
+        '  }',
         `  BIND(REPLACE(STR(?task), "${CORE_TASK_BASE}", "") AS ?key)`,
         filters.length ? `  FILTER(${filters.join(' && ')})` : '',
         '}',
@@ -1532,15 +1543,17 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         'PREFIX core: <https://agentictrust.io/ontology/core#>',
         'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
         'SELECT ?mapping ?intent ?task ?intentKey ?taskKey ?intentLabel ?taskLabel ?intentDesc ?taskDesc ?req ?opt WHERE {',
-        '  ?mapping a core:IntentTaskMapping ;',
-        '    core:mapsIntentType ?intent ;',
-        '    core:mapsTaskType ?task .',
-        '  OPTIONAL { ?mapping core:requiresSkill ?req }',
-        '  OPTIONAL { ?mapping core:mayUseSkill ?opt }',
-        '  OPTIONAL { ?intent rdfs:label ?intentLabel }',
-        '  OPTIONAL { ?intent rdfs:comment ?intentDesc }',
-        '  OPTIONAL { ?task rdfs:label ?taskLabel }',
-        '  OPTIONAL { ?task rdfs:comment ?taskDesc }',
+        `  GRAPH <${GRAPHDB_ONTOLOGY_CONTEXT}> {`,
+        '    ?mapping a core:IntentTaskMapping ;',
+        '      core:mapsIntentType ?intent ;',
+        '      core:mapsTaskType ?task .',
+        '    OPTIONAL { ?mapping core:requiresSkill ?req }',
+        '    OPTIONAL { ?mapping core:mayUseSkill ?opt }',
+        '    OPTIONAL { ?intent rdfs:label ?intentLabel }',
+        '    OPTIONAL { ?intent rdfs:comment ?intentDesc }',
+        '    OPTIONAL { ?task rdfs:label ?taskLabel }',
+        '    OPTIONAL { ?task rdfs:comment ?taskDesc }',
+        '  }',
         `  BIND(REPLACE(STR(?intent), "${CORE_INTENT_BASE}", "") AS ?intentKey)`,
         `  BIND(REPLACE(STR(?task), "${CORE_TASK_BASE}", "") AS ?taskKey)`,
         filters.length ? `  FILTER(${filters.join(' && ')})` : '',

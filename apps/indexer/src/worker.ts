@@ -198,6 +198,77 @@ export default {
       }, { headers: corsHeaders });
     }
 
+    // Discovery taxonomy endpoint (always fetches from GraphDB; no caching)
+    if (url.pathname === '/api/discovery/taxonomy' && request.method === 'GET') {
+      const dbQueries = await createWorkersDBQueries(env.DB, env);
+      const [intentTypes, taskTypes, intentTaskMappings, oasfSkills, oasfDomains] = await Promise.all([
+        (dbQueries as any).intentTypes?.({ limit: 5000, offset: 0 }) ?? [],
+        (dbQueries as any).taskTypes?.({ limit: 5000, offset: 0 }) ?? [],
+        (dbQueries as any).intentTaskMappings?.({ limit: 5000, offset: 0 }) ?? [],
+        (dbQueries as any).oasfSkills?.({ limit: 5000, offset: 0 }) ?? [],
+        (dbQueries as any).oasfDomains?.({ limit: 5000, offset: 0 }) ?? [],
+      ]);
+
+      return Response.json(
+        {
+          intentTypes,
+          taskTypes,
+          intentTaskMappings,
+          oasfSkills,
+          oasfDomains,
+          fetchedAt: new Date().toISOString(),
+          source: 'graphdb',
+        },
+        {
+          headers: {
+            ...corsHeaders,
+            // Prevent any caching (browser, proxies, CF)
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            Pragma: 'no-cache',
+            Expires: '0',
+          },
+        },
+      );
+    }
+
+    // OASF skills endpoint (always fetches from GraphDB; no caching)
+    if (url.pathname === '/api/oasf/skills' && request.method === 'GET') {
+      const dbQueries = await createWorkersDBQueries(env.DB, env);
+      const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 5000;
+      const offset = url.searchParams.get('offset') ? Number(url.searchParams.get('offset')) : 0;
+      const skills = await (dbQueries as any).oasfSkills?.({ limit, offset }) ?? [];
+      return Response.json(
+        { skills, count: Array.isArray(skills) ? skills.length : 0, fetchedAt: new Date().toISOString(), source: 'graphdb' },
+        {
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            Pragma: 'no-cache',
+            Expires: '0',
+          },
+        },
+      );
+    }
+
+    // OASF domains endpoint (always fetches from GraphDB; no caching)
+    if (url.pathname === '/api/oasf/domains' && request.method === 'GET') {
+      const dbQueries = await createWorkersDBQueries(env.DB, env);
+      const limit = url.searchParams.get('limit') ? Number(url.searchParams.get('limit')) : 5000;
+      const offset = url.searchParams.get('offset') ? Number(url.searchParams.get('offset')) : 0;
+      const domains = await (dbQueries as any).oasfDomains?.({ limit, offset }) ?? [];
+      return Response.json(
+        { domains, count: Array.isArray(domains) ? domains.length : 0, fetchedAt: new Date().toISOString(), source: 'graphdb' },
+        {
+          headers: {
+            ...corsHeaders,
+            'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+            Pragma: 'no-cache',
+            Expires: '0',
+          },
+        },
+      );
+    }
+
     // Serve custom GraphiQL (with default headers/query) like before
     if ((url.pathname === '/graphiql' && request.method === 'GET') ||
         (url.pathname === '/graphql' && request.method === 'GET' && !url.searchParams.get('query'))) {
@@ -218,6 +289,9 @@ export default {
           Query: {
             oasfSkills: (_p: any, args: any, ctx: any) => ctx.dbQueries.oasfSkills(args),
             oasfDomains: (_p: any, args: any, ctx: any) => ctx.dbQueries.oasfDomains(args),
+            intentTypes: (_p: any, args: any, ctx: any) => ctx.dbQueries.intentTypes(args),
+            taskTypes: (_p: any, args: any, ctx: any) => ctx.dbQueries.taskTypes(args),
+            intentTaskMappings: (_p: any, args: any, ctx: any) => ctx.dbQueries.intentTaskMappings(args),
             agents: (_p: any, args: any, ctx: any) => ctx.dbQueries.agents(args),
             agent: (_p: any, args: any, ctx: any) => ctx.dbQueries.agent(args),
             agentByName: (_p: any, args: any, ctx: any) => ctx.dbQueries.agentByName(args),

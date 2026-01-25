@@ -12,7 +12,9 @@ type IntentCacheEntry = IntentRequirement & { cachedAt: number };
 
 const CORE_INTENT_BASE = 'https://agentictrust.io/ontology/core/intent/';
 const OASF_SKILL_BASE = 'https://agentictrust.io/ontology/oasf#skill/';
-const DEFAULT_CACHE_MS = 5 * 60_000;
+const GRAPHDB_ONTOLOGY_CONTEXT = 'https://www.agentictrust.io/graph/ontology/core';
+// Default: no caching. If you want caching, set INTENT_REQUIREMENTS_CACHE_MS to a positive number.
+const DEFAULT_CACHE_MS = 0;
 const intentCache = new Map<string, IntentCacheEntry>();
 
 function humanizeIntentType(intentType: string): string {
@@ -61,9 +63,11 @@ async function loadIntentFile(): Promise<Record<string, IntentRequirement>> {
 export async function resolveIntentRequirements(intentType?: string | null): Promise<IntentRequirement> {
   if (!intentType) return { requiredSkills: [] };
   const cacheMs = Number(process.env.INTENT_REQUIREMENTS_CACHE_MS || DEFAULT_CACHE_MS);
-  const cached = intentCache.get(intentType);
-  if (cached && Date.now() - cached.cachedAt < cacheMs) {
-    return cached;
+  if (cacheMs > 0) {
+    const cached = intentCache.get(intentType);
+    if (cached && Date.now() - cached.cachedAt < cacheMs) {
+      return cached;
+    }
   }
 
   try {
@@ -73,13 +77,15 @@ export async function resolveIntentRequirements(intentType?: string | null): Pro
       'PREFIX core: <https://agentictrust.io/ontology/core#>',
       'PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>',
       'SELECT ?label ?description ?skill WHERE {',
-      `  BIND(<${intent}> AS ?intent)`,
-      '  OPTIONAL { ?intent rdfs:label ?label }',
-      '  OPTIONAL { ?intent rdfs:comment ?description }',
-      '  OPTIONAL {',
-      '    ?mapping a core:IntentTaskMapping ;',
-      '      core:mapsIntentType ?intent ;',
-      '      core:requiresSkill ?skill .',
+      `  GRAPH <${GRAPHDB_ONTOLOGY_CONTEXT}> {`,
+      `    BIND(<${intent}> AS ?intent)`,
+      '    OPTIONAL { ?intent rdfs:label ?label }',
+      '    OPTIONAL { ?intent rdfs:comment ?description }',
+      '    OPTIONAL {',
+      '      ?mapping a core:IntentTaskMapping ;',
+      '        core:mapsIntentType ?intent ;',
+      '        core:requiresSkill ?skill .',
+      '    }',
       '  }',
       '}',
     ].join('\n');
@@ -101,7 +107,7 @@ export async function resolveIntentRequirements(intentType?: string | null): Pro
       label: label ?? humanizeIntentType(intentType),
       description,
     };
-    intentCache.set(intentType, { ...resolved, cachedAt: Date.now() });
+    if (cacheMs > 0) intentCache.set(intentType, { ...resolved, cachedAt: Date.now() });
     return resolved;
   } catch (err) {
     try {
@@ -112,7 +118,7 @@ export async function resolveIntentRequirements(intentType?: string | null): Pro
         label: fallback.label ?? humanizeIntentType(intentType),
         description: fallback.description,
       };
-      intentCache.set(intentType, { ...resolved, cachedAt: Date.now() });
+      if (cacheMs > 0) intentCache.set(intentType, { ...resolved, cachedAt: Date.now() });
       return resolved;
     } catch {
       return { requiredSkills: [], label: humanizeIntentType(intentType) };
