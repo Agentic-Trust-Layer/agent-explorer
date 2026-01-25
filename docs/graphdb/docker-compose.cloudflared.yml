@@ -6,6 +6,7 @@ services:
     container_name: agentkg-cloudflared
     restart: unless-stopped
     network_mode: host
+    user: "0:0"
     volumes:
       - /etc/cloudflared:/etc/cloudflared:ro
-    command: tunnel --config /etc/cloudflared/config.yml run
+    command: tunnel --config /etc/cloudflared/config.yml run agentkg-graphdb

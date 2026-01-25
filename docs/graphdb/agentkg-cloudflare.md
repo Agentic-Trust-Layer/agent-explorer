@@ -31,6 +31,10 @@ Run cloudflared (Docker):
 docker compose -f /path/to/repo/docs/graphdb/docker-compose.cloudflared.yml up -d
 ```
 
+Important:
+- Run `cloudflared` **on the VM**. If you run it on your laptop and it sleeps, the tunnel disconnects (Cloudflare shows error 1033).
+- On the VM you should have `/etc/cloudflared/config.yml` + the tunnel credentials JSON, then `docker` keeps it running via `restart: unless-stopped`.
+
 ## 3) Protect with Cloudflare Access
 
 Cloudflare Zero Trust → Access → Applications → Add application:
