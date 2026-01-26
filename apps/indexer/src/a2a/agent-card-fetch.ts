@@ -133,8 +133,13 @@ export async function upsertAgentCardForAgent(
 
   const fetched = await fetchA2AAgentCardFromRegistrationEndpoint(registrationA2AEndpoint);
   if (!fetched) {
-    if (process.env.DEBUG_AGENT_CARD === '1') {
-      console.info('[agent-card] not found', { chainId, agentId, registrationA2AEndpoint });
+    if (process.env.DEBUG_AGENT_CARD === '1' || process.env.LOG_MISSING_AGENT_CARDS === '1') {
+      console.warn('[agent-card] missing or non-json at endpoint', {
+        chainId,
+        agentId,
+        registrationA2AEndpoint,
+        candidateUrls: buildCandidateAgentCardUrls(registrationA2AEndpoint),
+      });
     }
     return false;
   }

@@ -25,28 +25,10 @@ export function extractRegistrationA2AEndpoint(rawJson: unknown, fallbackA2AEndp
     const endpoints = Array.isArray(obj.endpoints) ? obj.endpoints : Array.isArray(obj.Endpoints) ? obj.Endpoints : [];
     for (const e of endpoints) {
       const name = typeof e?.name === 'string' ? e.name.trim().toLowerCase() : '';
-      const type = typeof e?.type === 'string' ? e.type.trim().toLowerCase() : '';
-      const kind = typeof e?.kind === 'string' ? e.kind.trim().toLowerCase() : '';
-      const isA2A = name === 'a2a' || type === 'a2a' || kind === 'a2a';
+      const isA2A = name === 'a2a';
       if (!isA2A) continue;
       const v = normalize(e?.endpoint) || normalize(e?.url) || normalize(e?.href) || normalize(e?.uri);
       if (v) return v;
-    }
-
-    const direct =
-      normalize(obj.a2aEndpoint) ||
-      normalize(obj.a2a_endpoint) ||
-      normalize(obj.chatEndpoint) ||
-      normalize(obj.chat_endpoint) ||
-      normalize(obj.a2a) ||
-      normalize(obj.agentCardUrl) ||
-      normalize(obj.agentCardURL) ||
-      normalize(obj.agent_card_url);
-    if (direct) return direct;
-
-    if (obj.a2a && typeof obj.a2a === 'object') {
-      const nested = normalize(obj.a2a.endpoint) || normalize(obj.a2a.url) || normalize(obj.a2a.href);
-      if (nested) return nested;
     }
 
     return null;

@@ -10,32 +10,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-let undiciDispatcherPromise: Promise<any | undefined> | null = null;
-
-async function getUndiciDispatcher(): Promise<any | undefined> {
-  // Node.js fetch is backed by undici; allow tuning connect timeout via an Agent dispatcher.
-  // In Workers/browsers, `undici` won't exist and `dispatcher` isn't supported.
-  if (typeof process === 'undefined' || !process?.versions?.node) return undefined;
-
-  const connectTimeoutRaw = process.env.UNDICI_CONNECT_TIMEOUT_MS;
-  const connectTimeoutMs = connectTimeoutRaw && String(connectTimeoutRaw).trim() ? Number(connectTimeoutRaw) : undefined;
-  if (!Number.isFinite(connectTimeoutMs as any) || (connectTimeoutMs as any) <= 0) return undefined;
-
-  if (!undiciDispatcherPromise) {
-    undiciDispatcherPromise = (async () => {
-      try {
-        const undici: any = await import('undici');
-        const Agent = undici?.Agent;
-        if (!Agent) return undefined;
-        return new Agent({ connectTimeout: Math.trunc(connectTimeoutMs as any) });
-      } catch {
-        return undefined;
-      }
-    })();
-  }
-  return undiciDispatcherPromise;
-}
-
 function isRetryableNetworkError(err: unknown): boolean {
   const anyErr = err as any;
   const code = String(anyErr?.code || '');
@@ -77,7 +51,6 @@ export async function fetchWithRetry(
   const retryOnStatuses = opts?.retryOnStatuses ?? [429, 500, 502, 503, 504];
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const dispatcher = await getUndiciDispatcher();
     const controller = new AbortController();
     const timeout = setTimeout(() => {
       try {
@@ -89,7 +62,6 @@ export async function fetchWithRetry(
       const res = await fetch(url, {
         ...(init || {}),
         signal: controller.signal,
-        ...(dispatcher ? ({ dispatcher } as any) : null),
       });
 
       if (retryOnStatuses.includes(res.status) && attempt < retries) {

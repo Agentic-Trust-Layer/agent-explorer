@@ -9,6 +9,7 @@
     "dev:agent": "tsx src/indexer.ts",
     "dev:graphql": "tsx src/graphql-server.ts",
     "dev:yoga": "tsx src/graphql-yoga-server.ts",
+    "build": "tsc -p tsconfig.json",
     "import:nanda": "tsx src/nanda/import-cli.ts",
     "import:hol": "tsx src/hol/import-cli.ts",
     "import:agentverse": "tsx src/agentverse/import-cli.ts",

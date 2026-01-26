@@ -58,3 +58,89 @@
   rdfs:label "Feedback" ;
   rdfs:comment "ERC-8004 feedback record." ;
   rdfs:subClassOf core:ReputationTrustAssertion .
+
+########
+# Subgraph ingest (raw records + checkpoints stored in GraphDB)
+########
+
+:SubgraphIngestRecord a owl:Class ;
+  rdfs:label "SubgraphIngestRecord" ;
+  rdfs:comment "Raw record ingested from a The Graph (or similar) subgraph, linked to the typed ERC-8004/8092 entity it represents." ;
+  rdfs:subClassOf prov:Entity .
+
+:subgraphChainId a owl:DatatypeProperty ;
+  rdfs:label "subgraphChainId" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:integer .
+
+:subgraphSource a owl:DatatypeProperty ;
+  rdfs:label "subgraphSource" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:string .
+
+:subgraphEntityKind a owl:DatatypeProperty ;
+  rdfs:label "subgraphEntityKind" ;
+  rdfs:comment "Internal ingest kind label (e.g. agents, feedbacks). Not an ontology class name." ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:string .
+
+:subgraphEntityId a owl:DatatypeProperty ;
+  rdfs:label "subgraphEntityId" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:string .
+
+:subgraphCursorValue a owl:DatatypeProperty ;
+  rdfs:label "subgraphCursorValue" ;
+  rdfs:comment "Monotonic cursor used for incremental ingestion (e.g. blockNumber, updatedAt, mintedAt)." ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:string .
+
+:subgraphRawJson a owl:DatatypeProperty ;
+  rdfs:label "subgraphRawJson" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:string .
+
+:subgraphTxHash a owl:DatatypeProperty ;
+  rdfs:label "subgraphTxHash" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:string .
+
+:subgraphBlockNumber a owl:DatatypeProperty ;
+  rdfs:label "subgraphBlockNumber" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:integer .
+
+:subgraphTimestamp a owl:DatatypeProperty ;
+  rdfs:label "subgraphTimestamp" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range xsd:integer .
+
+:recordsEntity a owl:ObjectProperty ;
+  rdfs:label "recordsEntity" ;
+  rdfs:domain :SubgraphIngestRecord ;
+  rdfs:range owl:Thing .
+
+:SubgraphIngestCheckpoint a owl:Class ;
+  rdfs:label "SubgraphIngestCheckpoint" ;
+  rdfs:comment "GraphDB-resident checkpoint for incremental subgraph ingestion." ;
+  rdfs:subClassOf prov:Entity .
+
+:checkpointChainId a owl:DatatypeProperty ;
+  rdfs:label "checkpointChainId" ;
+  rdfs:domain :SubgraphIngestCheckpoint ;
+  rdfs:range xsd:integer .
+
+:checkpointSection a owl:DatatypeProperty ;
+  rdfs:label "checkpointSection" ;
+  rdfs:domain :SubgraphIngestCheckpoint ;
+  rdfs:range xsd:string .
+
+:checkpointCursor a owl:DatatypeProperty ;
+  rdfs:label "checkpointCursor" ;
+  rdfs:domain :SubgraphIngestCheckpoint ;
+  rdfs:range xsd:string .
+
+:checkpointUpdatedAt a owl:DatatypeProperty ;
+  rdfs:label "checkpointUpdatedAt" ;
+  rdfs:domain :SubgraphIngestCheckpoint ;
+  rdfs:range xsd:integer .

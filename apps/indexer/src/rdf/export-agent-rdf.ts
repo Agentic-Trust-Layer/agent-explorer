@@ -1,3 +1,5 @@
+import { extractAllSkills, isOasfSkillId } from '../a2a/skill-extraction';
+
 type AnyDb = any;
 
 function isNode(): boolean {
@@ -764,6 +766,22 @@ function renderAgentSection(
     }
   }
 
+  // Extract all skills from rawJson and agentCardJson using comprehensive extraction
+  const allExtractedSkills = extractAllSkills(row?.rawJson, row?.agentCardJson);
+  const nonOasfSkills = new Set<string>();
+  for (const skill of allExtractedSkills) {
+    if (isOasfSkillId(skill)) {
+      // Extract OASF skill key from full IRI if needed
+      const oasfKey = skill.startsWith('https://agentictrust.io/ontology/oasf#skill/')
+        ? skill.slice('https://agentictrust.io/ontology/oasf#skill/'.length)
+        : skill;
+      declaredOasfSkills.add(oasfKey);
+    } else {
+      // Non-OASF skill - add without reference tag
+      nonOasfSkills.add(skill);
+    }
+  }
+
   // Emit AgentRegistration8004 or AgentDescriptor node and links
   const adLines: string[] = [];
   if (isERC8004) {
@@ -895,6 +913,17 @@ function renderAgentSection(
       accountChunks.push(`${skIri} a core:AgentSkill, prov:Entity ; core:hasSkillClassification ${skClassIri} .\n\n`);
       // Emit a minimal OASF Skill node (full node also emitted from DB if present)
       accountChunks.push(`${skClassIri} a oasf:Skill, prov:Entity ; oasf:key "${escapeTurtleString(sk)}" .\n\n`);
+    }
+  }
+  // Non-OASF skills (without reference tags)
+  if (nonOasfSkills.size) {
+    for (const sk of nonOasfSkills) {
+      const skIri = agentSkillIri(chainId, agentId, sk, didAccountValue);
+      const skClassIri = skillIri(chainId, agentId, sk, didAccountValue);
+      adLines.push(`  core:hasSkill ${skIri} ;`);
+      accountChunks.push(`${skIri} a core:AgentSkill, prov:Entity ; core:hasSkillClassification ${skClassIri} .\n\n`);
+      // Create plain SkillClassification instance (no OASF reference)
+      accountChunks.push(`${skClassIri} a core:AgentSkillClassification, prov:Entity ; core:skillId "${escapeTurtleString(sk)}" .\n\n`);
     }
   }
   adLines.push(`  .\n`);

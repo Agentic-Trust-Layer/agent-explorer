@@ -2,6 +2,9 @@
 # dependencies
 node_modules
 
+# pnpm store (can be created in-repo depending on env)
+.pnpm-store/
+
 # build
 .next
 dist
@@ -16,6 +19,9 @@ dist
 data
 *.db
 *.sqlite
+
+# ts / incremental build artifacts
+*.tsbuildinfo
 
 # python / local tooling
 .venv*

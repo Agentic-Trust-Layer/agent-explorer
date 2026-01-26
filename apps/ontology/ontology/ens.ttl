@@ -1,0 +1,36 @@
+@base <https://agentictrust.io/ontology/ens#> .
+@prefix : <https://agentictrust.io/ontology/ens#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/ens> a owl:Ontology ;
+  rdfs:label "ENS Identity Ontology" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/identity> ;
+  owl:imports <https://agentictrust.io/ontology/core/identifier> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> .
+
+:EnsIdentityRegistry a owl:Class ;
+  rdfs:label "EnsIdentityRegistry" ;
+  rdfs:comment "ENS registry/namespace anchoring ENS identities." ;
+  rdfs:subClassOf core:AgentRegistry, prov:Entity .
+
+:EnsIdentity a owl:Class ;
+  rdfs:label "EnsIdentity" ;
+  rdfs:comment "ENS identity as a protocol-specific realization of core:AgentIdentity." ;
+  rdfs:subClassOf core:AgentIdentity, prov:Entity .
+
+:EnsIdentifier a owl:Class ;
+  rdfs:label "EnsIdentifier" ;
+  rdfs:comment "Universal identifier for ENS (often represented as did:ens:<name>)." ;
+  rdfs:subClassOf core:UniversalIdentifier, core:DID, prov:Entity .
+
+:ensName a owl:DatatypeProperty ;
+  rdfs:label "ensName" ;
+  rdfs:domain :EnsIdentity ;
+  rdfs:range xsd:string .
+

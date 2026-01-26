@@ -1,0 +1,25 @@
+{
+  "name": "sync",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "sync:agents": "tsx src/cli.ts agents",
+    "sync:feedbacks": "tsx src/cli.ts feedbacks",
+    "sync:associations": "tsx src/cli.ts associations",
+    "sync:validations": "tsx src/cli.ts validations",
+    "sync:agent-cards": "tsx src/cli.ts agent-cards",
+    "sync:all": "tsx src/cli.ts all"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "graphql": "^16.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.1",
+    "tsx": "^4.15.7",
+    "typescript": "^5.6.2"
+  }
+}

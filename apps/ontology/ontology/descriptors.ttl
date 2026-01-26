@@ -136,11 +136,6 @@
   rdfs:domain prov:Entity ;
   rdfs:range :Descriptor .
 
-:agentId a owl:DatatypeProperty ;
-  rdfs:label "agentId" ;
-  rdfs:domain :AIAgent ;
-  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
-
 :agentName a owl:DatatypeProperty ;
   rdfs:label "agentName" ;
   rdfs:domain :AIAgent ;
