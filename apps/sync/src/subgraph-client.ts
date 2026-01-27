@@ -117,7 +117,6 @@ export const AGENTS_QUERY = `query Agents($first: Int!, $skip: Int!) {
     id
     mintedAt
     agentURI
-    metadataJson
     name
     description
     image
@@ -140,6 +139,22 @@ export const AGENTS_QUERY = `query Agents($first: Int!, $skip: Int!) {
       updatedAt
     }
     owner { id }
+  }
+}`;
+
+// NFT on-chain metadata KV rows (AgentMetadata entity)
+// NOTE: some subgraphs expose this as agentMetadata_collection (not agentMetadatas).
+export const AGENT_METADATA_COLLECTION_QUERY = `query AgentMetadataCollection($first: Int!, $skip: Int!) {
+  agentMetadata_collection(first: $first, skip: $skip, orderBy: setAt, orderDirection: asc) {
+    id
+    key
+    value
+    indexedKey
+    setAt
+    setBy
+    txHash
+    blockNumber
+    timestamp
   }
 }`;
 

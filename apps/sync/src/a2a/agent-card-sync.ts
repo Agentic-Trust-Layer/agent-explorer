@@ -1,10 +1,11 @@
 import { fetchA2AAgentCardFromEndpoint } from './agent-card-fetch.js';
-import { extractSkillsFromAgentCard, isOasfSkillId } from './skill-extraction.js';
+import { extractProtocolDataFromAgentUriJson, extractSkillsFromAgentCard, isOasfSkillId } from './skill-extraction.js';
 import { listAgentsWithA2AEndpoint } from '../graphdb/agents.js';
 import { getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from '../graphdb-http.js';
 import { ingestSubgraphTurtleToGraphdb } from '../graphdb-ingest.js';
-import { agentDescriptorIri } from '../rdf/common.js';
+import { identity8004DescriptorIri } from '../rdf/common.js';
 import { emitA2AProtocolDescriptorTurtle } from '../rdf/emit-a2a-protocol-descriptor.js';
+import { emitIdentityDescriptorSkillsDomains } from '../rdf/emit-identity-descriptor-skills-domains.js';
 
 function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
@@ -71,6 +72,7 @@ export async function syncAgentCardsForChain(chainId: number, opts?: { force?: b
       console.warn('[sync] [agent-cards] missing didAccount; skipping', { chainId, agent: row.agent, a2aEndpoint });
       continue;
     }
+    const didIdentity = row.didIdentity?.trim() || null;
 
     if (!force) {
       const has = await protocolDescriptorHasJson(chainId, didAccount).catch(() => false);
@@ -84,14 +86,17 @@ export async function syncAgentCardsForChain(chainId: number, opts?: { force?: b
     }
 
     const skillsAll = extractSkillsFromAgentCard(fetched.card);
+    // Merge in skills from agentURI registration JSON (endpoint-level a2aSkills)
+    const regSkills = row.agentUriJson ? extractProtocolDataFromAgentUriJson(row.agentUriJson).a2a.skills : [];
+    const combinedSkills = Array.from(new Set([...skillsAll, ...regSkills].map((s) => s.trim()).filter(Boolean)));
     const oasf: string[] = [];
     const other: string[] = [];
-    for (const s of skillsAll) {
+    for (const s of combinedSkills) {
       if (isOasfSkillId(s)) oasf.push(s);
       else other.push(s);
     }
 
-    const adIri = agentDescriptorIri(didAccount);
+    const adIri = didIdentity ? identity8004DescriptorIri(didIdentity) : null;
     const { turtle } = emitA2AProtocolDescriptorTurtle({
       chainId,
       didAccount,
@@ -102,7 +107,19 @@ export async function syncAgentCardsForChain(chainId: number, opts?: { force?: b
     });
 
     await clearExistingProtocolDescriptor(chainId, didAccount).catch(() => {});
-    await ingestSubgraphTurtleToGraphdb({ chainId, section: 'agent-cards', turtle, resetContext: false });
+    let combinedTurtle = turtle;
+    // Also attach these skills to the ERC-8004 identity descriptor (requested)
+    if (didIdentity) {
+      combinedTurtle +=
+        '\n' +
+        emitIdentityDescriptorSkillsDomains({
+          descriptorIri: identity8004DescriptorIri(didIdentity),
+          subjectKey: didIdentity,
+          skills: combinedSkills,
+          domains: [],
+        });
+    }
+    await ingestSubgraphTurtleToGraphdb({ chainId, section: 'agent-cards', turtle: combinedTurtle, resetContext: false });
   }
 }
 

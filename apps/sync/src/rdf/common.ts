@@ -56,12 +56,17 @@ export function agentIri(chainId: number, agentId: string): string {
   return `<https://www.agentictrust.io/id/agent/${chainId}/${iriEncodeSegment(agentId)}>`;
 }
 
-export function agentDescriptorIri(didAccountValue: string): string {
-  return `<https://www.agentictrust.io/id/agent-descriptor/${iriEncodeSegment(didAccountValue)}>`;
+// Descriptor keyed off what it describes
+export function agentAccountDescriptorIri(didAccountValue: string): string {
+  return `<https://www.agentictrust.io/id/agent-account-descriptor/${iriEncodeSegment(didAccountValue)}>`;
 }
 
 export function identity8004Iri(didIdentityValue: string): string {
   return `<https://www.agentictrust.io/id/8004-identity/${iriEncodeSegment(didIdentityValue)}>`;
+}
+
+export function identity8004DescriptorIri(didIdentityValue: string): string {
+  return `<https://www.agentictrust.io/id/8004-identity-descriptor/${iriEncodeSegment(didIdentityValue)}>`;
 }
 
 export function identityIdentifier8004Iri(didIdentityValue: string): string {
@@ -72,8 +77,16 @@ export function identityEnsIri(ensName: string): string {
   return `<https://www.agentictrust.io/id/ens-identity/${iriEncodeSegment(ensName)}>`;
 }
 
+export function identityEnsDescriptorIri(ensName: string): string {
+  return `<https://www.agentictrust.io/id/ens-identity-descriptor/${iriEncodeSegment(ensName)}>`;
+}
+
 export function identityIdentifierEnsIri(ensName: string): string {
   return `<https://www.agentictrust.io/id/identifier/ens/${iriEncodeSegment(ensName)}>`;
+}
+
+export function accountIdentifierIri(didAccountValue: string): string {
+  return `<https://www.agentictrust.io/id/identifier/account/${iriEncodeSegment(didAccountValue)}>`;
 }
 
 export function protocolDescriptorIriA2a(didAccountValue: string): string {
@@ -84,12 +97,28 @@ export function protocolIriA2a(didAccountValue: string): string {
   return `<https://www.agentictrust.io/id/protocol/a2a/${iriEncodeSegment(didAccountValue)}>`;
 }
 
+export function protocolDescriptorIriMcp(didAccountValue: string): string {
+  return `<https://www.agentictrust.io/id/protocol-descriptor/mcp/${iriEncodeSegment(didAccountValue)}>`;
+}
+
+export function protocolIriMcp(didAccountValue: string): string {
+  return `<https://www.agentictrust.io/id/protocol/mcp/${iriEncodeSegment(didAccountValue)}>`;
+}
+
 export function oasfSkillIri(skillId: string): string {
   return `<https://www.agentictrust.io/id/oasf/skill/${iriEncodePath(skillId)}>`;
 }
 
+export function oasfDomainIri(domainId: string): string {
+  return `<https://www.agentictrust.io/id/oasf/domain/${iriEncodePath(domainId)}>`;
+}
+
 export function agentSkillIri(didAccountValue: string, skillKey: string): string {
   return `<https://www.agentictrust.io/id/agent-skill/${iriEncodeSegment(didAccountValue)}/${iriEncodePath(skillKey)}>`;
+}
+
+export function agentDomainIri(subjectKey: string, domainKey: string): string {
+  return `<https://www.agentictrust.io/id/agent-domain/${iriEncodeSegment(subjectKey)}/${iriEncodePath(domainKey)}>`;
 }
 
 export function feedbackIri(chainId: number, agentId: string, client: string, feedbackIndex: number): string {

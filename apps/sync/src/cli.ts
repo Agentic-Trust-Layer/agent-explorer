@@ -3,6 +3,7 @@ import {
   SUBGRAPH_ENDPOINTS,
   fetchAllFromSubgraph,
   AGENTS_QUERY,
+  AGENT_METADATA_COLLECTION_QUERY,
   FEEDBACKS_QUERY,
   FEEDBACK_REVOCATIONS_QUERY,
   FEEDBACK_RESPONSES_QUERY,
@@ -45,6 +46,41 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
   // Agents query is mint-ordered; many subgraphs don't support mintedAt_gt filters reliably, so we filter client-side like indexer.
   const items = await fetchAllFromSubgraph(endpoint.url, AGENTS_QUERY, 'agents', { optional: false });
   console.info(`[sync] fetched ${items.length} agents from ${endpoint.name}`);
+
+  // Attach on-chain metadata KV rows if the subgraph exposes them (optional).
+  const inferAgentIdFromMetadataId = (id: unknown): string => {
+    const s = String(id ?? '').trim();
+    if (!s) return '';
+    // Most common pattern is "agentId-key" or "agentId:key"
+    const parts = s.split(/[-:]/).filter(Boolean);
+    const first = parts[0] ? parts[0].trim() : '';
+    if (/^\d+$/.test(first)) return first;
+    // fallback: find first integer-looking segment
+    const match = s.match(/\b\d+\b/);
+    return match ? match[0] : '';
+  };
+
+  const metas = await fetchAllFromSubgraph(endpoint.url, AGENT_METADATA_COLLECTION_QUERY, 'agentMetadata_collection', {
+    optional: true,
+    maxSkip: 50_000,
+  });
+  if (metas.length) {
+    const byAgent = new Map<string, any[]>();
+    for (const m of metas) {
+      const aid = inferAgentIdFromMetadataId(m?.id);
+      if (!aid) continue;
+      const arr = byAgent.get(aid) ?? [];
+      arr.push(m);
+      byAgent.set(aid, arr);
+    }
+    for (const it of items) {
+      const aid = String(it?.id || '').trim();
+      if (!aid) continue;
+      const arr = byAgent.get(aid);
+      if (arr && arr.length) (it as any).agentMetadatas = arr;
+    }
+    console.info(`[sync] attached ${metas.length} agentMetadatas rows to agents`);
+  }
 
   const { turtle, maxCursor } = emitAgentsTurtle(endpoint.chainId, items, 'mintedAt', lastCursor);
   if (turtle.trim()) {

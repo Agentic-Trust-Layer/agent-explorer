@@ -156,6 +156,12 @@
   rdfs:domain :AIAgent ;
   rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
 
+:uaid a owl:DatatypeProperty ;
+  rdfs:label "uaid" ;
+  rdfs:comment "Universal Agent ID for discovery. For ERC-8004 agents this is either the Smart Account DID (did:ethr:...) if present, or the ERC-8004 DID (did:8004:...) otherwise." ;
+  rdfs:domain :AIAgent ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
 :agentAccount a owl:DatatypeProperty ;
   rdfs:label "agentAccount" ;
   rdfs:domain :AIAgent ;

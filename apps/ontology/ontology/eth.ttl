@@ -16,6 +16,11 @@
   rdfs:comment "Ethereum account (EOA or Smart Account) identified by chainId and address." ;
   rdfs:subClassOf <http://www.w3.org/ns/prov#SoftwareAgent> .
 
+:SmartAccount a owl:Class ;
+  rdfs:label "SmartAccount" ;
+  rdfs:comment "Ethereum smart account (account-abstraction / contract account)." ;
+  rdfs:subClassOf :Account .
+
 :accountChainId a owl:DatatypeProperty ;
   rdfs:label "accountChainId" ;
   rdfs:domain :Account ;

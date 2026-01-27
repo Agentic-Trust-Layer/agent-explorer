@@ -29,8 +29,13 @@
   rdfs:comment "Universal identifier for ENS (often represented as did:ens:<name>)." ;
   rdfs:subClassOf core:UniversalIdentifier, core:DID, prov:Entity .
 
+:EnsIdentityDescriptor a owl:Class ;
+  rdfs:label "EnsIdentityDescriptor" ;
+  rdfs:comment "Descriptor for an ENS identity (metadata attached to the ENS identity node)." ;
+  rdfs:subClassOf core:AgentIdentityDescriptor, core:Descriptor, prov:Entity .
+
 :ensName a owl:DatatypeProperty ;
   rdfs:label "ensName" ;
-  rdfs:domain :EnsIdentity ;
+  rdfs:domain :EnsIdentityDescriptor ;
   rdfs:range xsd:string .
 

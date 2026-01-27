@@ -33,6 +33,23 @@
   rdfs:subClassOf core:AgentIdentity ;
   rdfs:subClassOf prov:Entity .
 
+:AIAgent8004 a owl:Class ;
+  rdfs:label "AIAgent8004" ;
+  rdfs:comment "ERC-8004 discoverable AI agent node." ;
+  rdfs:subClassOf core:AIAgent ;
+  rdfs:subClassOf prov:SoftwareAgent .
+
+:SmartAgent a owl:Class ;
+  rdfs:label "SmartAgent" ;
+  rdfs:comment "ERC-8004 AI agent that is associated with a Smart Account (account abstraction / contract account)." ;
+  rdfs:subClassOf :AIAgent8004 .
+
+:hasSmartAccount a owl:ObjectProperty ;
+  rdfs:label "hasSmartAccount" ;
+  rdfs:comment "Associates a SmartAgent with its SmartAccount node." ;
+  rdfs:domain :SmartAgent ;
+  rdfs:range eth:SmartAccount .
+
 :IdentityIdentifier8004 a owl:Class ;
   rdfs:label "IdentityIdentifier8004" ;
   rdfs:comment "ERC-8004 agent identity identifier (did:8004:chainId:agentId)." ;
@@ -43,6 +60,24 @@
   rdfs:label "IdentityDescriptor8004" ;
   rdfs:comment "Descriptor for an ERC-8004 identity." ;
   rdfs:subClassOf core:AgentIdentityDescriptor .
+
+:onchainMetadataJson a owl:DatatypeProperty ;
+  rdfs:label "onchainMetadataJson" ;
+  rdfs:comment "Raw on-chain NFT metadata payload for the ERC-8004 identity. This may be arbitrary JSON." ;
+  rdfs:domain :IdentityDescriptor8004 ;
+  rdfs:range xsd:string .
+
+:registeredBy a owl:DatatypeProperty ;
+  rdfs:label "registeredBy" ;
+  rdfs:comment "Human-readable registration issuer/brand extracted from on-chain metadata (best-effort)." ;
+  rdfs:domain :IdentityDescriptor8004 ;
+  rdfs:range xsd:string .
+
+:registryNamespace a owl:DatatypeProperty ;
+  rdfs:label "registryNamespace" ;
+  rdfs:comment "Registry namespace extracted from on-chain metadata (best-effort), e.g. erc-8004." ;
+  rdfs:domain :IdentityDescriptor8004 ;
+  rdfs:range xsd:string .
 
 :ValidationRequestSituation a owl:Class ;
   rdfs:label "ValidationRequestSituation" ;
