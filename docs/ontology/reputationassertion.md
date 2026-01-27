@@ -9,8 +9,8 @@ classDiagram
 direction TB
 
 class provActivity["prov:Activity"]
-class TrustAssertion["agentictrust:TrustAssertion"]
-class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
+class TrustAssertion["core:TrustAssertion"]
+class ReputationAssertion["core:ReputationTrustAssertion"]
 class Feedback["erc8004:Feedback"]
 class FeedbackResponse["erc8004:FeedbackResponse"]
 
@@ -22,8 +22,8 @@ ReputationAssertion <|-- FeedbackResponse
 
 **Inheritance chain:**
 - `prov:Entity` (base PROV-O class)
-  - `agentictrust:TrustAssertion` (durable trust claim)
-    - `agentictrust:ReputationTrustAssertion` (reputation/feedback claim)
+  - `core:TrustAssertion` (durable trust claim)
+    - `core:ReputationTrustAssertion` (reputation/feedback claim)
       - `erc8004:Feedback` (ERC-8004 feedback record)
       - `erc8004:FeedbackResponse` (response to feedback)
 
@@ -33,15 +33,15 @@ ReputationAssertion <|-- FeedbackResponse
 classDiagram
 direction LR
 
-class AIAgent["agentictrust:AIAgent"]
-class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
+class AIAgent["core:AIAgent"]
+class ReputationAssertion["core:ReputationTrustAssertion"]
 class Feedback["erc8004:Feedback"]
 class FeedbackResponse["erc8004:FeedbackResponse"]
 class provAgent["prov:Agent"]
-class Skill["agentictrust:AgentSkillClassification"]
-class IntentType["agentictrust:IntentType"]
+class Skill["core:AgentSkillClassification"]
+class IntentType["core:IntentType"]
 
-AIAgent --> ReputationAssertion : hasReputationAssertion (agentictrust)
+AIAgent --> ReputationAssertion : hasReputationAssertion (core)
 AIAgent --> Feedback : hasFeedback (erc8004)
 
 Feedback --> provAgent : feedbackClient (erc8004)
@@ -53,23 +53,23 @@ Feedback --> IntentType : feedbackIntentType (erc8004)
 
 #### Agent → Assertion Links
 
-- **`agentictrust:hasReputationAssertion`** (domain: `prov:Agent`, range: `agentictrust:ReputationTrustAssertion`)
+- **`core:hasReputationAssertion`** (domain: `prov:Agent`, range: `core:ReputationTrustAssertion`)
   - Links an agent to reputation assertions about it or produced by it
-  - Subproperty of `agentictrust:hasTrustAssertion`
+  - Subproperty of `core:hasTrustAssertion`
 
-- **`erc8004:hasFeedback`** (domain: `agentictrust:AIAgent`, range: `erc8004:Feedback`)
+- **`erc8004:hasFeedback`** (domain: `core:AIAgent`, range: `erc8004:Feedback`)
   - ERC-8004 specific property linking agents to feedback records
-  - Subproperty of `agentictrust:hasReputationAssertion`
+  - Subproperty of `core:hasReputationAssertion`
 
 #### Feedback Context Links
 
 - **`erc8004:feedbackClient`** (domain: `erc8004:Feedback`, range: `prov:Agent`)
   - Links feedback to the client/agent that provided it
 
-- **`erc8004:feedbackSkill`** (domain: `erc8004:Feedback`, range: `agentictrust:AgentSkillClassification`)
+- **`erc8004:feedbackSkill`** (domain: `erc8004:Feedback`, range: `core:AgentSkillClassification`)
   - Links feedback to the skill it relates to
 
-- **`erc8004:feedbackIntentType`** (domain: `erc8004:Feedback`, range: `agentictrust:IntentType`)
+- **`erc8004:feedbackIntentType`** (domain: `erc8004:Feedback`, range: `core:IntentType`)
   - Links feedback to the intent type it relates to
 
 ### Datatype Properties
@@ -87,18 +87,18 @@ Feedback --> IntentType : feedbackIntentType (erc8004)
 
 **Query all reputation assertions for an agent:**
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId ?reputationAssertion ?feedbackScore
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:hasReputationAssertion ?reputationAssertion .
+  ?agent a core:AIAgent ;
+    core:hasReputationAssertion ?reputationAssertion .
   
-  ?reputationAssertion a agentictrust:ReputationTrustAssertion .
+  ?reputationAssertion a core:ReputationTrustAssertion .
   
   OPTIONAL {
-    ?agent agentictrust:agentId ?agentId .
+    ?agent core:agentId ?agentId .
   }
   OPTIONAL {
     ?reputationAssertion erc8004:feedbackScore ?feedbackScore .
@@ -108,8 +108,8 @@ WHERE {
 
 **Query feedback with context (client, skill, intent):**
 ```sparql
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?agent ?feedback ?feedbackScore ?client ?skill ?intentType
 WHERE {
@@ -131,7 +131,7 @@ WHERE {
 
 **Query average feedback score per agent:**
 ```sparql
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT ?agent (AVG(?score) AS ?avgScore) (COUNT(?feedback) AS ?feedbackCount)
 WHERE {

@@ -14,16 +14,16 @@ This is why identity is modeled as **registry-scoped**: it preserves pluralism, 
 
 ## Key entities and relations
 
-- **Agent** (`agentictrust:AIAgent`, `prov:Agent`): the durable trust-graph anchor (“the thing that exists/acts”).
-- **Registry** (`agentictrust:AgentRegistry`, `prov:Entity`): an entity representing a registry system (its policy surface, governance, scope).
-- **Identity** (`agentictrust:AgentIdentity`, `prov:Entity`): a registry-scoped identity representation/record for an agent.
-- **Identifier** (`agentictrust:Identifier`, `agentictrust:DID`, etc.): symbolic references used for lookup and linkage (DID/UAID/ENS/etc.).
-- **Portfolio** (`agentictrust:AgentPortfolio`, `prov:Collection`): a grouping of agents (often curated/maintained by a registry, consortium, or marketplace).
+- **Agent** (`core:AIAgent`, `prov:Agent`): the durable trust-graph anchor (“the thing that exists/acts”).
+- **Registry** (`core:AgentRegistry`, `prov:Entity`): an entity representing a registry system (its policy surface, governance, scope).
+- **Identity** (`core:AgentIdentity`, `prov:Entity`): a registry-scoped identity representation/record for an agent.
+- **Identifier** (`core:Identifier`, `core:DID`, etc.): symbolic references used for lookup and linkage (DID/UAID/ENS/etc.).
+- **Portfolio** (`core:AgentPortfolio`, `prov:Collection`): a grouping of agents (often curated/maintained by a registry, consortium, or marketplace).
 
 ### Canonical links (typical)
 
-- `agentictrust:hasIdentity` (Agent → AgentIdentity)
-- `agentictrust:identityRegistry` (AgentIdentity → AgentRegistry)
+- `core:hasIdentity` (Agent → AgentIdentity)
+- `core:identityRegistry` (AgentIdentity → AgentRegistry)
 - `prov:identifier` (on Identity, Identifier artifacts, or both, depending on modeling choice)
 - `prov:hadMember` (AgentPortfolio → Agent)
 
@@ -36,8 +36,8 @@ graph TB
   Registry["AgentRegistry\nprov:Entity"]
   Portfolio["AgentPortfolio\nprov:Collection"]
 
-  Agent -->|agentictrust:hasIdentity| Identity
-  Identity -->|agentictrust:identityRegistry| Registry
+  Agent -->|core:hasIdentity| Identity
+  Identity -->|core:identityRegistry| Registry
   Portfolio -->|prov:hadMember| Agent
   Registry -. "may curate/maintain" .-> Portfolio
 ```
@@ -51,10 +51,10 @@ Hedera provides a concrete example of a **message-based** registry substrate:
 
 AgenticTrust mapping:
 
-- An HCS-10 registry topic can be modeled as an `agentictrust:AgentRegistry` (a registry-as-an-entity).
-- Registry entries become `agentictrust:AgentIdentity` entities, scoped to that registry via `agentictrust:identityRegistry`.
+- An HCS-10 registry topic can be modeled as an `core:AgentRegistry` (a registry-as-an-entity).
+- Registry entries become `core:AgentIdentity` entities, scoped to that registry via `core:identityRegistry`.
 
-Separately, AgenticTrust already carries **HCS-14-inspired routing parameters** on `agentictrust:UniversalIdentifier` (registry/proto/nativeId/uid/domain) so a single identifier can encode “how to resolve” across multiple registry ecosystems.
+Separately, AgenticTrust already carries **HCS-14-inspired routing parameters** on `core:UniversalIdentifier` (registry/proto/nativeId/uid/domain) so a single identifier can encode “how to resolve” across multiple registry ecosystems.
 
 ### HCS-14 relationship to HCS-10 (and HCS-2)
 
@@ -94,12 +94,12 @@ This is why portfolios are **orthogonal** to registries: the same portfolio conc
 ### 1) List registries and how many identities they issue
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?registry (COUNT(DISTINCT ?identity) AS ?identityCount)
 WHERE {
-  ?identity a agentictrust:AgentIdentity ;
-            agentictrust:identityRegistry ?registry .
+  ?identity a core:AgentIdentity ;
+            core:identityRegistry ?registry .
 }
 GROUP BY ?registry
 ORDER BY DESC(?identityCount) ?registry
@@ -109,14 +109,14 @@ LIMIT 200
 ### 2) Registry → Agents (via identities)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT ?registry ?agent ?identity
 WHERE {
-  ?identity a agentictrust:AgentIdentity ;
-            agentictrust:identityRegistry ?registry .
-  ?agent a agentictrust:AIAgent ;
-         agentictrust:hasIdentity ?identity .
+  ?identity a core:AgentIdentity ;
+            core:identityRegistry ?registry .
+  ?agent a core:AIAgent ;
+         core:hasIdentity ?identity .
 }
 ORDER BY ?registry ?agent ?identity
 LIMIT 500
@@ -124,19 +124,19 @@ LIMIT 500
 
 ### 3) Portfolios curated by a given registry (pattern query)
 
-If you model a curation link (e.g., `agentictrust:curatesPortfolio` or encode curation in a Descriptor), use that here.
+If you model a curation link (e.g., `core:curatesPortfolio` or encode curation in a Descriptor), use that here.
 Today, this repo treats curation as a **pattern** (not a required OWL property).
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT DISTINCT ?portfolio ?agent
 WHERE {
   # Replace this with your chosen curation predicate if/when you add it.
-  # ?registry agentictrust:curatesPortfolio ?portfolio .
+  # ?registry core:curatesPortfolio ?portfolio .
 
-  ?portfolio a agentictrust:AgentPortfolio ;
+  ?portfolio a core:AgentPortfolio ;
              prov:hadMember ?agent .
 }
 ORDER BY ?portfolio ?agent

@@ -9,9 +9,9 @@ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 ```
 
 ## 0) Resolve the agent anchor (account-anchored AIAgent) + optional ERC-8004 identity
@@ -19,18 +19,18 @@ PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
 Run this first. If it returns more than one row, pick the `?chainId` you care about and use it in later queries.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT DISTINCT ?agent ?chainId ?accountAddress ?didAccount ?identity ?didIdentity
 WHERE {
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId "7415" ;
-         agentictrustEth:accountChainId ?chainId ;
-         agentictrustEth:accountAddress ?accountAddress .
-  OPTIONAL { ?agent agentictrust:didAccount ?didAccount . }
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
-  OPTIONAL { ?agent agentictrust:didIdentity ?didIdentity . }
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId "7415" ;
+         eth:accountChainId ?chainId ;
+         eth:accountAddress ?accountAddress .
+  OPTIONAL { ?agent core:didAccount ?didAccount . }
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
+  OPTIONAL { ?agent core:didIdentity ?didIdentity . }
 }
 ORDER BY ?chainId ?accountAddress
 LIMIT 10
@@ -39,13 +39,13 @@ LIMIT 10
 ## 1) A2A endpoint (registration endpoint + protocol descriptor service URL)
 
 This collects A2A endpoints from:
-- ERC-8004 registration endpoints (`agentictrust:endpointUrl` + `endpointType=a2a`)
-- A2A protocol descriptor (`agentictrust:serviceUrl`)
+- ERC-8004 registration endpoints (`core:endpointUrl` + `endpointType=a2a`)
+- A2A protocol descriptor (`core:serviceUrl`)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?agent ?chainId
@@ -56,27 +56,27 @@ SELECT DISTINCT
 WHERE {
   VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
 
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId ?agentId ;
-         agentictrustEth:accountChainId ?chainId ;
-         agentictrust:hasIdentity ?identity .
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId ?agentId ;
+         eth:accountChainId ?chainId ;
+         core:hasIdentity ?identity .
 
-  ?identity agentictrust:hasDescriptor ?reg .
+  ?identity core:hasDescriptor ?reg .
 
   # Registration endpoint URL (endpointType=a2a)
   OPTIONAL {
-    ?reg agentictrust:hasEndpoint ?ep .
-    ?ep agentictrust:endpointType <https://www.agentictrust.io/ontology/agentictrust-core/endpointType/a2a> ;
-        agentictrust:endpointUrl ?registrationEndpointUrl .
+    ?reg core:hasEndpoint ?ep .
+    ?ep core:endpointType <https://core.io/ontology/core/endpointType/a2a> ;
+        core:endpointUrl ?registrationEndpointUrl .
   }
 
   # Protocol descriptor (from agent card)
   OPTIONAL {
-    ?reg agentictrust:assembledFromMetadata ?pd .
-    ?pd a agentictrust:A2AProtocolDescriptor .
-    OPTIONAL { ?pd agentictrust:serviceUrl ?protocolServiceUrl . }
-    OPTIONAL { ?pd agentictrust:protocolVersion ?protocolVersion . }
-    OPTIONAL { ?pd agentictrust:preferredTransport ?preferredTransport . }
+    ?reg core:assembledFromMetadata ?pd .
+    ?pd a core:A2AProtocolDescriptor .
+    OPTIONAL { ?pd core:serviceUrl ?protocolServiceUrl . }
+    OPTIONAL { ?pd core:protocolVersion ?protocolVersion . }
+    OPTIONAL { ?pd core:preferredTransport ?preferredTransport . }
   }
 }
 LIMIT 20
@@ -86,14 +86,14 @@ LIMIT 20
 
 This pulls normalized ids from the registration descriptor and joins to OASF nodes (if loaded).
 
-Note: endpoint payloads often provide `endpoints[].a2aSkills` / `endpoints[].a2aDomains`. The RDF export treats these as OASF ids and emits them as `agentictrust:oasfSkillId` / `agentictrust:oasfDomainId`.
+Note: endpoint payloads often provide `endpoints[].a2aSkills` / `endpoints[].a2aDomains`. The RDF export treats these as OASF ids and emits them as `core:oasfSkillId` / `core:oasfDomainId`.
 
 If you see an “empty row” in results, that’s usually because both Skills and Domains are in `OPTIONAL { ... }` blocks; SPARQL still returns a solution for the bound `?agent/?identity/?reg` but leaves `?skillId/?domainId` unbound. Use the `FILTER(BOUND(...))` below to suppress that.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -102,26 +102,26 @@ SELECT DISTINCT
 WHERE {
   VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
 
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId ?agentId ;
-         agentictrustEth:accountChainId ?chainId ;
-         agentictrust:hasIdentity ?identity .
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId ?agentId ;
+         eth:accountChainId ?chainId ;
+         core:hasIdentity ?identity .
 
-  ?identity agentictrust:hasDescriptor ?reg .
+  ?identity core:hasDescriptor ?reg .
 
   # Skills (OASF)
   OPTIONAL {
-    ?reg agentictrust:hasSkill ?agentSkill .
-    ?agentSkill agentictrust:hasSkillClassification ?skillNode .
-    OPTIONAL { ?skillNode agentictrust:oasfSkillId ?skillId . }
+    ?reg core:hasSkill ?agentSkill .
+    ?agentSkill core:hasSkillClassification ?skillNode .
+    OPTIONAL { ?skillNode core:oasfSkillId ?skillId . }
     OPTIONAL { ?skillNode rdfs:label ?skillLabel . }
   }
 
   # Domains (OASF)
   OPTIONAL {
-    ?reg agentictrust:hasDomain ?agentDomain .
-    ?agentDomain agentictrust:hasDomainClassification ?domainNode .
-    OPTIONAL { ?domainNode agentictrust:oasfDomainId ?domainId . }
+    ?reg core:hasDomain ?agentDomain .
+    ?agentDomain core:hasDomainClassification ?domainNode .
+    OPTIONAL { ?domainNode core:oasfDomainId ?domainId . }
     OPTIONAL { ?domainNode rdfs:label ?domainLabel . }
   }
 
@@ -136,9 +136,9 @@ LIMIT 200
 If `IntentType` mappings are present in your repo, this returns **only the intents that target skills advertised by agent 7415**.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?intentType
@@ -147,22 +147,22 @@ SELECT DISTINCT
 WHERE {
   VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
 
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId ?agentId ;
-         agentictrustEth:accountChainId ?chainId ;
-         agentictrust:hasIdentity ?identity .
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId ?agentId ;
+         eth:accountChainId ?chainId ;
+         core:hasIdentity ?identity .
 
-  ?identity agentictrust:hasDescriptor ?reg .
+  ?identity core:hasDescriptor ?reg .
 
   # OASF skills the agent advertises
-  ?reg agentictrust:hasSkill ?agentSkill .
-  ?agentSkill agentictrust:hasSkillClassification ?skillNode .
-  ?skillNode agentictrust:oasfSkillId ?skillId .
+  ?reg core:hasSkill ?agentSkill .
+  ?agentSkill core:hasSkillClassification ?skillNode .
+  ?skillNode core:oasfSkillId ?skillId .
 
   # IntentTypes that target those skills
-  ?intentType a agentictrust:IntentType ;
-              agentictrust:targetsSkill ?skillNode .
-  OPTIONAL { ?intentType agentictrust:intentTypeValue ?intentTypeValue . }
+  ?intentType a core:IntentType ;
+              core:targetsSkill ?skillNode .
+  OPTIONAL { ?intentType core:intentTypeValue ?intentTypeValue . }
 }
 ORDER BY ?intentType
 LIMIT 200
@@ -173,22 +173,22 @@ LIMIT 200
 This shows what intent types appear in situations for agent 7415 without blowing up into record-level detail.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT DISTINCT ?intentType (COUNT(DISTINCT ?situation) AS ?situationCount)
 WHERE {
   VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
 
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId ?agentId ;
-         agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId ?agentId ;
+         eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
 
-  ?situation agentictrust:satisfiesIntent ?intentType .
+  ?situation core:satisfiesIntent ?intentType .
   FILTER(
-    EXISTS { ?situation agentictrust:isAboutAgent ?agent } ||
-    EXISTS { ?situation agentictrust:aboutSubject ?identity }
+    EXISTS { ?situation core:isAboutAgent ?agent } ||
+    EXISTS { ?situation core:aboutSubject ?identity }
   )
 }
 GROUP BY ?intentType
@@ -198,44 +198,44 @@ LIMIT 50
 
 ## 5) Delegation authorization provenance — scoped to agent 7415
 
-Important: `erc8004:ValidationRequestSituation` and `agentictrust:FeedbackAuthRequestSituation` are **request situations** (not assertions). The query below starts from the request situations and returns the **delegation assertion** tied to them. If/when reputation/verification assertions are later produced under those permissions, you can use the second query to find them.
+Important: `erc8004:ValidationRequestSituation` and `core:FeedbackAuthRequestSituation` are **request situations** (not assertions). The query below starts from the request situations and returns the **delegation assertion** tied to them. If/when reputation/verification assertions are later produced under those permissions, you can use the second query to find them.
 
 ### 5a) Delegation grants (request situation → delegation assertion)
 
 Note: this query scopes to request situations **about agent 7415** (i.e., where 7415 is the agent being validated / the agent whose feedback is being given). If agent 7415 is acting primarily as a **validator** for other agents, use **5c**.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT ?requestSituation ?requestType ?delegation ?delegatee ?action ?expires
 WHERE {
   VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
 
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId ?agentId ;
-         agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId ?agentId ;
+         eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
 
   ?requestSituation a ?requestType .
-  FILTER(?requestType IN (erc8004:ValidationRequestSituation, agentictrust:FeedbackAuthRequestSituation))
+  FILTER(?requestType IN (erc8004:ValidationRequestSituation, core:FeedbackAuthRequestSituation))
 
   # Scope request situations to this agent (directly or via aboutSubject identity)
   FILTER(
-    EXISTS { ?requestSituation agentictrust:isAboutAgent ?agent } ||
-    EXISTS { ?requestSituation agentictrust:aboutSubject ?identity }
+    EXISTS { ?requestSituation core:isAboutAgent ?agent } ||
+    EXISTS { ?requestSituation core:aboutSubject ?identity }
   )
 
-  ?delegation a agentictrust:DelegationTrustAssertion ;
-              agentictrust:recordsSituation ?requestSituation .
+  ?delegation a core:DelegationTrustAssertion ;
+              core:recordsSituation ?requestSituation .
 
-  OPTIONAL { ?requestSituation agentictrust:delegationDelegatee ?delegatee . }
+  OPTIONAL { ?requestSituation core:delegationDelegatee ?delegatee . }
   OPTIONAL {
-    ?requestSituation agentictrust:delegationGrantsPermission ?perm .
-    OPTIONAL { ?perm agentictrust:permissionAction ?action . }
+    ?requestSituation core:delegationGrantsPermission ?perm .
+    OPTIONAL { ?perm core:permissionAction ?action . }
   }
-  OPTIONAL { ?requestSituation agentictrust:delegationExpiresAtTime ?expires . }
+  OPTIONAL { ?requestSituation core:delegationExpiresAtTime ?expires . }
 }
 ORDER BY ?requestSituation
 LIMIT 200
@@ -244,28 +244,28 @@ LIMIT 200
 ### 5b) Authorized assertions (assertion → delegation) — only returns rows when assertions exist
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT ?assertion ?assertionType ?delegation
 WHERE {
   VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
 
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId ?agentId ;
-         agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId ?agentId ;
+         eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
 
-  ?assertion agentictrust:wasAuthorizedByDelegation ?delegation .
-  ?delegation a agentictrust:DelegationTrustAssertion .
+  ?assertion core:wasAuthorizedByDelegation ?delegation .
+  ?delegation a core:DelegationTrustAssertion .
   OPTIONAL { ?assertion a ?assertionType . }
 
   # Scope: keep only assertions about this agent (directly, via ERC-8004 links, or via aboutSubject identity)
   FILTER(
     EXISTS { ?agent erc8004:hasFeedback|erc8004:hasValidation ?assertion } ||
     EXISTS { ?identity erc8004:hasFeedback|erc8004:hasValidation ?assertion } ||
-    EXISTS { ?assertion agentictrust:aboutSubject ?identity }
+    EXISTS { ?assertion core:aboutSubject ?identity }
   )
 }
 ORDER BY ?assertion
@@ -277,21 +277,21 @@ LIMIT 200
 This finds `erc8004:ValidationRequestSituation` records where the validator is agent 7415 (either via `erc8004:validationValidator` account IRI or via `erc8004:validatorAgent` mapping).
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT ?requestSituation ?requestingAgentId ?validator ?validatorAgent
 WHERE {
   VALUES (?agentId ?chainId) { ("7415" 11155111) } # change chainId if needed
 
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account ;
-         agentictrust:agentId ?agentId ;
-         agentictrustEth:accountChainId ?chainId ;
-         agentictrustEth:accountAddress ?addr .
+  ?agent a core:AIAgent, eth:Account ;
+         core:agentId ?agentId ;
+         eth:accountChainId ?chainId ;
+         eth:accountAddress ?addr .
 
   BIND(CONCAT("0x", LCASE(STR(?addr))) AS ?addrLc) # defensively normalize
-  BIND(IRI(CONCAT("https://www.agentictrust.io/id/account/", STR(?chainId), "/", ?addrLc)) AS ?acct)
+  BIND(IRI(CONCAT("https://www.core.io/id/account/", STR(?chainId), "/", ?addrLc)) AS ?acct)
 
   ?requestSituation a erc8004:ValidationRequestSituation .
   OPTIONAL { ?requestSituation erc8004:requestingAgentId ?requestingAgentId . }

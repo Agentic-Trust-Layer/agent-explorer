@@ -70,13 +70,13 @@ GraphDB Workbench should be at `http://localhost:7200`.
 
 - Open `http://localhost:7200`
 - **Setup → Repositories → Create new repository**
-- Repository id: `agentictrust` (or set `GRAPHDB_REPOSITORY`)
+- Repository id: `core` (or set `GRAPHDB_REPOSITORY`)
 
 ### 7) Ingest ontologies + agent RDF into GraphDB
 
 ```bash
 GRAPHDB_BASE_URL=http://localhost:7200 \
-GRAPHDB_REPOSITORY=agentictrust \
+GRAPHDB_REPOSITORY=core \
 pnpm --filter erc8004-indexer graphdb:ingest all --reset
 ```
 

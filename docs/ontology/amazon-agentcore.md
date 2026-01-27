@@ -11,8 +11,8 @@ Primary reference: [Amazon Bedrock AgentCore overview](https://docs.aws.amazon.c
 
 Key alignment:
 
-- AgentCore’s “agent” is closest to `agentictrust:AgentDeployment` (the reachable executor).
-- AgenticTrust insists on a distinct **discoverable Agent** (`agentictrust:AIAgent`) as the stable trust-graph anchor.
+- AgentCore’s “agent” is closest to `core:AgentDeployment` (the reachable executor).
+- AgenticTrust insists on a distinct **discoverable Agent** (`core:AIAgent`) as the stable trust-graph anchor.
 
 See also: [`agent-application.md`](./agent-application.md) (Agent vs Deployment and verification primitives).
 
@@ -22,12 +22,12 @@ From the AgentCore overview page, the core services include Runtime, Memory, Gat
 
 | AgentCore service | AgentCore intent | AgenticTrust mapping (today) | Notes / gaps |
 |---|---|---|---|
-| Runtime | secure runtime for agents/tools, sessions, isolation | `agentictrust:AgentDeployment` + PROV Activities (`TaskExecution`, `SkillInvocation`) | session identity can be captured as Activity ids/fields; not modeled as a new Agent identity by default |
+| Runtime | secure runtime for agents/tools, sessions, isolation | `core:AgentDeployment` + PROV Activities (`TaskExecution`, `SkillInvocation`) | session identity can be captured as Activity ids/fields; not modeled as a new Agent identity by default |
 | Memory | short/long-term memory, shared stores | Model as `prov:Entity` “MemoryStore/MemorySnapshot” + Activities that `prov:used`/`prov:generated` | not a first-class class today; treat as Artifact/Descriptor-like entities if needed |
-| Gateway | convert APIs/services to MCP-compatible tools, connect to MCP servers | `agentictrust:MCPProtocolDescriptor` + `AgentSkillClassification` + `JsonSchema` + `Endpoint` | Gateway creates “tool catalog” semantics; AgenticTrust represents tools as skills + schemas and keeps protocol descriptors as canonical sources |
-| Identity | agent identity/access/authN management compatible w/ IdPs | `agentictrust:AgentRegistry` + `agentictrust:AgentIdentity` + `agentictrust:IdentifierDescriptor` | AgenticTrust is registry-plural and graph-native; AgentCore is service-centric |
+| Gateway | convert APIs/services to MCP-compatible tools, connect to MCP servers | `core:MCPProtocolDescriptor` + `AgentSkillClassification` + `JsonSchema` + `Endpoint` | Gateway creates “tool catalog” semantics; AgenticTrust represents tools as skills + schemas and keeps protocol descriptors as canonical sources |
+| Identity | agent identity/access/authN management compatible w/ IdPs | `core:AgentRegistry` + `core:AgentIdentity` + `core:IdentifierDescriptor` | AgenticTrust is registry-plural and graph-native; AgentCore is service-centric |
 | Observability | tracing/debug/monitoring agent workflows | PROV traces: `TaskExecution`, `SkillInvocation`, `AgentDescriptorFetch` (+ `prov:generatedAtTime`, etc.) | AgenticTrust can represent “why/what happened” as provenance graph |
-| Evaluations | automated evaluation over sessions/traces | model eval results as `agentictrust:AttestedAssertion` about executions/deployments | evaluation-as-attestation is a clean fit; “quality score” is an asserted artifact |
+| Evaluations | automated evaluation over sessions/traces | model eval results as `core:AttestedAssertion` about executions/deployments | evaluation-as-attestation is a clean fit; “quality score” is an asserted artifact |
 | Policy | deterministic control, tool-call interception | represent policy as `TrustDescription` / Descriptor inputs + attest policy decisions as `AttestedAssertion` | enforcement happens outside the graph; the graph stores what policy was applied and what was allowed/denied |
 | Browser / Code Interpreter | managed tool runtimes | represent as skills/tools available via descriptors; invocations as `SkillInvocation` | fits naturally as “tools” within the invocation trace |
 
@@ -158,7 +158,7 @@ AgenticTrust can represent the same pattern with explicit graph nodes:
 - **Semantic retrieval**: an *index/query method* over tool metadata (not a new ontology class)
   - store tool metadata as Descriptor fields/labels; use vector/full-text indexing as an implementation detail
 - **Candidate tool set**: the shortlist returned by retrieval is a set of candidate `AgentSkillClassification` nodes
-- **Invocation**: `SkillInvocation` Activities link to the selected skill via `agentictrust:invokesSkill`, with provenance and policy outcomes recorded as AttestedAssertions if needed
+- **Invocation**: `SkillInvocation` Activities link to the selected skill via `core:invokesSkill`, with provenance and policy outcomes recorded as AttestedAssertions if needed
 
 ### Contrast (high-level)
 
@@ -195,12 +195,12 @@ AgenticTrust represents this as:
 
 - **Inbound** (client → deployment):
   - represent the verifier’s conclusion as a VerificationTrustSituation + AttestedAssertion about the deployment/identity
-  - keep raw evidence in `agentictrust:json` on the record nodes when needed
+  - keep raw evidence in `core:json` on the record nodes when needed
 - **Outbound** (deployment → tool):
   - represent the tool-call as a `SkillInvocation` Activity
   - represent the authorization basis as:
     - delegation chain (`prov:actedOnBehalfOf`)
-    - provider responsibility (`agentictrust:agentProvider`)
+    - provider responsibility (`core:agentProvider`)
     - policy description (as a Descriptor/Plan-like entity)
   - represent allow/deny decisions as AttestedAssertions (auditable governance)
 
@@ -209,19 +209,19 @@ AgenticTrust represents this as:
 ```mermaid
 graph TB
   Client["Client / Caller"]
-  Deploy["AgentCore Agent Runtime\n(agentictrust:AgentDeployment)"]
+  Deploy["AgentCore Agent Runtime\n(core:AgentDeployment)"]
   Tool["Tool / MCP server / API\n(AgentSkillClassification + Endpoint)"]
 
-  Agent["Discoverable Agent\n(agentictrust:AIAgent)"]
-  Identity["Registry-scoped Identity\n(agentictrust:AgentIdentity)"]
-  Registry["Registry\n(agentictrust:AgentRegistry)"]
+  Agent["Discoverable Agent\n(core:AIAgent)"]
+  Identity["Registry-scoped Identity\n(core:AgentIdentity)"]
+  Registry["Registry\n(core:AgentRegistry)"]
 
   Client -->|inboundAuthN| Deploy
   Deploy -->|outboundToolAuth| Tool
 
-  Deploy -->|agentictrust:deploymentOf| Agent
-  Agent -->|agentictrust:hasIdentity| Identity
-  Identity -->|agentictrust:identityRegistry| Registry
+  Deploy -->|core:deploymentOf| Agent
+  Agent -->|core:hasIdentity| Identity
+  Identity -->|core:identityRegistry| Registry
 ```
 
 ## Suggested alignments (documentation-first)

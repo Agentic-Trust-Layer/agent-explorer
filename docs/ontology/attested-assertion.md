@@ -1,6 +1,6 @@
 # AttestedAssertion (Assertion vs Attestation)
 
-This page documents the **Assertion / Attestation / AttestedAssertion** pattern added to `agentictrust-core.owl`.
+This page documents the **Assertion / Attestation / AttestedAssertion** pattern added to `apps/ontology/ontology/core.ttl`.
 
 ## Goal
 
@@ -34,40 +34,40 @@ graph TB
 
 ### Assertion
 
-- `agentictrust:Assertion` ⊑ `prov:Entity`
+- `core:Assertion` ⊑ `prov:Entity`
 
 ### Attestation
 
-- `agentictrust:Attestation` ⊑ `agentictrust:AssertionAct` ⊑ `prov:Activity`
+- `core:Attestation` ⊑ `core:AssertionAct` ⊑ `prov:Activity`
 - Intended PROV constraints (modeled as OWL restrictions):
-  - `prov:used` → `agentictrust:Assertion`
-  - `prov:generated` → `agentictrust:AttestedAssertion`
+  - `prov:used` → `core:Assertion`
+  - `prov:generated` → `core:AttestedAssertion`
   - `prov:wasAssociatedWith` → `prov:Agent`
 
 ### AttestedAssertion
 
-- `agentictrust:AttestedAssertion` ⊑ `prov:Entity`
+- `core:AttestedAssertion` ⊑ `prov:Entity`
 - **Trust assertions** are modeled as attested assertions:
-  - `agentictrust:TrustAssertion` ⊑ `agentictrust:AttestedAssertion`
+  - `core:TrustAssertion` ⊑ `core:AttestedAssertion`
   - TrustAssertion specializations used in this repo:
-    - `agentictrust:VerificationTrustAssertion`
-    - `agentictrust:ReputationTrustAssertion`
-    - `agentictrust:RelationshipTrustAssertion`
-    - `agentictrust:DelegationTrustAssertion`
+    - `core:VerificationTrustAssertion`
+    - `core:ReputationTrustAssertion`
+    - `core:RelationshipTrustAssertion`
+    - `core:DelegationTrustAssertion`
 
 ### Backward compatibility: AssertionRecord
 
-- This repo removed the deprecated `agentictrust:AssertionRecord` alias. Use `agentictrust:AttestedAssertion`.
+- This repo removed the deprecated `core:AssertionRecord` alias. Use `core:AttestedAssertion`.
 
 ## How this integrates with existing trust graph patterns
 
 AgenticTrust already uses:
 
-- `agentictrust:assertsSituation` (AssertionAct → Situation)
-- `agentictrust:generatedAssertionRecord` (AssertionAct → AttestedAssertion)
-- `agentictrust:recordsSituation` (AttestedAssertion → Situation)
+- `core:assertsSituation` (AssertionAct → Situation)
+- `core:generatedAssertionRecord` (AssertionAct → AttestedAssertion)
+- `core:recordsSituation` (AttestedAssertion → Situation)
 
-`agentictrust:Attestation` is the **accountable specialization** of `agentictrust:AssertionAct`.
+`core:Attestation` is the **accountable specialization** of `core:AssertionAct`.
 
 ## Authorization provenance: reputation assertions authorized by delegation
 
@@ -98,20 +98,20 @@ Conceptually:
 
 Even though many PROV examples show Activity→Agent, the semantics support authority provenance; here we are explicitly capturing an Entity→Entity authorization justification between assertion artifacts.
 
-### AgenticTrust specialization: `agentictrust:wasAuthorizedByDelegation`
+### AgenticTrust specialization: `core:wasAuthorizedByDelegation`
 
 To keep query precision (and explicit Entity→Entity semantics), AgenticTrust provides:
 
-- `agentictrust:wasAuthorizedByDelegation`
+- `core:wasAuthorizedByDelegation`
   - `rdfs:subPropertyOf prov:wasAuthorizedBy`
-  - `rdfs:domain agentictrust:AttestedAssertion`
-  - `rdfs:range agentictrust:DelegationTrustAssertion`
+  - `rdfs:domain core:AttestedAssertion`
+  - `rdfs:range core:DelegationTrustAssertion`
 
 Usage:
 
 ```turtle
 :FeedbackAssertion123
-  agentictrust:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
+  core:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
 ```
 
 See also: [`attested-delegation-assertion.md`](./attested-delegation-assertion.md).
@@ -123,12 +123,12 @@ See also: [`attested-delegation-assertion.md`](./attested-delegation-assertion.m
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?attested ?act ?agent
 WHERE {
-  ?attested a agentictrust:AttestedAssertion .
-  OPTIONAL { ?attested agentictrust:assertionRecordOf ?act . }
+  ?attested a core:AttestedAssertion .
+  OPTIONAL { ?attested core:assertionRecordOf ?act . }
   OPTIONAL { ?act prov:wasAssociatedWith ?agent . }
 }
 ORDER BY ?attested
@@ -139,11 +139,11 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?attestation ?assertion ?attestedAssertion ?agent
 WHERE {
-  ?attestation a agentictrust:Attestation .
+  ?attestation a core:Attestation .
   OPTIONAL { ?attestation prov:used ?assertion . }
   OPTIONAL { ?attestation prov:generated ?attestedAssertion . }
   OPTIONAL { ?attestation prov:wasAssociatedWith ?agent . }
@@ -155,15 +155,15 @@ LIMIT 200
 ### 3) Trust assertions (as AttestedAssertions) and their situations
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?trustAssertion ?trustAssertionType ?situation ?situationType
 WHERE {
   ?trustAssertion a ?trustAssertionType .
-  ?trustAssertionType rdfs:subClassOf* agentictrust:TrustAssertion .
+  ?trustAssertionType rdfs:subClassOf* core:TrustAssertion .
   OPTIONAL {
-    ?trustAssertion agentictrust:recordsSituation ?situation .
+    ?trustAssertion core:recordsSituation ?situation .
     OPTIONAL { ?situation a ?situationType . }
   }
 }
@@ -174,11 +174,11 @@ LIMIT 200
 ### 4) Backward-compat check: resources typed as AssertionRecord (only if older data exists)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT (COUNT(?x) AS ?count)
 WHERE {
-  ?x a agentictrust:AssertionRecord .
+  ?x a core:AssertionRecord .
 }
 ```
 

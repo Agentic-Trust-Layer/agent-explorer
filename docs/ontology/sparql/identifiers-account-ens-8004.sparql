@@ -1,13 +1,13 @@
 # Identifier-centric queries: Account, NameENS, Identity8004 (→ Agent)
 #
 # Ontology prefixes:
-# - agentictrust-core: https://www.agentictrust.io/ontology/agentictrust-core#
-# - agentictrust-eth:  https://www.agentictrust.io/ontology/agentictrust-eth#
-# - ERC8004:           https://www.agentictrust.io/ontology/ERC8004#
+# - agentictrust-core: https://agentictrust.io/ontology/core#
+# - agentictrust-eth:  https://agentictrust.io/ontology/eth#
+# - ERC8004:           https://agentictrust.io/ontology/erc8004#
 
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 ################################################################################
@@ -16,17 +16,17 @@ PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?accountIdentifier ?account ?chainId ?address ?accountType ?did
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
   # Preferred, explicit path
-  ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-  OPTIONAL { ?accountIdentifier agentictrust:hasDID ?did . }
+  ?agent eth:hasAccountIdentifier ?accountIdentifier .
+  OPTIONAL { ?accountIdentifier core:hasDID ?did . }
 
-  ?account agentictrustEth:hasIdentifier ?accountIdentifier .
-  OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
-  OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
-  OPTIONAL { ?account agentictrustEth:accountType ?accountType . }
+  ?account eth:hasIdentifier ?accountIdentifier .
+  OPTIONAL { ?account eth:accountChainId ?chainId . }
+  OPTIONAL { ?account eth:accountAddress ?address . }
+  OPTIONAL { ?account eth:accountType ?accountType . }
 }
 ORDER BY ?agentId
 
@@ -36,15 +36,15 @@ ORDER BY ?agentId
 
 SELECT ?agent ?agentId ?ensName ?ensNameValue ?ensIdentifier ?did
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
-  ?agent agentictrust:hasName ?ensName .
-  OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
+  ?agent core:hasName ?ensName .
+  OPTIONAL { ?ensName eth:ensName ?ensNameValue . }
 
-  ?ensName agentictrustEth:hasIdentifier ?ensIdentifier .
+  ?ensName eth:hasIdentifier ?ensIdentifier .
   OPTIONAL { ?ensIdentifier rdfs:label ?ensNameValue . }
-  OPTIONAL { ?ensIdentifier agentictrust:hasDID ?did . }
+  OPTIONAL { ?ensIdentifier core:hasDID ?did . }
 }
 ORDER BY ?agentId
 
@@ -54,12 +54,12 @@ ORDER BY ?agentId
 
 SELECT ?agent ?agentId ?identity8004 ?identityIdentifier ?did
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
-  ?agent agentictrust:hasIdentity ?identity8004 .
-  ?identity8004 agentictrust:hasIdentifier ?identityIdentifier .
-  OPTIONAL { ?identityIdentifier agentictrust:hasDID ?did . }
+  ?agent core:hasIdentity ?identity8004 .
+  ?identity8004 core:hasIdentifier ?identityIdentifier .
+  OPTIONAL { ?identityIdentifier core:hasDID ?did . }
 }
 ORDER BY ?agentId
 
@@ -72,25 +72,25 @@ SELECT ?agent ?agentId
   ?ensName ?ensNameValue ?ensIdentifier
   ?identity8004 ?identityIdentifier
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
   OPTIONAL {
-    ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?account agentictrustEth:hasIdentifier ?accountIdentifier .
-    OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
-    OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
+    ?agent eth:hasAccountIdentifier ?accountIdentifier .
+    ?account eth:hasIdentifier ?accountIdentifier .
+    OPTIONAL { ?account eth:accountChainId ?chainId . }
+    OPTIONAL { ?account eth:accountAddress ?address . }
   }
 
   OPTIONAL {
-    ?agent agentictrust:hasName ?ensName .
-    OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
-    OPTIONAL { ?ensName agentictrustEth:hasIdentifier ?ensIdentifier . }
+    ?agent core:hasName ?ensName .
+    OPTIONAL { ?ensName eth:ensName ?ensNameValue . }
+    OPTIONAL { ?ensName eth:hasIdentifier ?ensIdentifier . }
   }
 
   OPTIONAL {
-    ?agent agentictrust:hasIdentity ?identity8004 .
-    OPTIONAL { ?identity8004 agentictrust:hasIdentifier ?identityIdentifier . }
+    ?agent core:hasIdentity ?identity8004 .
+    OPTIONAL { ?identity8004 core:hasIdentifier ?identityIdentifier . }
   }
 }
 ORDER BY ?agentId

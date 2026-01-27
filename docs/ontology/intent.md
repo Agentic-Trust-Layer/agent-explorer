@@ -2,7 +2,7 @@
 
 This document describes the IntentType ontology that wraps OASF skills without redefining them, stays compatible with DOLCE-DnS, and plugs naturally into PROV-O / P-PLAN / A2A / MCP.
 
-Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
+Source: `apps/ontology/ontology/core.ttl`
 
 ## Design Principles
 
@@ -12,12 +12,12 @@ The core design principle is:
 
 **Intent ≠ Skill**: Intent is about purpose or goal. Skills are capabilities.
 
-**Intent ≠ Task**: Tasks are executions (`agentictrust:TaskExecution` ⊑ `prov:Activity`). Intent is epistemic and contextual.
+**Intent ≠ Task**: Tasks are executions (`core:TaskExecution` ⊑ `prov:Activity`). Intent is epistemic and contextual.
 
 **IntentType is durable, IntentSituation is ephemeral**:
 
-- `agentictrust:IntentType` is a stable taxonomy/schema (a SituationDescription)
-- `agentictrust:IntentSituation` is the concrete, time-scoped epistemic context at request time
+- `core:IntentType` is a stable taxonomy/schema (a SituationDescription)
+- `core:IntentSituation` is the concrete, time-scoped epistemic context at request time
 
 ## Agent-to-agent request flows (what happened vs what is happening)
 
@@ -33,30 +33,30 @@ Key idea: the request is an Activity by the requesting agent; the remote task is
 ```mermaid
 graph TB
   Plan["p-plan:Plan"]
-  IntentPlan["agentictrust:Intent (Plan)"]
-  IntentType["agentictrust:IntentType (template)"]
-  ReqAct["agentictrust:AgentRequest (prov:Activity)"]
-  Msg["agentictrust:Message (prov:Entity)"]
-  ExecAct["agentictrust:TaskExecution (prov:Activity)"]
+  IntentPlan["core:Intent (Plan)"]
+  IntentType["core:IntentType (template)"]
+  ReqAct["core:AgentRequest (prov:Activity)"]
+  Msg["core:Message (prov:Entity)"]
+  ExecAct["core:TaskExecution (prov:Activity)"]
   ReqAgent["Requesting agent (prov:Agent)"]
   ExecAgent["Executing agent (prov:Agent)"]
 
-  IntentPlan -->|agentictrust:intentHasType| IntentType
+  IntentPlan -->|core:intentHasType| IntentType
   IntentPlan -->|isA| Plan
 
   ReqAct -->|prov:wasAssociatedWith| ReqAgent
   ReqAct -->|prov:generated| Msg
-  Msg -->|agentictrust:hasIntent| IntentPlan
+  Msg -->|core:hasIntent| IntentPlan
 
   ExecAct -->|prov:wasAssociatedWith| ExecAgent
-  ExecAct -->|agentictrust:inResponseToMessage| Msg
-  ExecAct -->|agentictrust:hadPlan| IntentPlan
+  ExecAct -->|core:inResponseToMessage| Msg
+  ExecAct -->|core:hadPlan| IntentPlan
 ```
 
 Notes:
 
-- The request/response coupling can also be expressed with `prov:wasInformedBy` between Activities; `agentictrust:inResponseToMessage` anchors the triggering Message artifact.
-- Roles can be qualified using PROV/P-PLAN (e.g., `prov:qualifiedAssociation` with `prov:hadPlan` and `prov:hadRole`), and AgenticTrust already models `agentictrust:Role` as a `p-plan:Role`.
+- The request/response coupling can also be expressed with `prov:wasInformedBy` between Activities; `core:inResponseToMessage` anchors the triggering Message artifact.
+- Roles can be qualified using PROV/P-PLAN (e.g., `prov:qualifiedAssociation` with `prov:hadPlan` and `prov:hadRole`), and AgenticTrust already models `core:Role` as a `p-plan:Role`.
 
 ### Flow B: behavioristic view (purpose + state → intent → action → activity)
 
@@ -67,16 +67,16 @@ This view adds two epistemic objects used in orchestration and semantic routing:
 
 ```mermaid
 graph TB
-  Purpose["agentictrust:Purpose (prov:Entity)"]
-  State["agentictrust:State (prov:Entity)"]
-  Intent["agentictrust:Intent (prov:Entity, p-plan:Plan)"]
-  Action["agentictrust:AgentRequest (prov:Activity)"]
-  Activity["agentictrust:TaskExecution (prov:Activity)"]
+  Purpose["core:Purpose (prov:Entity)"]
+  State["core:State (prov:Entity)"]
+  Intent["core:Intent (prov:Entity, p-plan:Plan)"]
+  Action["core:AgentRequest (prov:Activity)"]
+  Activity["core:TaskExecution (prov:Activity)"]
 
-  Intent -->|agentictrust:hasPurpose| Purpose
-  Intent -->|agentictrust:hasContextState| State
+  Intent -->|core:hasPurpose| Purpose
+  Intent -->|core:hasContextState| State
 
-  Action -->|agentictrust:hadPlan| Intent
+  Action -->|core:hadPlan| Intent
   Action -->|prov:wasInformedBy| Activity
 ```
 
@@ -99,13 +99,13 @@ This avoids conflating “what the client asked” with “what the provider bel
 ```mermaid
 graph LR
   Client["Client Agent\n(prov:Agent)"]
-  Req["AgentRequest\n(agentictrust:AgentRequest)"]
-  Msg["Message\n(agentictrust:Message)"]
-  Exec["Provider Task Execution\n(agentictrust:TaskExecution)"]
+  Req["AgentRequest\n(core:AgentRequest)"]
+  Msg["Message\n(core:Message)"]
+  Exec["Provider Task Execution\n(core:TaskExecution)"]
 
-  Intent["Expressed Intent\n(agentictrust:Intent)"]
-  Purpose["Purpose\n(agentictrust:Purpose)"]
-  State["State\n(agentictrust:State)"]
+  Intent["Expressed Intent\n(core:Intent)"]
+  Purpose["Purpose\n(core:Purpose)"]
+  State["State\n(core:State)"]
 
   Client -->|wasAssociatedWith| Req
   Req -->|generated| Msg
@@ -130,18 +130,18 @@ Intent → IntentType → TaskType → eligible skills/tools → candidate provi
 
 ```mermaid
 graph LR
-  Expr["Expressed Intent\n(agentictrust:Intent)"]
-  Type["IntentType\n(agentictrust:IntentType)"]
-  Task["TaskType\n(agentictrust:TaskType)"]
-  Skill["Skill/Tool class\n(agentictrust:AgentSkillClassification)"]
+  Expr["Expressed Intent\n(core:Intent)"]
+  Type["IntentType\n(core:IntentType)"]
+  Task["TaskType\n(core:TaskType)"]
+  Skill["Skill/Tool class\n(core:AgentSkillClassification)"]
 
-  Reg["Registry context\n(agentictrust:AgentRegistry)"]
-  Disc["AgentDiscovery\n(agentictrust:AgentDiscovery)"]
-  Agents["AgentCandidateSet\n(agentictrust:AgentCandidateSet)"]
+  Reg["Registry context\n(core:AgentRegistry)"]
+  Disc["AgentDiscovery\n(core:AgentDiscovery)"]
+  Agents["AgentCandidateSet\n(core:AgentCandidateSet)"]
 
-  Cat["ToolCatalog\n(agentictrust:ToolCatalog)"]
-  Search["ToolSearch\n(agentictrust:ToolSearch)"]
-  Tools["ToolCandidateSet\n(agentictrust:ToolCandidateSet)"]
+  Cat["ToolCatalog\n(core:ToolCatalog)"]
+  Search["ToolSearch\n(core:ToolSearch)"]
+  Tools["ToolCandidateSet\n(core:ToolCandidateSet)"]
 
   Expr -->|intentHasType| Type
   Type -->|mapsToTaskType| Task
@@ -175,7 +175,7 @@ Some modern agent discovery and coordination solutions return a **structured exe
 ```mermaid
 graph LR
   NL["User input / implied intent"]
-  Intent["Intent (agentictrust:Intent)"]
+  Intent["Intent (core:Intent)"]
   PlanAct["PlanSynthesis (prov:Activity)"]
   Plan["ExecutionPlan (p-plan:Plan)"]
   Disc["AgentDiscovery / ToolSearch"]
@@ -194,11 +194,11 @@ graph LR
 
 We model “plan-first” without collapsing it into execution:
 
-- **`agentictrust:ExecutionPlan`**: the plan artifact (Entity, `p-plan:Plan`)
-- **`agentictrust:PlanStep`**: steps within the plan (Entity, `p-plan:Step`)
-- **`agentictrust:PlanSynthesis`**: Activity that generates the plan from an expressed/inferred Intent
-- **`agentictrust:PlanNegotiation`**: Activity for plan proposal/counterproposal/acceptance before committing to execution
-- **`agentictrust:hasPlan`**: attach a plan to a Message (plan proposal/response)
+- **`core:ExecutionPlan`**: the plan artifact (Entity, `p-plan:Plan`)
+- **`core:PlanStep`**: steps within the plan (Entity, `p-plan:Step`)
+- **`core:PlanSynthesis`**: Activity that generates the plan from an expressed/inferred Intent
+- **`core:PlanNegotiation`**: Activity for plan proposal/counterproposal/acceptance before committing to execution
+- **`core:hasPlan`**: attach a plan to a Message (plan proposal/response)
 
 ### Where the industry does this (capability overview)
 
@@ -220,22 +220,22 @@ graph TB
   State["State (prov:Entity)"]
 
   Msg["Message (prov:Entity)"]
-  Expressed["Expressed Intent (agentictrust:Intent)"]
-  Inferred["Inferred Intent (agentictrust:Intent)"]
+  Expressed["Expressed Intent (core:Intent)"]
+  Inferred["Inferred Intent (core:Intent)"]
 
-  Req["Client request action (agentictrust:AgentRequest)"]
-  Work["Provider work activity (agentictrust:TaskExecution)"]
-  Infer["Intent inference (agentictrust:IntentInference)"]
+  Req["Client request action (core:AgentRequest)"]
+  Work["Provider work activity (core:TaskExecution)"]
+  Infer["Intent inference (core:IntentInference)"]
   Decide["Provider response action (prov:Activity)"]
 
   Client --> Req
   Req -->|prov:generated| Msg
-  Msg -->|agentictrust:hasIntent| Expressed
-  Expressed -->|agentictrust:hasPurpose| Purpose
-  Expressed -->|agentictrust:hasContextState| State
+  Msg -->|core:hasIntent| Expressed
+  Expressed -->|core:hasPurpose| Purpose
+  Expressed -->|core:hasContextState| State
 
   Provider --> Work
-  Work -->|agentictrust:inResponseToMessage| Msg
+  Work -->|core:inResponseToMessage| Msg
 
   Provider --> Infer
   Infer -->|prov:used| Msg
@@ -243,12 +243,12 @@ graph TB
   Infer -->|prov:generated| Inferred
 
   Provider --> Decide
-  Decide -->|agentictrust:hadPlan| Inferred
+  Decide -->|core:hadPlan| Inferred
 ```
 
 Notes:
 
-- We keep **both** intents as `agentictrust:Intent` because both are plans/epistemic artifacts; the distinction is provenance:
+- We keep **both** intents as `core:Intent` because both are plans/epistemic artifacts; the distinction is provenance:
   - expressed intent is carried by the inbound message
   - inferred intent is generated by an `IntentInference` activity
 - The provider’s “response action” can be another `AgentRequest` (handoff) or a `SkillInvocation`/`TaskExecution` depending on how the provider fulfills the request.
@@ -277,10 +277,10 @@ This maps perfectly to DOLCE-DnS (Descriptions & Situations):
 ### IntentType
 
 ```owl
-agentictrust:IntentType a owl:Class ;
+core:IntentType a owl:Class ;
   rdfs:label "IntentType" ;
   rdfs:comment "A description of why an agent capability is being invoked. Intent explains why a skill is invoked, not how it is executed. Taxonomy value used to scope discovery and select compatible skills." ;
-  rdfs:subClassOf agentictrust:SituationDescription .
+  rdfs:subClassOf core:SituationDescription .
 ```
 
 **Meaning**: A description of why an agent capability is being invoked.
@@ -293,10 +293,10 @@ agentictrust:IntentType a owl:Class ;
 ### IntentSituation
 
 ```owl
-agentictrust:IntentSituation a owl:Class ;
+core:IntentSituation a owl:Class ;
   rdfs:label "IntentSituation" ;
-  rdfs:comment "A concrete epistemic situation in which an agent expresses or acts under a given intent. Modeled as a Situation (prov:Entity) and realized by Activities via agentictrust:isRealizedBy." ;
-  rdfs:subClassOf agentictrust:Situation .
+  rdfs:comment "A concrete epistemic situation in which an agent expresses or acts under a given intent. Modeled as a Situation (prov:Entity) and realized by Activities via core:isRealizedBy." ;
+  rdfs:subClassOf core:Situation .
 ```
 
 **Meaning**: A concrete situation in which an agent expresses or acts under a given intent.
@@ -311,11 +311,11 @@ agentictrust:IntentSituation a owl:Class ;
 ### Intent → Skill Binding
 
 ```owl
-agentictrust:targetsSkill a owl:ObjectProperty ;
+core:targetsSkill a owl:ObjectProperty ;
   rdfs:label "targetsSkill" ;
   rdfs:comment "Links an IntentType to an OASF Skill that can satisfy this intent. This intent can be satisfied by invoking this skill. Allows many intents to target the same skill, and one intent to target many skills. Keeps OASF skills untouched - only references them." ;
-  rdfs:domain agentictrust:IntentType ;
-  rdfs:range agentictrust:AgentSkillClassification .
+  rdfs:domain core:IntentType ;
+  rdfs:range core:AgentSkillClassification .
 ```
 
 **Meaning**: This intent can be satisfied by invoking this OASF skill.
@@ -324,8 +324,8 @@ agentictrust:targetsSkill a owl:ObjectProperty ;
 
 In AgenticTrust orchestration, `TaskType` is the semantic pivot between epistemic intent and executable actions:
 
-- `agentictrust:mapsToTaskType` (IntentType → TaskType)
-- skills/tools can then be related to task types using `agentictrust:enablesTaskType` (Skill → TaskType) and `agentictrust:implementedBySkill` (TaskType → Skill)
+- `core:mapsToTaskType` (IntentType → TaskType)
+- skills/tools can then be related to task types using `core:enablesTaskType` (Skill → TaskType) and `core:implementedBySkill` (TaskType → Skill)
 
 ### Where IntentType fits
 
@@ -343,10 +343,10 @@ Think of it as:
 ### Intent → Activity (Runtime)
 
 ```owl
-agentictrust:isRealizedBy a owl:ObjectProperty ;
+core:isRealizedBy a owl:ObjectProperty ;
   rdfs:label "isRealizedBy" ;
   rdfs:comment "Links an IntentSituation to a PROV Activity that realizes it. The intent was realized through this concrete activity." ;
-  rdfs:domain agentictrust:IntentSituation ;
+  rdfs:domain core:IntentSituation ;
   rdfs:range prov:Activity .
 ```
 
@@ -355,11 +355,11 @@ agentictrust:isRealizedBy a owl:ObjectProperty ;
 ### Intent → Situation (DnS Satisfaction)
 
 ```owl
-agentictrust:satisfiesIntent a owl:ObjectProperty ;
+core:satisfiesIntent a owl:ObjectProperty ;
   rdfs:label "satisfiesIntent" ;
   rdfs:comment "Links a Situation to an IntentType that it fulfills (satisfaction pattern)." ;
-  rdfs:domain agentictrust:Situation ;
-  rdfs:range agentictrust:IntentType .
+  rdfs:domain core:Situation ;
+  rdfs:range core:IntentType .
 ```
 
 **Meaning**: This situation fulfills the intent.
@@ -386,11 +386,11 @@ IntentType Layer:
 classDiagram
 direction LR
 
-class IntentType["agentictrust:IntentType"]
-class Skill["agentictrust:AgentSkillClassification (OASFSkill)"]
-class IntentSituation["agentictrust:IntentSituation"]
+class IntentType["core:IntentType"]
+class Skill["core:AgentSkillClassification (OASFSkill)"]
+class IntentSituation["core:IntentSituation"]
 class Activity["prov:Activity"]
-class Situation["agentictrust:Situation"]
+class Situation["core:Situation"]
 
 IntentType --> Skill : targetsSkill
 Skill --> IntentType : supportsIntentType (inverse)
@@ -415,16 +415,16 @@ oasf:validation_attestation a oasf:Skill ;
 ### IntentType (New)
 
 ```turtle
-agentictrust:ValidateAgentCapabilityIntent a agentictrust:IntentType ;
+core:ValidateAgentCapabilityIntent a core:IntentType ;
   rdfs:label "Validate Agent Capability" ;
-  agentictrust:targetsSkill oasf:validation_attestation .
+  core:targetsSkill oasf:validation_attestation .
 ```
 
 ### IntentSituation (Runtime)
 
 ```turtle
-:IntentSituation123 a agentictrust:IntentSituation ;
-  agentictrust:satisfiesIntent agentictrust:ValidateAgentCapabilityIntent ;
+:IntentSituation123 a core:IntentSituation ;
+  core:satisfiesIntent core:ValidateAgentCapabilityIntent ;
   prov:wasAssociatedWith :RequestingAgent ;
   prov:generatedAtTime "2025-03-01T10:00:00Z"^^xsd:dateTime .
 ```
@@ -435,7 +435,7 @@ agentictrust:ValidateAgentCapabilityIntent a agentictrust:IntentType ;
 :ValidationActivity456 a prov:Activity ;
   prov:wasAssociatedWith :ValidatorAgent .
 
-:IntentSituation123 agentictrust:isRealizedBy :ValidationActivity456 .
+:IntentSituation123 core:isRealizedBy :ValidationActivity456 .
 ```
 
 ## Why This Works
@@ -454,8 +454,8 @@ agentictrust:ValidateAgentCapabilityIntent a agentictrust:IntentType ;
 **Example**: "Establish trusted partnership"
 
 ```turtle
-agentictrust:EstablishAllianceIntent a agentictrust:IntentType ;
-  agentictrust:targetsSkill oasf:identity_verification ,
+core:EstablishAllianceIntent a core:IntentType ;
+  core:targetsSkill oasf:identity_verification ,
                             oasf:association_management .
 ```
 
@@ -475,20 +475,20 @@ All point to the same OASF skill, but differ in meaning and policy.
 ### Query: IntentType with Targeted Skills
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentType ?intentTypeLabel ?skill ?skillLabel
 WHERE {
-  ?intentType a agentictrust:IntentType .
+  ?intentType a core:IntentType .
   
   OPTIONAL {
     ?intentType rdfs:label ?intentTypeLabel .
   }
   
   OPTIONAL {
-    ?intentType agentictrust:targetsSkill ?skill .
-    ?skill a agentictrust:AgentSkillClassification .
+    ?intentType core:targetsSkill ?skill .
+    ?skill a core:AgentSkillClassification .
     
     OPTIONAL {
       ?skill rdfs:label ?skillLabel .
@@ -501,17 +501,17 @@ ORDER BY ?intentType
 ### Query: IntentSituation with Realization
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentSituation ?intentType ?intentTypeLabel ?activity
 WHERE {
-  ?intentSituation a agentictrust:IntentSituation .
+  ?intentSituation a core:IntentSituation .
   
   OPTIONAL {
-    ?intentSituation agentictrust:satisfiesIntent ?intentType .
-    ?intentType a agentictrust:IntentType .
+    ?intentSituation core:satisfiesIntent ?intentType .
+    ?intentType a core:IntentType .
     
     OPTIONAL {
       ?intentType rdfs:label ?intentTypeLabel .
@@ -519,7 +519,7 @@ WHERE {
   }
   
   OPTIONAL {
-    ?intentSituation agentictrust:isRealizedBy ?activity .
+    ?intentSituation core:isRealizedBy ?activity .
     ?activity a prov:Activity .
   }
 }
@@ -529,17 +529,17 @@ LIMIT 50
 ### Query: Situation Satisfying Intent
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX dolce: <http://www.loa-cnr.it/ontologies/DOLCE-Lite.owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?situation ?intentType ?intentTypeLabel
 WHERE {
-  ?situation a agentictrust:Situation .
+  ?situation a core:Situation .
   
   OPTIONAL {
-    ?situation agentictrust:satisfiesIntent ?intentType .
-    ?intentType a agentictrust:IntentType .
+    ?situation core:satisfiesIntent ?intentType .
+    ?intentType a core:IntentType .
     
     OPTIONAL {
       ?intentType rdfs:label ?intentTypeLabel .
@@ -552,13 +552,13 @@ LIMIT 50
 ### Query: Multi-Skill Intent
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentType ?intentTypeLabel (COUNT(?skill) AS ?skillCount) (GROUP_CONCAT(?skillLabel; separator=", ") AS ?skillLabels)
 WHERE {
-  ?intentType a agentictrust:IntentType ;
-    agentictrust:targetsSkill ?skill .
+  ?intentType a core:IntentType ;
+    core:targetsSkill ?skill .
   
   OPTIONAL {
     ?intentType rdfs:label ?intentTypeLabel .
@@ -576,17 +576,17 @@ ORDER BY ?skillCount DESC
 ### Query: Verification Situation Satisfying Intent
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?verificationSituation ?intentType ?intentTypeLabel ?agentId
 WHERE {
-  ?verificationSituation a agentictrust:VerificationTrustSituation, erc8004:ValidationRequestSituation .
+  ?verificationSituation a core:VerificationTrustSituation, erc8004:ValidationRequestSituation .
   
   OPTIONAL {
-    ?verificationSituation agentictrust:satisfiesIntent ?intentType .
-    ?intentType a agentictrust:IntentType .
+    ?verificationSituation core:satisfiesIntent ?intentType .
+    ?intentType a core:IntentType .
     
     OPTIONAL {
       ?intentType rdfs:label ?intentTypeLabel .
@@ -603,17 +603,17 @@ LIMIT 50
 ### Query: Reputation Situation Satisfying Intent
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?reputationSituation ?intentType ?intentTypeLabel ?assertion
 WHERE {
-  ?reputationSituation a agentictrust:ReputationTrustSituation .
+  ?reputationSituation a core:ReputationTrustSituation .
   
   OPTIONAL {
-    ?reputationSituation agentictrust:satisfiesIntent ?intentType .
-    ?intentType a agentictrust:IntentType .
+    ?reputationSituation core:satisfiesIntent ?intentType .
+    ?intentType a core:IntentType .
     
     OPTIONAL {
       ?intentType rdfs:label ?intentTypeLabel .
@@ -621,7 +621,7 @@ WHERE {
   }
   
   OPTIONAL {
-    ?assertion agentictrust:generatedSituation ?reputationSituation .
+    ?assertion core:generatedSituation ?reputationSituation .
     ?assertion a erc8004:Feedback .
   }
 }
@@ -631,17 +631,17 @@ LIMIT 50
 ### Query: Relationship Situation Satisfying Intent
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?relationshipSituation ?intentType ?intentTypeLabel ?relationship
 WHERE {
-  ?relationshipSituation a agentictrust:RelationshipSituation .
+  ?relationshipSituation a core:RelationshipSituation .
   
   OPTIONAL {
-    ?relationshipSituation agentictrust:satisfiesIntent ?intentType .
-    ?intentType a agentictrust:IntentType .
+    ?relationshipSituation core:satisfiesIntent ?intentType .
+    ?intentType a core:IntentType .
     
     OPTIONAL {
       ?intentType rdfs:label ?intentTypeLabel .
@@ -649,8 +649,8 @@ WHERE {
   }
   
   OPTIONAL {
-    ?relationshipSituation agentictrust:aboutSubject ?relationship .
-    ?relationship a agentictrust:Relationship, erc8092:AccountRelationshipERC8092 .
+    ?relationshipSituation core:aboutSubject ?relationship .
+    ?relationship a core:Relationship, erc8092:AccountRelationshipERC8092 .
   }
 }
 LIMIT 50
@@ -659,26 +659,26 @@ LIMIT 50
 ### Query: IntentType to Skill via targetsSkill
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentType ?intentTypeLabel ?skill ?skillId ?skillName
 WHERE {
-  ?intentType a agentictrust:IntentType ;
-    agentictrust:targetsSkill ?skill .
+  ?intentType a core:IntentType ;
+    core:targetsSkill ?skill .
   
   OPTIONAL {
     ?intentType rdfs:label ?intentTypeLabel .
   }
   
-  ?skill a agentictrust:AgentSkillClassification .
+  ?skill a core:AgentSkillClassification .
   
   OPTIONAL {
-    ?skill agentictrust:skillId ?skillId .
+    ?skill core:skillId ?skillId .
   }
   
   OPTIONAL {
-    ?skill agentictrust:skillName ?skillName .
+    ?skill core:skillName ?skillName .
   }
 }
 LIMIT 100
@@ -687,35 +687,35 @@ LIMIT 100
 ### Query: Complete Intent Flow: Situation → IntentType → Skill
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX dolce: <http://www.loa-cnr.it/ontologies/DOLCE-Lite.owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?situation ?situationType ?intentType ?intentTypeLabel ?skill ?skillId
 WHERE {
-  ?situation a agentictrust:Situation ;
-    agentictrust:satisfiesIntent ?intentType .
+  ?situation a core:Situation ;
+    core:satisfiesIntent ?intentType .
   
   OPTIONAL {
     ?situation a ?situationType .
     FILTER(?situationType IN (
-      agentictrust:VerificationTrustSituation,
-      agentictrust:ReputationTrustSituation,
-      agentictrust:RelationshipSituation
+      core:VerificationTrustSituation,
+      core:ReputationTrustSituation,
+      core:RelationshipSituation
     ))
   }
   
-  ?intentType a agentictrust:IntentType ;
-    agentictrust:targetsSkill ?skill .
+  ?intentType a core:IntentType ;
+    core:targetsSkill ?skill .
   
   OPTIONAL {
     ?intentType rdfs:label ?intentTypeLabel .
   }
   
-  ?skill a agentictrust:AgentSkillClassification .
+  ?skill a core:AgentSkillClassification .
   
   OPTIONAL {
-    ?skill agentictrust:skillId ?skillId .
+    ?skill core:skillId ?skillId .
   }
 }
 LIMIT 100

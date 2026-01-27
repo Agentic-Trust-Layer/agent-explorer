@@ -10,22 +10,22 @@ The relationship model supports:
 - **Roles**: Qualifying roles for participation (using p-plan:Role)
 - **Qualified Participation**: Reified participation linking Relationship → Agent → Role
 
-## Core Relationship Model (agentictrust-core)
+## Core Relationship Model (core-core)
 
 ### Class Hierarchy
 
 ```mermaid
 classDiagram
     class Relationship {
-        <<agentictrust>>
+        <<core>>
     }
     class QualifiedParticipation {
-        <<agentictrust>>
+        <<core>>
     }
     class provAgent["prov:Agent"]
     class provSoftwareAgent["prov:SoftwareAgent"]
     class AIAgent {
-        <<agentictrust>>
+        <<core>>
     }
     class pplanRole["p-plan:Role"]
     
@@ -39,30 +39,30 @@ classDiagram
     provSoftwareAgent --|> provAgent
     AIAgent --|> provSoftwareAgent
     
-    note for Relationship "agentictrust:Relationship\nPersistent social relationship\nbetween Agents"
-    note for QualifiedParticipation "agentictrust:QualifiedParticipation\nReified participation with role"
+    note for Relationship "core:Relationship\nPersistent social relationship\nbetween Agents"
+    note for QualifiedParticipation "core:QualifiedParticipation\nReified participation with role"
     note for pplanRole "p-plan:Role\nQualifying role for participation"
 ```
 
 ### Core Properties
 
-- `agentictrust:hasParticipant`: Links a Relationship to an Agent that participates in it
-- `agentictrust:qualifiedParticipation`: Links a Relationship to a QualifiedParticipation instance
-- `agentictrust:participant`: Links a QualifiedParticipation to the Agent that participates
-- `agentictrust:participationRole`: Links a QualifiedParticipation to the Role (p-plan:Role) that qualifies the participation
-- `agentictrust:hasRole`: Links a Relationship to a Role (p-plan:Role) that is used in the relationship
-- `agentictrust:playsRole`: Links an Agent to a Role (p-plan:Role) that it plays
+- `core:hasParticipant`: Links a Relationship to an Agent that participates in it
+- `core:qualifiedParticipation`: Links a Relationship to a QualifiedParticipation instance
+- `core:participant`: Links a QualifiedParticipation to the Agent that participates
+- `core:participationRole`: Links a QualifiedParticipation to the Role (p-plan:Role) that qualifies the participation
+- `core:hasRole`: Links a Relationship to a Role (p-plan:Role) that is used in the relationship
+- `core:playsRole`: Links an Agent to a Role (p-plan:Role) that it plays
 
 ### SPARQL Query: Core Relationship with Participants
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?relationship ?participant
 WHERE {
-  ?relationship a agentictrust:Relationship .
-  ?relationship agentictrust:hasParticipant ?participant .
+  ?relationship a core:Relationship .
+  ?relationship core:hasParticipant ?participant .
   ?participant a prov:Agent .
 }
 ```
@@ -70,16 +70,16 @@ WHERE {
 ### SPARQL Query: Relationship with Qualified Participation
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX p-plan: <http://purl.org/net/p-plan#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?relationship ?participant ?role
 WHERE {
-  ?relationship a agentictrust:Relationship .
-  ?relationship agentictrust:qualifiedParticipation ?qualifiedParticipation .
-  ?qualifiedParticipation agentictrust:participant ?participant .
-  ?qualifiedParticipation agentictrust:participationRole ?role .
+  ?relationship a core:Relationship .
+  ?relationship core:qualifiedParticipation ?qualifiedParticipation .
+  ?qualifiedParticipation core:participant ?participant .
+  ?qualifiedParticipation core:participationRole ?role .
   ?participant a prov:Agent .
   ?role a p-plan:Role .
 }
@@ -88,103 +88,103 @@ WHERE {
 ### SPARQL Query: Agent Roles
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX p-plan: <http://purl.org/net/p-plan#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?agent ?role
 WHERE {
   ?agent a prov:Agent .
-  ?agent agentictrust:playsRole ?role .
+  ?agent core:playsRole ?role .
   ?role a p-plan:Role .
 }
 ```
 
-## Ethereum Account Relationship Model (agentictrust-eth)
+## Ethereum Account Relationship Model (core-eth)
 
 ### Class Hierarchy
 
 ```mermaid
 classDiagram
     class Relationship {
-        <<agentictrust>>
+        <<core>>
     }
     class AccountRelationship {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class Account {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class AccountIdentifier {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class provSoftwareAgent["prov:SoftwareAgent"]
     
     Relationship <|-- AccountRelationship
     provSoftwareAgent <|-- Account
-    Account --> AccountIdentifier : hasIdentifier (agentictrust)
+    Account --> AccountIdentifier : hasIdentifier (core)
     
-    AccountRelationship --> Account : hasParticipant (agentictrust)
+    AccountRelationship --> Account : hasParticipant (core)
     
-    note for Account "agentictrustEth:Account\nEthereum account (EOA or Smart Account)\nInherits from prov:SoftwareAgent"
-    note for AccountRelationship "agentictrustEth:AccountRelationship\nPersistent relationship between Accounts\nInherits from agentictrust:Relationship"
-    note for AccountIdentifier "agentictrustEth:AccountIdentifier\nIdentifier for an Ethereum Account"
+    note for Account "eth:Account\nEthereum account (EOA or Smart Account)\nInherits from prov:SoftwareAgent"
+    note for AccountRelationship "eth:AccountRelationship\nPersistent relationship between Accounts\nInherits from core:Relationship"
+    note for AccountIdentifier "eth:AccountIdentifier\nIdentifier for an Ethereum Account"
 ```
 
 ### Key Changes
 
 - **Account** is now a subclass of `prov:SoftwareAgent` (not just `prov:Entity`), enabling it to participate in relationships as an Agent
-- **AccountRelationship** inherits from `agentictrust:Relationship`, inheriting all participant and role properties
+- **AccountRelationship** inherits from `core:Relationship`, inheriting all participant and role properties
 - **Account** inherits `hasIdentifier` from `prov:Agent`, linking to `AccountIdentifier`
 
 ### SPARQL Query: Account Relationship with Participants
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?accountRelationship ?participantAccount ?accountIdentifier
 WHERE {
-  ?accountRelationship a agentictrustEth:AccountRelationship .
-  ?accountRelationship agentictrust:hasParticipant ?participantAccount .
-  ?participantAccount a agentictrustEth:Account .
-  ?participantAccount agentictrust:hasIdentifier ?accountIdentifier .
-  ?accountIdentifier a agentictrustEth:AccountIdentifier .
+  ?accountRelationship a eth:AccountRelationship .
+  ?accountRelationship core:hasParticipant ?participantAccount .
+  ?participantAccount a eth:Account .
+  ?participantAccount core:hasIdentifier ?accountIdentifier .
+  ?accountIdentifier a eth:AccountIdentifier .
 }
 ```
 
 ### SPARQL Query: Account with Identifier
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?account ?accountAddress ?accountIdentifier ?did
 WHERE {
-  ?account a agentictrustEth:Account ;
-    agentictrustEth:accountAddress ?accountAddress ;
-    agentictrust:hasIdentifier ?accountIdentifier .
-  ?accountIdentifier a agentictrustEth:AccountIdentifier .
+  ?account a eth:Account ;
+    eth:accountAddress ?accountAddress ;
+    core:hasIdentifier ?accountIdentifier .
+  ?accountIdentifier a eth:AccountIdentifier .
   OPTIONAL {
-    ?accountIdentifier agentictrustEth:hasDID ?did .
+    ?accountIdentifier eth:hasDID ?did .
   }
 }
 ```
 
 ## ERC-8092 Association Model (assertion-side only)
 
-ERC-8092 intentionally defines only **assertion-side** terms. The relationship/situation modeling stays in `agentictrust-core.owl` + `agentictrust-eth.owl`.
+ERC-8092 intentionally defines only **assertion-side** terms. The relationship/situation modeling stays in `apps/ontology/ontology/core.ttl` + `apps/ontology/ontology/eth.ttl`.
 
 ```mermaid
 classDiagram
 direction LR
 
-class Account["agentictrustEth:Account"]
+class Account["eth:Account"]
 class AssociatedAccounts["erc8092:AssociatedAccounts8092"]
-class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
-class AccountRelationship["agentictrustEth:AccountRelationship"]
+class RelationshipTrustSituation["core:RelationshipTrustSituation"]
+class AccountRelationship["eth:AccountRelationship"]
 
 Account --> AssociatedAccounts : hasAssociatedAccounts
 AssociatedAccounts --> RelationshipTrustSituation : recordsSituation
@@ -200,24 +200,24 @@ ERC-8092 is modeled as **assertion-side only**:
 
 The association record points at a **Situation** in core:
 
-- `agentictrust:recordsSituation` → `agentictrust:RelationshipTrustSituation`
-- `agentictrust:aboutSubject` (on the situation) → `agentictrustEth:AccountRelationship`
+- `core:recordsSituation` → `core:RelationshipTrustSituation`
+- `core:aboutSubject` (on the situation) → `eth:AccountRelationship`
 
 ### SPARQL Query: ERC-8092 AssociatedAccounts8092 asserted relationship situation
 
 ```sparql
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT ?association ?situation ?relationship ?initiator ?approver ?initiatorAccountId ?approverAccountId
 WHERE {
   ?association a erc8092:AssociatedAccounts8092 .
-  OPTIONAL { ?association agentictrust:recordsSituation ?situation . }
+  OPTIONAL { ?association core:recordsSituation ?situation . }
   OPTIONAL {
-    ?situation a agentictrust:RelationshipTrustSituation ;
-      agentictrust:aboutSubject ?relationship .
-    ?relationship a agentictrustEth:AccountRelationship .
+    ?situation a core:RelationshipTrustSituation ;
+      core:aboutSubject ?relationship .
+    ?relationship a eth:AccountRelationship .
   }
   OPTIONAL { ?association erc8092:initiator ?initiator . }
   OPTIONAL { ?association erc8092:approver ?approver . }
@@ -230,18 +230,18 @@ LIMIT 200
 ### SPARQL Query: Relationship with Qualified Participation (ERC-8092)
 
 ```sparql
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX p-plan: <http://purl.org/net/p-plan#>
 
 SELECT ?relationship ?participantAccount ?role
 WHERE {
-  ?relationship a agentictrustEth:AccountRelationship .
-  ?relationship agentictrust:qualifiedParticipation ?qualifiedParticipation .
-  ?qualifiedParticipation agentictrust:participant ?participantAccount .
-  ?qualifiedParticipation agentictrust:participationRole ?role .
-  ?participantAccount a agentictrustEth:Account .
+  ?relationship a eth:AccountRelationship .
+  ?relationship core:qualifiedParticipation ?qualifiedParticipation .
+  ?qualifiedParticipation core:participant ?participantAccount .
+  ?qualifiedParticipation core:participationRole ?role .
+  ?participantAccount a eth:Account .
   ?role a p-plan:Role .
 }
 ```
@@ -250,8 +250,8 @@ WHERE {
 
 The relationship model provides a layered approach:
 
-1. **Core Level** (`agentictrust-core`): Abstract Relationship with participant and role support
-2. **Ethereum Level** (`agentictrust-eth`): AccountRelationship for account-to-account relationships, with Account as SoftwareAgent
+1. **Core Level** (`core-core`): Abstract Relationship with participant and role support
+2. **Ethereum Level** (`core-eth`): AccountRelationship for account-to-account relationships, with Account as SoftwareAgent
 3. **ERC-8092 Level** (`ERC8092`): Concrete ERC-8092 relationship implementation with assertion and account details
 
 All levels support:

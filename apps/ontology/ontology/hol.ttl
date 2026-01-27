@@ -16,12 +16,28 @@
   owl:imports <http://www.w3.org/ns/prov-o#> .
 
 ########
+# HOL agent class
+########
+
+:AIAgentHOL a owl:Class ;
+  rdfs:label "AIAgentHOL" ;
+  rdfs:comment "AI agent discovered/represented via HOL (Hashgraph Online)." ;
+  rdfs:subClassOf core:AIAgent ;
+  rdfs:subClassOf prov:SoftwareAgent .
+
+########
 # HOL identity layer
 ########
 
 :AgentIdentityRegistryHOL a owl:Class ;
   rdfs:label "AgentIdentityRegistryHOL" ;
   rdfs:subClassOf core:AgentRegistry ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentIdentityRegistrationHOL a owl:Class ;
+  rdfs:label "AgentIdentityRegistrationHOL" ;
+  rdfs:comment "Registration record anchoring an HOL identity within an HOL registry." ;
+  rdfs:subClassOf core:AgentIdentityRegistration ;
   rdfs:subClassOf prov:Entity .
 
 :AgentIdentityHOL a owl:Class ;
@@ -41,6 +57,23 @@
 :AgentProfileHOL a owl:Class ;
   rdfs:label "AgentProfileHOL" ;
   rdfs:subClassOf prov:Entity .
+
+########
+# HOL search-hit descriptor (registry-produced view)
+########
+
+:HOLAgentDescriptor a owl:Class ;
+  rdfs:label "HOLAgentDescriptor" ;
+  rdfs:comment "Descriptor produced from HOL registry search results (e.g., hol.org/api/v1/search)." ;
+  rdfs:subClassOf core:AgentDescriptor ;
+  rdfs:subClassOf prov:Entity .
+
+:hasHOLAgentDescriptor a owl:ObjectProperty ;
+  rdfs:label "hasHOLAgentDescriptor" ;
+  rdfs:comment "Convenience property linking an agent to a HOLAgentDescriptor (subPropertyOf core:hasDescriptor)." ;
+  rdfs:subPropertyOf core:hasDescriptor ;
+  rdfs:domain core:AIAgent ;
+  rdfs:range :HOLAgentDescriptor .
 
 :hasAgentProfileHOL a owl:ObjectProperty ;
   rdfs:label "hasAgentProfileHOL" ;

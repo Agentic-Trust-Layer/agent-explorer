@@ -2,31 +2,31 @@
 
 This document is the **deep dive** on how Agent Skill Classifications and Agent Domain Classifications are modeled, how they connect to Descriptors for discovery, and how we align with OASF (Open Agent Skill Format) standards.
 
-Source ontology: `apps/badge-admin/public/ontology/agentictrust-core.owl`
+Source ontology: `apps/ontology/ontology/core.ttl`
 
 ## Core model
 
 ### Key classes
 
-- **`agentictrust:Descriptor`**: resolver-produced description used for discovery. Base class for all descriptors.
-- **`agentictrust:AgentDescriptor`**: agent-level descriptor (inherits from `agentictrust:Descriptor`).
-- **`agentictrust:AgentSkill`**: an agent-declared skill instance (part of a Descriptor). Links to its classification.
-- **`agentictrust:AgentSkillClassification`**: a capability/tool classification used in discovery and routing. Follows OASF (Open Agent Skill Format) standards for skill classification.
-- **`agentictrust:AgentDomain`**: an agent-declared domain instance (part of a Descriptor). Links to its classification.
-- **`agentictrust:AgentDomainClassification`**: categorization classification used for discovery filtering. Follows OASF standards for domain classification.
-- **`agentictrust:OASFSkill` / `agentictrust:OASFDomain`**: OASF-synced skill/domain classifications (vocabulary instances).
+- **`core:Descriptor`**: resolver-produced description used for discovery. Base class for all descriptors.
+- **`core:AgentDescriptor`**: agent-level descriptor (inherits from `core:Descriptor`).
+- **`core:AgentSkill`**: an agent-declared skill instance (part of a Descriptor). Links to its classification.
+- **`core:AgentSkillClassification`**: a capability/tool classification used in discovery and routing. Follows OASF (Open Agent Skill Format) standards for skill classification.
+- **`core:AgentDomain`**: an agent-declared domain instance (part of a Descriptor). Links to its classification.
+- **`core:AgentDomainClassification`**: categorization classification used for discovery filtering. Follows OASF standards for domain classification.
+- **`core:OASFSkill` / `core:OASFDomain`**: OASF-synced skill/domain classifications (vocabulary instances).
 
 ### Key relationships
 
 - **Skill declaration on descriptors**
-  - `agentictrust:Descriptor` → `agentictrust:hasSkill` → `agentictrust:AgentSkill`
-  - `agentictrust:AgentSkill` → `agentictrust:hasSkillClassification` → `agentictrust:AgentSkillClassification`
-  - `agentictrust:AgentDescriptor` inherits `hasSkill` from `agentictrust:Descriptor`
+  - `core:Descriptor` → `core:hasSkill` → `core:AgentSkill`
+  - `core:AgentSkill` → `core:hasSkillClassification` → `core:AgentSkillClassification`
+  - `core:AgentDescriptor` inherits `hasSkill` from `core:Descriptor`
 
 - **Domain declaration on descriptors**
-  - `agentictrust:Descriptor` → `agentictrust:hasDomain` → `agentictrust:AgentDomain`
-  - `agentictrust:AgentDomain` → `agentictrust:hasDomainClassification` → `agentictrust:AgentDomainClassification`
-  - `agentictrust:AgentDescriptor` inherits `hasDomain` from `agentictrust:Descriptor`
+  - `core:Descriptor` → `core:hasDomain` → `core:AgentDomain`
+  - `core:AgentDomain` → `core:hasDomainClassification` → `core:AgentDomainClassification`
+  - `core:AgentDescriptor` inherits `hasDomain` from `core:Descriptor`
 
 ### Diagram: Agent Skill Classifications + Agent Domain Classifications inside discovery descriptors
 
@@ -34,16 +34,16 @@ Source ontology: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 classDiagram
 direction TB
 
-class AIAgent["agentictrust:AIAgent"]
-class Descriptor["agentictrust:Descriptor"]
-class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentSkill["agentictrust:AgentSkill"]
-class AgentSkillClassification["agentictrust:AgentSkillClassification"]
-class AgentDomain["agentictrust:AgentDomain"]
-class AgentDomainClassification["agentictrust:AgentDomainClassification"]
-class Tag["agentictrust:Tag"]
-class JsonSchema["agentictrust:JsonSchema"]
-class IntentType["agentictrust:IntentType"]
+class AIAgent["core:AIAgent"]
+class Descriptor["core:Descriptor"]
+class AgentDescriptor["core:AgentDescriptor"]
+class AgentSkill["core:AgentSkill"]
+class AgentSkillClassification["core:AgentSkillClassification"]
+class AgentDomain["core:AgentDomain"]
+class AgentDomainClassification["core:AgentDomainClassification"]
+class Tag["core:Tag"]
+class JsonSchema["core:JsonSchema"]
+class IntentType["core:IntentType"]
 
 AIAgent --> AgentDescriptor : hasAgentDescriptor
 AgentDescriptor --|> Descriptor
@@ -89,14 +89,14 @@ For both domains and skills, the DB “category” (and `extendsKey`) is derived
 classDiagram
 direction TB
 
-class OASFSkill["agentictrust:OASFSkill"]
-class OASFDomain["agentictrust:OASFDomain"]
-class Descriptor["agentictrust:Descriptor"]
-class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AgentSkill["agentictrust:AgentSkill"]
-class AgentSkillClassification["agentictrust:AgentSkillClassification"]
-class AgentDomain["agentictrust:AgentDomain"]
-class AgentDomainClassification["agentictrust:AgentDomainClassification"]
+class OASFSkill["core:OASFSkill"]
+class OASFDomain["core:OASFDomain"]
+class Descriptor["core:Descriptor"]
+class AgentDescriptor["core:AgentDescriptor"]
+class AgentSkill["core:AgentSkill"]
+class AgentSkillClassification["core:AgentSkillClassification"]
+class AgentDomain["core:AgentDomain"]
+class AgentDomainClassification["core:AgentDomainClassification"]
 
 AgentDescriptor --|> Descriptor
 Descriptor --> AgentSkill : hasSkill (when card lists oasf_skills)
@@ -141,7 +141,7 @@ We extract string skill IDs/domains from:
 ### Query: Agent Skill Classifications declared by AgentDescriptors (with tags/domains/schemas/intents)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
@@ -154,29 +154,29 @@ SELECT DISTINCT
   ?inputSchema ?outputSchema
   ?intentType
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-         agentictrust:agentId ?agentId ;
-         agentictrust:hasAgentDescriptor ?descriptor .
+  ?agent a core:AIAgent ;
+         core:agentId ?agentId ;
+         core:hasAgentDescriptor ?descriptor .
 
-  ?descriptor agentictrust:hasSkill ?agentSkill .
-  OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
+  ?descriptor core:hasSkill ?agentSkill .
+  OPTIONAL { ?agentSkill core:hasSkillClassification ?skill . }
 
   OPTIONAL { ?skill a ?skillType . }
-  OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }
+  OPTIONAL { ?skill core:oasfSkillId ?skillId . }
   OPTIONAL { ?skill rdfs:label ?skillLabel . }
-  OPTIONAL { ?skill agentictrust:skillName ?skillLabel . }
+  OPTIONAL { ?skill core:skillName ?skillLabel . }
   OPTIONAL { ?skill dcterms:description ?skillDescription . }
-  OPTIONAL { ?skill agentictrust:skillDescription ?skillDescription . }
+  OPTIONAL { ?skill core:skillDescription ?skillDescription . }
 
 
-  OPTIONAL { ?skill agentictrust:hasTag ?tag . }
-  OPTIONAL { ?skill agentictrust:hasInputSchema ?inputSchema . }
-  OPTIONAL { ?skill agentictrust:hasOutputSchema ?outputSchema . }
+  OPTIONAL { ?skill core:hasTag ?tag . }
+  OPTIONAL { ?skill core:hasInputSchema ?inputSchema . }
+  OPTIONAL { ?skill core:hasOutputSchema ?outputSchema . }
 
   OPTIONAL {
-    { ?skill agentictrust:supportsIntentType ?intentType . }
+    { ?skill core:supportsIntentType ?intentType . }
     UNION
-    { ?intentType agentictrust:targetsSkill ?skill . }
+    { ?intentType core:targetsSkill ?skill . }
   }
 }
 ORDER BY ?agentId ?skillId ?skill
@@ -186,7 +186,7 @@ LIMIT 200
 ### Query: OASF-only Agent Skill Classification view (category + GitHub source)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -194,14 +194,14 @@ SELECT DISTINCT
   ?extendsKey ?categoryNode
   ?githubPath ?githubSha
 WHERE {
-  ?oasfSkill a agentictrust:OASFSkill ;
-             agentictrust:oasfSkillId ?oasfSkillId .
+  ?oasfSkill a core:OASFSkill ;
+             core:oasfSkillId ?oasfSkillId .
 
   OPTIONAL { ?oasfSkill rdfs:label ?label . }
-  OPTIONAL { ?oasfSkill agentictrust:oasfExtendsKey ?extendsKey . }
-  OPTIONAL { ?oasfSkill agentictrust:oasfCategory ?categoryNode . }
-  OPTIONAL { ?oasfSkill agentictrust:githubPath ?githubPath . }
-  OPTIONAL { ?oasfSkill agentictrust:githubSha ?githubSha . }
+  OPTIONAL { ?oasfSkill core:oasfExtendsKey ?extendsKey . }
+  OPTIONAL { ?oasfSkill core:oasfCategory ?categoryNode . }
+  OPTIONAL { ?oasfSkill core:githubPath ?githubPath . }
+  OPTIONAL { ?oasfSkill core:githubSha ?githubSha . }
 }
 ORDER BY ?oasfSkillId
 LIMIT 200
@@ -212,7 +212,7 @@ LIMIT 200
 ### Query: Agent Domain Classifications only (no joins)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 
@@ -221,16 +221,16 @@ SELECT DISTINCT
   ?extendsKey ?categoryNode
   ?githubPath ?githubSha
 WHERE {
-  ?domain a agentictrust:AgentDomainClassification .
+  ?domain a core:AgentDomainClassification .
   OPTIONAL { ?domain a ?domainType . }
-  OPTIONAL { ?domain agentictrust:oasfDomainId ?domainId . }
+  OPTIONAL { ?domain core:oasfDomainId ?domainId . }
   OPTIONAL { ?domain rdfs:label ?label . }
   OPTIONAL { ?domain dcterms:description ?description . }
   OPTIONAL { ?domain rdfs:comment ?description . }
-  OPTIONAL { ?domain agentictrust:oasfExtendsKey ?extendsKey . }
-  OPTIONAL { ?domain agentictrust:oasfCategory ?categoryNode . }
-  OPTIONAL { ?domain agentictrust:githubPath ?githubPath . }
-  OPTIONAL { ?domain agentictrust:githubSha ?githubSha . }
+  OPTIONAL { ?domain core:oasfExtendsKey ?extendsKey . }
+  OPTIONAL { ?domain core:oasfCategory ?categoryNode . }
+  OPTIONAL { ?domain core:githubPath ?githubPath . }
+  OPTIONAL { ?domain core:githubSha ?githubSha . }
 }
 ORDER BY ?domainId ?domain
 LIMIT 200
@@ -239,7 +239,7 @@ LIMIT 200
 ### Query: Agent Domain Classifications declared on AgentDescriptors (and linked skill classifications)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -248,25 +248,25 @@ SELECT DISTINCT
   ?agentDomain ?domain ?domainType ?domainId ?domainLabel
   ?agentSkill ?skill ?skillId
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-         agentictrust:agentId ?agentId ;
-         agentictrust:hasAgentDescriptor ?descriptor .
+  ?agent a core:AIAgent ;
+         core:agentId ?agentId ;
+         core:hasAgentDescriptor ?descriptor .
 
-  ?descriptor agentictrust:hasDomain ?agentDomain .
-  OPTIONAL { ?agentDomain agentictrust:hasDomainClassification ?domain . }
+  ?descriptor core:hasDomain ?agentDomain .
+  OPTIONAL { ?agentDomain core:hasDomainClassification ?domain . }
 
   OPTIONAL { ?domain a ?domainType . }
-  OPTIONAL { ?domain agentictrust:oasfDomainId ?domainId . }
+  OPTIONAL { ?domain core:oasfDomainId ?domainId . }
   OPTIONAL { ?domain rdfs:label ?domainLabel . }
 
   OPTIONAL {
     # Agent Skill Classifications linked to the same domain via descriptor
     {
-      ?descriptor agentictrust:hasSkill ?agentSkill .
-      OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
+      ?descriptor core:hasSkill ?agentSkill .
+      OPTIONAL { ?agentSkill core:hasSkillClassification ?skill . }
     }
-    ?skill a agentictrust:AgentSkillClassification .
-    OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }
+    ?skill a core:AgentSkillClassification .
+    OPTIONAL { ?skill core:oasfSkillId ?skillId . }
   }
 }
 ORDER BY ?agentId ?domainId ?domain
@@ -276,7 +276,7 @@ LIMIT 200
 ### Query: OASF-only Agent Domain Classification view (category + GitHub source)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -284,14 +284,14 @@ SELECT DISTINCT
   ?extendsKey ?categoryNode
   ?githubPath ?githubSha
 WHERE {
-  ?oasfDomain a agentictrust:OASFDomain ;
-              agentictrust:oasfDomainId ?oasfDomainId .
+  ?oasfDomain a core:OASFDomain ;
+              core:oasfDomainId ?oasfDomainId .
 
   OPTIONAL { ?oasfDomain rdfs:label ?label . }
-  OPTIONAL { ?oasfDomain agentictrust:oasfExtendsKey ?extendsKey . }
-  OPTIONAL { ?oasfDomain agentictrust:oasfCategory ?categoryNode . }
-  OPTIONAL { ?oasfDomain agentictrust:githubPath ?githubPath . }
-  OPTIONAL { ?oasfDomain agentictrust:githubSha ?githubSha . }
+  OPTIONAL { ?oasfDomain core:oasfExtendsKey ?extendsKey . }
+  OPTIONAL { ?oasfDomain core:oasfCategory ?categoryNode . }
+  OPTIONAL { ?oasfDomain core:githubPath ?githubPath . }
+  OPTIONAL { ?oasfDomain core:githubSha ?githubSha . }
 }
 ORDER BY ?oasfDomainId
 LIMIT 200

@@ -1,13 +1,13 @@
 ## Description layer — Plans (PROV-O + P-PLAN)
 
-Ontology: `agentictrust-core.owl`
+Ontology: `apps/ontology/ontology/core.ttl`
 
 This page is about **Descriptions as Plans**:
 
 - **`prov:Plan`** (PROV-O): a plan/specification (an Entity)
 - **`p-plan:Plan`** (P-PLAN): a plan vocabulary that complements PROV-O
-- **`agentictrust:SituationDescription`**: the PROV-native “Description” (schema/pattern for a Situation)
-- **`agentictrust:TrustDescription`**: specialization of SituationDescription for trust workflows
+- **`core:SituationDescription`**: the PROV-native “Description” (schema/pattern for a Situation)
+- **`core:TrustDescription`**: specialization of SituationDescription for trust workflows
 
 ### SituationDescription and TrustDescription hierarchy
 
@@ -19,8 +19,8 @@ class provEntity["prov:Entity"]
 class provPlan["prov:Plan"]
 class pplanPlan["p-plan:Plan"]
 
-class SituationDescription["agentictrust:SituationDescription"]
-class TrustDescription["agentictrust:TrustDescription"]
+class SituationDescription["core:SituationDescription"]
+class TrustDescription["core:TrustDescription"]
 
 provPlan --|> provEntity
 pplanPlan --|> provEntity
@@ -33,11 +33,11 @@ TrustDescription --|> SituationDescription
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?cls
 WHERE {
-  ?cls rdfs:subClassOf* agentictrust:SituationDescription .
+  ?cls rdfs:subClassOf* core:SituationDescription .
 }
 ORDER BY ?cls
 ```
@@ -48,8 +48,8 @@ ORDER BY ?cls
 classDiagram
 direction LR
 
-class Situation["agentictrust:Situation"]
-class SituationDescription["agentictrust:SituationDescription"]
+class Situation["core:Situation"]
+class SituationDescription["core:SituationDescription"]
 
 Situation --> SituationDescription : hasSituationDescription
 ```
@@ -57,11 +57,11 @@ Situation --> SituationDescription : hasSituationDescription
 **SPARQL: situations with their descriptions**
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?situation ?description
 WHERE {
-  ?situation agentictrust:hasSituationDescription ?description .
+  ?situation core:hasSituationDescription ?description .
 }
 LIMIT 200
 ```
@@ -72,8 +72,8 @@ LIMIT 200
 classDiagram
 direction LR
 
-class SituationAssertion["agentictrust:SituationAssertion"]
-class SituationDescription["agentictrust:SituationDescription"]
+class SituationAssertion["core:SituationAssertion"]
+class SituationDescription["core:SituationDescription"]
 
 SituationAssertion --> SituationDescription : assertsDescription
 ```
@@ -81,12 +81,12 @@ SituationAssertion --> SituationDescription : assertsDescription
 **SPARQL: assertions and the descriptions they assert under**
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?assertion ?description
 WHERE {
-  ?assertion a agentictrust:SituationAssertion ;
-    agentictrust:assertsDescription ?description .
+  ?assertion a core:SituationAssertion ;
+    core:assertsDescription ?description .
 }
 LIMIT 200
 ```
@@ -97,9 +97,9 @@ LIMIT 200
 classDiagram
 direction LR
 
-class TrustDescription["agentictrust:TrustDescription"]
-class SituationDescription["agentictrust:SituationDescription"]
-class TrustSituation["agentictrust:TrustSituation"]
+class TrustDescription["core:TrustDescription"]
+class SituationDescription["core:SituationDescription"]
+class TrustSituation["core:TrustSituation"]
 
 TrustDescription --|> SituationDescription
 TrustSituation --> TrustDescription : hasSituationDescription
@@ -108,13 +108,13 @@ TrustSituation --> TrustDescription : hasSituationDescription
 **SPARQL: TrustSituations and their TrustDescriptions**
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?situation ?desc
 WHERE {
-  ?situation a agentictrust:TrustSituation ;
-    agentictrust:hasSituationDescription ?desc .
-  ?desc a agentictrust:TrustDescription .
+  ?situation a core:TrustSituation ;
+    core:hasSituationDescription ?desc .
+  ?desc a core:TrustDescription .
 }
 LIMIT 200
 ```

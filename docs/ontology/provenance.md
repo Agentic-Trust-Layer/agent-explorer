@@ -1,6 +1,6 @@
 ## Provenance (PROV-O grounding)
 
-Ontology: `agentictrust-core.owl`
+Ontology: `apps/ontology/ontology/core.ttl`
 
 ### Class hierarchy (PROV grounding)
 
@@ -12,10 +12,10 @@ class provPlan["prov:Plan"]
 class provActivity["prov:Activity"]
 class provEntity["prov:Entity"]
 
-class TrustDescription["agentictrust:TrustDescription"]
-class TrustSituation["agentictrust:TrustSituation"]
-class AssertionAct["agentictrust:AssertionAct"]
-class AttestedAssertion["agentictrust:AttestedAssertion"]
+class TrustDescription["core:TrustDescription"]
+class TrustSituation["core:TrustSituation"]
+class AssertionAct["core:AssertionAct"]
+class AttestedAssertion["core:AttestedAssertion"]
 
 TrustDescription --|> provPlan
 TrustSituation --|> provEntity
@@ -33,10 +33,10 @@ class provPlan["prov:Plan"]
 class provActivity["prov:Activity"]
 class provEntity["prov:Entity"]
 
-class TrustDescription["agentictrust:TrustDescription"]
-class TrustSituation["agentictrust:TrustSituation"]
-class AssertionAct["agentictrust:AssertionAct"]
-class AttestedAssertion["agentictrust:AttestedAssertion"]
+class TrustDescription["core:TrustDescription"]
+class TrustSituation["core:TrustSituation"]
+class AssertionAct["core:AssertionAct"]
+class AttestedAssertion["core:AttestedAssertion"]
 
 TrustSituation --> TrustDescription : hasSituationDescription
 AssertionAct --> TrustSituation : assertsSituation
@@ -59,32 +59,32 @@ We ground trust and execution in PROV so:
 
 ### Core correspondences
 
-- **`agentictrust:TrustDescription`** ⊑ `prov:Plan` and `p-plan:Plan`
-- **`agentictrust:TrustSituation`** ⊑ `prov:Entity`
-- **`agentictrust:AssertionAct`** ⊑ `prov:Activity` (the act of asserting)
-- **`agentictrust:AttestedAssertion`** ⊑ `prov:Entity` (the durable record/artifact produced by an Attestation)
+- **`core:TrustDescription`** ⊑ `prov:Plan` and `p-plan:Plan`
+- **`core:TrustSituation`** ⊑ `prov:Entity`
+- **`core:AssertionAct`** ⊑ `prov:Activity` (the act of asserting)
+- **`core:AttestedAssertion`** ⊑ `prov:Entity` (the durable record/artifact produced by an Attestation)
 
 ### Common provenance patterns in this repo
 
 - **Agent card fetch**:
-  - `agentictrust:AgentDescriptorFetch` (Activity) `prov:generated` → `agentictrust:AgentDescriptor`
+  - `core:AgentDescriptorFetch` (Activity) `prov:generated` → `core:AgentDescriptor`
   - timestamp via `prov:endedAtTime`
 
 - **Invocation trace**:
-  - `agentictrust:SkillInvocation` (Activity) links to the invoked `AgentSkillClassification` and input `Message`
+  - `core:SkillInvocation` (Activity) links to the invoked `AgentSkillClassification` and input `Message`
 
 ### Where assertions land
 
-Trust claims land as subclasses of `agentictrust:AttestedAssertion` (durable entities) and `agentictrust:AssertionAct` (activities):
+Trust claims land as subclasses of `core:AttestedAssertion` (durable entities) and `core:AssertionAct` (activities):
 
 - **Verification**:
-  - `agentictrust:VerificationTrustAssertion` (Record) - used by ERC8004 validation responses
-  - `agentictrust:VerificationTrustAssertionAct` (Act) - the act of validating
+  - `core:VerificationTrustAssertion` (Record) - used by ERC8004 validation responses
+  - `core:VerificationTrustAssertionAct` (Act) - the act of validating
 - **Reputation**:
-  - `agentictrust:ReputationTrustAssertion` (Record) - used by ERC8004 feedback
-  - `agentictrust:ReputationTrustAssertionAct` (Act) - the act of providing feedback
+  - `core:ReputationTrustAssertion` (Record) - used by ERC8004 feedback
+  - `core:ReputationTrustAssertionAct` (Act) - the act of providing feedback
 - **Relationship**:
-  - `agentictrust:RelationshipTrustAssertion` (Record) - used by ERC8092
-  - `agentictrust:RelationshipTrustAssertionAct` (Act) - the act of asserting relationships
+  - `core:RelationshipTrustAssertion` (Record) - used by ERC8092
+  - `core:RelationshipTrustAssertionAct` (Act) - the act of asserting relationships
 
 

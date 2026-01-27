@@ -162,7 +162,7 @@ This use-case ships as concrete instances in `apps/ontology/ontology/usecase-pro
 - `core:plan.joinWgaMembership` + `core:planStep.joinWga.*`
 - `core:task.*`
 - `core:action.*`
-- example OASF skill individuals under `https://agentictrust.io/ontology/oasf#skill/professional_membership/...`
+- example OASF skill individuals under `https://core.io/ontology/oasf#skill/professional_membership/...`
 
 Ingest:
 
@@ -173,12 +173,12 @@ pnpm --filter erc8004-indexer graphdb:ingest ontologies --reset
 ## SPARQL: list the WGA plan (steps + task types)
 
 ```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 
 SELECT ?planTitle ?step ?order ?taskType ?actionType
 WHERE {
-  GRAPH <https://www.agentictrust.io/graph/ontology/core> {
+  GRAPH <https://www.core.io/graph/ontology/core> {
     core:plan.joinWgaMembership a core:Plan ;
       dcterms:title ?planTitle ;
       core:hasStep ?step .
@@ -193,18 +193,18 @@ ORDER BY ?order
 ## SPARQL: list the WGA tasks and the skills they use
 
 ```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX oasf: <https://agentictrust.io/ontology/oasf#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX oasf: <https://core.io/ontology/oasf#>
 
 SELECT ?task ?taskType ?skill ?skillKey ?skillCaption
 WHERE {
-  GRAPH <https://www.agentictrust.io/graph/ontology/core> {
+  GRAPH <https://www.core.io/graph/ontology/core> {
     ?task a core:Task ;
       core:hasTaskType ?taskType ;
       core:usesSkill ?skill .
     OPTIONAL { ?skill oasf:key ?skillKey }
     OPTIONAL { ?skill oasf:caption ?skillCaption }
-    FILTER(STRSTARTS(STR(?skill), "https://agentictrust.io/ontology/oasf#skill/professional_membership/"))
+    FILTER(STRSTARTS(STR(?skill), "https://core.io/ontology/oasf#skill/professional_membership/"))
   }
 }
 ORDER BY ?taskType ?skillKey
@@ -213,14 +213,14 @@ ORDER BY ?taskType ?skillKey
 ## SPARQL: pull the whole WGA intent bundle (intent + plan + tasks + actions)
 
 ```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX core: <https://core.io/ontology/core#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX oasf: <https://agentictrust.io/ontology/oasf#>
+PREFIX oasf: <https://core.io/ontology/oasf#>
 
 SELECT ?intent ?org ?status ?plan ?step ?order ?task ?taskType ?action ?actionTool ?skillKey
 WHERE {
-  GRAPH <https://www.agentictrust.io/graph/ontology/core> {
+  GRAPH <https://www.core.io/graph/ontology/core> {
     BIND(core:intent.joinWgaMembership AS ?intent)
     ?intent core:targetOrganization ?org ;
             core:desiredStatus ?status .

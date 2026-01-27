@@ -1,6 +1,6 @@
-## AgenticTrust ontology overview (`agentictrust-core.owl`)
+## AgenticTrust ontology overview (`apps/ontology/ontology/core.ttl`)
 
-**Source**: `apps/badge-admin/public/ontology/agentictrust-core.owl`
+**Source**: `apps/ontology/ontology/core.ttl`
 
 > **Quick Navigation**: See [`README.md`](./README.md) for the full information architecture overview, ontology hierarchy, and complete documentation index.
 
@@ -23,16 +23,16 @@ We treat these as **guiding principles** for modeling trust, rather than importi
 
 ### Full diagram (generated)
 
-- PNG: `docs/ontology/images/agentictrust.png`
-- SVG: `docs/ontology/images/agentictrust.svg`
+- PNG: `docs/ontology/images/core.png`
+- SVG: `docs/ontology/images/core.svg`
 
-![AgenticTrust ontology diagram](./images/agentictrust.png)
+![AgenticTrust ontology diagram](./images/core.png)
 
 ### Why a common “AgenticTrust” core matters
 
 ERC registries and protocols encode related trust facts (identity/metadata, validation, feedback, relationships, protocol capabilities) but expose them in **different event shapes and storage locations**.
 
-By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituation / TrustAssertion, plus Skills/Intents/Tasks), we get a **normalized, cross-registry view** that the `agentictrust.io` application can use for:
+By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituation / TrustAssertion, plus Skills/Intents/Tasks), we get a **normalized, cross-registry view** that the `core.io` application can use for:
 
 - **Agent discovery**: consistent filtering/search across sources (skills, endpoints, intent/task types, validations, feedback, relationships)
 - **Community development**: shared vocabulary to build “communities” around task types, skills, validators, relationship networks, and contribution/reputation signals
@@ -44,7 +44,7 @@ By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituat
 
 - **TrustDescription**: normative “what/why” (subclass of `prov:Plan` and `p-plan:Plan`)
 - **TrustSituation**: epistemic/social object (“what is being claimed to hold”) (subclass of `prov:Entity`)
-- **TrustAssertion**: durable assertion record (subclass of `agentictrust:AttestedAssertion` ⊑ `prov:Entity`)
+- **TrustAssertion**: durable assertion record (subclass of `core:AttestedAssertion` ⊑ `prov:Entity`)
 - **TrustAssertionAct**: asserting act (“who asserted what, when”) (subclass of `prov:Activity`)
 - **Relationship**: persistent relationship instance (subclass of `prov:Entity`)
 - **RelationshipTrustAssertion**: constitutive assertion about a `Relationship` (subclass of `TrustAssertion`)
@@ -60,15 +60,15 @@ class provActivity["prov:Activity"]
 class provEntity["prov:Entity"]
 class provAgent["prov:Agent"]
 
-class TrustDescription["agentictrust:TrustDescription"]
-class TrustSituation["agentictrust:TrustSituation"]
-class TrustAssertion["agentictrust:TrustAssertion"]
-class TrustAssertionAct["agentictrust:TrustAssertionAct"]
-class VerificationAssertion["agentictrust:VerificationTrustAssertion"]
-class ReputationAssertion["agentictrust:ReputationTrustAssertion"]
-class DelegationAssertion["agentictrust:DelegationTrustAssertion"]
-class Relationship["agentictrust:Relationship"]
-class RelationshipAssertion["agentictrust:RelationshipTrustAssertion"]
+class TrustDescription["core:TrustDescription"]
+class TrustSituation["core:TrustSituation"]
+class TrustAssertion["core:TrustAssertion"]
+class TrustAssertionAct["core:TrustAssertionAct"]
+class VerificationAssertion["core:VerificationTrustAssertion"]
+class ReputationAssertion["core:ReputationTrustAssertion"]
+class DelegationAssertion["core:DelegationTrustAssertion"]
+class Relationship["core:Relationship"]
+class RelationshipAssertion["core:RelationshipTrustAssertion"]
 
 TrustDescription --|> provPlan
 TrustDescription --|> pplanPlan
@@ -99,12 +99,12 @@ direction LR
 class provSoftwareAgent["prov:SoftwareAgent"]
 class provEntity["prov:Entity"]
 
-class AIAgent["agentictrust:AIAgent"]
-class AgentDescriptor["agentictrust:AgentDescriptor"]
-class EndpointType["agentictrust:EndpointType"]
-class Endpoint["agentictrust:Endpoint"]
-class AgentSkill["agentictrust:AgentSkill"]
-class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AIAgent["core:AIAgent"]
+class AgentDescriptor["core:AgentDescriptor"]
+class EndpointType["core:EndpointType"]
+class Endpoint["core:Endpoint"]
+class AgentSkill["core:AgentSkill"]
+class AgentSkillClassification["core:AgentSkillClassification"]
 
 AIAgent --|> provSoftwareAgent
 AgentDescriptor --|> provEntity

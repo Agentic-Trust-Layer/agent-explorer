@@ -38,8 +38,8 @@ An Agent in the Fetch.ai world is typically characterized by:
 
 In ontology terms:
 
-- Fetch “Agent” ≈ `prov:SoftwareAgent` / `agentictrust:AIAgent` (as an operational actor)
-- Mailbox/endpoint ≈ `agentictrust:AgentEndpoint`
+- Fetch “Agent” ≈ `prov:SoftwareAgent` / `core:AIAgent` (as an operational actor)
+- Mailbox/endpoint ≈ `core:AgentEndpoint`
 - Message/interaction artifacts ≈ `prov:Entity` (information artifacts)
 
 ### Identity
@@ -52,7 +52,7 @@ Fetch.ai tends to be wallet-address centric:
 AgenticTrust framing:
 
 - AgenticTrust treats **Identifier** and **Identity** as first-class abstract concepts (and allows DID forms like `did:web`, `did:ethr`, etc.).
-- Fetch.ai identity can be wrapped as a concrete `agentictrust:Identifier` implementation (e.g., “FetchAccountIdentifier”) if/when needed.
+- Fetch.ai identity can be wrapped as a concrete `core:Identifier` implementation (e.g., “FetchAccountIdentifier”) if/when needed.
 
 ### Communication & Protocols
 
@@ -64,7 +64,7 @@ Agents communicate via:
 
 Ontology mapping:
 
-- Protocol ≈ `agentictrust:Protocol` / `agentictrust:ProtocolDescriptor`
+- Protocol ≈ `core:Protocol` / `core:ProtocolDescriptor`
 - Message ≈ `prov:Entity` (information artifact)
 - Handler/behavior ≈ `p-plan:Step` (plan step) with executions as `prov:Activity`
 

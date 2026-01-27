@@ -5,8 +5,8 @@ This page clarifies a core distinction used throughout the AgenticTrust ontology
 - **Identity (DID-backed, trustless proof)**: in many ecosystems, each participant (human, org, or AI agent) receives a **DID** anchored on a ledger (e.g., **cheqd**) that is immutable/verifiable. Identity isn’t just “this entity exists”: it means the actor can **prove** who it claims to be in a trustless environment.
 - **Why this matters for AI agents**: cryptographic identity enables attribution, auditability, and accountability for autonomous systems (who acted, under what authority, with what evidence).
 
-- **AI Agent (the thing)**: the durable, discoverable trust-graph anchor (`agentictrust:AIAgent` / `prov:Agent`)
-- **Identity (registry-scoped representation)**: what a registry asserts about that agent (`agentictrust:AgentIdentity` / `prov:Entity`)
+- **AI Agent (the thing)**: the durable, discoverable trust-graph anchor (`core:AIAgent` / `prov:Agent`)
+- **Identity (registry-scoped representation)**: what a registry asserts about that agent (`core:AgentIdentity` / `prov:Entity`)
 - **Identifier (reference)**: a string/URI/name used to point at an agent or identity (DID, UAID, ENS, etc.)
 
 ## AI Agent (the thing)
@@ -60,11 +60,11 @@ This is the actor: AI agent, org agent, smart-account agent, etc. It is the trus
 ```turtle
 :Identity_ERC8004_4550
   a prov:Entity ;
-  a agentictrust:AgentIdentity ;
+  a core:AgentIdentity ;
   prov:wasAttributedTo :Agent_A ;
   prov:wasGeneratedBy :ERC8004_Registration ;
   prov:identifier "erc8004:agent:4550" ;
-  agentictrust:identityRegistry :ERC8004_Registry .
+  core:identityRegistry :ERC8004_Registry .
 ```
 
 This identity is:
@@ -99,7 +99,7 @@ Smart Credentials are a useful fit for the **registry-scoped identity** pattern 
 
 In AgenticTrust terms, you can treat a smart-credential instance as:
 
-- an **identity/registry-layer artifact** whose statements are *about* an `agentictrust:AgentIdentity` (or about an agent via its identity), and
+- an **identity/registry-layer artifact** whose statements are *about* an `core:AgentIdentity` (or about an agent via its identity), and
 - a source of **attested assertions** (issuer accountability) rather than “the agent speaking about itself”.
 
 ### Registry context (critical)
@@ -109,7 +109,7 @@ Instead of baking registry logic into the agent, model it explicitly:
 ```turtle
 :ERC8004_Registry
   a prov:Entity ;
-  a agentictrust:AgentRegistry .
+  a core:AgentRegistry .
 ```
 
 Then:
@@ -118,7 +118,7 @@ Then:
 :Identity_ERC8004_4550
   prov:wasAttributedTo :Agent_A ;
   prov:wasGeneratedBy :ERC8004_Registration ;
-  agentictrust:identityRegistry :ERC8004_Registry ;
+  core:identityRegistry :ERC8004_Registry ;
   prov:wasGeneratedBy :ERC8004_Registration .
 ```
 
@@ -163,7 +163,7 @@ Example:
 ```turtle
 :Identity_HOL
   prov:identifier "uaid:did:ethr:0xabc;hol" ;
-  agentictrust:usesDID "did:ethr:0xabc" .
+  core:usesDID "did:ethr:0xabc" .
 ```
 
 The DID anchors cryptography; the identity entity anchors registry meaning.
@@ -185,8 +185,8 @@ classDiagram
 direction LR
 
 class Agent["prov:Agent (Agent)"]
-class AgentIdentity["agentictrust:AgentIdentity (prov:Entity)"]
-class AgentRegistry["agentictrust:AgentRegistry (prov:Entity)"]
+class AgentIdentity["core:AgentIdentity (prov:Entity)"]
+class AgentRegistry["core:AgentRegistry (prov:Entity)"]
 class Registration["Registration (prov:Activity)"]
 
 AgentIdentity --> Agent : wasAttributedTo
@@ -196,25 +196,25 @@ AgentIdentity --> AgentRegistry : identityRegistry
 
 Mermaid note: edge labels avoid CURIEs like `prov:wasAttributedTo` (Mermaid parser limitation). The intended properties are:
 
-- `wasAttributedTo` → `prov:wasAttributedTo` (or `agentictrust:identityOf`)
+- `wasAttributedTo` → `prov:wasAttributedTo` (or `core:identityOf`)
 - `wasGeneratedBy` → `prov:wasGeneratedBy`
-- `identityRegistry` → `agentictrust:identityRegistry` (subPropertyOf `prov:wasAssociatedWith`)
+- `identityRegistry` → `core:identityRegistry` (subPropertyOf `prov:wasAssociatedWith`)
 
 ## Optional refinements (recommended)
 
 These convenience terms keep PROV-O clean while giving you domain semantics:
 
 ```turtle
-agentictrust:AgentIdentity rdfs:subClassOf prov:Entity .
-agentictrust:AgentRegistry rdfs:subClassOf prov:Entity .
+core:AgentIdentity rdfs:subClassOf prov:Entity .
+core:AgentRegistry rdfs:subClassOf prov:Entity .
 
-agentictrust:identityOf
-  rdfs:domain agentictrust:AgentIdentity ;
+core:identityOf
+  rdfs:domain core:AgentIdentity ;
   rdfs:range prov:Agent .
 
-agentictrust:identityRegistry
-  rdfs:domain agentictrust:AgentIdentity ;
-  rdfs:range agentictrust:AgentRegistry .
+core:identityRegistry
+  rdfs:domain core:AgentIdentity ;
+  rdfs:range core:AgentRegistry .
 ```
 
 ## SPARQL queries
@@ -223,11 +223,11 @@ agentictrust:identityRegistry
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?identity
 WHERE {
-  ?identity a agentictrust:AgentIdentity .
+  ?identity a core:AgentIdentity .
 }
 ORDER BY ?identity
 LIMIT 200
@@ -237,7 +237,7 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT
   ?agent
@@ -248,11 +248,11 @@ SELECT DISTINCT
 WHERE {
   ?agent a prov:Agent .
 
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
-  OPTIONAL { ?identity agentictrust:identityOf ?agent . }
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
+  OPTIONAL { ?identity core:identityOf ?agent . }
   OPTIONAL { ?identity prov:wasAttributedTo ?agent . }
 
-  OPTIONAL { ?identity agentictrust:identityRegistry ?registry . }
+  OPTIONAL { ?identity core:identityRegistry ?registry . }
   OPTIONAL { ?identity prov:wasAssociatedWith ?registry . }
 
   OPTIONAL { ?identity prov:wasGeneratedBy ?registrationAct . }
@@ -266,13 +266,13 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?agent (COUNT(DISTINCT ?identity) AS ?identityCount)
 WHERE {
   ?agent a prov:Agent ;
-    agentictrust:hasIdentity ?identity .
-  ?identity a agentictrust:AgentIdentity .
+    core:hasIdentity ?identity .
+  ?identity a core:AgentIdentity .
 }
 GROUP BY ?agent
 HAVING (COUNT(DISTINCT ?identity) > 1)
@@ -283,12 +283,12 @@ LIMIT 200
 ### Identity → DID (cryptographic anchor)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?identity ?did
 WHERE {
-  ?identity a agentictrust:AgentIdentity ;
-    agentictrust:usesDID ?did .
+  ?identity a core:AgentIdentity ;
+    core:usesDID ?did .
 }
 ORDER BY ?identity
 LIMIT 200
@@ -298,11 +298,11 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?registry ?type
 WHERE {
-  ?registry a agentictrust:AgentRegistry .
+  ?registry a core:AgentRegistry .
   OPTIONAL { ?registry a ?type . }
 }
 ORDER BY ?registry ?type
@@ -312,8 +312,8 @@ LIMIT 200
 ## Where this shows up in the ontology
 
 - **Agents** (`prov:Agent`) are the *things* we reason about and attach trust assertions to.
-- **Identifiers** (`agentictrust:Identifier`) are the *references* we attach to agents and other identity-bearing entities for lookup, linking, and interoperability.
-- **DIDs** (`agentictrust:DID`) are a particular identifier family with resolution rules.
+- **Identifiers** (`core:Identifier`) are the *references* we attach to agents and other identity-bearing entities for lookup, linking, and interoperability.
+- **DIDs** (`core:DID`) are a particular identifier family with resolution rules.
 
 See also:
 

@@ -4,7 +4,7 @@ This repo designs the ontology in Protégé and uses the **ELK** reasoner, so th
 
 ### Goals
 
-- **Ontology**: `agentictrust-core.owl` + extensions (ERC-8004, ERC-8092, ENS, HOL).
+- **Ontology**: `core-core.owl` + extensions (ERC-8004, ERC-8092, ENS, HOL).
 - **Taxonomy**: OASF taxonomy (ideally SKOS-like concept scheme(s) with stable URIs).
 - **Data**: AgenticTrust observations/assertions/metadata exported as RDF, queryable via SPARQL and/or GraphQL.
 - **Reasoning**: Keep modeling **within OWL-EL** where possible (to align with ELK), and materialize inferences for fast queries.
@@ -13,7 +13,7 @@ This repo designs the ontology in Protégé and uses the **ELK** reasoner, so th
 
 #### 1) Versioned ontology publishing (static)
 
-- Store canonical OWL files in git (published from `apps/badge-admin/public/ontology/`).
+- Store canonical ontology files in git (published from `apps/ontology/ontology/`).
 - Publish immutable versions (e.g. `/public/ontology/v0.0.1/...`) and keep “latest” symlinks/paths stable.
 - CI step: run “ontology QA” (consistency + EL profile sanity) and generate release artifacts.
 
@@ -21,7 +21,7 @@ This repo designs the ontology in Protégé and uses the **ELK** reasoner, so th
 
 Use **named graphs** to separate concerns cleanly:
 
-- **Graph: Ontology core**: `agentictrust-core.owl`
+- **Graph: Ontology core**: `core-core.owl`
 - **Graph: Ontology extensions**: ERC-8004, ERC-8092, ENS, HOL, etc.
 - **Graph: OASF taxonomy**: skills/capabilities/protocols as a concept scheme
 - **Graph: Data (by source)**: `agentverse`, `hol`, on-chain, etc.
@@ -47,8 +47,8 @@ Because ELK is an OWL-EL reasoner and most production triple stores don’t run 
 - Indexers export canonical RDF (and optionally N-Quads for named graphs).
 - Load into the KB using bulk loaders where available.
 - Keep a minimal provenance pattern:
-  - assertions as `prov:Activity` (e.g. `agentictrust:SituationAssertion`)
-  - asserted situations as `prov:Entity` (e.g. `agentictrust:Situation`)
+  - assertions as `prov:Activity` (e.g. `core:SituationAssertion`)
+  - asserted situations as `prov:Entity` (e.g. `core:Situation`)
   - link raw JSON via a separate storage path (object store) and reference by hash/URI in RDF
 
 #### 5) Access layer
@@ -75,13 +75,13 @@ docker compose -f apps/indexer/graphdb/docker-compose.yml up -d
 
 - Create a repository in the Workbench (once):
   - Open `http://localhost:7200` → **Setup → Repositories → Create new repository**
-  - Set repository id to `agentictrust` (or set `GRAPHDB_REPOSITORY`)
+  - Set repository id to `core` (or set `GRAPHDB_REPOSITORY`)
 
 - Ingest ontologies + generated agent RDF into GraphDB:
 
 ```bash
 GRAPHDB_BASE_URL=http://localhost:7200 \
-GRAPHDB_REPOSITORY=agentictrust \
+GRAPHDB_REPOSITORY=core \
 pnpm --filter erc8004-indexer graphdb:ingest all --reset
 ```
 

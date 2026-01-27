@@ -6,10 +6,10 @@ Delegation is modeled as a **Situation** (epistemic object), and may be asserted
 
 ## Core classes
 
-- **DelegationSituation** (`agentictrust:DelegationSituation`): delegation state/constraints as a `Situation`
-- **DelegationTrustSituation** (`agentictrust:DelegationTrustSituation`): the trust-qualified delegation situation (⊑ TrustSituation and ⊑ DelegationSituation)
-- **DelegationTrustAssertion** (`agentictrust:DelegationTrustAssertion`): durable attested record about delegation (⊑ TrustAssertion ⊑ AttestedAssertion)
-- **DelegationTrustAssertionAct** (`agentictrust:DelegationTrustAssertionAct`): accountable act generating the delegation trust assertion
+- **DelegationSituation** (`core:DelegationSituation`): delegation state/constraints as a `Situation`
+- **DelegationTrustSituation** (`core:DelegationTrustSituation`): the trust-qualified delegation situation (⊑ TrustSituation and ⊑ DelegationSituation)
+- **DelegationTrustAssertion** (`core:DelegationTrustAssertion`): durable attested record about delegation (⊑ TrustAssertion ⊑ AttestedAssertion)
+- **DelegationTrustAssertionAct** (`core:DelegationTrustAssertionAct`): accountable act generating the delegation trust assertion
 
 ## Permissions and caveats (MetaMask-style shape)
 
@@ -22,20 +22,20 @@ Many delegation frameworks represent delegation as:
 
 AgenticTrust models these pieces explicitly:
 
-- **DelegationPermission** (`agentictrust:DelegationPermission`): action/resource/scope granted
-- **DelegationCaveat** (`agentictrust:DelegationCaveat`): constraint attached to delegation
-- **CaveatEnforcer** (`agentictrust:CaveatEnforcer`): identifier for the evaluator/enforcer of caveat terms
+- **DelegationPermission** (`core:DelegationPermission`): action/resource/scope granted
+- **DelegationCaveat** (`core:DelegationCaveat`): constraint attached to delegation
+- **CaveatEnforcer** (`core:CaveatEnforcer`): identifier for the evaluator/enforcer of caveat terms
 
 ## Diagram (conceptual)
 
 ```mermaid
 graph TB
-  DelegationSit["DelegationTrustSituation\n(agentictrust:DelegationTrustSituation)"]
+  DelegationSit["DelegationTrustSituation\n(core:DelegationTrustSituation)"]
   Delegator["Delegator\n(prov:Agent)"]
   Delegatee["Delegatee\n(prov:Agent)"]
-  Perm["DelegationPermission\n(agentictrust:DelegationPermission)"]
-  Caveat["DelegationCaveat\n(agentictrust:DelegationCaveat)"]
-  Enforcer["CaveatEnforcer\n(agentictrust:CaveatEnforcer)"]
+  Perm["DelegationPermission\n(core:DelegationPermission)"]
+  Caveat["DelegationCaveat\n(core:DelegationCaveat)"]
+  Enforcer["CaveatEnforcer\n(core:CaveatEnforcer)"]
 
   Act["DelegationTrustAssertionAct\n(prov:Activity)"]
   Rec["DelegationTrustAssertion\n(prov:Entity)"]
@@ -53,33 +53,33 @@ graph TB
 
 ## Key properties (summary)
 
-- `agentictrust:delegationDelegator` (DelegationSituation → prov:Agent)
-- `agentictrust:delegationDelegatee` (DelegationSituation → prov:Agent)
-- `agentictrust:delegationAuthorityValue` (DelegationSituation → string)
-- `agentictrust:delegationExpiresAtTime` (DelegationSituation → xsd:dateTime)
-- `agentictrust:delegationGrantsPermission` (DelegationSituation → DelegationPermission)
-- `agentictrust:delegationHasCaveat` (DelegationSituation → DelegationCaveat)
-- `agentictrust:permissionAction` / `permissionResource` / `permissionScopeJson`
-- `agentictrust:caveatEnforcer` / `caveatTermsJson`
+- `core:delegationDelegator` (DelegationSituation → prov:Agent)
+- `core:delegationDelegatee` (DelegationSituation → prov:Agent)
+- `core:delegationAuthorityValue` (DelegationSituation → string)
+- `core:delegationExpiresAtTime` (DelegationSituation → xsd:dateTime)
+- `core:delegationGrantsPermission` (DelegationSituation → DelegationPermission)
+- `core:delegationHasCaveat` (DelegationSituation → DelegationCaveat)
+- `core:permissionAction` / `permissionResource` / `permissionScopeJson`
+- `core:caveatEnforcer` / `caveatTermsJson`
 
 ## SPARQL: list delegation grants (delegator → delegatee + permissions)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT ?delegationSituation ?delegator ?delegatee ?action ?resource ?expires
 WHERE {
-  ?delegationSituation a agentictrust:DelegationTrustSituation ;
-    agentictrust:delegationDelegator ?delegator ;
-    agentictrust:delegationDelegatee ?delegatee .
+  ?delegationSituation a core:DelegationTrustSituation ;
+    core:delegationDelegator ?delegator ;
+    core:delegationDelegatee ?delegatee .
 
   OPTIONAL {
-    ?delegationSituation agentictrust:delegationGrantsPermission ?perm .
-    OPTIONAL { ?perm agentictrust:permissionAction ?action . }
-    OPTIONAL { ?perm agentictrust:permissionResource ?resource . }
+    ?delegationSituation core:delegationGrantsPermission ?perm .
+    OPTIONAL { ?perm core:permissionAction ?action . }
+    OPTIONAL { ?perm core:permissionResource ?resource . }
   }
 
-  OPTIONAL { ?delegationSituation agentictrust:delegationExpiresAtTime ?expires . }
+  OPTIONAL { ?delegationSituation core:delegationExpiresAtTime ?expires . }
 }
 ORDER BY ?delegationSituation
 LIMIT 200

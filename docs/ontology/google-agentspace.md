@@ -14,33 +14,33 @@ This page documents how to represent the **“portfolio of specialized agents”
 
 Model a portfolio as a **collection** of discoverable agents:
 
-- **Members**: `agentictrust:AIAgent` (stable anchor)
+- **Members**: `core:AIAgent` (stable anchor)
 - **Container**: `prov:Collection` (or `prov:Entity` if you don’t want Collection semantics)
 - **Membership**: `prov:hadMember` (collection → member)
 
-This repo now defines `agentictrust:AgentPortfolio ⊑ prov:Collection`. See [`agent-portfolio.md`](./agent-portfolio.md).
+This repo now defines `core:AgentPortfolio ⊑ prov:Collection`. See [`agent-portfolio.md`](./agent-portfolio.md).
 
 ### Governance (who is responsible / who is operating)
 
 Use the existing “authority → operator → executable” model:
 
-- **Authority**: typically an on-chain account agent (often `agentictrustEth:Account` + `agentictrust:AIAgent`)
-- **Operator**: `agentictrust:Operator` (delegated actor)
-- **Executable**: `agentictrust:AgentDeployment` (endpoint-reachable executor)
-- **Deployment implements agent**: `agentictrust:deploymentOf` (Deployment → AIAgent)
-- **Delegation**: `prov:actedOnBehalfOf` (delegatee → delegator) and `agentictrust:delegatedBy` (inverse convenience)
-- **Provider** (org responsible for hosting): `agentictrust:agentProvider` (Deployment → Organization)
+- **Authority**: typically an on-chain account agent (often `eth:Account` + `core:AIAgent`)
+- **Operator**: `core:Operator` (delegated actor)
+- **Executable**: `core:AgentDeployment` (endpoint-reachable executor)
+- **Deployment implements agent**: `core:deploymentOf` (Deployment → AIAgent)
+- **Delegation**: `prov:actedOnBehalfOf` (delegatee → delegator) and `core:delegatedBy` (inverse convenience)
+- **Provider** (org responsible for hosting): `core:agentProvider` (Deployment → Organization)
 
 ### Orchestration (routing + tracing)
 
 Represent “orchestration” as **intent + execution**:
 
-- **Intent schema**: `agentictrust:IntentType`
-- **Skill targeted by intent**: `agentictrust:targetsSkill` (IntentType → OASF skill node)
-- **Execution**: `agentictrust:TaskExecution` (prov:Activity)
-- **Concrete calls**: `agentictrust:SkillInvocation` (prov:Activity)
-- **Execution uses plan**: `agentictrust:hadPlan` (subPropertyOf `prov:hadPlan`)
-- **Execution produces artifacts**: `agentictrust:producedArtifact`
+- **Intent schema**: `core:IntentType`
+- **Skill targeted by intent**: `core:targetsSkill` (IntentType → OASF skill node)
+- **Execution**: `core:TaskExecution` (prov:Activity)
+- **Concrete calls**: `core:SkillInvocation` (prov:Activity)
+- **Execution uses plan**: `core:hadPlan` (subPropertyOf `prov:hadPlan`)
+- **Execution produces artifacts**: `core:producedArtifact`
 
 ## Diagrams
 
@@ -66,19 +66,19 @@ graph TB
   Portfolio -->|prov:hadMember| AgentA
   Portfolio -->|prov:hadMember| AgentB
 
-  DeployA -->|agentictrust:deploymentOf| AgentA
-  DeployB -->|agentictrust:deploymentOf| AgentB
-  DeployA -->|agentictrust:agentProvider| Provider
-  DeployB -->|agentictrust:agentProvider| Provider
+  DeployA -->|core:deploymentOf| AgentA
+  DeployB -->|core:deploymentOf| AgentB
+  DeployA -->|core:agentProvider| Provider
+  DeployB -->|core:agentProvider| Provider
 
   Operator -->|prov:actedOnBehalfOf| Authority
   DeployA -->|prov:actedOnBehalfOf| Operator
   DeployB -->|prov:actedOnBehalfOf| Operator
 
-  IntentType -->|agentictrust:targetsSkill| Skill
-  Exec -->|agentictrust:hadPlan| IntentType
-  Exec -->|agentictrust:hasInvocation| Invoke
-  Invoke -->|agentictrust:invokesSkill| Skill
+  IntentType -->|core:targetsSkill| Skill
+  Exec -->|core:hadPlan| IntentType
+  Exec -->|core:hasInvocation| Invoke
+  Invoke -->|core:invokesSkill| Skill
 ```
 
 ## SPARQL patterns
@@ -87,13 +87,13 @@ graph TB
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?portfolio (COUNT(DISTINCT ?agent) AS ?agents)
 WHERE {
   ?portfolio a prov:Collection ;
              prov:hadMember ?agent .
-  ?agent a agentictrust:AIAgent .
+  ?agent a core:AIAgent .
 }
 GROUP BY ?portfolio
 ORDER BY DESC(?agents)
@@ -104,19 +104,19 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT ?agent ?deployment ?provider
 WHERE {
   VALUES (?portfolio) { (<PORTFOLIO_IRI>) }
   ?portfolio a prov:Collection ;
              prov:hadMember ?agent .
-  ?agent a agentictrust:AIAgent .
+  ?agent a core:AIAgent .
 
   OPTIONAL {
-    ?deployment a agentictrust:AgentDeployment ;
-                agentictrust:deploymentOf ?agent .
-    OPTIONAL { ?deployment agentictrust:agentProvider ?provider . }
+    ?deployment a core:AgentDeployment ;
+                core:deploymentOf ?agent .
+    OPTIONAL { ?deployment core:agentProvider ?provider . }
   }
 }
 ORDER BY ?agent ?deployment
@@ -127,20 +127,20 @@ LIMIT 500
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT ?skillId
 WHERE {
   VALUES (?portfolio) { (<PORTFOLIO_IRI>) }
   ?portfolio a prov:Collection ;
              prov:hadMember ?agent .
-  ?agent a agentictrust:AIAgent ;
-         agentictrust:hasIdentity ?identity .
-  ?identity agentictrust:hasDescriptor ?reg .
+  ?agent a core:AIAgent ;
+         core:hasIdentity ?identity .
+  ?identity core:hasDescriptor ?reg .
 
-  ?reg agentictrust:hasSkill ?agentSkill .
-  ?agentSkill agentictrust:hasSkillClassification ?skillNode .
-  ?skillNode agentictrust:oasfSkillId ?skillId .
+  ?reg core:hasSkill ?agentSkill .
+  ?agentSkill core:hasSkillClassification ?skillNode .
+  ?skillNode core:oasfSkillId ?skillId .
 }
 ORDER BY ?skillId
 LIMIT 500
@@ -149,17 +149,17 @@ LIMIT 500
 ### 4) Orchestration trace: task executions and which skills were invoked
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT ?exec ?intentType ?skillId
 WHERE {
-  ?exec a agentictrust:TaskExecution .
-  OPTIONAL { ?exec agentictrust:hadPlan ?intentType . }
+  ?exec a core:TaskExecution .
+  OPTIONAL { ?exec core:hadPlan ?intentType . }
 
   OPTIONAL {
-    ?exec agentictrust:hasInvocation ?inv .
-    ?inv agentictrust:invokesSkill ?skillNode .
-    OPTIONAL { ?skillNode agentictrust:oasfSkillId ?skillId . }
+    ?exec core:hasInvocation ?inv .
+    ?inv core:invokesSkill ?skillNode .
+    OPTIONAL { ?skillNode core:oasfSkillId ?skillId . }
   }
 }
 ORDER BY DESC(?exec)
@@ -190,10 +190,10 @@ The implicit architectural pipeline described in public materials looks like:
 AgenticTrust can represent this pattern *without* requiring Google to publish a task vocabulary:
 
 - **Semantic retrieval**: an implementation method over Descriptor/knowledge artifacts (indexing detail; not an ontology primitive)
-- **Intent understanding**: model the “why” as `agentictrust:IntentType` (a SituationDescription / plan-like schema)
-- **Task classification**: map intent types to `agentictrust:TaskType` (and route via `agentictrust:mapsToTaskType`)
-- **Dispatch**: execution begins as `agentictrust:TaskExecution` (prov:Activity) with concrete tool calls as `agentictrust:SkillInvocation`
-- **Execution evidence**: outcomes and governance can be recorded as `agentictrust:AttestedAssertion` (auditability)
+- **Intent understanding**: model the “why” as `core:IntentType` (a SituationDescription / plan-like schema)
+- **Task classification**: map intent types to `core:TaskType` (and route via `core:mapsToTaskType`)
+- **Dispatch**: execution begins as `core:TaskExecution` (prov:Activity) with concrete tool calls as `core:SkillInvocation`
+- **Execution evidence**: outcomes and governance can be recorded as `core:AttestedAssertion` (auditability)
 
 ### Contrast with AgentCore “Tool-RAG”
 

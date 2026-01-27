@@ -1,6 +1,6 @@
 ## Descriptor layer — resolver-produced metadata
 
-Ontology: `agentictrust-core.owl`
+Ontology: `apps/ontology/ontology/core.ttl`
 
 This page is about **Descriptors**: resolver-produced Entities that aggregate and normalize metadata for discovery and interaction.
 
@@ -8,7 +8,7 @@ This page is about **Descriptors**: resolver-produced Entities that aggregate an
 
 In practice, an agent’s **skills** and **domains** are most reliably defined at the **protocol layer** (e.g., an A2A agent card, MCP server/tool metadata).
 
-The `agentictrust:AgentDescriptor` may contain skills/domains for discovery queries, but those values should be treated as **assembled from protocol descriptors** (and other sources) rather than invented independently.
+The `core:AgentDescriptor` may contain skills/domains for discovery queries, but those values should be treated as **assembled from protocol descriptors** (and other sources) rather than invented independently.
 
 See: [`protocols-endpoints.md`](./protocols-endpoints.md).
 
@@ -20,13 +20,13 @@ direction LR
 
 class provEntity["prov:Entity"]
 
-class Descriptor["agentictrust:Descriptor"]
-class IdentifierDescriptor["agentictrust:IdentifierDescriptor"]
-class IdentityDescriptor["agentictrust:IdentityDescriptor"]
-class AgentNameDescriptor["agentictrust:AgentNameDescriptor"]
-class ProtocolDescriptor["agentictrust:ProtocolDescriptor"]
-class A2AProtocolDescriptor["agentictrust:A2AProtocolDescriptor"]
-class MCPProtocolDescriptor["agentictrust:MCPProtocolDescriptor"]
+class Descriptor["core:Descriptor"]
+class IdentifierDescriptor["core:IdentifierDescriptor"]
+class IdentityDescriptor["core:IdentityDescriptor"]
+class AgentNameDescriptor["core:AgentNameDescriptor"]
+class ProtocolDescriptor["core:ProtocolDescriptor"]
+class A2AProtocolDescriptor["core:A2AProtocolDescriptor"]
+class MCPProtocolDescriptor["core:MCPProtocolDescriptor"]
 
 Descriptor --|> provEntity
 IdentifierDescriptor --|> Descriptor
@@ -41,11 +41,11 @@ MCPProtocolDescriptor --|> ProtocolDescriptor
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?cls
 WHERE {
-  ?cls rdfs:subClassOf* agentictrust:Descriptor .
+  ?cls rdfs:subClassOf* core:Descriptor .
 }
 ORDER BY ?cls
 ```
@@ -56,17 +56,17 @@ ORDER BY ?cls
 classDiagram
 direction LR
 
-class Descriptor["agentictrust:Descriptor"]
-class Endpoint["agentictrust:Endpoint"]
-class EndpointType["agentictrust:EndpointType"]
-class AgentSkill["agentictrust:AgentSkill"]
-class AgentSkillClassification["agentictrust:AgentSkillClassification"]
-class AgentDomain["agentictrust:AgentDomain"]
-class AgentDomainClassification["agentictrust:AgentDomainClassification"]
-class DID["agentictrust:DID"]
-class DomainName["agentictrust:DomainName"]
-class TrustType["agentictrust:TrustType"]
-class TrustModel["agentictrust:TrustModel"]
+class Descriptor["core:Descriptor"]
+class Endpoint["core:Endpoint"]
+class EndpointType["core:EndpointType"]
+class AgentSkill["core:AgentSkill"]
+class AgentSkillClassification["core:AgentSkillClassification"]
+class AgentDomain["core:AgentDomain"]
+class AgentDomainClassification["core:AgentDomainClassification"]
+class DID["core:DID"]
+class DomainName["core:DomainName"]
+class TrustType["core:TrustType"]
+class TrustModel["core:TrustModel"]
 
 Descriptor --> Endpoint : hasEndpoint
 Endpoint --> EndpointType : endpointType
@@ -92,12 +92,12 @@ note for DomainName "IETF DNS standards\n(RFC 1034, RFC 1035)"
 **SPARQL: identifiers and their descriptor**
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?identifier ?descriptor
 WHERE {
-  ?identifier a agentictrust:Identifier ;
-    agentictrust:hasDescriptor ?descriptor .
+  ?identifier a core:Identifier ;
+    core:hasDescriptor ?descriptor .
 }
 LIMIT 200
 ```
@@ -108,11 +108,11 @@ LIMIT 200
 classDiagram
 direction LR
 
-class AIAgent["agentictrust:AIAgent"]
+class AIAgent["core:AIAgent"]
     class AgentIdentity8004["erc8004:AgentIdentity8004"]
 class IdentityDescriptor8004["erc8004:IdentityDescriptor8004"]
-class AgentSkill["agentictrust:AgentSkill"]
-class AgentSkillClassification["agentictrust:AgentSkillClassification"]
+class AgentSkill["core:AgentSkill"]
+class AgentSkillClassification["core:AgentSkillClassification"]
 
 AIAgent --> AgentIdentity8004 : hasIdentity
 AgentIdentity8004 --> IdentityDescriptor8004 : hasDescriptor
@@ -123,18 +123,18 @@ AgentSkill --> AgentSkillClassification : hasSkillClassification
 **SPARQL: 8004 identity and its descriptor**
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT ?agent ?identity ?descriptor ?skill ?skillClass
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:hasIdentity ?identity .
+  ?agent a core:AIAgent ;
+    core:hasIdentity ?identity .
   ?identity a erc8004:AgentIdentity8004 ;
-    agentictrust:hasDescriptor ?descriptor .
+    core:hasDescriptor ?descriptor .
   OPTIONAL {
-    ?descriptor agentictrust:hasSkill ?skill .
-    OPTIONAL { ?skill agentictrust:hasSkillClassification ?skillClass . }
+    ?descriptor core:hasSkill ?skill .
+    OPTIONAL { ?skill core:hasSkillClassification ?skillClass . }
   }
 }
 LIMIT 200
@@ -146,9 +146,9 @@ LIMIT 200
 classDiagram
 direction LR
 
-class Protocol["agentictrust:Protocol"]
-class A2AProtocolDescriptor["agentictrust:A2AProtocolDescriptor"]
-class Descriptor["agentictrust:Descriptor"]
+class Protocol["core:Protocol"]
+class A2AProtocolDescriptor["core:A2AProtocolDescriptor"]
+class Descriptor["core:Descriptor"]
 
 Protocol --> A2AProtocolDescriptor : hasProtocolDescriptor
 A2AProtocolDescriptor --|> Descriptor
@@ -158,16 +158,16 @@ Descriptor --> A2AProtocolDescriptor : assembledFromMetadata
 **SPARQL: A2A protocol descriptors**
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?protocol ?descriptor ?serviceUrl ?protocolVersion ?preferredTransport
 WHERE {
-  ?protocol a agentictrust:Protocol ;
-    agentictrust:hasProtocolDescriptor ?descriptor .
-  ?descriptor a agentictrust:A2AProtocolDescriptor .
-  OPTIONAL { ?descriptor agentictrust:serviceUrl ?serviceUrl . }
-  OPTIONAL { ?descriptor agentictrust:protocolVersion ?protocolVersion . }
-  OPTIONAL { ?descriptor agentictrust:preferredTransport ?preferredTransport . }
+  ?protocol a core:Protocol ;
+    core:hasProtocolDescriptor ?descriptor .
+  ?descriptor a core:A2AProtocolDescriptor .
+  OPTIONAL { ?descriptor core:serviceUrl ?serviceUrl . }
+  OPTIONAL { ?descriptor core:protocolVersion ?protocolVersion . }
+  OPTIONAL { ?descriptor core:preferredTransport ?preferredTransport . }
 }
 LIMIT 200
 ```

@@ -34,7 +34,7 @@ These registry keys show up in HOL’s aggregated dataset and/or in our ingestio
 
 - **ERC-8004 (EVM)**
   - Concept: onchain agent identity registration + validation/feedback signals.
-  - Notes: strongest “anchor” when available; can be mapped into `agentictrust` Identity/Identifier + trust situations/assertions.
+  - Notes: strongest “anchor” when available; can be mapped into `core` Identity/Identifier + trust situations/assertions.
 
 - **ERC-8004 Solana**
   - Notes: ecosystem-specific realization of ERC-8004-style registry concepts on Solana (HOL lists `erc-8004-solana` as a source).

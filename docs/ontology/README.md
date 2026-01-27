@@ -2,11 +2,11 @@
 
 ## Quick Navigation
 
-- **[Ontology Overview](./agentictrust-overview.md)**: Design patterns, core classes, and key relationships
+- **[Ontology Overview](./core-overview.md)**: Design patterns, core classes, and key relationships
 - **[Philosophy](./philosophy.md)**: Modeling principles and alignment with ERC-8004/8092, DnS, PROV-O, p-plan, DIDs, OASF
 - **[Use Cases](#use-cases)**: Concrete end-to-end examples (intent → plan → tasks → skills → actions)
 - **[Documentation Index](#documentation-structure)**: Complete list of documentation files
-- **[Ontology Source Files](#ontology-source-files)**: Location of OWL files
+- **[Ontology Source Files](#ontology-source-files)**: Location of TTL files
 
 ## Introduction
 
@@ -38,7 +38,7 @@ The Agentic Trust information architecture integrates four complementary layers:
 #### 1. **Ontology** (Formal Knowledge Model)
 - **Purpose**: Defines classes, properties, and logical relationships with formal semantics
 - **Technology**: OWL 2, RDFS, SPARQL
-- **Example**: `agentictrust:TrustAssertion` is a class with properties `assertsRelationship`, `aboutSubject`, `generatedSituation`
+- **Example**: `core:TrustAssertion` is a class with properties `assertsRelationship`, `aboutSubject`, `generatedSituation`
 - **Characteristics**: Machine-interpretable, supports reasoning, enables inference
 
 #### 2. **Taxonomy** (Classification System)
@@ -65,7 +65,7 @@ The Agentic Trust information architecture integrates four complementary layers:
 ┌─────────────────────────────────────────────────────────────┐
 │                    Ontology (schema)                        │
 │  (Formal semantics: classes, properties, axioms)             │
-│  Example: agentictrust-core.owl                              │
+│  Example: apps/ontology/ontology/core.ttl                              │
 └─────────────────────────────────────────────────────────────┘
                             ↓ defines meaning for
 ┌─────────────────────────────────────────────────────────────┐
@@ -89,12 +89,12 @@ The Agentic Trust information architecture integrates four complementary layers:
 
 ### Identifiers and DIDs
 
-- **Identifier** (`agentictrust:Identifier` / `agentictrust:UniversalIdentifier`): the stable *identity anchor* you use in graphs and assertions (e.g., account identifier, ERC-8004 identifier, ENS name identifier).
-- **DID** (`agentictrust:DID`): a particular identifier format with an associated **DID method** (`did:...`) and resolution rules. DIDs are useful because different registries/ecosystems can standardize on different methods while still mapping into a shared ontology model.
+- **Identifier** (`core:Identifier` / `core:UniversalIdentifier`): the stable *identity anchor* you use in graphs and assertions (e.g., account identifier, ERC-8004 identifier, ENS name identifier).
+- **DID** (`core:DID`): a particular identifier format with an associated **DID method** (`did:...`) and resolution rules. DIDs are useful because different registries/ecosystems can standardize on different methods while still mapping into a shared ontology model.
 
 Examples of DID anchoring by ecosystem/registry:
-- **Ethereum accounts**: commonly anchored in `did:ethr` (e.g., an `agentictrustEth:AccountIdentifier` may have `agentictrustEth:hasDID` → a `agentictrust:DID` like `did:ethr:...`).
-- **ERC-8004 identities**: anchored in `did:8004:chainId:agentId` (represented as `erc8004:IdentityIdentifier8004`, and also linkable via `agentictrust:hasIdentifier`).
+- **Ethereum accounts**: commonly anchored in `did:ethr` (e.g., an `eth:AccountIdentifier` may have `eth:hasDID` → a `core:DID` like `did:ethr:...`).
+- **ERC-8004 identities**: anchored in `did:8004:chainId:agentId` (represented as `erc8004:IdentityIdentifier8004`, and also linkable via `core:hasIdentifier`).
 - **DNS / web-based identities**: commonly anchored in `did:web` (and other web/DNS-adjacent DID methods), aligning with name resolution and web PKI.
 
 Key idea: **Identifier** is the abstract model; **DID** is one concrete identifier family whose methods let you align different agent registries with different resolution/verification assumptions, without changing the core trust graph semantics.
@@ -118,12 +118,12 @@ graph TB
     end
     
     subgraph "AgenticTrust Core"
-        CORE["agentictrust-core<br/>Core Trust Model<br/>Agent, Identity, Trust Assertion"]
+        CORE["core-core<br/>Core Trust Model<br/>Agent, Identity, Trust Assertion"]
     end
     
     subgraph "AgenticTrust Modules (owl:imports)"
-        ETH["agentictrust-eth<br/>Ethereum extensions"]
-        DNS["agentictrust-dns<br/>DNS extensions"]
+        ETH["core-eth<br/>Ethereum extensions"]
+        DNS["core-dns<br/>DNS extensions"]
         NANDA["NANDA<br/>NANDA extensions"]
         ERC8004["ERC8004<br/>ERC-8004 extensions"]
         ERC8092["ERC8092<br/>ERC-8092 extensions"]
@@ -211,7 +211,7 @@ This allows modeling:
 
 ## AgenticTrust Ontology Overview
 
-> **Detailed Overview**: See [`agentictrust-overview.md`](./agentictrust-overview.md) for design patterns, class diagrams, and core relationships.
+> **Detailed Overview**: See [`core-overview.md`](./core-overview.md) for design patterns, class diagrams, and core relationships.
 
 The AgenticTrust ontology provides a comprehensive model for:
 
@@ -228,15 +228,15 @@ The AgenticTrust ontology provides a comprehensive model for:
 
 Generated ontology-wide diagrams live in [`./images/`](./images/README.md):
 
-- AgenticTrust core: `./images/agentictrust.png` (also `agentictrust.svg`)
+- AgenticTrust core: `./images/core.png` (also `core.svg`)
 - ERC8004: `./images/ERC8004.png` (also `ERC8004.svg`)
 - ERC8092: `./images/ERC8092.png` (also `ERC8092.svg`)
 
 ### Core Documentation
 
-AgenticTrust core (`agentictrust-core.owl`)
+AgenticTrust core (`apps/ontology/ontology/core.ttl`)
 
-- [`agentictrust-overview.md`](./agentictrust-overview.md): navigation + full diagram
+- [`core-overview.md`](./core-overview.md): navigation + full diagram
 - [`agent.md`](./agent.md): Agent class hierarchy (Person, Organization, SoftwareAgent, AIAgent, Account) and relationships to Identity, Identifier, Name, and Descriptors
 - [`agent-identity.md`](./agent-identity.md): Agent vs AgentIdentity (registry-scoped) vs Identifier (the thing vs the reference)
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly
@@ -266,7 +266,7 @@ ERC ontologies
 
 - [`erc8004.md`](./erc8004.md): ERC-8004 registration metadata + validation + feedback (with diagram)
 - [`erc8092.md`](./erc8092.md): ERC-8092 relationships/assertions/accounts (with diagram)
-- [`hol.md`](./hol.md): HOL ontology (`hol.owl`) documentation (AgentIdentityHOL, IdentityDescriptorHOL, AgentProfileHOL)
+- [`hol.md`](./hol.md): HOL ontology (`apps/ontology/ontology/hol.ttl`) documentation (AgentIdentityHOL, IdentityDescriptorHOL, AgentProfileHOL)
 - [`relationshipassertion.md`](./relationshipassertion.md): focused pattern: relationship assertion → account → controlling agent
 - [`relationships-roles-participation.md`](./relationships-roles-participation.md): relationship model with participants, roles, and qualified participation (core, eth, and ERC-8092 levels)
 - [`verificationassertion.md`](./verificationassertion.md): VerificationAssertion class hierarchy and property relationships

@@ -10,16 +10,16 @@ direction LR
 
 class provAgent["prov:Agent"]
 class provSoftwareAgent["prov:SoftwareAgent"]
-class Account["agentictrustEth:Account"]
+class Account["eth:Account"]
 
-class AIAgent["agentictrust:AIAgent"]
-class Relationship["agentictrust:Relationship"]
-class TrustAssertion["agentictrust:TrustAssertion"]
-class TrustAssertionAct["agentictrust:TrustAssertionAct"]
+class AIAgent["core:AIAgent"]
+class Relationship["core:Relationship"]
+class TrustAssertion["core:TrustAssertion"]
+class TrustAssertionAct["core:TrustAssertionAct"]
 
 class AssociatedAccounts["erc8092:AssociatedAccounts8092"]
 class AssociatedAccountsAct["erc8092:AssociatedAccountsAct8092"]
-class RelationshipTrustSituation["agentictrust:RelationshipTrustSituation"]
+class RelationshipTrustSituation["core:RelationshipTrustSituation"]
 
 AIAgent --|> provSoftwareAgent
 provSoftwareAgent --|> provAgent
@@ -27,28 +27,28 @@ Account --|> provSoftwareAgent
 
 provAgent --> TrustAssertion : hasTrustAssertion
 Account --> AssociatedAccounts : hasAssociatedAccounts (erc8092)
-AssociatedAccounts --> RelationshipTrustSituation : recordsSituation (agentictrust)
-RelationshipTrustSituation --> Relationship : aboutSubject (agentictrust)
+AssociatedAccounts --> RelationshipTrustSituation : recordsSituation (core)
+RelationshipTrustSituation --> Relationship : aboutSubject (core)
 
 AssociatedAccounts --> Account : initiator (erc8092)
 AssociatedAccounts --> Account : approver (erc8092)
 
-TrustAssertionAct --> RelationshipTrustSituation : assertsSituation (agentictrust)
-AssociatedAccountsAct --> AssociatedAccounts : generatedAssertionRecord (agentictrust)
+TrustAssertionAct --> RelationshipTrustSituation : assertsSituation (core)
+AssociatedAccountsAct --> AssociatedAccounts : generatedAssertionRecord (core)
 ```
 
 ### SPARQL Queries (demonstrating property relationships)
 
 **Query AssociatedAccounts8092 with its asserted relationship situation:**
 ```sparql
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?association ?situation ?relationship ?initiator ?approver ?initiatorAccountId ?approverAccountId
 WHERE {
   ?association a erc8092:AssociatedAccounts8092 .
-  OPTIONAL { ?association agentictrust:recordsSituation ?situation . }
-  OPTIONAL { ?situation a agentictrust:RelationshipTrustSituation ; agentictrust:aboutSubject ?relationship . }
+  OPTIONAL { ?association core:recordsSituation ?situation . }
+  OPTIONAL { ?situation a core:RelationshipTrustSituation ; core:aboutSubject ?relationship . }
   OPTIONAL { ?association erc8092:initiator ?initiator . }
   OPTIONAL { ?association erc8092:approver ?approver . }
   OPTIONAL { ?association erc8092:initiatorAccountId ?initiatorAccountId . }
@@ -63,14 +63,14 @@ WHERE {
   - `erc8092:initiatorAccount`
   - `erc8092:approverAccount`
 - It also references the participant **Accounts** directly:
-  - `erc8092:initiator` → `agentictrustEth:Account`
-  - `erc8092:approver` → `agentictrustEth:Account`
+  - `erc8092:initiator` → `eth:Account`
+  - `erc8092:approver` → `eth:Account`
 - Those accounts are connected to the controlling identity via:
-  - `erc8092:ownsRelationshipAccount` (domain `prov:Agent`, typically `agentictrust:AIAgent`)
+  - `erc8092:ownsRelationshipAccount` (domain `prov:Agent`, typically `core:AIAgent`)
 - The record points at a relationship trust situation:
-  - `agentictrust:recordsSituation` → `agentictrust:RelationshipTrustSituation`
+  - `core:recordsSituation` → `core:RelationshipTrustSituation`
 - The relationship links to participant Accounts via:
-  - `agentictrust:hasParticipant` → `agentictrustEth:Account` (inherited from core Relationship)
+  - `core:hasParticipant` → `eth:Account` (inherited from core Relationship)
 
 This gives you multiple query paths:
 

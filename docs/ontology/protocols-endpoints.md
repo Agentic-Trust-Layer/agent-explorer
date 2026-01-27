@@ -1,19 +1,19 @@
 # Protocol endpoints (A2A, MCP) and protocol-derived discovery metadata
 
-This page documents how we model **protocol endpoints** and how protocol metadata (especially **skills** and **domains**) flows into an `agentictrust:AgentDescriptor`.
+This page documents how we model **protocol endpoints** and how protocol metadata (especially **skills** and **domains**) flows into an `core:AgentDescriptor`.
 
 ## Abstract model: Endpoint vs ProtocolDescriptor
 
 There are two related layers:
 
-- **Endpoint (`agentictrust:Endpoint`)**: a concrete network/service address you can call (URL/URI).
-- **ProtocolDescriptor (`agentictrust:ProtocolDescriptor`)**: protocol-specific configuration and metadata that explains how to talk to an endpoint and what to expect.
+- **Endpoint (`core:Endpoint`)**: a concrete network/service address you can call (URL/URI).
+- **ProtocolDescriptor (`core:ProtocolDescriptor`)**: protocol-specific configuration and metadata that explains how to talk to an endpoint and what to expect.
 
 Key point: **Skills and domains are primarily protocol-defined**. The most reliable place to learn what an agent “can do” is its protocol metadata (e.g., A2A agent card, MCP tool list), not ad-hoc strings on an agent row.
 
 ## Endpoint types (abstract)
 
-Endpoints are normalized into `agentictrust:Endpoint` nodes, typically with an `agentictrust:EndpointType` describing what the endpoint is for.
+Endpoints are normalized into `core:Endpoint` nodes, typically with an `core:EndpointType` describing what the endpoint is for.
 
 Examples of endpoint “kinds” you’ll see in practice:
 
@@ -30,8 +30,8 @@ Protocol descriptors are **not** the same as endpoints:
 
 In the ontology, protocol descriptors are modeled as subclasses:
 
-- `agentictrust:A2AProtocolDescriptor` (A2A agent card metadata)
-- `agentictrust:MCPProtocolDescriptor` (MCP server/tool metadata)
+- `core:A2AProtocolDescriptor` (A2A agent card metadata)
+- `core:MCPProtocolDescriptor` (MCP server/tool metadata)
 
 ## A2A protocol (agent cards)
 
@@ -47,7 +47,7 @@ Typical fields we care about (names vary by implementation):
 
 **Modeling rule**:
 
-- The A2A agent card populates an `agentictrust:A2AProtocolDescriptor`.
+- The A2A agent card populates an `core:A2AProtocolDescriptor`.
 - The `AgentDescriptor` is then assembled from protocol descriptors; it may “restate” skills/domains for discovery, but the canonical source remains the protocol descriptor.
 
 ## MCP protocol (Model Context Protocol)
@@ -58,7 +58,7 @@ MCP is especially useful for discovery because it defines **tools** and (sometim
 
 **Modeling rule**:
 
-- MCP metadata populates an `agentictrust:MCPProtocolDescriptor`.
+- MCP metadata populates an `core:MCPProtocolDescriptor`.
 - Any derived skills/domains in `AgentDescriptor` should be treated as **protocol-derived** (from MCP tools/capabilities), not free-form labels.
 
 ## Descriptor assembly (why protocol-first matters)

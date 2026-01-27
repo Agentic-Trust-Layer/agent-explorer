@@ -27,20 +27,20 @@ How do we:
 The ontology already has the right backbone for this:
 
 - **Discovery inputs**
-  - `agentictrust:AgentRegistry` (registry context)
-  - `agentictrust:AgentIdentity` + Descriptor pattern (`agentictrust:hasDescriptor`)
-  - protocol-derived tool catalogs (`agentictrust:ProtocolDescriptor`, especially `agentictrust:MCPProtocolDescriptor`)
-  - skills/tools as `agentictrust:AgentSkillClassification` with `agentictrust:JsonSchema`
+  - `core:AgentRegistry` (registry context)
+  - `core:AgentIdentity` + Descriptor pattern (`core:hasDescriptor`)
+  - protocol-derived tool catalogs (`core:ProtocolDescriptor`, especially `core:MCPProtocolDescriptor`)
+  - skills/tools as `core:AgentSkillClassification` with `core:JsonSchema`
 - **Intent and task mapping**
-  - `agentictrust:IntentType` (why)
-  - `agentictrust:targetsSkill` (intent → skill)
-  - `agentictrust:TaskType` and `agentictrust:mapsToTaskType` (intent → task class)
+  - `core:IntentType` (why)
+  - `core:targetsSkill` (intent → skill)
+  - `core:TaskType` and `core:mapsToTaskType` (intent → task class)
 - **Execution trace**
-  - `agentictrust:TaskExecution` (prov:Activity)
-  - `agentictrust:SkillInvocation` (prov:Activity) + `agentictrust:invokesSkill`
+  - `core:TaskExecution` (prov:Activity)
+  - `core:SkillInvocation` (prov:Activity) + `core:invokesSkill`
 - **Governance + evidence**
-  - delegation chain: `prov:actedOnBehalfOf` (+ `agentictrust:delegatedBy`)
-  - accountable evidence: `agentictrust:Attestation` → `agentictrust:AttestedAssertion`
+  - delegation chain: `prov:actedOnBehalfOf` (+ `core:delegatedBy`)
+  - accountable evidence: `core:Attestation` → `core:AttestedAssertion`
 
 ## Pattern: “semantic discovery → candidate set → execute” (generic)
 
@@ -327,9 +327,9 @@ Below are the highest-signal missing patterns and the specific ontology addition
 
 **Ontology augmentation (recommended)**
 
-- `agentictrust:ToolCandidateSet` ⊑ `prov:Entity`
-- `agentictrust:hasCandidateSet` (TaskExecution or an orchestration Activity → ToolCandidateSet)
-- `agentictrust:candidateTool` (ToolCandidateSet → AgentSkillClassification)
+- `core:ToolCandidateSet` ⊑ `prov:Entity`
+- `core:hasCandidateSet` (TaskExecution or an orchestration Activity → ToolCandidateSet)
+- `core:candidateTool` (ToolCandidateSet → AgentSkillClassification)
 - Optional qualification node for score/rank (don’t overload literals onto the skill node).
 
 ### Pattern B: Tool selection is a provenance step separate from invocation
@@ -345,10 +345,10 @@ Below are the highest-signal missing patterns and the specific ontology addition
 
 **Ontology augmentation**
 
-- `agentictrust:ToolSelectionAct` ⊑ `prov:Activity`
-- `agentictrust:selectedTool` (ToolSelectionAct → AgentSkillClassification)
-- `agentictrust:selectionUsedCandidateSet` (ToolSelectionAct → ToolCandidateSet)
-- `agentictrust:selectionRationaleJson` (datatype; store model output / heuristic summary)
+- `core:ToolSelectionAct` ⊑ `prov:Activity`
+- `core:selectedTool` (ToolSelectionAct → AgentSkillClassification)
+- `core:selectionUsedCandidateSet` (ToolSelectionAct → ToolCandidateSet)
+- `core:selectionRationaleJson` (datatype; store model output / heuristic summary)
 
 ### Pattern C: Tool “contracts” (side-effects, risk, cost) drive governance
 
@@ -368,13 +368,13 @@ Below are the highest-signal missing patterns and the specific ontology addition
 
 **Ontology augmentation**
 
-- `agentictrust:ToolContract` ⊑ `prov:Entity`
-- `agentictrust:toolHasContract` (AgentSkillClassification → ToolContract)
+- `core:ToolContract` ⊑ `prov:Entity`
+- `core:toolHasContract` (AgentSkillClassification → ToolContract)
 - Datatype properties on ToolContract (start minimal):
-  - `agentictrust:sideEffectClass` (e.g., read / write / external)
-  - `agentictrust:piiSensitivity` (none / low / high)
-  - `agentictrust:estimatedCost` / `agentictrust:estimatedLatencyMs`
-  - `agentictrust:isIdempotent` (boolean)
+  - `core:sideEffectClass` (e.g., read / write / external)
+  - `core:piiSensitivity` (none / low / high)
+  - `core:estimatedCost` / `core:estimatedLatencyMs`
+  - `core:isIdempotent` (boolean)
 
 ### Pattern D: Policy decisions are objects (and are logged)
 
@@ -389,11 +389,11 @@ Below are the highest-signal missing patterns and the specific ontology addition
 
 **Ontology augmentation**
 
-- `agentictrust:PolicyDecision` ⊑ `prov:Entity`
-- `agentictrust:PolicyDecisionAct` ⊑ `prov:Activity`
-- `agentictrust:decisionAppliesToInvocation` (PolicyDecision → SkillInvocation)
-- `agentictrust:decisionOutcome` (allow/deny)
-- `agentictrust:decisionReasonJson` (datatype)
+- `core:PolicyDecision` ⊑ `prov:Entity`
+- `core:PolicyDecisionAct` ⊑ `prov:Activity`
+- `core:decisionAppliesToInvocation` (PolicyDecision → SkillInvocation)
+- `core:decisionOutcome` (allow/deny)
+- `core:decisionReasonJson` (datatype)
 
 ### Pattern E: Auth context for outbound calls is structured and portable
 
@@ -411,13 +411,13 @@ Below are the highest-signal missing patterns and the specific ontology addition
 
 **Ontology augmentation**
 
-- `agentictrust:AuthContext` ⊑ `prov:Entity`
-- `agentictrust:invocationAuthContext` (SkillInvocation → AuthContext)
+- `core:AuthContext` ⊑ `prov:Entity`
+- `core:invocationAuthContext` (SkillInvocation → AuthContext)
 - Minimal fields:
-  - `agentictrust:authSubject` (string or Identifier)
-  - `agentictrust:authAudience` (string)
-  - `agentictrust:authScopes` (string/JSON)
-  - `agentictrust:authMethod` (e.g., oauth, mtls, apiKey)
+  - `core:authSubject` (string or Identifier)
+  - `core:authAudience` (string)
+  - `core:authScopes` (string/JSON)
+  - `core:authMethod` (e.g., oauth, mtls, apiKey)
 
 ### Pattern F: Failure/compensation is part of orchestration, not an afterthought
 
@@ -432,11 +432,11 @@ Below are the highest-signal missing patterns and the specific ontology addition
 
 **Ontology augmentation**
 
-- `agentictrust:InvocationOutcome` ⊑ `prov:Entity`
-- `agentictrust:invocationOutcome` (SkillInvocation → InvocationOutcome)
-- `agentictrust:outcomeStatus` (success/failure/timeout)
-- `agentictrust:errorClass` (transient/permanent/policyDenied)
-- `agentictrust:retryOf` (SkillInvocation → SkillInvocation) for attempt chaining
+- `core:InvocationOutcome` ⊑ `prov:Entity`
+- `core:invocationOutcome` (SkillInvocation → InvocationOutcome)
+- `core:outcomeStatus` (success/failure/timeout)
+- `core:errorClass` (transient/permanent/policyDenied)
+- `core:retryOf` (SkillInvocation → SkillInvocation) for attempt chaining
 
 ### Pattern G: Orchestrator “handoff” and multi-agent dispatch are explicit events
 
@@ -451,9 +451,9 @@ Below are the highest-signal missing patterns and the specific ontology addition
 
 **Ontology augmentation**
 
-- `agentictrust:HandoffAct` ⊑ `prov:Activity`
-- `agentictrust:handoffFrom` / `agentictrust:handoffTo` (Agents/Deployments)
-- `agentictrust:handoffTask` (HandoffAct → Task)
+- `core:HandoffAct` ⊑ `prov:Activity`
+- `core:handoffFrom` / `core:handoffTo` (Agents/Deployments)
+- `core:handoffTask` (HandoffAct → Task)
 
 ### Recommendation priority (if we only do 3 things)
 

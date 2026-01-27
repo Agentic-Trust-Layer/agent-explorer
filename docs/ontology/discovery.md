@@ -2,7 +2,7 @@
 
 This document is the **overview** of the AgenticTrust discovery model, centered on the **Descriptor pattern** and how discovery queries hang together.
 
-Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
+Source: `apps/ontology/ontology/core.ttl`
 
 ## The Descriptor Pattern: Foundation of Discovery
 
@@ -11,10 +11,10 @@ Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
 ### How It Works
 
 1. **Entities Need Description**
-   - `agentictrust:AIAgent` - AI agents that need to be discovered
-   - `agentictrustEth:Account` - Ethereum accounts that need to be discovered
-   - `agentictrust:Protocol` - Communication protocols (A2A, MCP) that need to be discovered
-   - `agentictrust:Identifier` - Identifiers (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004, etc.) that need to be discovered
+   - `core:AIAgent` - AI agents that need to be discovered
+   - `eth:Account` - Ethereum accounts that need to be discovered
+   - `core:Protocol` - Communication protocols (A2A, MCP) that need to be discovered
+   - `core:Identifier` - Identifiers (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004, etc.) that need to be discovered
 
 2. **Resolvers Process Raw Data**
    - Resolvers fetch and aggregate metadata from multiple sources (on-chain registries, IPFS, agent cards, protocol endpoints)
@@ -22,12 +22,12 @@ Source: `apps/badge-admin/public/ontology/agentictrust-core.owl`
    - They produce Descriptors as first-class entities
 
 3. **Descriptors Hold Discovery Information**
-   - `agentictrust:AgentDescriptor` - Resolved metadata about an AI Agent (skills, endpoints, capabilities)
-   - `agentictrust:ProtocolDescriptor` - Resolved metadata about a Protocol (A2A, MCP configurations)
-   - `agentictrust:IdentifierDescriptor` - Resolved metadata about an Identifier (bindings, verification methods)
-   - `agentictrust:IdentityDescriptor` - Resolved metadata about an Identity (core, not protocol-specific)
-   - `agentictrust:NameDescriptor` - Resolved metadata about a Name (core, not protocol-specific)
-   - Protocol-specific descriptors: `agentictrustEth:AccountDescriptor`, `agentictrustEth:NameDescriptorENS`, `erc8004:IdentityDescriptor8004`
+   - `core:AgentDescriptor` - Resolved metadata about an AI Agent (skills, endpoints, capabilities)
+   - `core:ProtocolDescriptor` - Resolved metadata about a Protocol (A2A, MCP configurations)
+   - `core:IdentifierDescriptor` - Resolved metadata about an Identifier (bindings, verification methods)
+   - `core:IdentityDescriptor` - Resolved metadata about an Identity (core, not protocol-specific)
+   - `core:NameDescriptor` - Resolved metadata about a Name (core, not protocol-specific)
+   - Protocol-specific descriptors: `eth:AccountDescriptor`, `eth:NameDescriptorENS`, `erc8004:IdentityDescriptor8004`
 
 4. **Descriptors Enable Discovery**
    - Descriptors contain the normalized, assembled view used for discovery, validation, and interaction
@@ -50,34 +50,34 @@ Discovery Metadata (Skills, Domains, Tags, Endpoints, Schemas)
 classDiagram
 direction TB
 
-class AIAgent["agentictrust:AIAgent"]
-class Account["agentictrustEth:Account"]
-class Protocol["agentictrust:Protocol"]
-class Identifier["agentictrust:Identifier"]
-class Identity["agentictrust:Identity"]
-class Name["agentictrust:Name"]
+class AIAgent["core:AIAgent"]
+class Account["eth:Account"]
+class Protocol["core:Protocol"]
+class Identifier["core:Identifier"]
+class Identity["core:Identity"]
+class Name["core:Name"]
 class Identity8004["erc8004:Identity8004"]
 class NANDAIdentity["NANDAIdentity"]
-class NameENS["agentictrustEth:NameENS"]
+class NameENS["eth:NameENS"]
 class DNSName["DNSName"]
 
-class AgentDescriptor["agentictrust:AgentDescriptor"]
-class AccountDescriptor["agentictrustEth:AccountDescriptor"]
-class ProtocolDescriptor["agentictrust:ProtocolDescriptor"]
-class IdentifierDescriptor["agentictrust:IdentifierDescriptor"]
-class IdentityDescriptor["agentictrust:IdentityDescriptor"]
-class NameDescriptor["agentictrust:NameDescriptor"]
+class AgentDescriptor["core:AgentDescriptor"]
+class AccountDescriptor["eth:AccountDescriptor"]
+class ProtocolDescriptor["core:ProtocolDescriptor"]
+class IdentifierDescriptor["core:IdentifierDescriptor"]
+class IdentityDescriptor["core:IdentityDescriptor"]
+class NameDescriptor["core:NameDescriptor"]
 class Identity8004Descriptor["erc8004:IdentityDescriptor8004"]
 class NANDAIdentityDescriptor["NANDAIdentityDescriptor"]
-class NameDescriptorENS["agentictrustEth:NameDescriptorENS"]
+class NameDescriptorENS["eth:NameDescriptorENS"]
 class DNSNameDescriptor["DNSNameDescriptor"]
 
-class AgentSkill["agentictrust:AgentSkill"]
-class AgentSkillClassification["agentictrust:AgentSkillClassification"]
-class AgentDomain["agentictrust:AgentDomain"]
-class AgentDomainClassification["agentictrust:AgentDomainClassification"]
-class Tag["agentictrust:Tag"]
-class Endpoint["agentictrust:Endpoint"]
+class AgentSkill["core:AgentSkill"]
+class AgentSkillClassification["core:AgentSkillClassification"]
+class AgentDomain["core:AgentDomain"]
+class AgentDomainClassification["core:AgentDomainClassification"]
+class Tag["core:Tag"]
+class Endpoint["core:Endpoint"]
 
 AIAgent --> AgentDescriptor : hasDescriptor
 Account --> AccountDescriptor : hasDescriptor
@@ -101,47 +101,47 @@ AgentDescriptor --> Endpoint : hasEndpoint
 ### SPARQL Query: Entity Discovery via Descriptor
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?entity ?entityType ?descriptor ?descriptorType ?skill ?domain
 WHERE {
   # Entities that can be described
   {
-    ?entity a agentictrust:AIAgent .
+    ?entity a core:AIAgent .
     BIND("AIAgent" AS ?entityType)
   }
   UNION
   {
-    ?entity a agentictrustEth:Account .
+    ?entity a eth:Account .
     BIND("Account" AS ?entityType)
   }
   UNION
   {
-    ?entity a agentictrust:Protocol .
+    ?entity a core:Protocol .
     BIND("Protocol" AS ?entityType)
   }
   UNION
   {
-    ?entity a agentictrust:Identifier .
+    ?entity a core:Identifier .
     BIND("Identifier" AS ?entityType)
   }
 
   # Get Descriptor (resolver-produced)
-  ?entity agentictrust:hasDescriptor ?descriptor .
+  ?entity core:hasDescriptor ?descriptor .
   ?descriptor a ?descriptorType .
 
   # For AgentDescriptor, get discovery metadata
   OPTIONAL {
-    ?descriptor a agentictrust:AgentDescriptor .
+    ?descriptor a core:AgentDescriptor .
     OPTIONAL {
-      ?descriptor agentictrust:hasSkill ?agentSkill .
-      OPTIONAL { ?agentSkill agentictrust:hasSkillClassification ?skill . }
+      ?descriptor core:hasSkill ?agentSkill .
+      OPTIONAL { ?agentSkill core:hasSkillClassification ?skill . }
     }
     OPTIONAL {
-      ?descriptor agentictrust:hasDomain ?agentDomain .
-      OPTIONAL { ?agentDomain agentictrust:hasDomainClassification ?domain . }
+      ?descriptor core:hasDomain ?agentDomain .
+      OPTIONAL { ?agentDomain core:hasDomainClassification ?domain . }
     }
   }
 }

@@ -42,7 +42,7 @@ When a party submits reputation/feedback or performs a verification under delega
 
 using:
 
-- `agentictrust:wasAuthorizedByDelegation` (subPropertyOf `prov:wasAuthorizedBy`)
+- `core:wasAuthorizedByDelegation` (subPropertyOf `prov:wasAuthorizedBy`)
 
 ### Diagram: authorization link
 
@@ -59,24 +59,24 @@ graph LR
 ### Example (Turtle)
 
 ```turtle
-:FeedbackAssertion123 a agentictrust:ReputationTrustAssertion ;
-  agentictrust:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
+:FeedbackAssertion123 a core:ReputationTrustAssertion ;
+  core:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
 
-:VerificationAssertion789 a agentictrust:VerificationTrustAssertion ;
-  agentictrust:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
+:VerificationAssertion789 a core:VerificationTrustAssertion ;
+  core:wasAuthorizedByDelegation :FeedbackAuthDelegation456 .
 
-:FeedbackAuthDelegation456 a agentictrust:DelegationTrustAssertion .
+:FeedbackAuthDelegation456 a core:DelegationTrustAssertion .
 ```
 
 ## SPARQL: find reputation/verification assertions and the delegation that authorized them
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?assertion ?assertionType ?delegation
 WHERE {
-  ?assertion agentictrust:wasAuthorizedByDelegation ?delegation .
-  ?delegation a agentictrust:DelegationTrustAssertion .
+  ?assertion core:wasAuthorizedByDelegation ?delegation .
+  ?delegation a core:DelegationTrustAssertion .
   OPTIONAL { ?assertion a ?assertionType . }
 }
 ORDER BY ?assertion

@@ -1,27 +1,30 @@
-## HOL ontology (`hol.owl`)
+## HOL ontology (`apps/ontology/ontology/hol.ttl`)
 
-Source ontology: `apps/badge-admin/public/ontology/hol.owl`
+Source ontology: `apps/ontology/ontology/hol.ttl`
 
 This module models **HOL Universal Registry identity + profile descriptors** in the AgenticTrust graph.
 
-It is distinct from `agentictrust-hol.owl` (which models **HOL search-hit descriptors**). In practice:
+It includes both:
 
-- **`agentictrust-hol.owl`**: HOL `/api/v1/search` hits as a registry-produced descriptor (`agentictrust-hol:HOLAgentDescriptor`)
-- **`hol.owl`**: HOL identity + profile data as `hol:AgentIdentityHOL`, `hol:IdentityDescriptorHOL`, `hol:AgentProfileHOL`
+- **Search-hit descriptors**: HOL `/api/v1/search` hits as a registry-produced descriptor (`hol:HOLAgentDescriptor`)
+- **Identity/profile**: HOL identity + profile data as `hol:AgentIdentityHOL`, `hol:IdentityDescriptorHOL`, `hol:AgentProfileHOL`
 
 ### Core classes
 
-- **`hol:AgentIdentityHOL`**: HOL agent identity (subclass of `agentictrust:AgentIdentity`)
-- **`hol:IdentityIdentifierHOL`**: UAID-like identifier (subclass of `agentictrust:UniversalIdentifier`)
-- **`hol:IdentityDescriptorHOL`**: identity descriptor (subclass of `agentictrust:AgentIdentityDescriptor`)
-- **`hol:AgentProfileHOL`**: profile descriptor (subclass of `agentictrust:AgentIdentityDescriptor`)
+- **`hol:AgentIdentityHOL`**: HOL agent identity (subclass of `core:AgentIdentity`)
+- **`hol:IdentityIdentifierHOL`**: UAID-like identifier (subclass of `core:UniversalIdentifier`)
+- **`hol:IdentityDescriptorHOL`**: identity descriptor (subclass of `core:AgentIdentityDescriptor`)
+- **`hol:AgentProfileHOL`**: profile descriptor (subclass of `core:AgentIdentityDescriptor`)
+- **`hol:AIAgentHOL`**: agent class specialization under `core:AIAgent`
+- **`hol:HOLAgentDescriptor`**: HOL search-hit descriptor (subclass of `core:AgentDescriptor`)
 
 ### Core object properties
 
-- **`agentictrust:hasIdentity`**: `agentictrust:AIAgent → hol:AgentIdentityHOL`
-- **`agentictrust:hasIdentifier`**: `hol:AgentIdentityHOL → hol:IdentityIdentifierHOL`
-- **`agentictrust:hasDescriptor`**: `hol:AgentIdentityHOL → hol:IdentityDescriptorHOL`
-- **`hol:hasAgentProfileHOL`**: `agentictrust:AIAgent → hol:AgentProfileHOL`
+- **`core:hasIdentity`**: `core:AIAgent → hol:AgentIdentityHOL`
+- **`core:hasIdentifier`**: `hol:AgentIdentityHOL → hol:IdentityIdentifierHOL`
+- **`core:hasDescriptor`**: `hol:AgentIdentityHOL → hol:IdentityDescriptorHOL`
+- **`hol:hasAgentProfileHOL`**: `hol:AgentIdentityHOL → hol:AgentProfileHOL`
+- **`hol:hasHOLAgentDescriptor`**: `core:AIAgent → hol:HOLAgentDescriptor` (subPropertyOf `core:hasDescriptor`)
 
 ### Diagram (identity + descriptors)
 
@@ -29,7 +32,7 @@ It is distinct from `agentictrust-hol.owl` (which models **HOL search-hit descri
 classDiagram
 direction LR
 
-class AIAgent["agentictrust:AIAgent"]
+class AIAgent["core:AIAgent"]
 class AgentIdentityHOL["hol:AgentIdentityHOL"]
 class IdentityIdentifierHOL["hol:IdentityIdentifierHOL"]
 class IdentityDescriptorHOL["hol:IdentityDescriptorHOL"]
@@ -38,7 +41,7 @@ class AgentProfileHOL["hol:AgentProfileHOL"]
 AIAgent --> AgentIdentityHOL : hasIdentity
 AgentIdentityHOL --> IdentityIdentifierHOL : hasIdentifier
 AgentIdentityHOL --> IdentityDescriptorHOL : hasDescriptor
-AIAgent --> AgentProfileHOL : hasAgentProfileHOL
+AgentIdentityHOL --> AgentProfileHOL : hasAgentProfileHOL
 
 note for IdentityIdentifierHOL "UAID-like identifier string\n(type hol:IdentifierType_HOL)"
 note for AgentProfileHOL "Profile data extracted from rawJson\n+ descriptorName/Description/Image (core)"
@@ -46,7 +49,7 @@ note for AgentProfileHOL "Profile data extracted from rawJson\n+ descriptorName/
 
 ### AgentProfileHOL fields (high-signal)
 
-`hol:AgentProfileHOL` carries HOL-specific fields (all datatypes in `hol.owl`):
+`hol:AgentProfileHOL` carries HOL-specific fields (all datatypes in `apps/ontology/ontology/hol.ttl`):
 
 - **Identity/provenance-ish**: `hol:uaid`, `hol:originalId`, `hol:registry`
 - **Profile strings**: `hol:displayName`, `hol:alias`, `hol:bio`
@@ -56,26 +59,26 @@ note for AgentProfileHOL "Profile data extracted from rawJson\n+ descriptorName/
 - **Adapter/protocol**: `hol:adapter`, `hol:protocol`, `hol:aiagentCreator`, `hol:aiagentModel`, `hol:communicationSupported`, `hol:routingSupported`
 - **Indexing**: `hol:lastIndexed`, `hol:lastSeen`
 
-Also, because it’s a `agentictrust:Descriptor`, it can use core descriptor relations like:
+Also, because it’s a `core:Descriptor`, it can use core descriptor relations like:
 
-- `agentictrust:hasEndpoint` → `agentictrust:Endpoint`
-- `agentictrust:hasCapability` → `agentictrust:Capability`
-- `agentictrust:supportsProtocol` → `agentictrust:ProtocolType`
-- `agentictrust:hasSkill` → `agentictrust:AgentSkill` → `agentictrust:hasSkillClassification` → `agentictrust:OASFSkill`
+- `core:hasEndpoint` → `core:Endpoint`
+- `core:hasCapability` → `core:Capability`
+- `core:supportsProtocol` → `core:ProtocolType`
+- `core:hasSkill` → `core:AgentSkill` → `core:hasSkillClassification` → `core:OASFSkill`
 
 ### SPARQL examples (HOL agents)
 
 #### List HOL agents with identity + profile
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX hol: <https://www.agentictrust.io/ontology/hol#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX hol: <https://www.core.io/ontology/hol#>
 
 SELECT ?agent ?agentId ?identity ?profile ?registry ?trustScore
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId ;
-    agentictrust:hasIdentity ?identity ;
+  ?agent a core:AIAgent ;
+    core:agentId ?agentId ;
+    core:hasIdentity ?identity ;
     hol:hasAgentProfileHOL ?profile .
 
   OPTIONAL { ?profile hol:registry ?registry . }
@@ -88,8 +91,8 @@ LIMIT 200
 #### AgentProfileHOL attributes for a specific registry (example: `erc-8004`)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX hol: <https://www.agentictrust.io/ontology/hol#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX hol: <https://www.core.io/ontology/hol#>
 
 SELECT
   ?agent ?agentId ?identity ?profile ?registry ?trustScore
@@ -99,9 +102,9 @@ SELECT
   ?adapter ?protocol ?aiagentCreator ?aiagentModel ?communicationSupported ?routingSupported
   ?imageStatus ?lastIndexed ?lastSeen
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId ;
-    agentictrust:hasIdentity ?identity ;
+  ?agent a core:AIAgent ;
+    core:agentId ?agentId ;
+    core:hasIdentity ?identity ;
     hol:hasAgentProfileHOL ?profile .
 
   ?profile hol:registry "erc-8004" .
@@ -144,17 +147,17 @@ LIMIT 200
 #### Profile endpoints (safe IRIs only)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX hol: <https://www.agentictrust.io/ontology/hol#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX hol: <https://www.core.io/ontology/hol#>
 
 SELECT ?agentId ?profile ?endpoint ?url
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId ;
+  ?agent a core:AIAgent ;
+    core:agentId ?agentId ;
     hol:hasAgentProfileHOL ?profile .
 
-  ?profile agentictrust:hasEndpoint ?endpoint .
-  OPTIONAL { ?endpoint agentictrust:endpointUrl ?url . }
+  ?profile core:hasEndpoint ?endpoint .
+  OPTIONAL { ?endpoint core:endpointUrl ?url . }
 }
 ORDER BY ?agentId ?endpoint
 LIMIT 200
@@ -163,18 +166,18 @@ LIMIT 200
 #### OASF skills declared on profiles
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX hol: <https://www.agentictrust.io/ontology/hol#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX hol: <https://www.core.io/ontology/hol#>
 
 SELECT ?agentId ?profile ?agentSkill ?skillClass ?oasfSkillId
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId ;
+  ?agent a core:AIAgent ;
+    core:agentId ?agentId ;
     hol:hasAgentProfileHOL ?profile .
 
-  ?profile agentictrust:hasSkill ?agentSkill .
-  ?agentSkill agentictrust:hasSkillClassification ?skillClass .
-  OPTIONAL { ?skillClass agentictrust:oasfSkillId ?oasfSkillId . }
+  ?profile core:hasSkill ?agentSkill .
+  ?agentSkill core:hasSkillClassification ?skillClass .
+  OPTIONAL { ?skillClass core:oasfSkillId ?oasfSkillId . }
 }
 ORDER BY ?agentId ?oasfSkillId
 LIMIT 200

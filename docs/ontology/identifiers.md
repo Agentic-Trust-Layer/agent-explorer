@@ -17,26 +17,26 @@ The AgenticTrust ontology uses a layered identity model that separates:
 
 ```
 Agent (prov:Agent)
-  ├─ hasIdentifier → Identifier (agentictrustEth:AccountIdentifier, agentictrustEth:NameIdentifierENS, erc8004:IdentityIdentifier8004)
+  ├─ hasIdentifier → Identifier (eth:AccountIdentifier, eth:NameIdentifierENS, erc8004:IdentityIdentifier8004)
   │   └─ hasDID → DID
-  ├─ agentictrust:hasIdentity → erc8004:AgentIdentity8004
+  ├─ core:hasIdentity → erc8004:AgentIdentity8004
   │   ├─ hasIdentifier → erc8004:IdentityIdentifier8004
   │   └─ hasDescriptor → erc8004:IdentityDescriptor8004
-  ├─ agentictrust:hasName → agentictrustEth:AgentNameENS
-  │   ├─ hasIdentifier → agentictrustEth:NameIdentifierENS
-  │   └─ hasDescriptor → agentictrustEth:AgentNameENSDescriptor
-  ├─ agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier
-  │   └─ agentictrustEth:hasDID → agentictrust:DID
+  ├─ core:hasName → eth:AgentNameENS
+  │   ├─ hasIdentifier → eth:NameIdentifierENS
+  │   └─ hasDescriptor → eth:AgentNameENSDescriptor
+  ├─ eth:hasAccountIdentifier → eth:AccountIdentifier
+  │   └─ eth:hasDID → core:DID
   └─ hasAgentDescriptor → AgentDescriptor
       └─ hasDescriptor → AgentDescriptor
 
-Account (agentictrustEth:Account, subclass of prov:SoftwareAgent)
+Account (eth:Account, subclass of prov:SoftwareAgent)
   ├─ hasIdentifier → AccountIdentifier (inherited from prov:Agent)
   │   └─ hasDID → DID
   └─ accountAddress, accountChainId, accountType
 ```
 
-**Note**: `hasIdentifier` is now defined at the `prov:Agent` level in `agentictrust-core.owl`, so all Agent subclasses (including `AIAgent` and `Account` as `SoftwareAgent`) inherit this property.
+**Note**: `hasIdentifier` is now defined at the `prov:Agent` level in `apps/ontology/ontology/core.ttl`, so all Agent subclasses (including `AIAgent` and `Account` as `SoftwareAgent`) inherit this property.
 
 ## Class Hierarchy
 
@@ -61,19 +61,19 @@ classDiagram
         <<erc8004>>
     }
     class NameIdentifierENS {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class AccountIdentifier {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class Account {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class AgentName {
         <<abstract>>
     }
     class AgentNameENS {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class AgentIdentity8004 {
     }
@@ -103,16 +103,16 @@ classDiagram
         <<erc8004>>
     }
     class AccountIdentifier {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class NameIdentifierENS {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class Account {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class AgentNameENS {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class AgentIdentity8004 {
     }
@@ -139,12 +139,12 @@ classDiagram
     Identifier --> DID : hasDID
     Identifier --> IdentifierType : identifierType
     
-    note for Identifier "identifierType values:\n- erc8004:IdentifierType_8004\n- agentictrustEth:IdentifierType_account\n- agentictrustEth:IdentifierType_ens"
+    note for Identifier "identifierType values:\n- erc8004:IdentifierType_8004\n- eth:IdentifierType_account\n- eth:IdentifierType_ens"
     note for DID "identifies points to\nIdentifier, not Agent"
-    note for AgentIdentity8004 "agentictrust:hasIdentity\nerc8004:AgentIdentity8004"
+    note for AgentIdentity8004 "core:hasIdentity\nerc8004:AgentIdentity8004"
     note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004"
-    note for AgentNameENS "agentictrust:hasName"
-    note for AccountIdentifier "agentictrustEth:hasAccountIdentifier\n(inverse) ^agentictrustEth:hasIdentifier"
+    note for AgentNameENS "core:hasName"
+    note for AccountIdentifier "eth:hasAccountIdentifier\n(inverse) ^eth:hasIdentifier"
 ```
 
 ## Focused diagrams (Account, NameENS, Identity8004)
@@ -162,9 +162,9 @@ classDiagram
     Account --> AccountIdentifier : hasIdentifier
     AccountIdentifier --> DID : hasDID
     
-    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience subproperty: agentictrustEth:hasAccountIdentifier"
-    note for AccountIdentifier "agentictrustEth:AccountIdentifier\n(inverse) ^agentictrustEth:hasIdentifier\nagentictrustEth:hasDID"
-    note for Account "agentictrustEth:Account\nSubclass of prov:SoftwareAgent\nInherits hasIdentifier from prov:Agent\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
+    note for AIAgent "Canonical link: core:hasIdentifier\nConvenience subproperty: eth:hasAccountIdentifier"
+    note for AccountIdentifier "eth:AccountIdentifier\n(inverse) ^eth:hasIdentifier\nagentictrustEth:hasDID"
+    note for Account "eth:Account\nSubclass of prov:SoftwareAgent\nInherits hasIdentifier from prov:Agent\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
 ```
 
 ### Agent ↔ NameIdentifierENS ↔ NameENS (+ DID) (eth)
@@ -180,9 +180,9 @@ classDiagram
     NameENS --> NameIdentifierENS : hasIdentifier
     NameIdentifierENS --> DID : hasDID
     
-    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nConvenience link to Name: agentictrust:hasName"
-    note for NameENS "agentictrustEth:NameENS\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
-    note for NameIdentifierENS "agentictrustEth:NameIdentifierENS\nagentictrustEth:IdentifierType_ens"
+    note for AIAgent "Canonical link: core:hasIdentifier\nConvenience link to Name: core:hasName"
+    note for NameENS "eth:NameENS\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
+    note for NameIdentifierENS "eth:NameIdentifierENS\nagentictrustEth:IdentifierType_ens"
 ```
 
 ### Agent ↔ IdentityIdentifier8004 ↔ Identity8004 (+ DID) (erc8004)
@@ -198,7 +198,7 @@ classDiagram
     Identity8004 --> IdentityIdentifier8004 : hasIdentifier
     IdentityIdentifier8004 --> DID : hasDID
     
-    note for AIAgent "Canonical link: agentictrust:hasIdentifier\nERC identity bundle: agentictrust:hasIdentity"
+    note for AIAgent "Canonical link: core:hasIdentifier\nERC identity bundle: core:hasIdentity"
     note for AgentIdentity8004 "erc8004:AgentIdentity8004"
     note for IdentityIdentifier8004 "erc8004:IdentityIdentifier8004\nerc8004:IdentifierType_8004"
 ```
@@ -210,22 +210,22 @@ The complete script is in: `docs/ontology/sparql/identifiers-account-ens-8004.sp
 ### Agent → AccountIdentifier → Account (+ DID)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT ?agent ?agentId ?accountIdentifier ?account ?chainId ?address ?accountType ?did
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
-  ?agent agentictrust:hasIdentifier ?accountIdentifier .
-  ?accountIdentifier a agentictrustEth:AccountIdentifier .
-  OPTIONAL { ?accountIdentifier agentictrust:hasDID ?did . }
+  ?agent core:hasIdentifier ?accountIdentifier .
+  ?accountIdentifier a eth:AccountIdentifier .
+  OPTIONAL { ?accountIdentifier core:hasDID ?did . }
 
-  ?account agentictrust:hasIdentifier ?accountIdentifier .
-  OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
-  OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
-  OPTIONAL { ?account agentictrustEth:accountType ?accountType . }
+  ?account core:hasIdentifier ?accountIdentifier .
+  OPTIONAL { ?account eth:accountChainId ?chainId . }
+  OPTIONAL { ?account eth:accountAddress ?address . }
+  OPTIONAL { ?account eth:accountType ?accountType . }
 }
 ORDER BY ?agentId
 ```
@@ -233,24 +233,24 @@ ORDER BY ?agentId
 ### Agent → NameIdentifierENS → NameENS (+ DID)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?ensName ?ensNameValue ?ensIdentifier ?did
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
-  ?agent agentictrust:hasIdentifier ?ensIdentifier .
-  ?ensIdentifier a agentictrustEth:NameIdentifierENS .
+  ?agent core:hasIdentifier ?ensIdentifier .
+  ?ensIdentifier a eth:NameIdentifierENS .
   OPTIONAL { ?ensIdentifier rdfs:label ?ensNameValue . }
-  OPTIONAL { ?ensIdentifier agentictrust:hasDID ?did . }
+  OPTIONAL { ?ensIdentifier core:hasDID ?did . }
 
   OPTIONAL {
-    ?ensName a agentictrustEth:AgentNameENS ;
-      agentictrustEth:hasIdentifier ?ensIdentifier .
-    OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
+    ?ensName a eth:AgentNameENS ;
+      eth:hasIdentifier ?ensIdentifier .
+    OPTIONAL { ?ensName eth:ensName ?ensNameValue . }
   }
 }
 ORDER BY ?agentId
@@ -259,21 +259,21 @@ ORDER BY ?agentId
 ### Agent → IdentityIdentifier8004 → Identity8004 (+ DID)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId ?identity8004 ?identityIdentifier ?did
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
-  ?agent agentictrust:hasIdentifier ?identityIdentifier .
+  ?agent core:hasIdentifier ?identityIdentifier .
   ?identityIdentifier a erc8004:IdentityIdentifier8004 .
-  OPTIONAL { ?identityIdentifier agentictrust:hasDID ?did . }
+  OPTIONAL { ?identityIdentifier core:hasDID ?did . }
 
   OPTIONAL {
     ?identity8004 a erc8004:AgentIdentity8004 ;
-      agentictrust:hasIdentifier ?identityIdentifier .
+      core:hasIdentifier ?identityIdentifier .
   }
 }
 ORDER BY ?agentId
@@ -282,34 +282,34 @@ ORDER BY ?agentId
 ### One row per agent (Account + ENS + Identity8004)
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId
   ?accountIdentifier ?account ?chainId ?address
   ?ensName ?ensNameValue ?ensIdentifier
   ?identity8004 ?identityIdentifier
 WHERE {
-  ?agent a agentictrust:AIAgent .
-  OPTIONAL { ?agent agentictrust:agentId ?agentId . }
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:agentId ?agentId . }
 
   OPTIONAL {
-    ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?account agentictrust:hasIdentifier ?accountIdentifier .
-    OPTIONAL { ?account agentictrustEth:accountChainId ?chainId . }
-    OPTIONAL { ?account agentictrustEth:accountAddress ?address . }
+    ?agent eth:hasAccountIdentifier ?accountIdentifier .
+    ?account core:hasIdentifier ?accountIdentifier .
+    OPTIONAL { ?account eth:accountChainId ?chainId . }
+    OPTIONAL { ?account eth:accountAddress ?address . }
   }
 
   OPTIONAL {
-    ?agent agentictrust:hasName ?ensName .
-    OPTIONAL { ?ensName agentictrustEth:ensName ?ensNameValue . }
-    OPTIONAL { ?ensName agentictrustEth:hasIdentifier ?ensIdentifier . }
+    ?agent core:hasName ?ensName .
+    OPTIONAL { ?ensName eth:ensName ?ensNameValue . }
+    OPTIONAL { ?ensName eth:hasIdentifier ?ensIdentifier . }
   }
 
   OPTIONAL {
-    ?agent agentictrust:hasIdentity ?identity8004 .
-    OPTIONAL { ?identity8004 agentictrust:hasIdentifier ?identityIdentifier . }
+    ?agent core:hasIdentity ?identity8004 .
+    OPTIONAL { ?identity8004 core:hasIdentifier ?identityIdentifier . }
   }
 }
 ORDER BY ?agentId
@@ -328,10 +328,10 @@ classDiagram
     class AgentIdentity8004 {
     }
     class AgentNameENS {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class Account {
-        <<agentictrustEth>>
+        <<eth>>
     }
     class Descriptor {
         <<abstract>>
@@ -356,9 +356,9 @@ classDiagram
     Account --> AccountDescriptor : hasDescriptor
     
     note for IdentityDescriptor8004 "erc8004:IdentityDescriptor8004"
-    note for AgentNameENSDescriptor "agentictrustEth:AgentNameENSDescriptor"
-    note for AccountDescriptor "agentictrustEth:AccountDescriptor"
-    note for AIAgent "agentictrust:hasAgentDescriptor\nagentictrust:hasDescriptor"
+    note for AgentNameENSDescriptor "eth:AgentNameENSDescriptor"
+    note for AccountDescriptor "eth:AccountDescriptor"
+    note for AIAgent "core:hasAgentDescriptor\nagentictrust:hasDescriptor"
     
     Descriptor <|-- AgentDescriptor
     Descriptor <|-- IdentifierDescriptor
@@ -369,7 +369,7 @@ classDiagram
 
 ## Identifier Types
 
-### 1. IdentityIdentifier8004 (ERC8004.owl)
+### 1. IdentityIdentifier8004 (apps/ontology/ontology/erc8004.ttl)
 
 **Purpose**: ERC-8004 agent identity identifier representing the agent's on-chain identity in the ERC-8004 registry.
 
@@ -385,25 +385,25 @@ classDiagram
 
 **Example**:
 ```turtle
-<https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1>
-  a agentictrust:AIAgent ;
-  agentictrust:hasIdentity <https://www.agentictrust.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1> ;
-  agentictrust:hasIdentifier <https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
+<https://www.core.io/id/agent/did%3A8004%3A84532%3A1>
+  a core:AIAgent ;
+  core:hasIdentity <https://www.core.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1> ;
+  core:hasIdentifier <https://www.core.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
 
-<https://www.agentictrust.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1>
+<https://www.core.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1>
   a erc8004:AgentIdentity8004 ;
-  agentictrust:hasIdentifier <https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
+  core:hasIdentifier <https://www.core.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
 
-<https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1>
+<https://www.core.io/id/identifier/8004/did%3A8004%3A84532%3A1>
   a erc8004:IdentityIdentifier8004,
-    agentictrust:UniversalIdentifier,
-    agentictrust:Identifier,
+    core:UniversalIdentifier,
+    core:Identifier,
     prov:Entity ;
-  agentictrust:identifierType erc8004:IdentifierType_8004 ;
-  agentictrust:hasDID <https://www.agentictrust.io/id/did/did%3A8004%3A84532%3A1> .
+  core:identifierType erc8004:IdentifierType_8004 ;
+  core:hasDID <https://www.core.io/id/did/did%3A8004%3A84532%3A1> .
 ```
 
-### 2. NameIdentifierENS (agentictrust-eth.owl)
+### 2. NameIdentifierENS (apps/ontology/ontology/eth.ttl)
 
 **Purpose**: ENS (Ethereum Name Service) name identifier. Represents a human-readable ENS name (e.g., `agent.eth`) that resolves to an Ethereum address.
 
@@ -412,71 +412,71 @@ classDiagram
 **DID Format**: `did:ens:chainId:name.eth`
 
 **Properties**:
-- `identifierType`: `agentictrustEth:IdentifierType_ens`
+- `identifierType`: `eth:IdentifierType_ens`
 - `hasDID`: Links to `did:ens:...` DID
 - `rdfs:label`: The ENS name (e.g., `agent.eth`)
 
 **Access Pattern**:
-- Direct: `Agent → hasIdentifier → agentictrustEth:NameIdentifierENS`
-- Via AgentNameENS: `Agent → hasName → agentictrustEth:AgentNameENS → agentictrustEth:hasIdentifier → agentictrustEth:NameIdentifierENS`
+- Direct: `Agent → hasIdentifier → eth:NameIdentifierENS`
+- Via AgentNameENS: `Agent → hasName → eth:AgentNameENS → eth:hasIdentifier → eth:NameIdentifierENS`
 
 **Example**:
 ```turtle
-<https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1811>
-  a agentictrust:AIAgent ;
-  agentictrust:hasName <https://www.agentictrust.io/id/ens-name/84532/levi.agnt.eth> ;
-  agentictrust:hasIdentifier <https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth> .
+<https://www.core.io/id/agent/did%3A8004%3A84532%3A1811>
+  a core:AIAgent ;
+  core:hasName <https://www.core.io/id/ens-name/84532/levi.agnt.eth> ;
+  core:hasIdentifier <https://www.core.io/id/identifier/ens/levi.agnt.eth> .
 
-<https://www.agentictrust.io/id/ens-name/84532/levi.agnt.eth>
-  a agentictrustEth:AgentNameENS, agentictrust:AgentName, prov:Entity ;
-  agentictrustEth:ensName "levi.agnt.eth" ;
-  agentictrustEth:ensChainId 84532 ;
-  agentictrustEth:hasIdentifier <https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth> .
+<https://www.core.io/id/ens-name/84532/levi.agnt.eth>
+  a eth:AgentNameENS, core:AgentName, prov:Entity ;
+  eth:ensName "levi.agnt.eth" ;
+  eth:ensChainId 84532 ;
+  eth:hasIdentifier <https://www.core.io/id/identifier/ens/levi.agnt.eth> .
 
-<https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth>
-  a agentictrustEth:NameIdentifierENS,
-    agentictrust:Identifier,
+<https://www.core.io/id/identifier/ens/levi.agnt.eth>
+  a eth:NameIdentifierENS,
+    core:Identifier,
     prov:Entity ;
-  agentictrust:identifierType agentictrustEth:IdentifierType_ens ;
-  agentictrust:hasDID <https://www.agentictrust.io/id/did/did%3Aens%3A84532%3Alevi.agnt.eth> ;
+  core:identifierType eth:IdentifierType_ens ;
+  core:hasDID <https://www.core.io/id/did/did%3Aens%3A84532%3Alevi.agnt.eth> ;
   rdfs:label "levi.agnt.eth" .
 ```
 
-### 3. AccountIdentifier (agentictrust-eth.owl)
+### 3. AccountIdentifier (apps/ontology/ontology/eth.ttl)
 
 **Purpose**: Identifier for an Ethereum Account, linking to the Account entity and its DID.
 
 **Properties**:
-- `identifierType`: `agentictrustEth:IdentifierType_account`
-- `agentictrustEth:hasDID`: Links to DID (via `agentictrustEth:hasDID`)
+- `identifierType`: `eth:IdentifierType_account`
+- `eth:hasDID`: Links to DID (via `eth:hasDID`)
 
 **Access Pattern**:
-- Direct: `Agent → agentictrust:hasIdentifier → agentictrustEth:AccountIdentifier` (inherited from prov:Agent)
-- Via hasAccountIdentifier: `Agent → agentictrustEth:hasAccountIdentifier → agentictrustEth:AccountIdentifier` and `Account → agentictrust:hasIdentifier → agentictrustEth:AccountIdentifier` (inherited from prov:Agent; inverse in SPARQL: `AccountIdentifier → ^agentictrust:hasIdentifier → Account`)
+- Direct: `Agent → core:hasIdentifier → eth:AccountIdentifier` (inherited from prov:Agent)
+- Via hasAccountIdentifier: `Agent → eth:hasAccountIdentifier → eth:AccountIdentifier` and `Account → core:hasIdentifier → eth:AccountIdentifier` (inherited from prov:Agent; inverse in SPARQL: `AccountIdentifier → ^core:hasIdentifier → Account`)
 
 **Example**:
 ```turtle
-<https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1811>
-  a agentictrust:AIAgent ;
-  agentictrust:hasIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> ;
-  agentictrustEth:hasAccountIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> .
+<https://www.core.io/id/agent/did%3A8004%3A84532%3A1811>
+  a core:AIAgent ;
+  core:hasIdentifier <https://www.core.io/id/account-identifier/84532/0x1234...> ;
+  eth:hasAccountIdentifier <https://www.core.io/id/account-identifier/84532/0x1234...> .
 
-<https://www.agentictrust.io/id/account-identifier/84532/0x1234...>
-  a agentictrustEth:AccountIdentifier,
-    agentictrust:Identifier,
+<https://www.core.io/id/account-identifier/84532/0x1234...>
+  a eth:AccountIdentifier,
+    core:Identifier,
     prov:Entity ;
-  agentictrust:identifierType agentictrustEth:IdentifierType_account ;
-  agentictrustEth:hasDID <https://www.agentictrust.io/id/did/did%3Aethr%3A84532%3A0x1234...> .
+  core:identifierType eth:IdentifierType_account ;
+  eth:hasDID <https://www.core.io/id/did/did%3Aethr%3A84532%3A0x1234...> .
 
-<https://www.agentictrust.io/id/account/84532/0x1234...>
-  a agentictrustEth:Account, prov:Entity ;
-  agentictrustEth:accountChainId 84532 ;
-  agentictrustEth:accountAddress "0x1234..." ;
-  agentictrustEth:accountType "SmartAccount" ;
-  agentictrust:hasIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> .
+<https://www.core.io/id/account/84532/0x1234...>
+  a eth:Account, prov:Entity ;
+  eth:accountChainId 84532 ;
+  eth:accountAddress "0x1234..." ;
+  eth:accountType "SmartAccount" ;
+  core:hasIdentifier <https://www.core.io/id/account-identifier/84532/0x1234...> .
 ```
 
-### 4. Account (agentictrust-eth.owl)
+### 4. Account (apps/ontology/ontology/eth.ttl)
 
 **Purpose**: Ethereum account entity (EOA or Smart Account) identified by chainId and address. Represents the actual account on-chain.
 
@@ -484,13 +484,13 @@ classDiagram
 - `accountChainId`: EVM chain ID (e.g., 1 for mainnet, 11155111 for Sepolia)
 - `accountAddress`: Ethereum account address (0x-prefixed hex string, 42 characters)
 - `accountType`: `"EOA"` or `"SmartAccount"`
-- `hasIdentifier`: Links to `AccountIdentifier` (inherited from `prov:Agent`, defined in `agentictrust-core.owl`)
+- `hasIdentifier`: Links to `AccountIdentifier` (inherited from `prov:Agent`, defined in `apps/ontology/ontology/core.ttl`)
 - `hasEOAOwner`: Links to EOA owner (for Smart Accounts)
 - `signingAuthority`: Links to signing authority account
 
 **Note**: `Account` is a subclass of `prov:SoftwareAgent` (not just `prov:Entity`), enabling it to participate in relationships as an Agent and inherit `hasIdentifier` from `prov:Agent`. It's NOT a subclass of `Identifier`; it's a separate entity linked via `AccountIdentifier`.
 
-### 5. DID (Decentralized Identifier) (agentictrust-core.owl)
+### 5. DID (Decentralized Identifier) (apps/ontology/ontology/core.ttl)
 
 **Purpose**: Decentralized Identifier following W3C DID specification. Linked to identifiers via `hasDID` property.
 
@@ -518,7 +518,7 @@ The `IdentifierType` class provides three enumeration values:
 
 ### Web3: Ethereum Account
 
-The `Account` class in `agentictrust-eth.owl` realizes the `Identifier` concept for Ethereum-based agents:
+The `Account` class in `apps/ontology/ontology/eth.ttl` realizes the `Identifier` concept for Ethereum-based agents:
 
 - **DID Method**: `did:ethr`
 - **Signing Authority**: EOA (ECDSA signatures)
@@ -569,24 +569,24 @@ Descriptors are resolver-produced, normalized metadata views that aggregate all 
 ### Get All Identifiers for an Agent
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?identifier ?identifierType ?identifierValue ?did
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId .
+  ?agent a core:AIAgent ;
+    core:agentId ?agentId .
   
   {
     # Direct identifiers via hasIdentifier (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004)
-    ?agent agentictrust:hasIdentifier ?identifier .
+    ?agent core:hasIdentifier ?identifier .
   }
   UNION
   {
     # Identifiers via Identity8004
-    ?agent agentictrust:hasIdentity ?identity .
-    ?identity agentictrust:hasIdentifier ?identifier .
+    ?agent core:hasIdentity ?identity .
+    ?identity core:hasIdentifier ?identifier .
   }
   
   ?identifier a ?identifierType .
@@ -594,23 +594,23 @@ WHERE {
   # Extract identifier value based on type
   OPTIONAL {
     # For NameIdentifierENS, get the label (the ENS name)
-    ?identifier a agentictrustEth:NameIdentifierENS ;
+    ?identifier a eth:NameIdentifierENS ;
       rdfs:label ?identifierValue .
   }
   OPTIONAL {
     # For AccountIdentifier, get the account address
-    ?account agentictrust:hasIdentifier ?identifier .
-    ?account agentictrustEth:accountAddress ?identifierValue .
+    ?account core:hasIdentifier ?identifier .
+    ?account eth:accountAddress ?identifierValue .
   }
   OPTIONAL {
     # For IdentityIdentifier8004, get the DID string
-    ?identifier agentictrust:hasDID ?didNode .
+    ?identifier core:hasDID ?didNode .
     BIND(STR(?didNode) AS ?identifierValue)
   }
   
   # Optional: get DID if it exists
   OPTIONAL {
-    ?identifier agentictrust:hasDID ?did .
+    ?identifier core:hasDID ?did .
   }
 }
 ORDER BY ?agentId ?identifierType
@@ -619,33 +619,33 @@ ORDER BY ?agentId ?identifierType
 ### Get Agent with Account, NameENS, and Identity8004
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?account ?accountAddress ?ensName ?ensNameValue ?identity ?identityIdentifier
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId .
+  ?agent a core:AIAgent ;
+    core:agentId ?agentId .
   
   # Account
   OPTIONAL {
-    ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?account agentictrust:hasIdentifier ?accountIdentifier .
-    ?account agentictrustEth:accountAddress ?accountAddress .
+    ?agent eth:hasAccountIdentifier ?accountIdentifier .
+    ?account core:hasIdentifier ?accountIdentifier .
+    ?account eth:accountAddress ?accountAddress .
   }
   
   # NameENS
   OPTIONAL {
-    ?agent agentictrust:hasName ?ensName .
-    ?ensName a agentictrustEth:AgentNameENS ;
-      agentictrustEth:ensName ?ensNameValue .
+    ?agent core:hasName ?ensName .
+    ?ensName a eth:AgentNameENS ;
+      eth:ensName ?ensNameValue .
   }
   
   # Identity8004
   OPTIONAL {
-    ?agent agentictrust:hasIdentity ?identity .
-    ?identity agentictrust:hasIdentifier ?identityIdentifier .
+    ?agent core:hasIdentity ?identity .
+    ?identity core:hasIdentifier ?identityIdentifier .
     ?identityIdentifier a erc8004:IdentityIdentifier8004 .
   }
 }
@@ -654,38 +654,38 @@ WHERE {
 ### Get Agent with Descriptors
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?agentDescriptor ?accountIdentifier ?accountDescriptor ?ensName ?ensNameDescriptor ?identity ?identityDescriptor
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:agentId ?agentId .
+  ?agent a core:AIAgent ;
+    core:agentId ?agentId .
   
   # AgentDescriptor
   OPTIONAL {
-    ?agent agentictrust:hasAgentDescriptor ?agentDescriptor .
+    ?agent core:hasAgentDescriptor ?agentDescriptor .
   }
   
   # AccountDescriptor
   OPTIONAL {
-    ?agent agentictrustEth:hasAccountIdentifier ?accountIdentifier .
-    ?accountIdentifier agentictrust:hasDescriptor ?accountDescriptor .
-    ?accountDescriptor a agentictrustEth:AccountDescriptor .
+    ?agent eth:hasAccountIdentifier ?accountIdentifier .
+    ?accountIdentifier core:hasDescriptor ?accountDescriptor .
+    ?accountDescriptor a eth:AccountDescriptor .
   }
   
   # NameDescriptorENS
   OPTIONAL {
-    ?agent agentictrust:hasName ?ensName .
-    ?ensName agentictrust:hasDescriptor ?ensNameDescriptor .
-    ?ensNameDescriptor a agentictrustEth:AgentNameENSDescriptor .
+    ?agent core:hasName ?ensName .
+    ?ensName core:hasDescriptor ?ensNameDescriptor .
+    ?ensNameDescriptor a eth:AgentNameENSDescriptor .
   }
   
   # IdentityDescriptor8004
   OPTIONAL {
-    ?agent agentictrust:hasIdentity ?identity .
-    ?identity agentictrust:hasDescriptor ?identityDescriptor .
+    ?agent core:hasIdentity ?identity .
+    ?identity core:hasDescriptor ?identityDescriptor .
     ?identityDescriptor a erc8004:IdentityDescriptor8004 .
   }
 }
@@ -694,13 +694,13 @@ WHERE {
 ### Get Identifier Type Counts
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?identifierType (COUNT(DISTINCT ?identifier) AS ?count)
 WHERE {
-  ?agent a agentictrust:AIAgent ;
-    agentictrust:hasIdentifier ?identifier .
-  ?identifier agentictrust:identifierType ?identifierType .
+  ?agent a core:AIAgent ;
+    core:hasIdentifier ?identifier .
+  ?identifier core:identifierType ?identifierType .
 }
 GROUP BY ?identifierType
 ORDER BY DESC(?count)
@@ -708,9 +708,9 @@ ORDER BY DESC(?count)
 
 ## Design Principles
 
-1. **Protocol-Agnostic Core**: The `Identifier` class in `agentictrust-core.owl` is abstract and protocol-agnostic.
+1. **Protocol-Agnostic Core**: The `Identifier` class in `apps/ontology/ontology/core.ttl` is abstract and protocol-agnostic.
 
-2. **Protocol-Specific Realizations**: Protocol-specific identifier types (e.g., `AccountIdentifier` in `agentictrust-eth.owl`) subclass the core `Identifier`.
+2. **Protocol-Specific Realizations**: Protocol-specific identifier types (e.g., `AccountIdentifier` in `apps/ontology/ontology/eth.ttl`) subclass the core `Identifier`.
 
 3. **DID Separation**: DIDs are separate entities linked to identifiers, not directly to agents. This allows multiple identifiers per agent, each with its own DID.
 
@@ -730,6 +730,6 @@ ORDER BY DESC(?count)
 
 ## Related Documentation
 
-- [`agentictrust-overview.md`](./agentictrust-overview.md): Overview of the AgenticTrust ontology
+- [`core-overview.md`](./core-overview.md): Overview of the AgenticTrust ontology
 - [`sparql-queries.md`](./sparql-queries.md): Additional SPARQL queries for agent data
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly

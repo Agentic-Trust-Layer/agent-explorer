@@ -25,10 +25,10 @@ The phrase “govern and orchestrate a fleet of agents” implies:
 
 ## Ontology grounding (AgenticTrust)
 
-`agentictrust:AgentPortfolio` is modeled as:
+`core:AgentPortfolio` is modeled as:
 
-- `agentictrust:AgentPortfolio ⊑ prov:Collection`
-- Membership uses **PROV**: `prov:hadMember` (Portfolio → `agentictrust:AIAgent`)
+- `core:AgentPortfolio ⊑ prov:Collection`
+- Membership uses **PROV**: `prov:hadMember` (Portfolio → `core:AIAgent`)
 
 This choice keeps portfolios:
 
@@ -44,7 +44,7 @@ If portfolio membership/governance is represented **onchain**, an ERC like **ERC
 
 In AgenticTrust terms, this typically means:
 
-- the **portfolio** is still `agentictrust:AgentPortfolio` (a `prov:Collection`)
+- the **portfolio** is still `core:AgentPortfolio` (a `prov:Collection`)
 - the onchain contract/registry is modeled as a **Registry/Descriptor source** that *curates* that portfolio (portfolio membership is derived from its events/state)
 
 ## Minimal Agent Registries (ERC-6909) as portfolio-curation infrastructure
@@ -58,7 +58,7 @@ Why it matters for portfolios:
 - **Portfolio-by-registry**: anyone can deploy a registry specialized to a curated portfolio (whitehat agents, DeFi strategy agents, enterprise-approved agents, etc.).
 - **Market-shaped registries**: multiple registries can coexist (different governance, admission criteria, vertical standards) without forcing a singleton.
 - **AgentPortfolio mapping**: index the registry and materialize:
-  - the portfolio node as an `agentictrust:AgentPortfolio`
+  - the portfolio node as an `core:AgentPortfolio`
   - membership edges via `prov:hadMember` (derived from registry agent IDs / metadata such as `agent_account`)
 
 ### HCS-10 as a message-based portfolio curation substrate
@@ -93,13 +93,13 @@ graph TB
   Portfolio -->|prov:hadMember| Agent1
   Portfolio -->|prov:hadMember| Agent2
 
-  Agent1 -->|agentictrust:hasIdentity| Id8004
-  Agent1 -->|agentictrust:hasIdentity| IdFin
+  Agent1 -->|core:hasIdentity| Id8004
+  Agent1 -->|core:hasIdentity| IdFin
 
-  Id8004 -->|agentictrust:identityRegistry| Reg8004
-  IdFin -->|agentictrust:identityRegistry| RegFin
-  Agent2 -->|agentictrust:hasIdentity| Id8004
-  Id8004 -->|agentictrust:identityRegistry| Reg8004
+  Id8004 -->|core:identityRegistry| Reg8004
+  IdFin -->|core:identityRegistry| RegFin
+  Agent2 -->|core:hasIdentity| Id8004
+  Id8004 -->|core:identityRegistry| Reg8004
   IdFin -. "other registries may exist" .-> RegHealth
 ```
 
@@ -114,9 +114,9 @@ If ERC-8004 becomes “the” singleton registry in your modeling, you lose:
 
 AgenticTrust avoids that by modeling:
 
-- **Agent** (`agentictrust:AIAgent`) as the durable trust-graph anchor
-- **Identity** (`agentictrust:AgentIdentity`, `prov:Entity`) as **registry-scoped** representations
-- **Registries** (`agentictrust:AgentRegistry`) as explicit entities (plural, not assumed singleton)
+- **Agent** (`core:AIAgent`) as the durable trust-graph anchor
+- **Identity** (`core:AgentIdentity`, `prov:Entity`) as **registry-scoped** representations
+- **Registries** (`core:AgentRegistry`) as explicit entities (plural, not assumed singleton)
 
 Portfolios then sit *orthogonally* to registries: a portfolio can include agents with identities in many registries.
 
@@ -126,13 +126,13 @@ Portfolios then sit *orthogonally* to registries: a portfolio can include agents
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT ?portfolio (COUNT(DISTINCT ?agent) AS ?agentCount)
 WHERE {
-  ?portfolio a agentictrust:AgentPortfolio ;
+  ?portfolio a core:AgentPortfolio ;
              prov:hadMember ?agent .
-  ?agent a agentictrust:AIAgent .
+  ?agent a core:AIAgent .
 }
 GROUP BY ?portfolio
 ORDER BY DESC(?agentCount) ?portfolio
@@ -143,19 +143,19 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT ?agent ?identity ?registry
 WHERE {
   VALUES (?portfolio) { (<PORTFOLIO_IRI>) }
 
-  ?portfolio a agentictrust:AgentPortfolio ;
+  ?portfolio a core:AgentPortfolio ;
              prov:hadMember ?agent .
-  ?agent a agentictrust:AIAgent .
+  ?agent a core:AIAgent .
 
   OPTIONAL {
-    ?agent agentictrust:hasIdentity ?identity .
-    OPTIONAL { ?identity agentictrust:identityRegistry ?registry . }
+    ?agent core:hasIdentity ?identity .
+    OPTIONAL { ?identity core:identityRegistry ?registry . }
   }
 }
 ORDER BY ?agent ?identity ?registry
@@ -166,20 +166,20 @@ LIMIT 500
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
+PREFIX core: <https://core.io/ontology/core#>
 
 SELECT DISTINCT ?skillId
 WHERE {
   VALUES (?portfolio) { (<PORTFOLIO_IRI>) }
-  ?portfolio a agentictrust:AgentPortfolio ;
+  ?portfolio a core:AgentPortfolio ;
              prov:hadMember ?agent .
-  ?agent a agentictrust:AIAgent ;
-         agentictrust:hasIdentity ?identity .
-  ?identity agentictrust:hasDescriptor ?reg .
+  ?agent a core:AIAgent ;
+         core:hasIdentity ?identity .
+  ?identity core:hasDescriptor ?reg .
 
-  ?reg agentictrust:hasSkill ?agentSkill .
-  ?agentSkill agentictrust:hasSkillClassification ?skillNode .
-  ?skillNode agentictrust:oasfSkillId ?skillId .
+  ?reg core:hasSkill ?agentSkill .
+  ?agentSkill core:hasSkillClassification ?skillNode .
+  ?skillNode core:oasfSkillId ?skillId .
 }
 ORDER BY ?skillId
 LIMIT 500

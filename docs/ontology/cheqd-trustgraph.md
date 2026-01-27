@@ -47,13 +47,13 @@ AgenticTrust doesn’t currently import the W3C VC data model explicitly, but th
 
 | cheqd concept | AgenticTrust concept | Notes |
 | --- | --- | --- |
-| DID for participant (human/org/agent) | `agentictrust:DID` (identifier family) + `agentictrust:UniversalIdentifier` | Use Identifier/Identity split: DID is an Identifier; the registry-scoped representation is an `AgentIdentity`. |
-| Trust Registry / Trust Graph scope | `agentictrust:AgentRegistry` (as `prov:Entity`) | A registry is a trust-scoped authority context (what identities/claims are admissible). |
-| Trust chain (root → delegations/accreditations) | `prov:actedOnBehalfOf` chains + `agentictrust:DelegationSituation` / `DelegationTrustSituation` | Model the state/constraints as Situation; assert it via trust assertions. |
-| Permission / authorization to act | `agentictrust:DelegationPermission`, `agentictrust:delegationGrantsPermission`, caveats | Matches “scope + context constraints” in trust relationships. |
-| “Permissioned reputation/verification” | `agentictrust:wasAuthorizedByDelegation` | Links an attested reputation/verification assertion to the delegation assertion that granted authority. |
-| Reputation signals | `agentictrust:ReputationTrustSituation` + `ReputationTrustAssertion` | Keep epistemic neutrality: assertions are evidence, not truth. |
-| Verification / validation signals | `agentictrust:VerificationTrustSituation` + `VerificationTrustAssertion` | In ERC-8004: `erc8004:ValidationRequestSituation` and `erc8004:ValidationResponse`. |
+| DID for participant (human/org/agent) | `core:DID` (identifier family) + `core:UniversalIdentifier` | Use Identifier/Identity split: DID is an Identifier; the registry-scoped representation is an `AgentIdentity`. |
+| Trust Registry / Trust Graph scope | `core:AgentRegistry` (as `prov:Entity`) | A registry is a trust-scoped authority context (what identities/claims are admissible). |
+| Trust chain (root → delegations/accreditations) | `prov:actedOnBehalfOf` chains + `core:DelegationSituation` / `DelegationTrustSituation` | Model the state/constraints as Situation; assert it via trust assertions. |
+| Permission / authorization to act | `core:DelegationPermission`, `core:delegationGrantsPermission`, caveats | Matches “scope + context constraints” in trust relationships. |
+| “Permissioned reputation/verification” | `core:wasAuthorizedByDelegation` | Links an attested reputation/verification assertion to the delegation assertion that granted authority. |
+| Reputation signals | `core:ReputationTrustSituation` + `ReputationTrustAssertion` | Keep epistemic neutrality: assertions are evidence, not truth. |
+| Verification / validation signals | `core:VerificationTrustSituation` + `VerificationTrustAssertion` | In ERC-8004: `erc8004:ValidationRequestSituation` and `erc8004:ValidationResponse`. |
 
 ## Gaps / potential extensions (if you want closer cheqd-VC parity later)
 

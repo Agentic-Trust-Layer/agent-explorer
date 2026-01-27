@@ -54,7 +54,7 @@ Treat A2A Registry entries primarily as **Descriptors** (directory-provided disc
 
 ### Ontology mapping (high-level)
 
-- **Registry listing** → `agentictrust:AgentDescriptor` (or a protocol-specific specialization)
+- **Registry listing** → `core:AgentDescriptor` (or a protocol-specific specialization)
 - **Agent card** (JSON) → Descriptor evidence/source artifact (`prov:Entity`) used to assemble the Descriptor
 - **Discovery results** → a resolver activity (`prov:Activity`) that *used* agent cards and *generated* Descriptor entities
 - **Federation** → a relationship situation between registries (trust + synchronization agreements)

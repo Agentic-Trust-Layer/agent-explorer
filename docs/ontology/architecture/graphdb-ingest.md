@@ -8,7 +8,7 @@ This uses the indexer CLI (`pnpm --filter erc8004-indexer graphdb:ingest ...`) t
 ### Prereqs
 
 - GraphDB is running locally (`http://localhost:7200`)
-- A repository exists (Workbench → Setup → Repositories) with id `agentictrust` (or set `GRAPHDB_REPOSITORY`)
+- A repository exists (Workbench → Setup → Repositories) with id `core` (or set `GRAPHDB_REPOSITORY`)
 - Indexer can access its DB (D1 env vars, same as other indexer CLIs)
 
 ### Check which repositories exist
@@ -18,13 +18,13 @@ GRAPHDB_BASE_URL=http://localhost:7200 \
 pnpm --filter erc8004-indexer graphdb:repos
 ```
 
-If `agentictrust` is missing, create it either:
+If `core` is missing, create it either:
 
 - via CLI (recommended):
 
 ```bash
 GRAPHDB_BASE_URL=http://localhost:7200 \
-GRAPHDB_REPOSITORY=agentictrust \
+GRAPHDB_REPOSITORY=core \
 pnpm --filter erc8004-indexer graphdb:create-repo
 ```
 
@@ -34,7 +34,7 @@ pnpm --filter erc8004-indexer graphdb:create-repo
 
 ```bash
 GRAPHDB_BASE_URL=http://localhost:7200 \
-GRAPHDB_REPOSITORY=agentictrust \
+GRAPHDB_REPOSITORY=core \
 pnpm --filter erc8004-indexer graphdb:ingest all --reset
 ```
 
@@ -62,8 +62,8 @@ pnpm --filter erc8004-indexer graphdb:ingest agents --reset
 
 - `--reset` clears the target named graph context before loading (recommended for local dev).
 - Default contexts:
-  - ontologies: `https://www.agentictrust.io/graph/ontology/core`
-  - agents: `https://www.agentictrust.io/graph/data/agents`
+  - ontologies: `https://www.core.io/graph/ontology/core`
+  - agents: `https://www.core.io/graph/data/agents`
 
 Notes:
 - ontology ingestion reads `apps/ontology/ontology/*.ttl` (not `badge-admin`).

@@ -61,10 +61,10 @@ end
 
 ### Discovery is a Situation + provenance
 
-- **DiscoverySituation** (a specialization of `agentictrust:TrustSituation`)
+- **DiscoverySituation** (a specialization of `core:TrustSituation`)
   - is a `prov:Activity` that **uses** registry artifacts and **generates** a Descriptor
 - Registry artifacts (agent cards, registry records) are `prov:Entity`
-- The resolved “best current view” is a `agentictrust:Descriptor` (often `AgentDescriptor`)
+- The resolved “best current view” is a `core:Descriptor` (often `AgentDescriptor`)
 
 ### Authentication and authorization are Epistemic + Role/Situation constructs
 
@@ -94,10 +94,10 @@ And the evaluations as `prov:Activity` generating those artifacts or decisions.
 
 If you want a minimal, workable semantic footprint:
 
-- **Agent card** → `agentictrust:AgentDescriptor` (plus provenance)
+- **Agent card** → `core:AgentDescriptor` (plus provenance)
 - **SVID** → Identifier/credential artifact (`prov:Entity`)
 - **JWT capability token** → credential artifact (`prov:Entity`) with datatype props (audience, scopes, expiry)
-- **OPA decision** → `agentictrust:TrustAssertion` (time-scoped) linked to the call situation
+- **OPA decision** → `core:TrustAssertion` (time-scoped) linked to the call situation
 
 ## Why this matters
 

@@ -16,10 +16,10 @@ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
 ```
 
 ## Agent Identity, Identifier, and Name
@@ -29,9 +29,9 @@ PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
 This query retrieves a **tight** identity slice (no wide UNION fanout): Agent(account-anchored) → Identity8004 → IdentityIdentifier8004, plus ENS.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -52,31 +52,31 @@ WHERE {
   {
     SELECT ?agent ?accountAddress ?didAccount
     WHERE {
-      ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-      ?agent agentictrust:agentId ?agentId .
-      ?agent agentictrustEth:accountChainId ?chainId .
-      ?agent agentictrustEth:accountAddress ?accountAddress .
-      OPTIONAL { ?agent agentictrust:didAccount ?didAccount . }
+      ?agent a core:AIAgent, eth:Account .
+      ?agent core:agentId ?agentId .
+      ?agent eth:accountChainId ?chainId .
+      ?agent eth:accountAddress ?accountAddress .
+      OPTIONAL { ?agent core:didAccount ?didAccount . }
     }
     LIMIT 1
   }
 
-  OPTIONAL { ?agent agentictrust:agentName ?agentName . }
-  OPTIONAL { ?agent agentictrust:didIdentity ?didIdentity . }
+  OPTIONAL { ?agent core:agentName ?agentName . }
+  OPTIONAL { ?agent core:didIdentity ?didIdentity . }
 
   # ERC-8004 identity (tight)
   OPTIONAL {
-    ?agent agentictrust:hasIdentity ?identity .
+    ?agent core:hasIdentity ?identity .
     ?identity a erc8004:AgentIdentity8004 .
-    ?identity agentictrust:hasIdentifier ?identityIdentifier .
+    ?identity core:hasIdentifier ?identityIdentifier .
     ?identityIdentifier a erc8004:IdentityIdentifier8004 .
   }
 
   # ENS Name (tight)
   OPTIONAL {
-    ?agent agentictrust:hasName ?ensNameIri .
-    ?ensNameIri a agentictrustEth:AgentNameENS .
-    ?ensNameIri agentictrustEth:ensName ?ensName .
+    ?agent core:hasName ?ensNameIri .
+    ?ensNameIri a eth:AgentNameENS .
+    ?ensNameIri eth:ensName ?ensName .
   }
 }
 LIMIT 50
@@ -85,20 +85,20 @@ LIMIT 50
 ### Agent Basic Information
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT ?agent ?agentId ?chainId ?accountAddress ?agentName ?didIdentity ?didAccount
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
-  ?agent agentictrustEth:accountAddress ?accountAddress .
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
+  ?agent eth:accountAddress ?accountAddress .
   
-  OPTIONAL { ?agent agentictrust:agentName ?agentName . }
-  OPTIONAL { ?agent agentictrust:didIdentity ?didIdentity . }
-  OPTIONAL { ?agent agentictrust:didAccount ?didAccount . }
+  OPTIONAL { ?agent core:agentName ?agentName . }
+  OPTIONAL { ?agent core:didIdentity ?didIdentity . }
+  OPTIONAL { ?agent core:didAccount ?didAccount . }
 }
 LIMIT 1
 ```
@@ -106,17 +106,17 @@ LIMIT 1
 ### Agent with Account Identifier
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT DISTINCT ?agent ?agentId ?accountAddress ?chainId ?accountType
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
-  ?agent agentictrustEth:accountAddress ?accountAddress .
-  OPTIONAL { ?agent agentictrustEth:accountType ?accountType . }
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
+  ?agent eth:accountAddress ?accountAddress .
+  OPTIONAL { ?agent eth:accountType ?accountType . }
 }
 LIMIT 1
 ```
@@ -128,12 +128,12 @@ LIMIT 1
 This query returns **one row per situation type** with counts, instead of exploding into many rows.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT
   ?bucket
@@ -142,10 +142,10 @@ SELECT
   (COUNT(DISTINCT ?assertionRecord) AS ?assertionRecordCount)
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
 
   # Bucket by record type (avoids depending on ?situation rdf:type, which may vary)
   VALUES ?bucket { "reputation" "verification" "relationship" "delegation" }
@@ -157,10 +157,10 @@ WHERE {
     FILTER(
       EXISTS { ?agent erc8004:hasFeedback ?assertionRecord } ||
       EXISTS { ?identity erc8004:hasFeedback ?assertionRecord } ||
-      EXISTS { ?assertionRecord agentictrust:aboutSubject ?identity }
+      EXISTS { ?assertionRecord core:aboutSubject ?identity }
     )
-    OPTIONAL { ?assertionRecord agentictrust:recordsSituation ?situation . }
-    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
+    OPTIONAL { ?assertionRecord core:recordsSituation ?situation . }
+    OPTIONAL { ?assertionAct core:generatedAssertionRecord ?assertionRecord . }
   }
   UNION
   # Verification: ValidationResponse records
@@ -170,33 +170,33 @@ WHERE {
     FILTER(
       EXISTS { ?agent erc8004:hasValidation ?assertionRecord } ||
       EXISTS { ?identity erc8004:hasValidation ?assertionRecord } ||
-      EXISTS { ?assertionRecord agentictrust:aboutSubject ?identity }
+      EXISTS { ?assertionRecord core:aboutSubject ?identity }
     )
-    OPTIONAL { ?assertionRecord agentictrust:recordsSituation ?situation . }
-    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
+    OPTIONAL { ?assertionRecord core:recordsSituation ?situation . }
+    OPTIONAL { ?assertionAct core:generatedAssertionRecord ?assertionRecord . }
   }
   UNION
   # Relationship: ERC-8092 relationship assertions
   {
     FILTER(?bucket = "relationship")
     # In our export, ERC-8092 association records are typed as erc8092:AssociatedAccounts8092
-    # (plus agentictrust:TrustAssertion), and link to a RelationshipSituation via recordsSituation.
+    # (plus core:TrustAssertion), and link to a RelationshipSituation via recordsSituation.
     ?assertionRecord a erc8092:AssociatedAccounts8092 .
-    ?assertionRecord agentictrust:recordsSituation ?situation .
-    ?situation agentictrust:isAboutAgent ?agent .
-    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
+    ?assertionRecord core:recordsSituation ?situation .
+    ?situation core:isAboutAgent ?agent .
+    OPTIONAL { ?assertionAct core:generatedAssertionRecord ?assertionRecord . }
   }
   UNION
   # Delegation: DelegationTrustAssertion (if present)
   {
     FILTER(?bucket = "delegation")
-    ?assertionRecord a agentictrust:DelegationTrustAssertion .
+    ?assertionRecord a core:DelegationTrustAssertion .
     FILTER(
-      EXISTS { ?assertionRecord agentictrust:aboutSubject ?identity } ||
-      EXISTS { ?assertionRecord agentictrust:aboutSubject ?agent }
+      EXISTS { ?assertionRecord core:aboutSubject ?identity } ||
+      EXISTS { ?assertionRecord core:aboutSubject ?agent }
     )
-    OPTIONAL { ?assertionRecord agentictrust:recordsSituation ?situation . }
-    OPTIONAL { ?assertionAct agentictrust:generatedAssertionRecord ?assertionRecord . }
+    OPTIONAL { ?assertionRecord core:recordsSituation ?situation . }
+    OPTIONAL { ?assertionAct core:generatedAssertionRecord ?assertionRecord . }
   }
 }
 GROUP BY ?bucket
@@ -206,10 +206,10 @@ ORDER BY ?bucket
 ### Reputation Situations and Feedback Assertions
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT DISTINCT
   ?agent
@@ -225,32 +225,32 @@ SELECT DISTINCT
   ?skill
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
   
   # Feedback record (Entity) anchored via agent or identity (or aboutSubject)
-  ?feedbackRecord a erc8004:Feedback, agentictrust:ReputationTrustAssertion, agentictrust:TrustAssertion, prov:Entity .
+  ?feedbackRecord a erc8004:Feedback, core:ReputationTrustAssertion, core:TrustAssertion, prov:Entity .
   FILTER(
     EXISTS { ?agent erc8004:hasFeedback ?feedbackRecord } ||
     EXISTS { ?identity erc8004:hasFeedback ?feedbackRecord } ||
-    EXISTS { ?feedbackRecord agentictrust:aboutSubject ?identity }
+    EXISTS { ?feedbackRecord core:aboutSubject ?identity }
   )
-  OPTIONAL { ?feedbackRecord agentictrust:recordsSituation ?repSituation . }
+  OPTIONAL { ?feedbackRecord core:recordsSituation ?repSituation . }
   ?feedbackRecord erc8004:feedbackIndex ?feedbackIndex .
   
   # Feedback act (Activity)
-  ?feedbackAct a erc8004:FeedbackAct, agentictrust:ReputationTrustAssertionAct, agentictrust:TrustAssertionAct, agentictrust:Attestation, prov:Activity .
-  ?feedbackAct agentictrust:assertsSituation ?repSituation .
-  ?feedbackAct agentictrust:generatedAssertionRecord ?feedbackRecord .
+  ?feedbackAct a erc8004:FeedbackAct, core:ReputationTrustAssertionAct, core:TrustAssertionAct, core:Attestation, prov:Activity .
+  ?feedbackAct core:assertsSituation ?repSituation .
+  ?feedbackAct core:generatedAssertionRecord ?feedbackRecord .
   
   OPTIONAL { ?feedbackRecord erc8004:feedbackScore ?score . }
   OPTIONAL { ?feedbackRecord erc8004:feedbackRatingPct ?ratingPct . }
   OPTIONAL { ?feedbackRecord erc8004:isRevoked ?isRevoked . }
   OPTIONAL { 
     ?feedbackRecord erc8004:feedbackClient ?clientAccount .
-    ?clientAccount agentictrustEth:accountAddress ?clientAddress .
+    ?clientAccount eth:accountAddress ?clientAddress .
   }
   OPTIONAL { ?feedbackRecord erc8004:feedbackSkill ?skillIri . ?skillIri rdfs:label ?skill . }
 }
@@ -261,10 +261,10 @@ LIMIT 50
 ### Verification Situations and Validation Assertions
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
+PREFIX eth: <https://core.io/ontology/eth#>
 
 SELECT DISTINCT
   ?agent
@@ -280,19 +280,19 @@ SELECT DISTINCT
   ?tag
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
   
   # Validation response record (Entity) anchored via agent or identity (or aboutSubject)
-  ?validationResponse a erc8004:ValidationResponse, agentictrust:VerificationTrustAssertion, agentictrust:TrustAssertion, prov:Entity .
+  ?validationResponse a erc8004:ValidationResponse, core:VerificationTrustAssertion, core:TrustAssertion, prov:Entity .
   FILTER(
     EXISTS { ?agent erc8004:hasValidation ?validationResponse } ||
     EXISTS { ?identity erc8004:hasValidation ?validationResponse } ||
-    EXISTS { ?validationResponse agentictrust:aboutSubject ?identity }
+    EXISTS { ?validationResponse core:aboutSubject ?identity }
   )
-  OPTIONAL { ?validationResponse agentictrust:recordsSituation ?verificationSituation . }
+  OPTIONAL { ?validationResponse core:recordsSituation ?verificationSituation . }
   OPTIONAL { ?validationResponse erc8004:validationRespondsToRequest ?verificationRequest . }
   OPTIONAL { ?verificationRequest erc8004:requestHash ?requestHash . }
   OPTIONAL { ?validationResponse erc8004:validationResponseValue ?responseValue . }
@@ -305,8 +305,8 @@ WHERE {
   
   # Validation response act (Activity)
   OPTIONAL {
-    ?validationAct a erc8004:ValidationResponseAct, agentictrust:VerificationTrustAssertionAct, agentictrust:TrustAssertionAct, agentictrust:Attestation, prov:Activity .
-    ?validationAct agentictrust:generatedAssertionRecord ?validationResponse .
+    ?validationAct a erc8004:ValidationResponseAct, core:VerificationTrustAssertionAct, core:TrustAssertionAct, core:Attestation, prov:Activity .
+    ?validationAct core:generatedAssertionRecord ?validationResponse .
   }
 }
 ORDER BY ?requestHash
@@ -316,8 +316,8 @@ LIMIT 50
 ### Relationship Situations and Assertions
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT DISTINCT
@@ -334,22 +334,22 @@ SELECT DISTINCT
   ?validUntil
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
   
   # Relationship situation
-  ?relationshipSituation a agentictrust:RelationshipTrustSituation, agentictrust:RelationshipSituation, agentictrust:TrustSituation, prov:Entity .
-  ?relationshipSituation agentictrust:isAboutAgent ?agent .
+  ?relationshipSituation a core:RelationshipTrustSituation, core:RelationshipSituation, core:TrustSituation, prov:Entity .
+  ?relationshipSituation core:isAboutAgent ?agent .
 
   # Relationship assertion record (ERC-8092 association row)
-  ?relationshipAssertion a erc8092:AssociatedAccounts8092, agentictrust:TrustAssertion, prov:Entity .
-  ?relationshipAssertion agentictrust:recordsSituation ?relationshipSituation .
+  ?relationshipAssertion a erc8092:AssociatedAccounts8092, core:TrustAssertion, prov:Entity .
+  ?relationshipAssertion core:recordsSituation ?relationshipSituation .
   
   # Relationship assertion act
-  ?assertionAct a erc8092:AssociatedAccountsAct8092, agentictrust:TrustAssertionAct, prov:Activity .
-  ?assertionAct agentictrust:assertsSituation ?relationshipSituation .
-  ?assertionAct agentictrust:generatedAssertionRecord ?relationshipAssertion .
+  ?assertionAct a erc8092:AssociatedAccountsAct8092, core:TrustAssertionAct, prov:Activity .
+  ?assertionAct core:assertsSituation ?relationshipSituation .
+  ?assertionAct core:generatedAssertionRecord ?relationshipAssertion .
   
   # Relationship details
   ?relationshipAssertion erc8092:associationId ?associationId .
@@ -368,8 +368,8 @@ LIMIT 50
 ### Agent Descriptor with Endpoints and Skills
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?agent
@@ -383,30 +383,30 @@ SELECT DISTINCT
   ?skillName
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
 
   # ERC-8004 registration descriptor (this is where endpoints/skills live for 8004 agents)
-  ?agent agentictrust:hasIdentity ?identity .
-  ?identity agentictrust:hasDescriptor ?agentRegistration .
+  ?agent core:hasIdentity ?identity .
+  ?identity core:hasDescriptor ?agentRegistration .
   ?agentRegistration a erc8004:AgentRegistration8004 .
   
   # Endpoints
   OPTIONAL {
-    ?agentRegistration agentictrust:hasEndpoint ?endpoint .
-    ?endpoint a agentictrust:Endpoint .
-    OPTIONAL { ?endpoint agentictrust:endpointType ?endpointType . }
-    OPTIONAL { ?endpoint agentictrust:serviceUrl ?endpointUrl . }
+    ?agentRegistration core:hasEndpoint ?endpoint .
+    ?endpoint a core:Endpoint .
+    OPTIONAL { ?endpoint core:endpointType ?endpointType . }
+    OPTIONAL { ?endpoint core:serviceUrl ?endpointUrl . }
   }
   
   # Skills
   OPTIONAL {
-    ?agentRegistration agentictrust:hasSkill ?agentSkill .
-    ?agentSkill a agentictrust:AgentSkill .
+    ?agentRegistration core:hasSkill ?agentSkill .
+    ?agentSkill a core:AgentSkill .
     OPTIONAL {
-      ?agentSkill agentictrust:hasSkillClassification ?skill .
-      OPTIONAL { ?skill agentictrust:oasfSkillId ?skillId . }
+      ?agentSkill core:hasSkillClassification ?skill .
+      OPTIONAL { ?skill core:oasfSkillId ?skillId . }
       OPTIONAL { ?skill rdfs:label ?skillName . }
     }
   }
@@ -418,8 +418,8 @@ LIMIT 100
 ### ERC-8004 Registration Metadata
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?agent
@@ -429,16 +429,16 @@ SELECT DISTINCT
   ?trustModel
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
   
-  ?agent agentictrust:hasIdentity ?identity .
-  ?identity agentictrust:hasDescriptor ?agentRegistration .
+  ?agent core:hasIdentity ?identity .
+  ?identity core:hasDescriptor ?agentRegistration .
   ?agentRegistration a erc8004:AgentRegistration8004 .
   
-  OPTIONAL { ?agentRegistration agentictrust:json ?registrationJson . }
-  OPTIONAL { ?agentRegistration agentictrust:hasTrustModel ?trustModel . }
+  OPTIONAL { ?agentRegistration core:json ?registrationJson . }
+  OPTIONAL { ?agentRegistration core:hasTrustModel ?trustModel . }
 }
 LIMIT 50
 ```
@@ -450,18 +450,18 @@ LIMIT 50
 This comprehensive query retrieves all relationships: identity, identifiers, names, situations, assertions, descriptors, and metadata.
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX agentictrustEth: <https://www.agentictrust.io/ontology/agentictrust-eth#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT ?subject ?predicate ?object ?objectType
 WHERE {
   # Start with agent 4476
-  ?agent a agentictrust:AIAgent .
-  ?agent agentictrust:agentId "4476" .
+  ?agent a core:AIAgent .
+  ?agent core:agentId "4476" .
   
   # Get all triples where agent is subject
   {
@@ -473,12 +473,12 @@ WHERE {
   # Get all triples where agent's identity/identifier/name is subject
   {
     {
-      ?agent agentictrust:hasIdentity|agentictrust:hasIdentifier|agentictrust:hasName ?related .
+      ?agent core:hasIdentity|core:hasIdentifier|core:hasName ?related .
     }
     UNION
     {
-      ?agent agentictrust:hasIdentity ?identity .
-      ?identity agentictrust:hasIdentifier ?related .
+      ?agent core:hasIdentity ?identity .
+      ?identity core:hasIdentifier ?related .
     }
     ?related ?predicate ?object .
     BIND(?related AS ?subject)
@@ -487,7 +487,7 @@ WHERE {
   UNION
   # Get all triples where agent's situations are subject
   {
-    ?situation agentictrust:isAboutAgent ?agent .
+    ?situation core:isAboutAgent ?agent .
     ?situation ?predicate ?object .
     BIND(?situation AS ?subject)
     OPTIONAL { ?object a ?objectType . }
@@ -495,8 +495,8 @@ WHERE {
   UNION
   # Get all triples where agent's assertions are subject
   {
-    ?situation agentictrust:isAboutAgent ?agent .
-    ?assertion agentictrust:assertsSituation ?situation .
+    ?situation core:isAboutAgent ?agent .
+    ?assertion core:assertsSituation ?situation .
     ?assertion ?predicate ?object .
     BIND(?assertion AS ?subject)
     OPTIONAL { ?object a ?objectType . }
@@ -629,21 +629,21 @@ graph LR
 ### Count All Assertions by Type
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
-PREFIX erc8092: <https://www.agentictrust.io/ontology/ERC8092#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX erc8092: <https://core.io/ontology/erc8092#>
 
 SELECT ?assertionType (COUNT(DISTINCT ?assertion) AS ?count)
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
   
   {
-    ?situation agentictrust:isAboutAgent ?agent .
-    ?assertion agentictrust:assertsSituation ?situation .
+    ?situation core:isAboutAgent ?agent .
+    ?assertion core:assertsSituation ?situation .
     ?assertion a ?assertionType .
   }
   UNION
@@ -656,8 +656,8 @@ WHERE {
   UNION
   {
     # ERC-8092 association assertions: count records linked to situations about this agent
-    ?assertion agentictrust:recordsSituation ?relSituation .
-    ?relSituation agentictrust:isAboutAgent ?agent .
+    ?assertion core:recordsSituation ?relSituation .
+    ?relSituation core:isAboutAgent ?agent .
     ?assertion a ?assertionType .
     FILTER EXISTS { ?assertion a erc8092:AssociatedAccounts8092 }
   }
@@ -669,8 +669,8 @@ ORDER BY DESC(?count)
 ### Feedback Statistics
 
 ```sparql
-PREFIX agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#>
-PREFIX erc8004: <https://www.agentictrust.io/ontology/ERC8004#>
+PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8004: <https://core.io/ontology/erc8004#>
 
 SELECT 
   (COUNT(DISTINCT ?feedback) AS ?totalFeedbacks)
@@ -680,10 +680,10 @@ SELECT
   (COUNT(DISTINCT ?client) AS ?uniqueClients)
 WHERE {
   VALUES (?agentId ?chainId) { ("4476" 11155111) }
-  ?agent a agentictrust:AIAgent, agentictrustEth:Account .
-  ?agent agentictrust:agentId ?agentId .
-  ?agent agentictrustEth:accountChainId ?chainId .
-  OPTIONAL { ?agent agentictrust:hasIdentity ?identity . }
+  ?agent a core:AIAgent, eth:Account .
+  ?agent core:agentId ?agentId .
+  ?agent eth:accountChainId ?chainId .
+  OPTIONAL { ?agent core:hasIdentity ?identity . }
 
   {
     ?agent erc8004:hasFeedback ?feedback .
@@ -696,7 +696,7 @@ WHERE {
   ?feedback erc8004:feedbackScore ?score .
   OPTIONAL {
     ?feedback erc8004:feedbackClient ?clientAccount .
-    ?clientAccount agentictrustEth:accountAddress ?client .
+    ?clientAccount eth:accountAddress ?client .
   }
 }
 ```

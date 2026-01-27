@@ -27,19 +27,19 @@ Note: as of recent HOL queries, the `agentverse` slice is ~14.9k agents (e.g., 1
 - **Source registry** → captured as provenance (e.g., `registry` / `proto` identifiers inside HOL’s UAID-like strings)
 - **Protocol support & endpoints** → descriptor material (A2A, MCP, x402, etc.) once resolved/normalized
 
-### HOL ontology module (`agentictrust-hol.owl`)
+### HOL ontology module (`apps/ontology/ontology/hol.ttl`)
 
-Source: `apps/badge-admin/public/ontology/agentictrust-hol.owl`
+Source: `apps/ontology/ontology/hol.ttl`
 
-This module **extends** `agentictrust-core.owl` with a concrete Descriptor type for HOL search hits:
+This module **extends** `apps/ontology/ontology/core.ttl` with a concrete Descriptor type for HOL search hits:
 
-- `hol:HOLAgentDescriptor` (subclass of `agentictrust:AgentDescriptor`)
+- `hol:HOLAgentDescriptor` (subclass of `core:AgentDescriptor`)
 
-The core idea: treat each HOL `/api/v1/search` hit as a **registry-produced descriptor** that can later be linked to an `agentictrust:AIAgent` via `agentictrust:hasDescriptor` / `hol:hasHOLAgentDescriptor`.
+The core idea: treat each HOL `/api/v1/search` hit as a **registry-produced descriptor** that can later be linked to an `core:AIAgent` via `core:hasDescriptor` / `hol:hasHOLAgentDescriptor`.
 
-### HOL identity + profile ontology (`hol.owl`)
+### HOL identity + profile ontology (`apps/ontology/ontology/hol.ttl`)
 
-Source: `apps/badge-admin/public/ontology/hol.owl`
+Source: `apps/ontology/ontology/hol.ttl`
 
 This module models **HOL identity + profile descriptors** (what we export into the `holagents` GraphDB repository):
 

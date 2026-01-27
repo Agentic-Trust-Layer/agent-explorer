@@ -15,10 +15,29 @@
   owl:imports <https://agentictrust.io/ontology/core/descriptors> ;
   owl:imports <http://www.w3.org/ns/prov-o#> .
 
+:AIAgentNanda a owl:Class ;
+  rdfs:label "AIAgentNanda" ;
+  rdfs:comment "AI agent with a NANDA (Name-and-Address) identity." ;
+  rdfs:subClassOf core:AIAgent ;
+  rdfs:subClassOf prov:SoftwareAgent .
+
+:NandaIdentityRegistry a owl:Class ;
+  rdfs:label "NANDA Identity Registry" ;
+  rdfs:comment "Registry/namespace for NANDA identities." ;
+  rdfs:subClassOf core:AgentRegistry ;
+  rdfs:subClassOf prov:Entity .
+
+:NandaIdentityRegistration a owl:Class ;
+  rdfs:label "NANDA Identity Registration" ;
+  rdfs:comment "Registration record anchoring a NANDA identity within a NANDA registry." ;
+  rdfs:subClassOf core:AgentIdentityRegistration ;
+  rdfs:subClassOf prov:Entity .
+
 :NandaIdentity a owl:Class ;
   rdfs:label "NANDA Identity" ;
   rdfs:comment "Name-and-Address (NANDA) identity as a protocol-specific realization of core:Identity." ;
   rdfs:subClassOf core:Identity ;
+  rdfs:subClassOf core:AgentIdentity ;
   rdfs:subClassOf prov:Entity .
 
 :NandaIdentityIdentifier a owl:Class ;
