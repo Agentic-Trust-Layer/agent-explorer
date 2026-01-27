@@ -27,6 +27,16 @@ export function getGraphdbConfigFromEnv(): {
   const user = envString('GRAPHDB_USERNAME');
   const pass = envString('GRAPHDB_PASSWORD');
   const auth = user && pass ? { username: user, password: pass } : null;
+
+  if (envString('DEBUG_GRAPHDB')) {
+    // eslint-disable-next-line no-console
+    console.log('[graphdb] config', {
+      baseUrl,
+      repository,
+      auth: auth ? true : false,
+      hasCfAccess: Boolean(envString('GRAPHDB_CF_ACCESS_CLIENT_ID')),
+    });
+  }
   return { baseUrl, repository, auth };
 }
 

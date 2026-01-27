@@ -1,0 +1,156 @@
+@base <https://agentictrust.io/ontology/core/analytics#> .
+@prefix : <https://agentictrust.io/ontology/core/analytics#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/core/analytics> a owl:Ontology ;
+  rdfs:label "Agentic Trust Analytics" ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> .
+
+########
+# ATI / Trust Ledger (GraphDB-resident analytics outputs)
+########
+
+:AgentTrustIndex a owl:Class ;
+  rdfs:label "AgentTrustIndex" ;
+  rdfs:comment "Precomputed agent trust index (ATI) record for fast query and ranking." ;
+  rdfs:subClassOf prov:Entity .
+
+:forAgent a owl:ObjectProperty ;
+  rdfs:label "for agent" ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range core:AIAgent .
+
+:chainId a owl:DatatypeProperty ;
+  rdfs:label "chainId" ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range xsd:integer .
+
+:agentId a owl:DatatypeProperty ;
+  rdfs:label "agentId" ;
+  rdfs:comment "Legacy numeric ERC-8004 agentId (string form, as stored in indexer DB)." ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range xsd:string .
+
+:overallScore a owl:DatatypeProperty ;
+  rdfs:label "overallScore" ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range xsd:integer .
+
+:overallConfidence a owl:DatatypeProperty ;
+  rdfs:label "overallConfidence" ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range xsd:decimal .
+
+:version a owl:DatatypeProperty ;
+  rdfs:label "version" ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range xsd:string .
+
+:computedAt a owl:DatatypeProperty ;
+  rdfs:label "computedAt" ;
+  rdfs:comment "Unix epoch seconds." ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range xsd:integer .
+
+:bundleJson a owl:DatatypeProperty ;
+  rdfs:label "bundleJson" ;
+  rdfs:comment "Raw ATI bundle JSON (string)." ;
+  rdfs:domain :AgentTrustIndex ;
+  rdfs:range xsd:string .
+
+:AgentTrustComponent a owl:Class ;
+  rdfs:label "AgentTrustComponent" ;
+  rdfs:comment "Component record contributing to an AgentTrustIndex." ;
+  rdfs:subClassOf prov:Entity .
+
+:componentOf a owl:ObjectProperty ;
+  rdfs:label "componentOf" ;
+  rdfs:domain :AgentTrustComponent ;
+  rdfs:range :AgentTrustIndex .
+
+:component a owl:DatatypeProperty ;
+  rdfs:label "component" ;
+  rdfs:domain :AgentTrustComponent ;
+  rdfs:range xsd:string .
+
+:score a owl:DatatypeProperty ;
+  rdfs:label "score" ;
+  rdfs:domain :AgentTrustComponent ;
+  rdfs:range xsd:decimal .
+
+:weight a owl:DatatypeProperty ;
+  rdfs:label "weight" ;
+  rdfs:domain :AgentTrustComponent ;
+  rdfs:range xsd:decimal .
+
+:evidenceCountsJson a owl:DatatypeProperty ;
+  rdfs:label "evidenceCountsJson" ;
+  rdfs:domain :AgentTrustComponent ;
+  rdfs:range xsd:string .
+
+:TrustLedgerBadgeDefinition a owl:Class ;
+  rdfs:label "TrustLedgerBadgeDefinition" ;
+  rdfs:comment "Trust ledger badge definition (catalog entry) exported from indexer tables for GraphDB-backed GraphQL." ;
+  rdfs:subClassOf prov:Entity .
+
+:badgeId a owl:DatatypeProperty ;
+  rdfs:label "badgeId" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:string .
+
+:program a owl:DatatypeProperty ;
+  rdfs:label "program" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:string .
+
+:name a owl:DatatypeProperty ;
+  rdfs:label "name" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:string .
+
+:description a owl:DatatypeProperty ;
+  rdfs:label "description" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:string .
+
+:iconRef a owl:DatatypeProperty ;
+  rdfs:label "iconRef" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:string .
+
+:points a owl:DatatypeProperty ;
+  rdfs:label "points" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:integer .
+
+:ruleId a owl:DatatypeProperty ;
+  rdfs:label "ruleId" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:string .
+
+:ruleJson a owl:DatatypeProperty ;
+  rdfs:label "ruleJson" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:string .
+
+:active a owl:DatatypeProperty ;
+  rdfs:label "active" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:boolean .
+
+:createdAt a owl:DatatypeProperty ;
+  rdfs:label "createdAt" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:integer .
+
+:updatedAt a owl:DatatypeProperty ;
+  rdfs:label "updatedAt" ;
+  rdfs:domain :TrustLedgerBadgeDefinition ;
+  rdfs:range xsd:integer .
+

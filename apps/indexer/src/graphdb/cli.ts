@@ -6,7 +6,7 @@ function usage(): never {
       'Usage:',
       '  tsx src/graphdb/cli.ts repos',
       '  tsx src/graphdb/cli.ts create-repo [--force]',
-      '  tsx src/graphdb/cli.ts ingest [all|agents|ontologies|oasf|intents] [--reset]',
+      '  tsx src/graphdb/cli.ts ingest [all|agents|ontologies|oasf|intents|analytics] [--reset]',
       '  tsx src/graphdb/cli.ts ingest-hol [all|agents|ontologies] [--reset]',
       '',
       'Env:',
@@ -56,6 +56,7 @@ async function main(): Promise<void> {
 
     // Import lazily so "repos" and "create-repo" don't require indexer DB env vars.
     const mod = await import('./ingest');
+    const analyticsMod = await import('./analytics-ingest');
 
     if (target === 'agents') {
       await mod.ingestAgentsRdfToGraphdb({ resetContext: reset });
@@ -73,11 +74,16 @@ async function main(): Promise<void> {
       await mod.ingestOntologiesToGraphdb({ resetContext: reset });
       return;
     }
+    if (target === 'analytics') {
+      await analyticsMod.ingestAnalyticsToGraphdb({ resetContext: reset });
+      return;
+    }
     if (target === 'all') {
       await mod.ingestOntologiesToGraphdb({ resetContext: reset });
       await mod.ingestOasfToGraphdb({ resetContext: reset });
       await mod.ingestIntentTaskMappingsToGraphdb({ resetContext: reset });
       await mod.ingestAgentsRdfToGraphdb({ resetContext: reset });
+      await analyticsMod.ingestAnalyticsToGraphdb({ resetContext: reset });
       return;
     }
 

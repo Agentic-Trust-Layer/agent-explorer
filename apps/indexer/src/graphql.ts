@@ -1,6 +1,7 @@
 import { createHandler } from 'graphql-http/lib/use/express';
 import { GraphQLSchema } from 'graphql';
 import { buildGraphQLSchema } from './graphql-schema';
+import { buildGraphQLSchemaKb } from './graphql-schema-kb';
 import express from 'express';
 import { db, formatSQLTimestamp, getCheckpoint, setCheckpoint, ensureSchemaInitialized } from './db';
 import crypto from 'crypto';
@@ -8,6 +9,7 @@ import { ethers } from 'ethers';
 import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
 import { processAgentDirectly } from './process-agent';
 import { createGraphQLResolvers, validateAccessCode as validateAccessCodeShared } from './graphql-resolvers';
+import { createGraphQLResolversKb } from './graphql-resolvers-kb';
 import { createDBQueries } from './create-resolvers';
 import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 import {
@@ -52,6 +54,7 @@ const cors = (req: express.Request, res: express.Response, next: express.NextFun
 
 // Use shared schema
 const schema = buildGraphQLSchema();
+const schemaKb = buildGraphQLSchemaKb();
 
 // Ensure schema checks have run in local Node mode (no-op in Workers).
 await ensureSchemaInitialized();
@@ -142,6 +145,7 @@ const semanticSearchService = createSemanticSearchServiceFromEnv();
 const root = createDBQueries(db, localIndexAgentResolver, {
   semanticSearchService,
 });
+const rootKb = createGraphQLResolversKb({ semanticSearchService }) as any;
 
 // processAgentDirectly is now imported from './process-agent'
 
@@ -151,6 +155,12 @@ const root = createDBQueries(db, localIndexAgentResolver, {
 const handler = createHandler({
   schema: schema as GraphQLSchema,
   rootValue: root,
+  context: () => ({}),
+});
+
+const handlerKb = createHandler({
+  schema: schemaKb as GraphQLSchema,
+  rootValue: rootKb,
   context: () => ({}),
 });
 
@@ -174,7 +184,7 @@ export function createGraphQLServer(port: number = 4000) {
   // Request logging middleware (after body parsing)
   // Only log, don't modify req.body - graphql-http needs it intact
   app.use((req, res, next) => {
-    if (req.path === '/graphql' && req.method === 'POST') {
+    if ((req.path === '/graphql' || req.path === '/graphql-kb') && req.method === 'POST') {
       console.log(`📥 GraphQL Request - ${new Date().toISOString()} - Body:`, JSON.stringify(req.body).substring(0, 200));
       console.log(`📥 Request details - URL: ${req.url}, Method: ${req.method}, Headers:`, JSON.stringify(req.headers).substring(0, 100));
     }
@@ -284,9 +294,41 @@ export function createGraphQLServer(port: number = 4000) {
     next();
   });
 
+  // Access code authentication middleware for KB endpoint - same policy as /graphql
+  app.use('/graphql-kb', async (req, res, next) => {
+    // Only apply auth to POST requests (GET requests show GraphiQL UI)
+    if (req.method !== 'POST') {
+      return next();
+    }
+
+    const request = parseGraphQLRequestExpress(req);
+
+    if (!needsAuthentication(request.query, request.operationName)) {
+      return next();
+    }
+
+    const authHeader = req.headers.authorization || '';
+    const accessCode = extractAccessCode(authHeader);
+    const secretAccessCode = process.env.GRAPHQL_SECRET_ACCESS_CODE;
+
+    const validation = await validateRequestAccessCode(accessCode, secretAccessCode, db);
+    if (!validation.valid) {
+      return res.status(401).json({
+        errors: [{ message: validation.error || 'Invalid access code' }],
+      });
+    }
+
+    next();
+  });
+
   // GraphQL endpoint - show GraphiQL UI on GET, handle queries on POST
 
   app.get('/graphql', (req, res) => {
+    res.send(graphiqlHTML);
+  });
+
+  app.get('/graphql-kb', (req, res) => {
+    // NOTE: GraphiQL template may still point at /graphql; keep this for discoverability.
     res.send(graphiqlHTML);
   });
 
@@ -295,6 +337,7 @@ export function createGraphQLServer(port: number = 4000) {
   // It should automatically read from req.body (parsed by express.json())
 
   app.post('/graphql', handler);
+  app.post('/graphql-kb', handlerKb);
 
   // Health check endpoint
   app.get('/health', (req, res) => {

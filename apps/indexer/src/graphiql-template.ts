@@ -71,6 +71,9 @@ export const graphiqlHTML = `<!DOCTYPE html>
         }
       })();
       
+      const isKbEndpoint = window.location.pathname.startsWith('/graphql-kb');
+      const graphqlPostPath = isKbEndpoint ? '/graphql-kb' : '/graphql';
+
       const graphQLFetcher = async (graphQLParams) => {
         // Get Authorization header from multiple sources
         let headers = { 'Content-Type': 'application/json' };
@@ -115,7 +118,7 @@ export const graphiqlHTML = `<!DOCTYPE html>
           console.error('Error extracting headers:', e);
         }
         
-        return fetch('/graphql', {
+        return fetch(graphqlPostPath, {
           method: 'post',
           headers: headers,
           body: JSON.stringify(graphQLParams),
@@ -123,7 +126,7 @@ export const graphiqlHTML = `<!DOCTYPE html>
       };
       
       // Set default query value
-      const defaultQueryValue = \`query {
+      const defaultQueryV1 = \`query {
   agents(limit: 5, offset: 0, orderBy: "createdAtTime", orderDirection: "DESC") {
     chainId
     agentId
@@ -151,6 +154,27 @@ export const graphiqlHTML = `<!DOCTYPE html>
     rawJson
   }
 }\`;
+
+      const defaultQueryKb = \`query {
+  kbAgents(where: { chainId: 11155111 }, first: 5, skip: 0, orderBy: agentId8004, orderDirection: DESC) {
+    total
+    hasMore
+    agents {
+      agentName
+      did8004
+      agentId8004
+      isSmartAgent
+      identity8004 {
+        descriptor {
+          json
+          protocolDescriptors { protocol serviceUrl skills }
+        }
+      }
+    }
+  }
+}\`;
+
+      const defaultQueryValue = isKbEndpoint ? defaultQueryKb : defaultQueryV1;
       
       ReactDOM.render(
         React.createElement(GraphiQL, { 

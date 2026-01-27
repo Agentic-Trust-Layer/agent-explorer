@@ -2,7 +2,9 @@ import 'dotenv/config';
 import { createServer } from 'http';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { graphQLSchemaString } from './graphql-schema';
+import { graphQLSchemaStringKb } from './graphql-schema-kb';
 import { createDBQueries } from './create-resolvers';
+import { createGraphQLResolversKb } from './graphql-resolvers-kb';
 import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 import { db, ensureSchemaInitialized } from './db';
 import {
@@ -106,6 +108,8 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
   const shared = createDBQueries(db, localIndexAgentResolver, {
     semanticSearchService,
   }) as any;
+
+  const sharedKb = createGraphQLResolversKb({ semanticSearchService }) as any;
   const resolvers = {
     Query: {
       agents: (_parent: unknown, args: any) => shared.agents(args),
@@ -137,49 +141,77 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
     },
   };
 
-  const schema = createSchema({
+  const schemaV1 = createSchema({
     typeDefs: graphQLSchemaString,
     resolvers,
   });
 
-  const yoga = createYoga({
-    schema,
-    graphqlEndpoint: '/graphql',
-    maskedErrors: false,
-    // Auth in Yoga context (mirrors Express middleware behavior)
-    context: async ({ request }) => {
-      try {
-        const url = new URL(request.url, 'http://localhost');
-        let body: any = null;
-        if (request.method === 'POST') {
-          try {
-            body = await request.clone().json();
-          } catch {
-            body = null;
-          }
-        }
-        const query = body?.query || url.searchParams.get('query') || '';
-        const operationName = body?.operationName || url.searchParams.get('operationName') || undefined;
-
-        if (needsAuthentication(query, operationName)) {
-          const authHeader = request.headers.get('authorization') || '';
-          const accessCode = extractAccessCode(authHeader);
-          const secretAccessCode = process.env.GRAPHQL_SECRET_ACCESS_CODE;
-          const validation = await validateRequestAccessCode(accessCode, secretAccessCode, db);
-          if (!validation.valid) {
-            throw new Error(validation.error || 'Invalid access code');
-          }
-        }
-      } catch {
-        // If parsing fails, fall through - GraphQL execution will handle errors
-      }
-      return {};
+  const schemaKb = createSchema({
+    typeDefs: graphQLSchemaStringKb,
+    resolvers: {
+      Query: {
+        kbAgents: (_p: unknown, args: any) => sharedKb.kbAgents(args),
+        kbAgent: (_p: unknown, args: any) => sharedKb.kbAgent(args),
+        kbAgentByDid: (_p: unknown, args: any) => sharedKb.kbAgentByDid(args),
+        kbSemanticAgentSearch: (_p: unknown, args: any) => sharedKb.kbSemanticAgentSearch(args),
+        kbFeedbacks: (_p: unknown, args: any) => sharedKb.kbFeedbacks(args),
+        kbValidations: (_p: unknown, args: any) => sharedKb.kbValidations(args),
+        kbAssociations: (_p: unknown, args: any) => sharedKb.kbAssociations(args),
+        kbAgentTrustIndex: (_p: unknown, args: any) => sharedKb.kbAgentTrustIndex(args),
+        kbTrustLedgerBadgeDefinitions: (_p: unknown, args: any) => sharedKb.kbTrustLedgerBadgeDefinitions(args),
+      },
     },
   });
 
-  const server = createServer(yoga);
+  const makeYoga = (schema: any, graphqlEndpoint: string) =>
+    createYoga({
+      schema,
+      graphqlEndpoint,
+      maskedErrors: false,
+      // Auth in Yoga context (mirrors Express middleware behavior)
+      context: async ({ request }) => {
+        try {
+          const url = new URL(request.url, 'http://localhost');
+          let body: any = null;
+          if (request.method === 'POST') {
+            try {
+              body = await request.clone().json();
+            } catch {
+              body = null;
+            }
+          }
+          const query = body?.query || url.searchParams.get('query') || '';
+          const operationName = body?.operationName || url.searchParams.get('operationName') || undefined;
+
+          if (needsAuthentication(query, operationName)) {
+            const authHeader = request.headers.get('authorization') || '';
+            const accessCode = extractAccessCode(authHeader);
+            const secretAccessCode = process.env.GRAPHQL_SECRET_ACCESS_CODE;
+            const validation = await validateRequestAccessCode(accessCode, secretAccessCode, db);
+            if (!validation.valid) {
+              throw new Error(validation.error || 'Invalid access code');
+            }
+          }
+        } catch {
+          // If parsing fails, fall through - GraphQL execution will handle errors
+        }
+        return {};
+      },
+    });
+
+  const yogaV1 = makeYoga(schemaV1, '/graphql');
+  const yogaKb = makeYoga(schemaKb, '/graphql-kb');
+
+  const server = createServer((req, res) => {
+    const url = req.url || '/';
+    if (url.startsWith('/graphql-kb')) {
+      return yogaKb(req, res);
+    }
+    return yogaV1(req, res);
+  });
   server.listen(port, () => {
     console.log(`🧘 Yoga GraphQL server running at http://localhost:${port}/graphql`);
+    console.log(`🧠 KB GraphQL server running at http://localhost:${port}/graphql-kb`);
   });
 }
 

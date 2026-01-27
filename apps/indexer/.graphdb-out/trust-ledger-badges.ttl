@@ -1,0 +1,67 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix analytics: <https://agentictrust.io/ontology/core/analytics#> .
+
+<https://www.agentictrust.io/id/trust-ledger-badge-definition/feedback_3Afirst> a analytics:TrustLedgerBadgeDefinition, prov:Entity ;
+  analytics:badgeId "feedback:first" ;
+  analytics:program "trust-ledger" ;
+  analytics:name "Received First Feedback" ;
+  analytics:description "This fires when first agent feedback is detected" ;
+  analytics:points 10 ;
+  analytics:ruleId "feedback_count_gte" ;
+  analytics:ruleJson "{\n  \"threshold\": 1\n}" ;
+  analytics:active true ;
+  analytics:createdAt 1766359986 ;
+  analytics:updatedAt 1766359986 .
+
+<https://www.agentictrust.io/id/trust-ledger-badge-definition/validated_3Asmart-name> a analytics:TrustLedgerBadgeDefinition, prov:Entity ;
+  analytics:badgeId "validated:smart-name" ;
+  analytics:program "trust-ledger" ;
+  analytics:name "smart name agent" ;
+  analytics:description "smart name agent ..." ;
+  analytics:points 20 ;
+  analytics:ruleId "validation_response_agent_name" ;
+  analytics:ruleJson "{\n  \"agentName\": \"smart-name-validator.8004-agent.eth\"\n}" ;
+  analytics:active true ;
+  analytics:createdAt 1766360423 ;
+  analytics:updatedAt 1766360423 .
+
+<https://www.agentictrust.io/id/trust-ledger-badge-definition/validated_3Asmart-account> a analytics:TrustLedgerBadgeDefinition, prov:Entity ;
+  analytics:badgeId "validated:smart-account" ;
+  analytics:program "trust-ledger" ;
+  analytics:name "smart account agent" ;
+  analytics:description "smart account agent ..." ;
+  analytics:points 10 ;
+  analytics:ruleId "validation_response_agent_name" ;
+  analytics:ruleJson "{\n  \"agentName\": \"smart-account-validator.8004-agent.eth\"\n}" ;
+  analytics:active true ;
+  analytics:createdAt 1766364634 ;
+  analytics:updatedAt 1766364634 .
+
+<https://www.agentictrust.io/id/trust-ledger-badge-definition/validated_3Asmart-app> a analytics:TrustLedgerBadgeDefinition, prov:Entity ;
+  analytics:badgeId "validated:smart-app" ;
+  analytics:program "trust-ledger" ;
+  analytics:name "smart app agent" ;
+  analytics:description "smart app agent ..." ;
+  analytics:points 10 ;
+  analytics:ruleId "validation_response_agent_name" ;
+  analytics:ruleJson "{\n  \"agentName\": \"smart-app-validator.8004-agent.eth\"\n}" ;
+  analytics:active true ;
+  analytics:createdAt 1766364732 ;
+  analytics:updatedAt 1766364732 .
+
+<https://www.agentictrust.io/id/trust-ledger-badge-definition/association_3Amovie-review-alliance> a analytics:TrustLedgerBadgeDefinition, prov:Entity ;
+  analytics:badgeId "association:movie-review-alliance" ;
+  analytics:program "trust-ledger" ;
+  analytics:name "Association - Moview Review Alliance" ;
+  analytics:description "Association - Moview Review Alliance ..." ;
+  analytics:points 10 ;
+  analytics:ruleId "association_approved_approver_agent_name" ;
+  analytics:ruleJson "{\n  \"agentName\": \"movie-review-alliance-v1.8004-agent.eth\"\n}" ;
+  analytics:active true ;
+  analytics:createdAt 1766365278 ;
+  analytics:updatedAt 1766365278 .

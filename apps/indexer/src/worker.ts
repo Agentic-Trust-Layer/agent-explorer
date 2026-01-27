@@ -4,11 +4,13 @@
 
 import { createYoga, createSchema } from 'graphql-yoga';
 import { graphQLSchemaString } from './graphql-schema.js';
+import { graphQLSchemaStringKb } from './graphql-schema-kb.js';
 
 // Import shared functions
 import { validateAccessCode } from './graphql-resolvers.js';
 import { processAgentDirectly } from './process-agent.js';
 import { createDBQueries } from './create-resolvers.js';
+import { createGraphQLResolversKb } from './graphql-resolvers-kb.js';
 import { createIndexAgentResolver, type ChainConfig } from './index-agent.js';
 import {
   needsAuthentication,
@@ -270,8 +272,11 @@ export default {
     }
 
     // Serve custom GraphiQL (with default headers/query) like before
-    if ((url.pathname === '/graphiql' && request.method === 'GET') ||
-        (url.pathname === '/graphql' && request.method === 'GET' && !url.searchParams.get('query'))) {
+    if (
+      (url.pathname === '/graphiql' && request.method === 'GET') ||
+      (url.pathname === '/graphql' && request.method === 'GET' && !url.searchParams.get('query')) ||
+      (url.pathname === '/graphql-kb' && request.method === 'GET' && !url.searchParams.get('query'))
+    ) {
       return new Response(graphiqlHTML, {
         headers: {
           'Content-Type': 'text/html',
@@ -280,10 +285,9 @@ export default {
       });
     }
 
-    // Build Yoga instance on first request (schema/resolvers are static)
-    // Use context per request for DB + auth
-    if (!(globalThis as any).__schema) {
-      (globalThis as any).__schema = createSchema({
+    // Build Yoga schemas on first request (schema/resolvers are static)
+    if (!(globalThis as any).__schemaV1) {
+      (globalThis as any).__schemaV1 = createSchema({
         typeDefs: graphQLSchemaString,
         resolvers: {
           Query: {
@@ -337,10 +341,34 @@ export default {
       });
     }
 
+    if (!(globalThis as any).__schemaKb) {
+      // KB resolvers are GraphDB-backed; they do not depend on D1 tables.
+      const semanticSearchService = createSemanticSearchServiceFromEnv(env) ?? null;
+      const sharedKb = createGraphQLResolversKb({ semanticSearchService }) as any;
+      (globalThis as any).__schemaKb = createSchema({
+        typeDefs: graphQLSchemaStringKb,
+        resolvers: {
+          Query: {
+            kbAgents: (_p: any, args: any) => sharedKb.kbAgents(args),
+            kbAgent: (_p: any, args: any) => sharedKb.kbAgent(args),
+            kbAgentByDid: (_p: any, args: any) => sharedKb.kbAgentByDid(args),
+            kbSemanticAgentSearch: (_p: any, args: any) => sharedKb.kbSemanticAgentSearch(args),
+            kbFeedbacks: (_p: any, args: any) => sharedKb.kbFeedbacks(args),
+            kbValidations: (_p: any, args: any) => sharedKb.kbValidations(args),
+            kbAssociations: (_p: any, args: any) => sharedKb.kbAssociations(args),
+            kbAgentTrustIndex: (_p: any, args: any) => sharedKb.kbAgentTrustIndex(args),
+            kbTrustLedgerBadgeDefinitions: (_p: any, args: any) => sharedKb.kbTrustLedgerBadgeDefinitions(args),
+          },
+        },
+      });
+    }
+
+    const isKb = url.pathname.startsWith('/graphql-kb');
+
     // Create Yoga per request so we can close over env/DB in context
     const yoga = createYoga({
-      schema: (globalThis as any).__schema,
-      graphqlEndpoint: '/graphql',
+      schema: isKb ? (globalThis as any).__schemaKb : (globalThis as any).__schemaV1,
+      graphqlEndpoint: isKb ? '/graphql-kb' : '/graphql',
       maskedErrors: false,
       context: async ({ request }) => {
         // Parse minimal GraphQL details to decide auth
@@ -369,7 +397,12 @@ export default {
           }
         }
 
-        // Build per-request DB resolvers (with Workers-aware indexAgent)
+        if (isKb) {
+          // KB schema doesn't use ctx.dbQueries
+          return {};
+        }
+
+        // v1 schema: Build per-request DB resolvers (with Workers-aware indexAgent)
         const dbQueries = await createWorkersDBQueries(env.DB, env);
         return { dbQueries };
       },
