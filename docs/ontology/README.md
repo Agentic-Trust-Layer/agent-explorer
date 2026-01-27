@@ -93,8 +93,8 @@ The Agentic Trust information architecture integrates four complementary layers:
 - **DID** (`core:DID`): a particular identifier format with an associated **DID method** (`did:...`) and resolution rules. DIDs are useful because different registries/ecosystems can standardize on different methods while still mapping into a shared ontology model.
 
 Examples of DID anchoring by ecosystem/registry:
-- **Ethereum accounts**: commonly anchored in `did:ethr` (e.g., an `eth:AccountIdentifier` may have `eth:hasDID` → a `core:DID` like `did:ethr:...`).
-- **ERC-8004 identities**: anchored in `did:8004:chainId:agentId` (represented as `erc8004:IdentityIdentifier8004`, and also linkable via `core:hasIdentifier`).
+- **Ethereum accounts**: commonly anchored in `did:ethr` (stored as `core:protocolIdentifier` on an `eth:AccountIdentifier`).
+- **ERC-8004 identities**: anchored in `did:8004:<chainId>:<id>` (stored as `core:protocolIdentifier` on an `erc8004:IdentityIdentifier8004` and linked from the ERC‑8004 identity via `core:hasIdentifier`).
 - **DNS / web-based identities**: commonly anchored in `did:web` (and other web/DNS-adjacent DID methods), aligning with name resolution and web PKI.
 
 Key idea: **Identifier** is the abstract model; **DID** is one concrete identifier family whose methods let you align different agent registries with different resolution/verification assumptions, without changing the core trust graph semantics.

@@ -19,6 +19,8 @@ import { emitFeedbacksTurtle } from './rdf/emit-feedbacks.js';
 import { emitValidationRequestsTurtle, emitValidationResponsesTurtle } from './rdf/emit-validations.js';
 import { emitAssociationsTurtle, emitAssociationRevocationsTurtle } from './rdf/emit-associations.js';
 import { syncAgentCardsForChain } from './a2a/agent-card-sync.js';
+import { syncAccountTypesForChain } from './account-types/sync-account-types.js';
+import { listAgentIriByDidIdentity } from './graphdb/agents.js';
 
 type SyncCommand =
   | 'agents'
@@ -31,20 +33,36 @@ type SyncCommand =
   | 'associations'
   | 'association-revocations'
   | 'agent-cards'
+  | 'account-types'
   | 'all';
 
 async function syncAgents(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching agents from ${endpoint.name} (chainId: ${endpoint.chainId})`);
-  const last = (await getCheckpoint(endpoint.chainId, 'agents')) ?? '0';
+  // If we're resetting the GraphDB context, we MUST also ignore prior checkpoints,
+  // otherwise we'll clear the data and then filter out all rows as "already processed".
   let lastCursor = 0n;
-  try {
-    lastCursor = BigInt(last);
-  } catch {
-    lastCursor = 0n;
+  if (!resetContext) {
+    const last = (await getCheckpoint(endpoint.chainId, 'agents')) ?? '0';
+    try {
+      lastCursor = BigInt(last);
+    } catch {
+      lastCursor = 0n;
+    }
   }
 
   // Agents query is mint-ordered; many subgraphs don't support mintedAt_gt filters reliably, so we filter client-side like indexer.
-  const items = await fetchAllFromSubgraph(endpoint.url, AGENTS_QUERY, 'agents', { optional: false });
+  // Some chains/subgraphs don't expose "agents" at all; skip cleanly in that case.
+  let items: any[] = [];
+  try {
+    items = await fetchAllFromSubgraph(endpoint.url, AGENTS_QUERY, 'agents', { optional: false });
+  } catch (e: any) {
+    const msg = String(e?.message || e || '');
+    if (msg.includes('Subgraph schema mismatch') && msg.includes('no field "agents"')) {
+      console.warn(`[sync] skipping agents for ${endpoint.name}: subgraph has no "agents" field`);
+      return;
+    }
+    throw e;
+  }
   console.info(`[sync] fetched ${items.length} agents from ${endpoint.name}`);
 
   // Attach on-chain metadata KV rows if the subgraph exposes them (optional).
@@ -97,9 +115,10 @@ async function syncFeedbacks(endpoint: { url: string; chainId: number; name: str
   let lastBlock = 0n;
   try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
 
+  const agentIriByDidIdentity = await listAgentIriByDidIdentity(endpoint.chainId).catch(() => new Map<string, string>());
   const items = await fetchAllFromSubgraph(endpoint.url, FEEDBACKS_QUERY, 'repFeedbacks', { optional: true });
   console.info(`[sync] fetched ${items.length} feedbacks from ${endpoint.name}`);
-  const { turtle, maxBlock } = emitFeedbacksTurtle(endpoint.chainId, items, lastBlock);
+  const { turtle, maxBlock } = emitFeedbacksTurtle(endpoint.chainId, items, lastBlock, agentIriByDidIdentity);
   if (turtle.trim()) {
     await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'feedbacks', turtle, resetContext });
     if (maxBlock > lastBlock) await setCheckpoint(endpoint.chainId, 'feedbacks', maxBlock.toString());
@@ -162,9 +181,10 @@ async function syncValidationResponses(endpoint: { url: string; chainId: number;
   const last = (await getCheckpoint(endpoint.chainId, 'validation-responses')) ?? '0';
   let lastBlock = 0n;
   try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  const agentIriByDidIdentity = await listAgentIriByDidIdentity(endpoint.chainId).catch(() => new Map<string, string>());
   const items = await fetchAllFromSubgraph(endpoint.url, VALIDATION_RESPONSES_QUERY, 'validationResponses', { optional: true });
   console.info(`[sync] fetched ${items.length} validation responses from ${endpoint.name}`);
-  const { turtle, maxBlock } = emitValidationResponsesTurtle(endpoint.chainId, items, lastBlock);
+  const { turtle, maxBlock } = emitValidationResponsesTurtle(endpoint.chainId, items, lastBlock, agentIriByDidIdentity);
   if (turtle.trim()) {
     await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'validation-responses', turtle, resetContext });
     if (maxBlock > lastBlock) await setCheckpoint(endpoint.chainId, 'validation-responses', maxBlock.toString());
@@ -243,6 +263,14 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         case 'agent-cards':
           await syncAgentCardsForChain(endpoint.chainId, { force: process.env.SYNC_AGENT_CARDS_FORCE === '1' });
           break;
+        case 'account-types': {
+          const limitArg = process.argv.find((a) => a.startsWith('--limit=')) ?? '';
+          const concArg = process.argv.find((a) => a.startsWith('--concurrency=')) ?? '';
+          const limit = limitArg ? Number(limitArg.split('=')[1]) : undefined;
+          const concurrency = concArg ? Number(concArg.split('=')[1]) : undefined;
+          await syncAccountTypesForChain(endpoint.chainId, { limit, concurrency });
+          break;
+        }
         case 'all':
           await syncAgents(endpoint, resetContext);
           await syncFeedbacks(endpoint, resetContext);
@@ -253,6 +281,7 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
           await syncAssociations(endpoint, resetContext);
           await syncAssociationRevocations(endpoint, resetContext);
           await syncAgentCardsForChain(endpoint.chainId, { force: process.env.SYNC_AGENT_CARDS_FORCE === '1' });
+          await syncAccountTypesForChain(endpoint.chainId, {});
           break;
         default:
           console.error(`[sync] unknown command: ${command}`);

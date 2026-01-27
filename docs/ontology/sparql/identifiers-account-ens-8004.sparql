@@ -1,98 +1,75 @@
-# Identifier-centric queries: Account, NameENS, Identity8004 (→ Agent)
 #
-# Ontology prefixes:
-# - agentictrust-core: https://agentictrust.io/ontology/core#
-# - agentictrust-eth:  https://agentictrust.io/ontology/eth#
-# - ERC8004:           https://agentictrust.io/ontology/erc8004#
+# Identifier-centric queries (current model):
+# - ERC-8004 DID lives on erc8004:IdentityIdentifier8004 via core:protocolIdentifier
+# - ENS is modeled as ens:EnsIdentity (+ ens:EnsIdentifier) not as a Name entity
+# - Accounts have eth:hasAccountIdentifier → eth:AccountIdentifier (core:protocolIdentifier did:ethr:...)
+#
 
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX ens: <https://agentictrust.io/ontology/ens#>
 
 ################################################################################
-# 1) Agent → AccountIdentifier → Account (+ DID)
+# 1) Agent → ERC-8004 identity → owner/wallet/operator accounts (+ did:ethr)
 ################################################################################
 
-SELECT ?agent ?agentId ?accountIdentifier ?account ?chainId ?address ?accountType ?did
+SELECT ?agent ?did8004 ?accountRole ?account ?chainId ?address ?didEthr
 WHERE {
-  ?agent a core:AIAgent .
-  OPTIONAL { ?agent core:agentId ?agentId . }
+  ?agent a core:AIAgent ;
+         core:hasIdentity ?identity8004 .
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 .
+  ?ident8004 core:protocolIdentifier ?did8004 .
 
-  # Preferred, explicit path
-  ?agent eth:hasAccountIdentifier ?accountIdentifier .
-  OPTIONAL { ?accountIdentifier core:hasDID ?did . }
+  {
+    BIND("owner" AS ?accountRole)
+    ?identity8004 erc8004:hasOwnerAccount ?account .
+  } UNION {
+    BIND("wallet" AS ?accountRole)
+    ?identity8004 erc8004:hasWalletAccount ?account .
+  } UNION {
+    BIND("operator" AS ?accountRole)
+    ?identity8004 erc8004:hasOperatorAccount ?account .
+  }
 
-  ?account eth:hasIdentifier ?accountIdentifier .
   OPTIONAL { ?account eth:accountChainId ?chainId . }
   OPTIONAL { ?account eth:accountAddress ?address . }
-  OPTIONAL { ?account eth:accountType ?accountType . }
-}
-ORDER BY ?agentId
-
-################################################################################
-# 2) Agent → NameENS → NameIdentifierENS (+ DID)
-################################################################################
-
-SELECT ?agent ?agentId ?ensName ?ensNameValue ?ensIdentifier ?did
-WHERE {
-  ?agent a core:AIAgent .
-  OPTIONAL { ?agent core:agentId ?agentId . }
-
-  ?agent core:hasName ?ensName .
-  OPTIONAL { ?ensName eth:ensName ?ensNameValue . }
-
-  ?ensName eth:hasIdentifier ?ensIdentifier .
-  OPTIONAL { ?ensIdentifier rdfs:label ?ensNameValue . }
-  OPTIONAL { ?ensIdentifier core:hasDID ?did . }
-}
-ORDER BY ?agentId
-
-################################################################################
-# 3) Agent → Identity8004 → IdentityIdentifier8004 (+ DID)
-################################################################################
-
-SELECT ?agent ?agentId ?identity8004 ?identityIdentifier ?did
-WHERE {
-  ?agent a core:AIAgent .
-  OPTIONAL { ?agent core:agentId ?agentId . }
-
-  ?agent core:hasIdentity ?identity8004 .
-  ?identity8004 core:hasIdentifier ?identityIdentifier .
-  OPTIONAL { ?identityIdentifier core:hasDID ?did . }
-}
-ORDER BY ?agentId
-
-################################################################################
-# 4) One row per agent: Account + ENS + Identity8004 (all OPTIONAL)
-################################################################################
-
-SELECT ?agent ?agentId
-  ?accountIdentifier ?account ?chainId ?address
-  ?ensName ?ensNameValue ?ensIdentifier
-  ?identity8004 ?identityIdentifier
-WHERE {
-  ?agent a core:AIAgent .
-  OPTIONAL { ?agent core:agentId ?agentId . }
-
   OPTIONAL {
-    ?agent eth:hasAccountIdentifier ?accountIdentifier .
-    ?account eth:hasIdentifier ?accountIdentifier .
-    OPTIONAL { ?account eth:accountChainId ?chainId . }
-    OPTIONAL { ?account eth:accountAddress ?address . }
-  }
-
-  OPTIONAL {
-    ?agent core:hasName ?ensName .
-    OPTIONAL { ?ensName eth:ensName ?ensNameValue . }
-    OPTIONAL { ?ensName eth:hasIdentifier ?ensIdentifier . }
-  }
-
-  OPTIONAL {
-    ?agent core:hasIdentity ?identity8004 .
-    OPTIONAL { ?identity8004 core:hasIdentifier ?identityIdentifier . }
+    ?account eth:hasAccountIdentifier ?ai .
+    ?ai core:protocolIdentifier ?didEthr .
   }
 }
-ORDER BY ?agentId
+ORDER BY ?agent ?accountRole ?address
+
+################################################################################
+# 2) Agent → ENS identity (+ did:ens)
+################################################################################
+
+SELECT ?agent ?ensIdentity ?didEns
+WHERE {
+  ?agent a core:AIAgent ;
+         core:hasIdentity ?ensIdentity .
+  ?ensIdentity a ens:EnsIdentity ;
+               core:hasIdentifier ?ensIdent .
+  ?ensIdent core:protocolIdentifier ?didEns .
+}
+ORDER BY ?agent
+
+################################################################################
+# 3) Agent → ERC-8004 identity (+ did:8004 + derived agentId integer)
+################################################################################
+
+SELECT ?agent ?identity8004 ?did8004 (xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
+WHERE {
+  ?agent a core:AIAgent ;
+         core:hasIdentity ?identity8004 .
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 .
+  ?ident8004 core:protocolIdentifier ?did8004 .
+}
+ORDER BY DESC(?agentId8004)
+
 
 

@@ -14,7 +14,7 @@ Source: `apps/ontology/ontology/core.ttl`
    - `core:AIAgent` - AI agents that need to be discovered
    - `eth:Account` - Ethereum accounts that need to be discovered
    - `core:Protocol` - Communication protocols (A2A, MCP) that need to be discovered
-   - `core:Identifier` - Identifiers (AccountIdentifier, NameIdentifierENS, IdentityIdentifier8004, etc.) that need to be discovered
+   - `core:Identifier` / `core:UniversalIdentifier` - Identifiers (e.g., `eth:AccountIdentifier`, `ens:EnsIdentifier`, `erc8004:IdentityIdentifier8004`) that need to be discovered
 
 2. **Resolvers Process Raw Data**
    - Resolvers fetch and aggregate metadata from multiple sources (on-chain registries, IPFS, agent cards, protocol endpoints)

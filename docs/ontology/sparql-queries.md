@@ -1,575 +1,137 @@
-# SPARQL Queries for Agents
+## SPARQL Queries (current KG model)
 
-This document provides SPARQL queries for querying agent data from the RDF knowledge base.
+These queries match the **current** model emitted by `apps/sync` and the ontologies under `apps/ontology/ontology`:
 
-## Prefixes
+- Agents do **not** use `core:agentId`, `core:didIdentity`, or `core:didAccount`.
+- The ERC‑8004 “agentId” is derived from the **ERC‑8004 DID string**: `did:8004:<chainId>:<id>`, stored as `core:protocolIdentifier` on the ERC‑8004 identity identifier.
+- Owner / operator / wallet accounts hang off the **ERC‑8004 identity**.
+- A2A/MCP endpoints come from **protocol descriptors** assembled from the ERC‑8004 identity descriptor (`core:assembledFromMetadata`).
 
-All queries use these prefixes:
+### Prefixes
 
 ```sparql
-PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+PREFIX ens: <https://agentictrust.io/ontology/ens#>
 ```
 
-## Basic Agent Queries
-
-### Get All Agents
+### One row per agent (UAID + DID8004 + identities + accounts)
 
 ```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?agentName
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  OPTIONAL { ?agent core:agentName ?agentName . }
-}
-ORDER BY ?chainId ?agentId
-```
-
-### Get Agent by Chain ID and Agent ID
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?agentName
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId "4558" ;
-    core:hasIdentifier ?identifier .
-  ?identifier a eth:Account ;
-    eth:accountChainId 11155111 .
-  BIND(11155111 AS ?chainId)
-  OPTIONAL { ?agent core:agentName ?agentName . }
-}
-```
-
-## Agents with Identifiers
-
-### Get All Identifiers for an Agent (IdentityIdentifier8004, AccountIdentifier, NameIdentifierENS)
-
-```sparql
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX ens: <https://agentictrust.io/ontology/ens#>
 
-SELECT ?agent ?identifier ?identifierType ?identifierValue ?did
+SELECT
+  ?agent
+  (SAMPLE(?uaid) AS ?uaid)
+  (SAMPLE(?did8004) AS ?did8004)
+  (SAMPLE(?identity8004) AS ?identity8004)
+  (SAMPLE(?ownerAccount) AS ?ownerAccount)
+  (SAMPLE(?operatorAccount) AS ?operatorAccount)
+  (SAMPLE(?walletAccount) AS ?walletAccount)
+  (SAMPLE(?smartAccount) AS ?smartAccount)
+  (SAMPLE(?didAccount) AS ?didAccount)
+  (SAMPLE(?ensIdentity) AS ?ensIdentity)
+  (SAMPLE(?didEns) AS ?didEns)
 WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId "4514" .
-  
-  {
-    # Direct identifiers via hasIdentifier
-    # This includes: AccountIdentifier, NameIdentifierENS (direct link), IdentityIdentifier8004
-    ?agent core:hasIdentifier ?identifier .
-  }
-  UNION
-  {
-    # Identifiers via Identity8004 → hasIdentifier → IdentityIdentifier8004
-    ?agent core:hasIdentity ?identity .
-    ?identity core:hasIdentifier ?identifier .
-  }
-  
-  # Get the type of the identifier
-  ?identifier a ?identifierType .
-  
-  # Extract identifier value based on type (use UNION to avoid conflicts)
-  {
-    # For NameIdentifierENS, get the label (the ENS name, e.g., "agent.eth")
-    ?identifier a eth:NameIdentifierENS ;
-      rdfs:label ?identifierValue .
-  }
-  UNION
-  {
-    # For AccountIdentifier, get the account address via hasAccount
-    ?identifier a eth:AccountIdentifier ;
-      .
-    ?account eth:hasIdentifier ?identifier .
-    ?account eth:accountAddress ?identifierValue .
-  }
-  UNION
-  {
-    # For IdentityIdentifier8004, extract the DID value from the DID IRI
-    ?identifier a erc8004:IdentityIdentifier8004 ;
-      core:hasDID ?didNode .
-    # Extract the DID value from the IRI (e.g., from https://www.agentictrust.io/id/did/did%3A8004%3A84532%3A1)
-    # URL decode %3A to :
-    BIND(REPLACE(REPLACE(STR(?didNode), "^.*/([^/]+)$", "$1"), "%3A", ":") AS ?identifierValue)
-  }
-  
-  # Optional: get DID IRI if it exists
+  ?agent a core:AIAgent .
+  OPTIONAL { ?agent core:uaid ?uaid . }
+
   OPTIONAL {
-    ?identifier core:hasDID ?did .
+    ?agent core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  core:hasIdentifier ?ident8004 .
+    ?ident8004 core:protocolIdentifier ?did8004 .
+
+    OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?ownerAccount . }
+    OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?operatorAccount . }
+    OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?walletAccount . }
   }
-}
-```
 
-### Get Agents with Their Identifiers (Accounts)
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?account ?accountAddress ?accountType
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?account .
-  ?account a eth:Account ;
-    eth:accountChainId ?chainId ;
-    eth:accountAddress ?accountAddress ;
-    eth:accountType ?accountType .
-  FILTER (?agentId = "4558")
-}
-ORDER BY ?chainId ?agentId
-```
-
-### Get Agents with Account Details (Chain ID, Address, Type)
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?accountAddress ?accountType ?eoaOwner
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?accountIdentifier .
-  ?accountIdentifier a eth:AccountIdentifier .
-  ?account a eth:Account ;
-    eth:hasIdentifier ?accountIdentifier ;
-    eth:accountChainId ?chainId ;
-    eth:accountAddress ?accountAddress ;
-    eth:accountType ?accountType .
+  # didAccount: prefer SmartAgent smartAccount DID, else wallet account DID
   OPTIONAL {
-    ?account eth:hasEOAOwner ?eoaAccount .
-    ?eoaAccount eth:accountAddress ?eoaOwner .
+    ?agent a erc8004:SmartAgent ;
+           erc8004:hasSmartAccount ?smartAccount .
+    ?smartAccount eth:hasAccountIdentifier ?saIdent .
+    ?saIdent core:protocolIdentifier ?didAccount .
   }
-}
-ORDER BY ?chainId ?agentId
-```
-
-## Agents with Descriptors
-
-### Get Agents with Agent Descriptors
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?agent ?chainId ?agentId ?descriptor ?descriptorName
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasAgentDescriptor ?descriptor .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  ?descriptor a core:AgentDescriptor .
-  OPTIONAL { ?descriptor rdfs:label ?descriptorName . }
-}
-ORDER BY ?chainId ?agentId
-```
-
-### Get Agents with A2A Protocol Descriptors
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?agent ?chainId ?agentId ?agentDescriptor ?protocolDescriptor ?protocolVersion
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasAgentDescriptor ?agentDescriptor .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  ?agentDescriptor a core:AgentDescriptor .
-  # Protocol descriptors are separate entities, linked by IRI pattern matching agent
   OPTIONAL {
-    ?protocolDescriptor a core:A2AProtocolDescriptor, core:ProtocolDescriptor .
-    OPTIONAL { ?protocolDescriptor core:protocolVersion ?protocolVersion . }
-    # Match protocol descriptor IRI pattern: /protocol-descriptor/a2a/{chainId}/{agentId}
-    FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.agentictrust.io/id/protocol-descriptor/a2a/", STR(?chainId), "/", STR(?agentId))))
+    FILTER(!BOUND(?didAccount))
+    ?agent core:hasIdentity ?identity8004b .
+    ?identity8004b a erc8004:AgentIdentity8004 ;
+                   erc8004:hasWalletAccount ?wa .
+    ?wa eth:hasAccountIdentifier ?waIdent .
+    ?waIdent core:protocolIdentifier ?didAccount .
+  }
+
+  OPTIONAL {
+    ?agent core:hasIdentity ?ensIdentity .
+    ?ensIdentity a ens:EnsIdentity ;
+                 core:hasIdentifier ?ensIdent .
+    ?ensIdent core:protocolIdentifier ?didEns .
   }
 }
-ORDER BY ?chainId ?agentId
+GROUP BY ?agent
+ORDER BY DESC(
+  xsd:integer(REPLACE(STR(SAMPLE(?did8004)), "^did:8004:[0-9]+:", ""))
+)
+LIMIT 500
 ```
 
-## Agents with Skills
-
-### Get Agents with Their Skills
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-
-SELECT ?agent ?chainId ?agentId ?agentSkill ?skill ?skillId ?skillName
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasAgentDescriptor ?descriptor .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  ?descriptor core:hasSkill ?agentSkill .
-  OPTIONAL { ?agentSkill core:hasSkillClassification ?skill . }
-  OPTIONAL { ?skill core:oasfSkillId ?skillId . }
-  OPTIONAL { ?skill core:skillId ?skillId . }
-  OPTIONAL { ?skill core:skillName ?skillName . }
-}
-ORDER BY ?chainId ?agentId ?skillId
-```
-
-### Count Skills per Agent
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId (COUNT(?skill) AS ?skillCount)
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasAgentDescriptor ?descriptor .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  ?descriptor core:hasSkill ?skill .
-}
-GROUP BY ?agent ?chainId ?agentId
-ORDER BY DESC(?skillCount)
-```
-
-### Get Protocol Descriptors
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?did ?protocolDescriptor ?protocolVersion ?preferredTransport ?serviceUrl
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasDID ?did .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  # Protocol descriptor linked by DID in IRI pattern (protocol-agnostic, no chainId needed)
-  ?protocolDescriptor a core:A2AProtocolDescriptor, core:ProtocolDescriptor .
-  # Match protocol descriptor IRI pattern: /protocol-descriptor/a2a/{did}
-  # DID value is URL-encoded in the IRI, extract the encoded segment from DID IRI
-  BIND (REPLACE(STR(?did), "^.*/([^/]+)$", "$1") AS ?didEncoded)
-  FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.agentictrust.io/id/protocol-descriptor/a2a/", ?didEncoded)))
-  OPTIONAL { ?protocolDescriptor core:protocolVersion ?protocolVersion . }
-  OPTIONAL { ?protocolDescriptor core:preferredTransport ?preferredTransport . }
-  OPTIONAL { ?protocolDescriptor core:serviceUrl ?serviceUrl . }
-}
-ORDER BY ?chainId ?agentId
-```
-
-### Get Agent → AgentDescriptor → A2A Protocol Descriptor → Skills
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?did ?agentDescriptor ?protocolDescriptor ?protocolVersion ?agentSkill ?skill ?skillId ?skillName
-WHERE {
-  # Agent
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasDID ?did ;
-    core:hasAgentDescriptor ?agentDescriptor .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  
-  # AgentDescriptor
-  ?agentDescriptor a core:AgentDescriptor .
-  
-  # A2A Protocol Descriptor (linked by DID in IRI pattern - protocol-agnostic, no chainId needed)
-  ?protocolDescriptor a core:A2AProtocolDescriptor, core:ProtocolDescriptor .
-  OPTIONAL { ?protocolDescriptor core:protocolVersion ?protocolVersion . }
-  # Match protocol descriptor IRI pattern: /protocol-descriptor/a2a/{did}
-  # DID value is URL-encoded in the IRI
-  BIND (REPLACE(STR(?did), "^.*/([^/]+)$", "$1") AS ?didEncoded)
-  FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.agentictrust.io/id/protocol-descriptor/a2a/", ?didEncoded)))
-  
-  # Skills from AgentDescriptor (skills are declared on AgentDescriptor, not ProtocolDescriptor)
-  ?agentDescriptor core:hasSkill ?agentSkill .
-  OPTIONAL { ?agentSkill core:hasSkillClassification ?skill . }
-  OPTIONAL { ?skill core:oasfSkillId ?skillId . }
-  OPTIONAL { ?skill core:skillId ?skillId . }
-  OPTIONAL { ?skill core:skillName ?skillName . }
-}
-ORDER BY ?chainId ?agentId ?skillId
-```
-
-## Agents with Trust Assertions
-
-### Get Agents with Verification Assertions (Validations)
+### Agents with registration JSON + A2A endpoint + agent card JSON
 
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
-SELECT ?agent ?chainId ?agentId ?validation ?validator
+SELECT ?agent ?did8004 ?registrationJson ?a2aEndpoint ?agentCardJson
 WHERE {
   ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    erc8004:hasValidation ?validation .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  ?validation a erc8004:ValidationResponse, core:VerificationTrustAssertion .
+         core:hasIdentity ?identity8004 .
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 ;
+                core:hasDescriptor ?desc8004 .
+  ?ident8004 core:protocolIdentifier ?did8004 .
+
+  OPTIONAL { ?desc8004 core:json ?registrationJson . }
+
   OPTIONAL {
-    ?validation erc8004:validatorAgent ?validator .
+    ?desc8004 core:assembledFromMetadata ?pdA2a .
+    ?pdA2a a core:A2AProtocolDescriptor ;
+           core:serviceUrl ?a2aEndpoint .
+    OPTIONAL { ?pdA2a core:json ?agentCardJson . }
   }
 }
-ORDER BY ?chainId ?agentId
+ORDER BY ?agent
+LIMIT 500
 ```
 
-### Get Agents with Reputation Assertions (Feedback)
+### Skills on protocol descriptor (A2A/MCP) for an agent
 
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
-SELECT ?agent ?chainId ?agentId ?feedback ?client
+SELECT ?agent ?did8004 ?protocolDescriptor ?serviceUrl ?skill
 WHERE {
   ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    erc8004:hasFeedback ?feedback .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  ?feedback a erc8004:Feedback, core:ReputationTrustAssertion .
-  OPTIONAL {
-    ?feedback erc8004:feedbackClient ?clientAccount .
-    ?clientAccount eth:accountAddress ?client .
-  }
+         core:hasIdentity ?identity8004 .
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 ;
+                core:hasDescriptor ?desc8004 .
+  ?ident8004 core:protocolIdentifier ?did8004 .
+
+  ?desc8004 core:assembledFromMetadata ?protocolDescriptor .
+  ?protocolDescriptor a core:ProtocolDescriptor ;
+                      core:serviceUrl ?serviceUrl ;
+                      core:hasSkill ?skill .
 }
-ORDER BY ?chainId ?agentId
-```
-
-### Count Trust Assertions per Agent
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-
-SELECT ?agent ?chainId ?agentId 
-  (COUNT(DISTINCT ?validation) AS ?validationCount)
-  (COUNT(DISTINCT ?feedback) AS ?feedbackCount)
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  OPTIONAL { ?agent erc8004:hasValidation ?validation . }
-  OPTIONAL { ?agent erc8004:hasFeedback ?feedback . }
-}
-GROUP BY ?agent ?chainId ?agentId
-ORDER BY DESC(?validationCount) DESC(?feedbackCount)
-```
-
-## Agents with Relationships
-
-### Get Agents with Agent-to-Agent Relationships
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-
-SELECT ?agent ?chainId ?agentId ?relationship ?otherAgent
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasRelationship ?relationship .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  ?relationship core:participatesInRelationship ?otherAgent .
-  FILTER (?otherAgent != ?agent)
-}
-ORDER BY ?chainId ?agentId
-```
-
-### Get Agents with Account Relationships (ERC-8092)
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
-
-SELECT ?agent ?chainId ?agentId ?account ?accountRelationship ?relationshipId
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?accountIdentifier .
-  ?accountIdentifier a eth:AccountIdentifier .
-  ?account a eth:Account ;
-    eth:accountChainId ?chainId ;
-    eth:hasIdentifier ?accountIdentifier ;
-    eth:hasAccountRelationship ?accountRelationship .
-  ?accountRelationship a eth:AccountRelationship .
-  OPTIONAL {
-    ?accountRelationship erc8092:relationshipId ?relationshipId .
-  }
-}
-ORDER BY ?chainId ?agentId
-```
-
-## Complex Queries
-
-### Get Complete Agent Profile
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?agent ?chainId ?agentId ?agentName 
-  ?accountAddress ?accountType
-  ?descriptorName
-  (COUNT(DISTINCT ?skill) AS ?skillCount)
-  (COUNT(DISTINCT ?validation) AS ?validationCount)
-  (COUNT(DISTINCT ?feedback) AS ?feedbackCount)
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId ;
-    eth:accountAddress ?accountAddress ;
-    eth:accountType ?accountType .
-  OPTIONAL { ?agent core:agentName ?agentName . }
-  OPTIONAL {
-    ?agent core:hasAgentDescriptor ?descriptor .
-    ?descriptor rdfs:label ?descriptorName .
-    ?descriptor core:hasSkill ?skill .
-  }
-  OPTIONAL { ?agent erc8004:hasValidation ?validation . }
-  OPTIONAL { ?agent erc8004:hasFeedback ?feedback . }
-}
-GROUP BY ?agent ?chainId ?agentId ?agentName ?accountAddress ?accountType ?descriptorName
-ORDER BY ?chainId ?agentId
-```
-
-### Get Agents by Account Address
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?accountAddress
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?accountIdentifier .
-  ?accountIdentifier a eth:AccountIdentifier .
-  ?account a eth:Account ;
-    eth:hasIdentifier ?accountIdentifier ;
-    eth:accountAddress "0x1234..." ;
-    eth:accountChainId ?chainId .
-  BIND("0x1234..." AS ?accountAddress)
-}
-```
-
-### Get Agents with Descriptors and Read Timestamp
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?descriptor ?readAt
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:hasAgentDescriptor ?descriptor ;
-    core:agentDescriptorReadAt ?readAt .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-}
-ORDER BY DESC(?readAt)
-```
-
-## Filtering and Aggregation
-
-### Get Agents on Specific Chain
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-
-SELECT ?agent ?chainId ?agentId ?agentName
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier .
-  ?identifier a eth:Account ;
-    eth:accountChainId 11155111 .
-  BIND(11155111 AS ?chainId)
-  OPTIONAL { ?agent core:agentName ?agentName . }
-}
-ORDER BY ?agentId
-```
-
-### Get Agents Created After Timestamp
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-
-SELECT ?agent ?chainId ?agentId ?createdAt
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    core:createdAtTime ?createdAt .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  FILTER (?createdAt > 1700000000)
-}
-ORDER BY DESC(?createdAt)
-```
-
-### Get Top Agents by Validation Count
-
-```sparql
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-
-SELECT ?agent ?chainId ?agentId ?agentName (COUNT(?validation) AS ?validationCount)
-WHERE {
-  ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
-    core:hasIdentifier ?identifier ;
-    erc8004:hasValidation ?validation .
-  ?identifier a eth:Account ;
-    eth:accountChainId ?chainId .
-  OPTIONAL { ?agent core:agentName ?agentName . }
-}
-GROUP BY ?agent ?chainId ?agentId ?agentName
-ORDER BY DESC(?validationCount)
-LIMIT 10
+ORDER BY ?agent ?serviceUrl ?skill
+LIMIT 1000
 ```
 

@@ -1,5 +1,13 @@
-import { accountIri, escapeTurtleString, rdfPrefixes, turtleJsonLiteral, validationRequestIri, validationResponseIri } from './common.js';
+import { agentIri, escapeTurtleString, rdfPrefixes, turtleJsonLiteral, validationRequestIri, validationResponseIri } from './common.js';
 import { emitRawSubgraphRecord } from './emit-raw-record.js';
+
+function turtleIri(value: string): string {
+  const v = String(value || '').trim();
+  if (!v) return '<https://www.agentictrust.io/id/unknown>';
+  if (v.startsWith('<') && v.endsWith('>')) return v;
+  if (/^https?:\/\//i.test(v)) return `<${v}>`;
+  return v; // assume prefixed name
+}
 
 function normalizeHexFromAccountId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -53,7 +61,12 @@ export function emitValidationRequestsTurtle(chainId: number, items: any[], minB
   return { turtle: lines.join('\n'), maxBlock };
 }
 
-export function emitValidationResponsesTurtle(chainId: number, items: any[], minBlockExclusive: bigint): { turtle: string; maxBlock: bigint } {
+export function emitValidationResponsesTurtle(
+  chainId: number,
+  items: any[],
+  minBlockExclusive: bigint,
+  agentIriByDidIdentity?: Map<string, string>,
+): { turtle: string; maxBlock: bigint } {
   const lines: string[] = [rdfPrefixes()];
   let maxBlock = minBlockExclusive;
 
@@ -77,12 +90,11 @@ export function emitValidationResponsesTurtle(chainId: number, items: any[], min
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
 
-    const agentWallet = normalizeHexFromAccountId(vr?.agent?.agentWallet);
-    if (agentWallet) {
-      const agentNode = accountIri(chainId, agentWallet);
-      lines.push(`${agentNode} core:hasVerificationAssertion ${iri} .`);
-      lines.push('');
-    }
+    const didIdentity = `did:8004:${chainId}:${agentId}`;
+    const agentNodeRaw = agentIriByDidIdentity?.get(didIdentity) ?? agentIri(chainId, agentId);
+    const agentNode = turtleIri(agentNodeRaw);
+    lines.push(`${agentNode} core:hasVerificationAssertion ${iri} .`);
+    lines.push('');
 
     lines.push(
       emitRawSubgraphRecord({

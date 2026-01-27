@@ -58,18 +58,23 @@ note for assertedBy "Agent that performed the assertion act"
 
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
-SELECT ?situation ?situationType ?aboutAgent ?agentId
+SELECT ?situation ?situationType ?aboutAgent ?did8004 (xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
 WHERE {
   ?situation a ?situationType .
   ?situationType rdfs:subClassOf* core:Situation .
   ?situation core:isAboutAgent ?aboutAgent .
   OPTIONAL {
     ?aboutAgent a core:AIAgent ;
-      core:agentId ?agentId .
+               core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  core:hasIdentifier ?ident8004 .
+    ?ident8004 core:protocolIdentifier ?did8004 .
   }
 }
-ORDER BY ?agentId ?situationType
+ORDER BY ?agentId8004 ?situationType
 LIMIT 200
 ```
 

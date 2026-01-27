@@ -142,44 +142,35 @@ We extract string skill IDs/domains from:
 
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
 SELECT DISTINCT
-  ?agent ?agentId
-  ?descriptor
-  ?agentSkill ?skill ?skillType ?skillId ?skillLabel ?skillDescription
-  ?tag
-  ?inputSchema ?outputSchema
-  ?intentType
+  ?agent ?did8004 (xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
+  ?descriptor ?serviceUrl
+  ?skill
 WHERE {
   ?agent a core:AIAgent ;
-         core:agentId ?agentId ;
-         core:hasAgentDescriptor ?descriptor .
+         core:hasIdentity ?identity8004 .
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 ;
+                core:hasDescriptor ?identityDescriptor .
+  ?ident8004 core:protocolIdentifier ?did8004 .
 
-  ?descriptor core:hasSkill ?agentSkill .
-  OPTIONAL { ?agentSkill core:hasSkillClassification ?skill . }
-
-  OPTIONAL { ?skill a ?skillType . }
-  OPTIONAL { ?skill core:oasfSkillId ?skillId . }
-  OPTIONAL { ?skill rdfs:label ?skillLabel . }
-  OPTIONAL { ?skill core:skillName ?skillLabel . }
-  OPTIONAL { ?skill dcterms:description ?skillDescription . }
-  OPTIONAL { ?skill core:skillDescription ?skillDescription . }
-
-
-  OPTIONAL { ?skill core:hasTag ?tag . }
-  OPTIONAL { ?skill core:hasInputSchema ?inputSchema . }
-  OPTIONAL { ?skill core:hasOutputSchema ?outputSchema . }
-
-  OPTIONAL {
-    { ?skill core:supportsIntentType ?intentType . }
-    UNION
-    { ?intentType core:targetsSkill ?skill . }
+  # Skills can appear on:
+  # - the ERC-8004 identity descriptor
+  # - assembled protocol descriptors (A2A/MCP)
+  {
+    BIND(?identityDescriptor AS ?descriptor)
+  } UNION {
+    ?identityDescriptor core:assembledFromMetadata ?descriptor .
+    ?descriptor a core:ProtocolDescriptor .
+    OPTIONAL { ?descriptor core:serviceUrl ?serviceUrl . }
   }
+
+  ?descriptor core:hasSkill ?skill .
 }
-ORDER BY ?agentId ?skillId ?skill
+ORDER BY ?agentId8004 ?serviceUrl ?skill
 LIMIT 200
 ```
 
@@ -240,36 +231,32 @@ LIMIT 200
 
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
 SELECT DISTINCT
-  ?agent ?agentId
-  ?descriptor
-  ?agentDomain ?domain ?domainType ?domainId ?domainLabel
-  ?agentSkill ?skill ?skillId
+  ?agent ?did8004 (xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
+  ?descriptor ?serviceUrl
+  ?domain
 WHERE {
   ?agent a core:AIAgent ;
-         core:agentId ?agentId ;
-         core:hasAgentDescriptor ?descriptor .
+         core:hasIdentity ?identity8004 .
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 ;
+                core:hasDescriptor ?identityDescriptor .
+  ?ident8004 core:protocolIdentifier ?did8004 .
 
-  ?descriptor core:hasDomain ?agentDomain .
-  OPTIONAL { ?agentDomain core:hasDomainClassification ?domain . }
-
-  OPTIONAL { ?domain a ?domainType . }
-  OPTIONAL { ?domain core:oasfDomainId ?domainId . }
-  OPTIONAL { ?domain rdfs:label ?domainLabel . }
-
-  OPTIONAL {
-    # Agent Skill Classifications linked to the same domain via descriptor
-    {
-      ?descriptor core:hasSkill ?agentSkill .
-      OPTIONAL { ?agentSkill core:hasSkillClassification ?skill . }
-    }
-    ?skill a core:AgentSkillClassification .
-    OPTIONAL { ?skill core:oasfSkillId ?skillId . }
+  {
+    BIND(?identityDescriptor AS ?descriptor)
+  } UNION {
+    ?identityDescriptor core:assembledFromMetadata ?descriptor .
+    ?descriptor a core:ProtocolDescriptor .
+    OPTIONAL { ?descriptor core:serviceUrl ?serviceUrl . }
   }
+
+  ?descriptor core:hasDomain ?domain .
 }
-ORDER BY ?agentId ?domainId ?domain
+ORDER BY ?agentId8004 ?serviceUrl ?domain
 LIMIT 200
 ```
 

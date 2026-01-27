@@ -56,6 +56,12 @@ export function agentIri(chainId: number, agentId: string): string {
   return `<https://www.agentictrust.io/id/agent/${chainId}/${iriEncodeSegment(agentId)}>`;
 }
 
+// For SmartAgent, the agent IRI should be keyed off the smart-account DID (UAID/authority),
+// not the ERC-8004 NFT agentId.
+export function agentIriFromAccountDid(didAccountValue: string): string {
+  return `<https://www.agentictrust.io/id/agent/by-account-did/${iriEncodeSegment(didAccountValue)}>`;
+}
+
 // Descriptor keyed off what it describes
 export function agentAccountDescriptorIri(didAccountValue: string): string {
   return `<https://www.agentictrust.io/id/agent-account-descriptor/${iriEncodeSegment(didAccountValue)}>`;

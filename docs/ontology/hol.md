@@ -74,17 +74,17 @@ Also, because it’s a `core:Descriptor`, it can use core descriptor relations l
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
-SELECT ?agent ?agentId ?identity ?profile ?registry ?trustScore
+SELECT ?agent ?uaid ?identity ?profile ?registry ?trustScore
 WHERE {
   ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
     core:hasIdentity ?identity ;
     hol:hasAgentProfileHOL ?profile .
 
+  OPTIONAL { ?agent core:uaid ?uaid . }
   OPTIONAL { ?profile hol:registry ?registry . }
   OPTIONAL { ?profile hol:trustScore ?trustScore . }
 }
-ORDER BY ?agentId
+ORDER BY ?uaid ?agent
 LIMIT 200
 ```
 
@@ -95,7 +95,7 @@ PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
 SELECT
-  ?agent ?agentId ?identity ?profile ?registry ?trustScore
+  ?agent ?uaid ?identity ?profile ?registry ?trustScore
   ?uaid ?originalId ?displayName ?alias ?bio
   ?availabilityStatus ?availabilityCheckedAt ?availabilityReason ?availabilitySource ?availabilityLatencyMs ?availabilityScore ?available
   ?detectedLanguage ?detectedLanguageCode ?detectedLanguageConfidence
@@ -103,7 +103,6 @@ SELECT
   ?imageStatus ?lastIndexed ?lastSeen
 WHERE {
   ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
     core:hasIdentity ?identity ;
     hol:hasAgentProfileHOL ?profile .
 
@@ -111,7 +110,7 @@ WHERE {
   BIND("erc-8004" AS ?registry)
 
   OPTIONAL { ?profile hol:trustScore ?trustScore . }
-  OPTIONAL { ?profile hol:uaid ?uaid . }
+  OPTIONAL { ?agent core:uaid ?uaid . }
   OPTIONAL { ?profile hol:originalId ?originalId . }
   OPTIONAL { ?profile hol:displayName ?displayName . }
   OPTIONAL { ?profile hol:alias ?alias . }
@@ -140,7 +139,7 @@ WHERE {
   OPTIONAL { ?profile hol:lastIndexed ?lastIndexed . }
   OPTIONAL { ?profile hol:lastSeen ?lastSeen . }
 }
-ORDER BY ?agentId
+ORDER BY ?uaid ?agent
 LIMIT 200
 ```
 
@@ -150,16 +149,16 @@ LIMIT 200
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
-SELECT ?agentId ?profile ?endpoint ?url
+SELECT ?agent ?uaid ?profile ?endpoint ?url
 WHERE {
   ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
     hol:hasAgentProfileHOL ?profile .
 
+  OPTIONAL { ?agent core:uaid ?uaid . }
   ?profile core:hasEndpoint ?endpoint .
   OPTIONAL { ?endpoint core:endpointUrl ?url . }
 }
-ORDER BY ?agentId ?endpoint
+ORDER BY ?uaid ?endpoint
 LIMIT 200
 ```
 
@@ -169,17 +168,17 @@ LIMIT 200
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
-SELECT ?agentId ?profile ?agentSkill ?skillClass ?oasfSkillId
+SELECT ?agent ?uaid ?profile ?agentSkill ?skillClass ?oasfSkillId
 WHERE {
   ?agent a core:AIAgent ;
-    core:agentId ?agentId ;
     hol:hasAgentProfileHOL ?profile .
 
+  OPTIONAL { ?agent core:uaid ?uaid . }
   ?profile core:hasSkill ?agentSkill .
   ?agentSkill core:hasSkillClassification ?skillClass .
   OPTIONAL { ?skillClass core:oasfSkillId ?oasfSkillId . }
 }
-ORDER BY ?agentId ?oasfSkillId
+ORDER BY ?uaid ?oasfSkillId
 LIMIT 200
 ```
 

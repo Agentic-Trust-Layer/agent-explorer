@@ -21,6 +21,33 @@
   rdfs:subClassOf prov:Agent .
 
 ########
+# Agents / orgs / protocols (shared across modules)
+########
+
+:Organization a owl:Class ;
+  rdfs:label "Organization" ;
+  rdfs:subClassOf prov:Agent .
+
+:AgentDeployment a owl:Class ;
+  rdfs:label "AgentDeployment" ;
+  rdfs:comment "Executable agent application deployment (service instance)." ;
+  rdfs:subClassOf prov:SoftwareAgent .
+
+:AIAgent a owl:Class ;
+  rdfs:label "AIAgent" ;
+  rdfs:comment "Discoverable AI agent identity node used for GraphDB discovery." ;
+  rdfs:subClassOf :Agent ;
+  rdfs:subClassOf prov:SoftwareAgent .
+
+:Protocol a owl:Class ;
+  rdfs:label "Protocol" ;
+  rdfs:subClassOf prov:Entity .
+
+:Endpoint a owl:Class ;
+  rdfs:label "Endpoint" ;
+  rdfs:subClassOf prov:Entity .
+
+########
 # Intent/Task orchestration core (upper / cross-domain)
 ########
 

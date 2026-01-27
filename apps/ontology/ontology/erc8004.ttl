@@ -50,6 +50,24 @@
   rdfs:domain :SmartAgent ;
   rdfs:range eth:SmartAccount .
 
+:hasOwnerAccount a owl:ObjectProperty ;
+  rdfs:label "hasOwnerAccount" ;
+  rdfs:comment "Links an ERC-8004 agent identity to its owner account (EOA or Smart Account)." ;
+  rdfs:domain :AgentIdentity8004 ;
+  rdfs:range eth:Account .
+
+:hasWalletAccount a owl:ObjectProperty ;
+  rdfs:label "hasWalletAccount" ;
+  rdfs:comment "Links an ERC-8004 agent identity to its wallet account (EOA or Smart Account)." ;
+  rdfs:domain :AgentIdentity8004 ;
+  rdfs:range eth:Account .
+
+:hasOperatorAccount a owl:ObjectProperty ;
+  rdfs:label "hasOperatorAccount" ;
+  rdfs:comment "Links an ERC-8004 agent identity to an operator account (EOA or Smart Account), when known." ;
+  rdfs:domain :AgentIdentity8004 ;
+  rdfs:range eth:Account .
+
 :IdentityIdentifier8004 a owl:Class ;
   rdfs:label "IdentityIdentifier8004" ;
   rdfs:comment "ERC-8004 agent identity identifier (did:8004:chainId:agentId)." ;

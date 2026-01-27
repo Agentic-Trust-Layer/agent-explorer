@@ -98,8 +98,9 @@ TrustAssertionAct --> ValidationResponse : generatedAssertionRecord (core)
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 
-SELECT ?agent ?agentId ?verificationAssertion ?validationValue
+SELECT ?agent ?did8004 (xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004) ?verificationAssertion ?validationValue
 WHERE {
   ?agent a core:AIAgent ;
     core:hasVerificationAssertion ?verificationAssertion .
@@ -107,7 +108,10 @@ WHERE {
   ?verificationAssertion a core:VerificationTrustAssertion .
   
   OPTIONAL {
-    ?agent core:agentId ?agentId .
+    ?agent core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  core:hasIdentifier ?ident8004 .
+    ?ident8004 core:protocolIdentifier ?did8004 .
   }
   OPTIONAL {
     ?verificationAssertion erc8004:validationResponseValue ?validationValue .

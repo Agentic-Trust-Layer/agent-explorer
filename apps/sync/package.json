@@ -11,6 +11,7 @@
     "sync:associations": "tsx src/cli.ts associations",
     "sync:validations": "tsx src/cli.ts validations",
     "sync:agent-cards": "tsx src/cli.ts agent-cards",
+    "sync:account-types": "tsx src/cli.ts account-types",
     "sync:all": "tsx src/cli.ts all"
   },
   "dependencies": {

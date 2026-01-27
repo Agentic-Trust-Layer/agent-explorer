@@ -21,6 +21,11 @@
   rdfs:comment "Ethereum smart account (account-abstraction / contract account)." ;
   rdfs:subClassOf :Account .
 
+:EOAAccount a owl:Class ;
+  rdfs:label "EOAAccount" ;
+  rdfs:comment "Externally Owned Account (EOA)." ;
+  rdfs:subClassOf :Account .
+
 :accountChainId a owl:DatatypeProperty ;
   rdfs:label "accountChainId" ;
   rdfs:domain :Account ;

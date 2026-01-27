@@ -149,7 +149,7 @@ WHERE {
   ?accountRelationship a eth:AccountRelationship .
   ?accountRelationship core:hasParticipant ?participantAccount .
   ?participantAccount a eth:Account .
-  ?participantAccount core:hasIdentifier ?accountIdentifier .
+  ?participantAccount eth:hasAccountIdentifier ?accountIdentifier .
   ?accountIdentifier a eth:AccountIdentifier .
 }
 ```
@@ -161,14 +161,14 @@ PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
-SELECT ?account ?accountAddress ?accountIdentifier ?did
+SELECT ?account ?accountAddress ?accountIdentifier ?didEthr
 WHERE {
   ?account a eth:Account ;
     eth:accountAddress ?accountAddress ;
-    core:hasIdentifier ?accountIdentifier .
+    eth:hasAccountIdentifier ?accountIdentifier .
   ?accountIdentifier a eth:AccountIdentifier .
   OPTIONAL {
-    ?accountIdentifier eth:hasDID ?did .
+    ?accountIdentifier core:protocolIdentifier ?didEthr .
   }
 }
 ```

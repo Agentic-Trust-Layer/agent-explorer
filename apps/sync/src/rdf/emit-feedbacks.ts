@@ -1,5 +1,13 @@
-import { accountIri, escapeTurtleString, feedbackIri, rdfPrefixes, turtleJsonLiteral } from './common.js';
+import { agentIri, escapeTurtleString, feedbackIri, rdfPrefixes, turtleJsonLiteral } from './common.js';
 import { emitRawSubgraphRecord } from './emit-raw-record.js';
+
+function turtleIri(value: string): string {
+  const v = String(value || '').trim();
+  if (!v) return '<https://www.agentictrust.io/id/unknown>';
+  if (v.startsWith('<') && v.endsWith('>')) return v;
+  if (/^https?:\/\//i.test(v)) return `<${v}>`;
+  return v; // assume prefixed name
+}
 
 function normalizeHexFromAccountId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -10,7 +18,12 @@ function normalizeHexFromAccountId(value: unknown): string | null {
   return /^0x[0-9a-f]{40}$/.test(hex) ? hex : null;
 }
 
-export function emitFeedbacksTurtle(chainId: number, items: any[], minBlockExclusive: bigint): { turtle: string; maxBlock: bigint } {
+export function emitFeedbacksTurtle(
+  chainId: number,
+  items: any[],
+  minBlockExclusive: bigint,
+  agentIriByDidIdentity?: Map<string, string>,
+): { turtle: string; maxBlock: bigint } {
   const lines: string[] = [rdfPrefixes()];
   let maxBlock = minBlockExclusive;
 
@@ -30,8 +43,9 @@ export function emitFeedbacksTurtle(chainId: number, items: any[], minBlockExclu
     if (blockNum <= minBlockExclusive) continue;
     if (blockNum > maxBlock) maxBlock = blockNum;
 
-    const agentWallet = normalizeHexFromAccountId(fb?.agent?.agentWallet) || null;
-    const agentNode = agentWallet ? accountIri(chainId, agentWallet) : `<https://www.agentictrust.io/id/agent/${chainId}/${encodeURIComponent(agentId).replace(/%/g, '_')}>`;
+    const didIdentity = `did:8004:${chainId}:${agentId}`;
+    const agentNodeRaw = agentIriByDidIdentity?.get(didIdentity) ?? agentIri(chainId, agentId);
+    const agentNode = turtleIri(agentNodeRaw);
 
     const fIri = feedbackIri(chainId, agentId, client, feedbackIndex);
     lines.push(`${fIri} a erc8004:Feedback, prov:Entity ;`);

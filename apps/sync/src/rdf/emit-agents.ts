@@ -1,6 +1,7 @@
 import {
   accountIdentifierIri,
   accountIri,
+  agentIriFromAccountDid,
   agentIri,
   escapeTurtleString,
   identityEnsIri,
@@ -145,6 +146,8 @@ function findLabeledValue(obj: any, label: string): string {
 export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mintedAt', minCursorExclusive: bigint): { turtle: string; maxCursor: bigint } {
   const lines: string[] = [rdfPrefixes()];
   let maxCursor = minCursorExclusive;
+  const emittedAccounts = new Set<string>();
+  const emittedAccountIdentifiers = new Set<string>();
 
   for (const item of items) {
     const agentId = String(item?.id ?? '').trim();
@@ -192,13 +195,20 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
       pickString(onchainObj, ['REGISTRY NAMESPACE', 'registryNamespace', 'namespace']) ||
       findLabeledValue(onchainObj, 'REGISTRY NAMESPACE');
 
-    const agentWallet = metaAgentWallet ?? normalizeHex(item?.agentWallet) ?? owner;
+    // ERC-8004 "wallet" comes from metadata keys when present (paymentWallet/agentWallet), otherwise fall back to agent.agentWallet
+    const metaPaymentWallet = normalizeHex(pickString(onchainByKey, ['paymentWallet']) || '');
+    const walletAddress = metaPaymentWallet ?? metaAgentWallet ?? normalizeHex(item?.agentWallet) ?? owner;
+    const metaOwnerAccount = normalizeHex(pickString(onchainByKey, ['ownerAccount']) || '');
+    const metaOperatorAccount = normalizeHex(pickString(onchainByKey, ['operatorAccount', 'operator']) || '');
+    const ownerAddress = metaOwnerAccount ?? owner;
+    const operatorAddress = metaOperatorAccount || null;
+
+    const agentWallet = walletAddress;
     if (!agentWallet) continue;
 
     // If on-chain metadata includes AGENT ACCOUNT, emit a SmartAgent node and associate it with a SmartAccount node.
     // Otherwise anchor the agent to the ERC-8004 agent id.
     const smartAccountIri = metaAgentAccount ? accountIri(chainId, metaAgentAccount) : null;
-    const agentNodeIri = agentIri(chainId, agentId);
     const didIdentity = `did:8004:${chainId}:${agentId}`;
     const didAccountEoa = `did:ethr:${chainId}:${agentWallet}`;
     const didAccountSmart = metaAgentAccount ? `did:ethr:${chainId}:${metaAgentAccount}` : null;
@@ -206,25 +216,28 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
     const didAccountForProtocols = didAccountSmart ?? didAccountEoa;
     const deferredNodes: string[] = [];
 
+    // IMPORTANT:
+    // - SmartAgent node IRI is keyed off smart account DID (authority / UAID)
+    // - Non-smart ERC-8004 agent stays keyed off agentId
+    const agentNodeIri = didAccountSmart ? agentIriFromAccountDid(didAccountSmart) : agentIri(chainId, agentId);
+
     // Agent node: emit the most specific type only; inference gives core:AIAgent etc.
     const agentType = metaAgentAccount ? 'erc8004:SmartAgent' : 'erc8004:AIAgent8004';
-    lines.push(`${agentNodeIri} a ${agentType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+    // Emit core:AIAgent explicitly so queries don't rely on inference.
+    lines.push(`${agentNodeIri} a core:AIAgent, ${agentType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
 
     const name = (typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '') || metaAgentName;
     if (name) lines.push(`  core:agentName "${escapeTurtleString(name)}" ;`);
-    lines.push(`  core:didIdentity "${escapeTurtleString(didIdentity)}" ;`);
-    // didAccount indicates the account DID used for interaction; for Smart Account case use it, otherwise keep EOA wallet DID.
-    lines.push(`  core:didAccount "${escapeTurtleString(didAccountForProtocols)}" ;`);
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
 
     if (metaAgentAccount) {
-      lines.push(`  core:agentAccount "${escapeTurtleString(metaAgentAccount)}" ;`);
-      lines.push(`  core:eoaAgentAccount "${escapeTurtleString(agentWallet)}" ;`);
+      // SmartAgent should be the only thing that links to SmartAccount
       if (smartAccountIri) lines.push(`  erc8004:hasSmartAccount ${smartAccountIri} ;`);
       // Defer SmartAccount + identifier node emission until after the agent triple is terminated with '.'
       const acctIdIri = accountIdentifierIri(didAccountSmart!);
       if (smartAccountIri) {
-        deferredNodes.push(`${smartAccountIri} a eth:Account, eth:SmartAccount, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+        // Type only as eth:Account here; `sync:account-types` will add eth:SmartAccount vs eth:EOAAccount.
+        deferredNodes.push(`${smartAccountIri} a eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
         deferredNodes.push(`  eth:accountChainId ${chainId} ;`);
         deferredNodes.push(`  eth:accountAddress "${escapeTurtleString(metaAgentAccount)}" ;`);
         deferredNodes.push(`  eth:hasAccountIdentifier ${acctIdIri} .\n`);
@@ -234,23 +247,12 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
       deferredNodes.push(`  core:didMethod <https://www.agentictrust.io/id/did-method/ethr> .\n`);
     }
 
-    const agentUri = typeof item?.agentURI === 'string' ? item.agentURI.trim() : '';
-    if (agentUri) {
-      const tok = turtleIriOrLiteral(agentUri);
-      if (tok) lines.push(`  core:agentUri ${tok} ;`);
-    }
-
-    const a2aEndpoint = typeof item?.a2aEndpoint === 'string' ? item.a2aEndpoint.trim() : '';
-    if (a2aEndpoint) {
-      const tok = turtleIriOrLiteral(a2aEndpoint);
-      if (tok) lines.push(`  core:a2aEndpoint ${tok} ;`);
-    }
-
-    // Store ERC-8004 registration JSON (agentUri JSON) as core:json.
-    // NOTE: on-chain "NFT metadata" comes from AgentMetadata KV and is not the ERC-8004 registration JSON.
+    // NOTE:
+    // - We do NOT store agentURI/a2aEndpoint directly on core:AIAgent anymore (legacy).
+    // - We store ERC-8004 registration JSON on the ERC-8004 identity descriptor (core:json).
+    // - A2A endpoints are represented via core:A2AProtocolDescriptor + core:serviceUrl.
     const registrationRaw = typeof item?.registration?.raw === 'string' && item.registration.raw.trim() ? item.registration.raw.trim() : '';
     const registrationJsonText = registrationRaw;
-    if (registrationJsonText) lines.push(`  core:json ${turtleJsonLiteral(registrationJsonText)} ;`);
 
     // Identity node + registration descriptor link (minimal, but standard-aligned)
     const identityIri = identity8004Iri(didIdentity);
@@ -269,11 +271,44 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
 
     lines.push(`${identityIri} a erc8004:AgentIdentity8004, core:AgentIdentity, prov:Entity ;`);
     lines.push(`  core:identityOf ${agentNodeIri} ;`);
+    // ERC-8004 identity owns owner/operator/wallet → Account relationships (account subtype resolved later via RPC)
+    const ownerAcctIri = accountIri(chainId, ownerAddress);
+    const walletAcctIri = accountIri(chainId, agentWallet);
+    const operatorAcctIri = operatorAddress ? accountIri(chainId, operatorAddress) : null;
+    lines.push(`  erc8004:hasOwnerAccount ${ownerAcctIri} ;`);
+    lines.push(`  erc8004:hasWalletAccount ${walletAcctIri} ;`);
+    if (operatorAcctIri) lines.push(`  erc8004:hasOperatorAccount ${operatorAcctIri} ;`);
     // Associate DID identifier (did:8004:{chainId}:{id})
     lines.push(`  core:hasIdentifier ${identityIdentifierIri} ;`);
     lines.push(`  core:hasDescriptor ${descriptorIri} ;`);
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
+
+    // Emit Account nodes (typed as eth:Account only; subtype resolved later via RPC classification)
+    const ensureAccount = (address: string) => {
+      const acctIri = accountIri(chainId, address);
+      if (!emittedAccounts.has(acctIri)) {
+        emittedAccounts.add(acctIri);
+        const did = `did:ethr:${chainId}:${address}`;
+        const idIri = accountIdentifierIri(did);
+        lines.push(`${acctIri} a eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+        lines.push(`  eth:accountChainId ${chainId} ;`);
+        lines.push(`  eth:accountAddress "${escapeTurtleString(address)}" ;`);
+        lines.push(`  eth:hasAccountIdentifier ${idIri} .`);
+        lines.push('');
+        if (!emittedAccountIdentifiers.has(idIri)) {
+          emittedAccountIdentifiers.add(idIri);
+          lines.push(`${idIri} a eth:AccountIdentifier, core:UniversalIdentifier, core:Identifier, core:DID, prov:Entity ;`);
+          lines.push(`  core:protocolIdentifier "${escapeTurtleString(did)}" ;`);
+          lines.push(`  core:didMethod <https://www.agentictrust.io/id/did-method/ethr> .`);
+          lines.push('');
+        }
+      }
+    };
+
+    ensureAccount(ownerAddress);
+    ensureAccount(agentWallet);
+    if (operatorAddress) ensureAccount(operatorAddress);
 
     lines.push(`${identityIdentifierIri} a erc8004:IdentityIdentifier8004, core:UniversalIdentifier, core:Identifier, core:DID, prov:Entity ;`);
     lines.push(`  core:protocolIdentifier "${escapeTurtleString(didIdentity)}" ;`);
@@ -290,6 +325,7 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
       const imgTok = turtleIriOrLiteral(String(item.image));
       if (imgTok) lines.push(`  core:descriptorImage ${imgTok} ;`);
     }
+    if (registrationJsonText) lines.push(`  core:json ${turtleJsonLiteral(registrationJsonText)} ;`);
     if (onchainMetadataText) lines.push(`  erc8004:onchainMetadataJson ${turtleJsonLiteral(onchainMetadataText)} ;`);
     if (metaRegisteredBy) lines.push(`  erc8004:registeredBy "${escapeTurtleString(metaRegisteredBy)}" ;`);
     if (metaRegistryNamespace) lines.push(`  erc8004:registryNamespace "${escapeTurtleString(metaRegistryNamespace)}" ;`);
@@ -329,10 +365,9 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
         return { oasf, other };
       };
 
-      // A2A descriptor
-      if (a2aSkills.length) {
-        // best-effort serviceUrl/version from endpoints
-        let serviceUrl = a2aEndpoint || '';
+      // A2A descriptor (emit if A2A endpoint exists, even if skills are empty)
+      {
+        let serviceUrl = '';
         let version: string | null = null;
         try {
           const parsed = JSON.parse(registrationJsonText);

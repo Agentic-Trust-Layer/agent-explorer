@@ -25,7 +25,7 @@ DnS **Descriptions** still matter (as schemas/metadata), but they are not the *p
 graph TB
   Agent["Agent (discoverable)\nprov:SoftwareAgent"]
   Identity["AgentIdentity (registry-scoped)\nprov:Entity"]
-  Name["AgentName\nprov:Entity"]
+  Name["ENS Identity (name-derived)\nens:EnsIdentity\nprov:Entity"]
   Desc["Descriptors (AgentDescriptor / ProtocolDescriptor)\nprov:Entity"]
   Sit["TrustSituation\nprov:Entity"]
   Attested["AttestedAssertion\nprov:Entity"]
@@ -34,7 +34,7 @@ graph TB
   Endpoint["Protocol endpoint (A2A/MCP)\nprov:Entity"]
 
   Agent -->|core:hasIdentity| Identity
-  Agent -->|core:hasName| Name
+  Agent -->|core:hasIdentity| Name
   Agent -->|core:hasDescriptor| Desc
   Sit -->|core:isAboutAgent| Agent
   Attested -->|core:recordsSituation| Sit
