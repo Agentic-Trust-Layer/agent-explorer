@@ -10,14 +10,38 @@ In this ontology, an **AI agent** is an instance of `core:AIAgent` (a `prov:Soft
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
-SELECT DISTINCT ?agent ?agentType
+SELECT ?agent ?agentType ?uaid ?agentName ?identity8004 ?did8004 ?agentId8004
 WHERE {
+  ?agent a core:AIAgent .
+
+  OPTIONAL { ?agent core:uaid ?uaid . }
+  OPTIONAL { ?agent core:agentName ?agentName . }
+
+  # Most specific AIAgent subtype for this agent (avoid duplicate rows)
   ?agent a ?agentType .
   ?agentType rdfs:subClassOf* core:AIAgent .
+  FILTER NOT EXISTS {
+    ?agent a ?moreSpecific .
+    ?moreSpecific rdfs:subClassOf ?agentType .
+    ?moreSpecific rdfs:subClassOf* core:AIAgent .
+    FILTER(?moreSpecific != ?agentType)
+  }
+
+  # ERC-8004 identity (optional) + did:8004:<chainId>:<id>
+  OPTIONAL {
+    ?agent core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  core:hasIdentifier ?ident8004 .
+    ?ident8004 core:protocolIdentifier ?did8004 .
+    BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
+  }
 }
-ORDER BY ?agentType ?agent
+ORDER BY DESC(?agentId8004) ?agentType ?agent
+LIMIT 500
 ```
 
 ### SPARQL: AI Agents with Identity, Name, and Identifier
