@@ -126,7 +126,7 @@ Portfolios then sit *orthogonally* to registries: a portfolio can include agents
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?portfolio (COUNT(DISTINCT ?agent) AS ?agentCount)
 WHERE {
@@ -143,7 +143,7 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?agent ?identity ?registry
 WHERE {
@@ -166,7 +166,7 @@ LIMIT 500
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?skillId
 WHERE {

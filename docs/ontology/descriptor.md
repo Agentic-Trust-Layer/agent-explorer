@@ -41,7 +41,7 @@ MCPProtocolDescriptor --|> ProtocolDescriptor
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?cls
 WHERE {
@@ -92,7 +92,7 @@ note for DomainName "IETF DNS standards\n(RFC 1034, RFC 1035)"
 **SPARQL: identifiers and their descriptor**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?identifier ?descriptor
 WHERE {
@@ -123,8 +123,8 @@ AgentSkill --> AgentSkillClassification : hasSkillClassification
 **SPARQL: 8004 identity and its descriptor**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?identity ?descriptor ?skill ?skillClass
 WHERE {
@@ -158,7 +158,7 @@ Descriptor --> A2AProtocolDescriptor : assembledFromMetadata
 **SPARQL: A2A protocol descriptors**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?protocol ?descriptor ?serviceUrl ?protocolVersion ?preferredTransport
 WHERE {

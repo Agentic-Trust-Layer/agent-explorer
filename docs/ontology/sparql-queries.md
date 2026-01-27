@@ -11,10 +11,10 @@ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 ```
 
 ## Basic Agent Queries
@@ -22,8 +22,8 @@ PREFIX erc8092: <https://core.io/ontology/erc8092#>
 ### Get All Agents
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?agentName
 WHERE {
@@ -40,8 +40,8 @@ ORDER BY ?chainId ?agentId
 ### Get Agent by Chain ID and Agent ID
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?agentName
 WHERE {
@@ -60,9 +60,9 @@ WHERE {
 ### Get All Identifiers for an Agent (IdentityIdentifier8004, AccountIdentifier, NameIdentifierENS)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?identifier ?identifierType ?identifierValue ?did
@@ -104,7 +104,7 @@ WHERE {
     # For IdentityIdentifier8004, extract the DID value from the DID IRI
     ?identifier a erc8004:IdentityIdentifier8004 ;
       core:hasDID ?didNode .
-    # Extract the DID value from the IRI (e.g., from https://www.core.io/id/did/did%3A8004%3A84532%3A1)
+    # Extract the DID value from the IRI (e.g., from https://www.agentictrust.io/id/did/did%3A8004%3A84532%3A1)
     # URL decode %3A to :
     BIND(REPLACE(REPLACE(STR(?didNode), "^.*/([^/]+)$", "$1"), "%3A", ":") AS ?identifierValue)
   }
@@ -119,8 +119,8 @@ WHERE {
 ### Get Agents with Their Identifiers (Accounts)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?account ?accountAddress ?accountType
 WHERE {
@@ -139,8 +139,8 @@ ORDER BY ?chainId ?agentId
 ### Get Agents with Account Details (Chain ID, Address, Type)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?accountAddress ?accountType ?eoaOwner
 WHERE {
@@ -166,7 +166,7 @@ ORDER BY ?chainId ?agentId
 ### Get Agents with Agent Descriptors
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?chainId ?agentId ?descriptor ?descriptorName
@@ -186,8 +186,8 @@ ORDER BY ?chainId ?agentId
 ### Get Agents with A2A Protocol Descriptors
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?chainId ?agentId ?agentDescriptor ?protocolDescriptor ?protocolVersion
@@ -204,7 +204,7 @@ WHERE {
     ?protocolDescriptor a core:A2AProtocolDescriptor, core:ProtocolDescriptor .
     OPTIONAL { ?protocolDescriptor core:protocolVersion ?protocolVersion . }
     # Match protocol descriptor IRI pattern: /protocol-descriptor/a2a/{chainId}/{agentId}
-    FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.core.io/id/protocol-descriptor/a2a/", STR(?chainId), "/", STR(?agentId))))
+    FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.agentictrust.io/id/protocol-descriptor/a2a/", STR(?chainId), "/", STR(?agentId))))
   }
 }
 ORDER BY ?chainId ?agentId
@@ -215,7 +215,7 @@ ORDER BY ?chainId ?agentId
 ### Get Agents with Their Skills
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?agent ?chainId ?agentId ?agentSkill ?skill ?skillId ?skillName
 WHERE {
@@ -237,8 +237,8 @@ ORDER BY ?chainId ?agentId ?skillId
 ### Count Skills per Agent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId (COUNT(?skill) AS ?skillCount)
 WHERE {
@@ -257,8 +257,8 @@ ORDER BY DESC(?skillCount)
 ### Get Protocol Descriptors
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?did ?protocolDescriptor ?protocolVersion ?preferredTransport ?serviceUrl
 WHERE {
@@ -273,7 +273,7 @@ WHERE {
   # Match protocol descriptor IRI pattern: /protocol-descriptor/a2a/{did}
   # DID value is URL-encoded in the IRI, extract the encoded segment from DID IRI
   BIND (REPLACE(STR(?did), "^.*/([^/]+)$", "$1") AS ?didEncoded)
-  FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.core.io/id/protocol-descriptor/a2a/", ?didEncoded)))
+  FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.agentictrust.io/id/protocol-descriptor/a2a/", ?didEncoded)))
   OPTIONAL { ?protocolDescriptor core:protocolVersion ?protocolVersion . }
   OPTIONAL { ?protocolDescriptor core:preferredTransport ?preferredTransport . }
   OPTIONAL { ?protocolDescriptor core:serviceUrl ?serviceUrl . }
@@ -284,8 +284,8 @@ ORDER BY ?chainId ?agentId
 ### Get Agent → AgentDescriptor → A2A Protocol Descriptor → Skills
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?did ?agentDescriptor ?protocolDescriptor ?protocolVersion ?agentSkill ?skill ?skillId ?skillName
 WHERE {
@@ -307,7 +307,7 @@ WHERE {
   # Match protocol descriptor IRI pattern: /protocol-descriptor/a2a/{did}
   # DID value is URL-encoded in the IRI
   BIND (REPLACE(STR(?did), "^.*/([^/]+)$", "$1") AS ?didEncoded)
-  FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.core.io/id/protocol-descriptor/a2a/", ?didEncoded)))
+  FILTER (STRSTARTS(STR(?protocolDescriptor), CONCAT("https://www.agentictrust.io/id/protocol-descriptor/a2a/", ?didEncoded)))
   
   # Skills from AgentDescriptor (skills are declared on AgentDescriptor, not ProtocolDescriptor)
   ?agentDescriptor core:hasSkill ?agentSkill .
@@ -324,8 +324,8 @@ ORDER BY ?chainId ?agentId ?skillId
 ### Get Agents with Verification Assertions (Validations)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?chainId ?agentId ?validation ?validator
 WHERE {
@@ -346,9 +346,9 @@ ORDER BY ?chainId ?agentId
 ### Get Agents with Reputation Assertions (Feedback)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?chainId ?agentId ?feedback ?client
 WHERE {
@@ -370,9 +370,9 @@ ORDER BY ?chainId ?agentId
 ### Count Trust Assertions per Agent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?chainId ?agentId 
   (COUNT(DISTINCT ?validation) AS ?validationCount)
@@ -395,7 +395,7 @@ ORDER BY DESC(?validationCount) DESC(?feedbackCount)
 ### Get Agents with Agent-to-Agent Relationships
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?agent ?chainId ?agentId ?relationship ?otherAgent
 WHERE {
@@ -414,9 +414,9 @@ ORDER BY ?chainId ?agentId
 ### Get Agents with Account Relationships (ERC-8092)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 
 SELECT ?agent ?chainId ?agentId ?account ?accountRelationship ?relationshipId
 WHERE {
@@ -441,9 +441,9 @@ ORDER BY ?chainId ?agentId
 ### Get Complete Agent Profile
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?chainId ?agentId ?agentName 
@@ -476,8 +476,8 @@ ORDER BY ?chainId ?agentId
 ### Get Agents by Account Address
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?accountAddress
 WHERE {
@@ -496,8 +496,8 @@ WHERE {
 ### Get Agents with Descriptors and Read Timestamp
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?descriptor ?readAt
 WHERE {
@@ -517,7 +517,7 @@ ORDER BY DESC(?readAt)
 ### Get Agents on Specific Chain
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?agent ?chainId ?agentId ?agentName
 WHERE {
@@ -535,8 +535,8 @@ ORDER BY ?agentId
 ### Get Agents Created After Timestamp
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?chainId ?agentId ?createdAt
 WHERE {
@@ -554,9 +554,9 @@ ORDER BY DESC(?createdAt)
 ### Get Top Agents by Validation Count
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?chainId ?agentId ?agentName (COUNT(?validation) AS ?validationCount)
 WHERE {

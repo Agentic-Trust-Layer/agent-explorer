@@ -116,7 +116,7 @@ graph TB
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?assertionAct ?assertionRecord ?delegatee ?delegator
 WHERE {

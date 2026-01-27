@@ -475,7 +475,7 @@ All point to the same OASF skill, but differ in meaning and policy.
 ### Query: IntentType with Targeted Skills
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentType ?intentTypeLabel ?skill ?skillLabel
@@ -501,7 +501,7 @@ ORDER BY ?intentType
 ### Query: IntentSituation with Realization
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
@@ -529,7 +529,7 @@ LIMIT 50
 ### Query: Situation Satisfying Intent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX dolce: <http://www.loa-cnr.it/ontologies/DOLCE-Lite.owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
@@ -552,7 +552,7 @@ LIMIT 50
 ### Query: Multi-Skill Intent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentType ?intentTypeLabel (COUNT(?skill) AS ?skillCount) (GROUP_CONCAT(?skillLabel; separator=", ") AS ?skillLabels)
@@ -576,8 +576,8 @@ ORDER BY ?skillCount DESC
 ### Query: Verification Situation Satisfying Intent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?verificationSituation ?intentType ?intentTypeLabel ?agentId
@@ -603,8 +603,8 @@ LIMIT 50
 ### Query: Reputation Situation Satisfying Intent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?reputationSituation ?intentType ?intentTypeLabel ?assertion
@@ -631,8 +631,8 @@ LIMIT 50
 ### Query: Relationship Situation Satisfying Intent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?relationshipSituation ?intentType ?intentTypeLabel ?relationship
@@ -659,7 +659,7 @@ LIMIT 50
 ### Query: IntentType to Skill via targetsSkill
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentType ?intentTypeLabel ?skill ?skillId ?skillName
@@ -687,7 +687,7 @@ LIMIT 100
 ### Query: Complete Intent Flow: Situation → IntentType → Skill
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX dolce: <http://www.loa-cnr.it/ontologies/DOLCE-Lite.owl#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 

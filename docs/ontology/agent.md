@@ -10,7 +10,7 @@ In this ontology, an **AI agent** is an instance of `core:AIAgent` (a `prov:Soft
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?agent ?agentType
 WHERE {
@@ -29,10 +29,10 @@ This returns each `core:AIAgent` along with (when present) its:
 - **Smart account** (only for `erc8004:SmartAgent`): `erc8004:hasSmartAccount` → `eth:SmartAccount`
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
-PREFIX ens: <https://core.io/ontology/ens#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX ens: <https://agentictrust.io/ontology/ens#>
 
 SELECT
   ?agent
@@ -286,8 +286,8 @@ All identity-related entities have Descriptors that provide resolved, normalized
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?agentType
 WHERE {
@@ -300,9 +300,9 @@ ORDER BY ?agentType
 ### Query: AIAgent with Identity, Identifier, and Name
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId ?agentName 
        ?identity ?identityIdentifier
@@ -341,9 +341,9 @@ LIMIT 100
 ### Query: Agent with All Descriptors
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId 
        ?agentDescriptor ?identityDescriptor 
@@ -386,8 +386,8 @@ LIMIT 50
 ### Query: Account (SoftwareAgent) with Identifier and Descriptor
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?account ?accountAddress ?accountType
@@ -425,8 +425,8 @@ LIMIT 100
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?agentType (COUNT(DISTINCT ?subclass) AS ?subclassCount)
 WHERE {
@@ -447,8 +447,8 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?softwareAgent ?agentType ?identifier
 WHERE {
@@ -477,9 +477,9 @@ LIMIT 100
 This query shows the complete chain from Agent through Identity/Identifier/Name to their Descriptors:
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?agent ?agentId ?agentName
@@ -523,7 +523,7 @@ LIMIT 50
 ### Query: Agent Descriptor with Skills and Endpoints
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?agent ?agentId ?agentName ?descriptor ?agentSkill ?skill ?endpoint
 WHERE {

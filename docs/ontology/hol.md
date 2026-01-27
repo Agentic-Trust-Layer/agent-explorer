@@ -71,8 +71,8 @@ Also, because it’s a `core:Descriptor`, it can use core descriptor relations l
 #### List HOL agents with identity + profile
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX hol: <https://www.core.io/ontology/hol#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
 SELECT ?agent ?agentId ?identity ?profile ?registry ?trustScore
 WHERE {
@@ -91,8 +91,8 @@ LIMIT 200
 #### AgentProfileHOL attributes for a specific registry (example: `erc-8004`)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX hol: <https://www.core.io/ontology/hol#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
 SELECT
   ?agent ?agentId ?identity ?profile ?registry ?trustScore
@@ -147,8 +147,8 @@ LIMIT 200
 #### Profile endpoints (safe IRIs only)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX hol: <https://www.core.io/ontology/hol#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
 SELECT ?agentId ?profile ?endpoint ?url
 WHERE {
@@ -166,8 +166,8 @@ LIMIT 200
 #### OASF skills declared on profiles
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX hol: <https://www.core.io/ontology/hol#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX hol: <https://agentictrust.io/ontology/hol#>
 
 SELECT ?agentId ?profile ?agentSkill ?skillClass ?oasfSkillId
 WHERE {

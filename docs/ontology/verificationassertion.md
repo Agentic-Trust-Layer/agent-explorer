@@ -96,8 +96,8 @@ TrustAssertionAct --> ValidationResponse : generatedAssertionRecord (core)
 
 **Query all verification assertions for an agent:**
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId ?verificationAssertion ?validationValue
 WHERE {
@@ -117,7 +117,7 @@ WHERE {
 
 **Query validation responses with their requests:**
 ```sparql
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?validationResponse ?validationRequest ?validatorAgent
 WHERE {

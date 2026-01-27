@@ -2,7 +2,7 @@
 
 ## Quick Navigation
 
-- **[Ontology Overview](./core-overview.md)**: Design patterns, core classes, and key relationships
+- **[Ontology Overview](./agentictrust-overview.md)**: Design patterns, core classes, and key relationships
 - **[Philosophy](./philosophy.md)**: Modeling principles and alignment with ERC-8004/8092, DnS, PROV-O, p-plan, DIDs, OASF
 - **[Use Cases](#use-cases)**: Concrete end-to-end examples (intent → plan → tasks → skills → actions)
 - **[Documentation Index](#documentation-structure)**: Complete list of documentation files
@@ -211,7 +211,7 @@ This allows modeling:
 
 ## AgenticTrust Ontology Overview
 
-> **Detailed Overview**: See [`core-overview.md`](./core-overview.md) for design patterns, class diagrams, and core relationships.
+> **Detailed Overview**: See [`agentictrust-overview.md`](./agentictrust-overview.md) for design patterns, class diagrams, and core relationships.
 
 The AgenticTrust ontology provides a comprehensive model for:
 
@@ -228,7 +228,7 @@ The AgenticTrust ontology provides a comprehensive model for:
 
 Generated ontology-wide diagrams live in [`./images/`](./images/README.md):
 
-- AgenticTrust core: `./images/core.png` (also `core.svg`)
+- AgenticTrust core: `./images/agentictrust.png` (also `agentictrust.svg`)
 - ERC8004: `./images/ERC8004.png` (also `ERC8004.svg`)
 - ERC8092: `./images/ERC8092.png` (also `ERC8092.svg`)
 
@@ -236,7 +236,7 @@ Generated ontology-wide diagrams live in [`./images/`](./images/README.md):
 
 AgenticTrust core (`apps/ontology/ontology/core.ttl`)
 
-- [`core-overview.md`](./core-overview.md): navigation + full diagram
+- [`agentictrust-overview.md`](./agentictrust-overview.md): navigation + full diagram
 - [`agent.md`](./agent.md): Agent class hierarchy (Person, Organization, SoftwareAgent, AIAgent, Account) and relationships to Identity, Identifier, Name, and Descriptors
 - [`agent-identity.md`](./agent-identity.md): Agent vs AgentIdentity (registry-scoped) vs Identifier (the thing vs the reference)
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly

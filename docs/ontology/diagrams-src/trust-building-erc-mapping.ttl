@@ -1,36 +1,36 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
-@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
-@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .
+@prefix erc8092: <https://agentictrust.io/ontology/erc8092#> .
 
-agentictrust:Diagram_TrustBuildingERCMapping a owl:Ontology ;
+core:Diagram_TrustBuildingERCMapping a owl:Ontology ;
   rdfs:label "TrustBuildingRegistryMapping" .
 
 ### Abstract pattern nodes
-agentictrust:TrustSituation a owl:Class .
-agentictrust:TrustAssertion a owl:Class .
-agentictrust:VerificationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
-agentictrust:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
-agentictrust:Relationship a owl:Class .
-agentictrust:RelationshipTrustAssertion a owl:Class ; rdfs:subClassOf agentictrust:TrustAssertion .
+core:TrustSituation a owl:Class .
+core:TrustAssertion a owl:Class .
+core:VerificationTrustAssertion a owl:Class ; rdfs:subClassOf core:TrustAssertion .
+core:ReputationTrustAssertion a owl:Class ; rdfs:subClassOf core:TrustAssertion .
+core:Relationship a owl:Class .
+core:RelationshipTrustAssertion a owl:Class ; rdfs:subClassOf core:TrustAssertion .
 
-agentictrust:generatedSituation a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustAssertion ;
-  rdfs:range agentictrust:TrustSituation .
+core:generatedSituation a owl:ObjectProperty ;
+  rdfs:domain core:TrustAssertion ;
+  rdfs:range core:TrustSituation .
 
-agentictrust:assertsRelationship a owl:ObjectProperty ;
-  rdfs:domain agentictrust:RelationshipTrustAssertion ;
-  rdfs:range agentictrust:Relationship .
+core:assertsRelationship a owl:ObjectProperty ;
+  rdfs:domain core:RelationshipTrustAssertion ;
+  rdfs:range core:Relationship .
 
-agentictrust:qualifiesRelationship a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustAssertion ;
-  rdfs:range agentictrust:Relationship .
+core:qualifiesRelationship a owl:ObjectProperty ;
+  rdfs:domain core:TrustAssertion ;
+  rdfs:range core:Relationship .
 
 ### ERC-8004 validation registry
-erc8004:ValidationRequestSituation a owl:Class ; rdfs:subClassOf agentictrust:TrustSituation .
-erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf agentictrust:VerificationTrustAssertion .
+erc8004:ValidationRequestSituation a owl:Class ; rdfs:subClassOf core:TrustSituation .
+erc8004:ValidationResponse a owl:Class ; rdfs:subClassOf core:VerificationTrustAssertion .
 
 erc8004:validationRespondsToRequest a owl:ObjectProperty ;
   rdfs:domain erc8004:ValidationResponse ;
@@ -41,20 +41,20 @@ erc8004:validationValidator a owl:ObjectProperty ;
   rdfs:range prov:Agent .
 
 ### ERC-8004 reputation registry
-erc8004:Feedback a owl:Class ; rdfs:subClassOf agentictrust:ReputationTrustAssertion .
+erc8004:Feedback a owl:Class ; rdfs:subClassOf core:ReputationTrustAssertion .
 erc8004:feedbackClient a owl:ObjectProperty ;
   rdfs:domain erc8004:Feedback ;
   rdfs:range prov:Agent .
 
 erc8004:feedbackSkill a owl:ObjectProperty ;
   rdfs:domain erc8004:Feedback ;
-  rdfs:range agentictrust:AgentSkillClassification .
+  rdfs:range core:AgentSkillClassification .
 
-agentictrust:AgentSkillClassification a owl:Class .
+core:AgentSkillClassification a owl:Class .
 
 ### ERC-8092 associated accounts storage (relationship assertions)
-erc8092:RelationshipERC8092 a owl:Class ; rdfs:subClassOf agentictrust:Relationship .
-erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf agentictrust:RelationshipTrustAssertion .
+erc8092:RelationshipERC8092 a owl:Class ; rdfs:subClassOf core:Relationship .
+erc8092:RelationshipAssertionERC8092 a owl:Class ; rdfs:subClassOf core:RelationshipTrustAssertion .
 erc8092:RelationshipAccount a owl:Class .
 
 erc8092:initiatorAccount a owl:ObjectProperty ;

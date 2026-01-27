@@ -1,20 +1,20 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
 
-agentictrust:Diagram_DescriptionToSituation a owl:Ontology ;
+core:Diagram_DescriptionToSituation a owl:Ontology ;
   rdfs:label "DescriptionToSituation" .
 
-agentictrust:TrustDescription a owl:Class .
-agentictrust:TrustSituation a owl:Class .
-agentictrust:TrustAssertion a owl:Class .
+core:TrustDescription a owl:Class .
+core:TrustSituation a owl:Class .
+core:TrustAssertion a owl:Class .
 
-agentictrust:hasSituationDescription a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustSituation ;
-  rdfs:range agentictrust:TrustDescription .
+core:hasSituationDescription a owl:ObjectProperty ;
+  rdfs:domain core:TrustSituation ;
+  rdfs:range core:TrustDescription .
 
-agentictrust:generatedSituation a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustAssertion ;
-  rdfs:range agentictrust:TrustSituation .
+core:generatedSituation a owl:ObjectProperty ;
+  rdfs:domain core:TrustAssertion ;
+  rdfs:range core:TrustSituation .
 
 

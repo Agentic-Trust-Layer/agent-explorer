@@ -16,10 +16,10 @@ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 ```
 
 ## Agent Identity, Identifier, and Name
@@ -29,9 +29,9 @@ PREFIX erc8092: <https://core.io/ontology/erc8092#>
 This query retrieves a **tight** identity slice (no wide UNION fanout): Agent(account-anchored) → Identity8004 → IdentityIdentifier8004, plus ENS.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -85,8 +85,8 @@ LIMIT 50
 ### Agent Basic Information
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT ?agent ?agentId ?chainId ?accountAddress ?agentName ?didIdentity ?didAccount
 WHERE {
@@ -106,8 +106,8 @@ LIMIT 1
 ### Agent with Account Identifier
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT DISTINCT ?agent ?agentId ?accountAddress ?chainId ?accountType
 WHERE {
@@ -128,12 +128,12 @@ LIMIT 1
 This query returns **one row per situation type** with counts, instead of exploding into many rows.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT
   ?bucket
@@ -206,10 +206,10 @@ ORDER BY ?bucket
 ### Reputation Situations and Feedback Assertions
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT DISTINCT
   ?agent
@@ -261,10 +261,10 @@ LIMIT 50
 ### Verification Situations and Validation Assertions
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT DISTINCT
   ?agent
@@ -316,8 +316,8 @@ LIMIT 50
 ### Relationship Situations and Assertions
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT DISTINCT
@@ -368,8 +368,8 @@ LIMIT 50
 ### Agent Descriptor with Endpoints and Skills
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?agent
@@ -418,8 +418,8 @@ LIMIT 100
 ### ERC-8004 Registration Metadata
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?agent
@@ -450,10 +450,10 @@ LIMIT 50
 This comprehensive query retrieves all relationships: identity, identifiers, names, situations, assertions, descriptors, and metadata.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
@@ -629,9 +629,9 @@ graph LR
 ### Count All Assertions by Type
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 
 SELECT ?assertionType (COUNT(DISTINCT ?assertion) AS ?count)
 WHERE {
@@ -669,8 +669,8 @@ ORDER BY DESC(?count)
 ### Feedback Statistics
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT 
   (COUNT(DISTINCT ?feedback) AS ?totalFeedbacks)

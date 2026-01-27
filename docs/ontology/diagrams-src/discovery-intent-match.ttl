@@ -1,41 +1,41 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
 
-agentictrust:Diagram_DiscoveryIntentMatch a owl:Ontology ;
+core:Diagram_DiscoveryIntentMatch a owl:Ontology ;
   rdfs:label "DiscoveryIntentMatch" .
 
-agentictrust:Message a owl:Class .
-agentictrust:Intent a owl:Class .
-agentictrust:IntentType a owl:Class .
-agentictrust:IntentSubject a owl:Class .
-agentictrust:IntentCheck a owl:Class .
+core:Message a owl:Class .
+core:Intent a owl:Class .
+core:IntentType a owl:Class .
+core:IntentSubject a owl:Class .
+core:IntentCheck a owl:Class .
 
-agentictrust:AgentSkillClassification a owl:Class .
-agentictrust:TaskType a owl:Class .
+core:AgentSkillClassification a owl:Class .
+core:TaskType a owl:Class .
 
-agentictrust:hasIntent a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Message ;
-  rdfs:range agentictrust:Intent .
+core:hasIntent a owl:ObjectProperty ;
+  rdfs:domain core:Message ;
+  rdfs:range core:Intent .
 
-agentictrust:hasSubject a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Intent ;
-  rdfs:range agentictrust:IntentSubject .
+core:hasSubject a owl:ObjectProperty ;
+  rdfs:domain core:Intent ;
+  rdfs:range core:IntentSubject .
 
-agentictrust:hasCheck a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Intent ;
-  rdfs:range agentictrust:IntentCheck .
+core:hasCheck a owl:ObjectProperty ;
+  rdfs:domain core:Intent ;
+  rdfs:range core:IntentCheck .
 
-agentictrust:supportsIntentType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentSkillClassification ;
-  rdfs:range agentictrust:IntentType .
+core:supportsIntentType a owl:ObjectProperty ;
+  rdfs:domain core:AgentSkillClassification ;
+  rdfs:range core:IntentType .
 
-agentictrust:mapsToTaskType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:IntentType ;
-  rdfs:range agentictrust:TaskType .
+core:mapsToTaskType a owl:ObjectProperty ;
+  rdfs:domain core:IntentType ;
+  rdfs:range core:TaskType .
 
-agentictrust:enablesTaskType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentSkillClassification ;
-  rdfs:range agentictrust:TaskType .
+core:enablesTaskType a owl:ObjectProperty ;
+  rdfs:domain core:AgentSkillClassification ;
+  rdfs:range core:TaskType .
 
 

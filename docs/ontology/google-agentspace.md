@@ -49,19 +49,19 @@ Represent “orchestration” as **intent + execution**:
 ```mermaid
 graph TB
   Portfolio["Portfolio / Fleet\nprov:Collection"]
-  AgentA["Agent A\nagentictrust:AIAgent"]
-  AgentB["Agent B\nagentictrust:AIAgent"]
+  AgentA["Agent A\ncore:AIAgent"]
+  AgentB["Agent B\ncore:AIAgent"]
 
-  DeployA["Deployment A\nagentictrust:AgentDeployment"]
-  DeployB["Deployment B\nagentictrust:AgentDeployment"]
-  Provider["Provider\nagentictrust:Organization"]
-  Operator["Operator\nagentictrust:Operator"]
+  DeployA["Deployment A\ncore:AgentDeployment"]
+  DeployB["Deployment B\ncore:AgentDeployment"]
+  Provider["Provider\ncore:Organization"]
+  Operator["Operator\ncore:Operator"]
   Authority["Authority\nprov:Agent (e.g., Account)"]
 
-  IntentType["IntentType\nagentictrust:IntentType"]
-  Skill["OASF Skill\nagentictrust:OASFSkill"]
-  Exec["TaskExecution\nagentictrust:TaskExecution"]
-  Invoke["SkillInvocation\nagentictrust:SkillInvocation"]
+  IntentType["IntentType\ncore:IntentType"]
+  Skill["OASF Skill\noasf:Skill"]
+  Exec["TaskExecution\ncore:TaskExecution"]
+  Invoke["SkillInvocation\ncore:SkillInvocation"]
 
   Portfolio -->|prov:hadMember| AgentA
   Portfolio -->|prov:hadMember| AgentB
@@ -87,7 +87,7 @@ graph TB
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?portfolio (COUNT(DISTINCT ?agent) AS ?agents)
 WHERE {
@@ -104,7 +104,7 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?agent ?deployment ?provider
 WHERE {
@@ -127,7 +127,7 @@ LIMIT 500
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?skillId
 WHERE {
@@ -149,7 +149,7 @@ LIMIT 500
 ### 4) Orchestration trace: task executions and which skills were invoked
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?exec ?intentType ?skillId
 WHERE {

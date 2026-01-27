@@ -56,7 +56,7 @@ classDiagram
 ### SPARQL Query: Core Relationship with Participants
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?relationship ?participant
@@ -70,7 +70,7 @@ WHERE {
 ### SPARQL Query: Relationship with Qualified Participation
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX p-plan: <http://purl.org/net/p-plan#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
@@ -88,7 +88,7 @@ WHERE {
 ### SPARQL Query: Agent Roles
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX p-plan: <http://purl.org/net/p-plan#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
@@ -140,8 +140,8 @@ classDiagram
 ### SPARQL Query: Account Relationship with Participants
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?accountRelationship ?participantAccount ?accountIdentifier
@@ -157,8 +157,8 @@ WHERE {
 ### SPARQL Query: Account with Identifier
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?account ?accountAddress ?accountIdentifier ?did
@@ -206,9 +206,9 @@ The association record points at a **Situation** in core:
 ### SPARQL Query: ERC-8092 AssociatedAccounts8092 asserted relationship situation
 
 ```sparql
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?association ?situation ?relationship ?initiator ?approver ?initiatorAccountId ?approverAccountId
 WHERE {
@@ -230,9 +230,9 @@ LIMIT 200
 ### SPARQL Query: Relationship with Qualified Participation (ERC-8092)
 
 ```sparql
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX p-plan: <http://purl.org/net/p-plan#>
 
 SELECT ?relationship ?participantAccount ?role

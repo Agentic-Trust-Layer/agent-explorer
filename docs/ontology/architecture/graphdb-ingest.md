@@ -62,8 +62,8 @@ pnpm --filter erc8004-indexer graphdb:ingest agents --reset
 
 - `--reset` clears the target named graph context before loading (recommended for local dev).
 - Default contexts:
-  - ontologies: `https://www.core.io/graph/ontology/core`
-  - agents: `https://www.core.io/graph/data/agents`
+  - ontologies: `https://www.agentictrust.io/graph/ontology/core`
+  - agents: `https://www.agentictrust.io/graph/data/agents`
 
 Notes:
 - ontology ingestion reads `apps/ontology/ontology/*.ttl` (not `badge-admin`).

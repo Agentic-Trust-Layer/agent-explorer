@@ -163,8 +163,8 @@ classDiagram
     AccountIdentifier --> DID : hasDID
     
     note for AIAgent "Canonical link: core:hasIdentifier\nConvenience subproperty: eth:hasAccountIdentifier"
-    note for AccountIdentifier "eth:AccountIdentifier\n(inverse) ^eth:hasIdentifier\nagentictrustEth:hasDID"
-    note for Account "eth:Account\nSubclass of prov:SoftwareAgent\nInherits hasIdentifier from prov:Agent\nagentictrustEth:accountChainId\nagentictrustEth:accountAddress\nagentictrustEth:accountType"
+    note for AccountIdentifier "eth:AccountIdentifier\n(inverse) ^eth:hasIdentifier\neth:hasDID"
+    note for Account "eth:Account\nSubclass of prov:SoftwareAgent\nInherits hasIdentifier from prov:Agent\neth:accountChainId\neth:accountAddress\neth:accountType"
 ```
 
 ### Agent ↔ NameIdentifierENS ↔ NameENS (+ DID) (eth)
@@ -181,8 +181,8 @@ classDiagram
     NameIdentifierENS --> DID : hasDID
     
     note for AIAgent "Canonical link: core:hasIdentifier\nConvenience link to Name: core:hasName"
-    note for NameENS "eth:NameENS\nagentictrustEth:ensName\nagentictrustEth:ensChainId"
-    note for NameIdentifierENS "eth:NameIdentifierENS\nagentictrustEth:IdentifierType_ens"
+    note for NameENS "eth:NameENS\neth:ensName\neth:ensChainId"
+    note for NameIdentifierENS "eth:NameIdentifierENS\neth:IdentifierType_ens"
 ```
 
 ### Agent ↔ IdentityIdentifier8004 ↔ Identity8004 (+ DID) (erc8004)
@@ -210,8 +210,8 @@ The complete script is in: `docs/ontology/sparql/identifiers-account-ens-8004.sp
 ### Agent → AccountIdentifier → Account (+ DID)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT ?agent ?agentId ?accountIdentifier ?account ?chainId ?address ?accountType ?did
 WHERE {
@@ -233,8 +233,8 @@ ORDER BY ?agentId
 ### Agent → NameIdentifierENS → NameENS (+ DID)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?ensName ?ensNameValue ?ensIdentifier ?did
@@ -259,8 +259,8 @@ ORDER BY ?agentId
 ### Agent → IdentityIdentifier8004 → Identity8004 (+ DID)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId ?identity8004 ?identityIdentifier ?did
 WHERE {
@@ -282,9 +282,9 @@ ORDER BY ?agentId
 ### One row per agent (Account + ENS + Identity8004)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?agentId
   ?accountIdentifier ?account ?chainId ?address
@@ -385,22 +385,22 @@ classDiagram
 
 **Example**:
 ```turtle
-<https://www.core.io/id/agent/did%3A8004%3A84532%3A1>
+<https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1>
   a core:AIAgent ;
-  core:hasIdentity <https://www.core.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1> ;
-  core:hasIdentifier <https://www.core.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
+  core:hasIdentity <https://www.agentictrust.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1> ;
+  core:hasIdentifier <https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
 
-<https://www.core.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1>
+<https://www.agentictrust.io/id/8004-identity/84532/1/did%3A8004%3A84532%3A1>
   a erc8004:AgentIdentity8004 ;
-  core:hasIdentifier <https://www.core.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
+  core:hasIdentifier <https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1> .
 
-<https://www.core.io/id/identifier/8004/did%3A8004%3A84532%3A1>
+<https://www.agentictrust.io/id/identifier/8004/did%3A8004%3A84532%3A1>
   a erc8004:IdentityIdentifier8004,
     core:UniversalIdentifier,
     core:Identifier,
     prov:Entity ;
   core:identifierType erc8004:IdentifierType_8004 ;
-  core:hasDID <https://www.core.io/id/did/did%3A8004%3A84532%3A1> .
+  core:hasDID <https://www.agentictrust.io/id/did/did%3A8004%3A84532%3A1> .
 ```
 
 ### 2. NameIdentifierENS (apps/ontology/ontology/eth.ttl)
@@ -422,23 +422,23 @@ classDiagram
 
 **Example**:
 ```turtle
-<https://www.core.io/id/agent/did%3A8004%3A84532%3A1811>
+<https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1811>
   a core:AIAgent ;
-  core:hasName <https://www.core.io/id/ens-name/84532/levi.agnt.eth> ;
-  core:hasIdentifier <https://www.core.io/id/identifier/ens/levi.agnt.eth> .
+  core:hasName <https://www.agentictrust.io/id/ens-name/84532/levi.agnt.eth> ;
+  core:hasIdentifier <https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth> .
 
-<https://www.core.io/id/ens-name/84532/levi.agnt.eth>
+<https://www.agentictrust.io/id/ens-name/84532/levi.agnt.eth>
   a eth:AgentNameENS, core:AgentName, prov:Entity ;
   eth:ensName "levi.agnt.eth" ;
   eth:ensChainId 84532 ;
-  eth:hasIdentifier <https://www.core.io/id/identifier/ens/levi.agnt.eth> .
+  eth:hasIdentifier <https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth> .
 
-<https://www.core.io/id/identifier/ens/levi.agnt.eth>
+<https://www.agentictrust.io/id/identifier/ens/levi.agnt.eth>
   a eth:NameIdentifierENS,
     core:Identifier,
     prov:Entity ;
   core:identifierType eth:IdentifierType_ens ;
-  core:hasDID <https://www.core.io/id/did/did%3Aens%3A84532%3Alevi.agnt.eth> ;
+  core:hasDID <https://www.agentictrust.io/id/did/did%3Aens%3A84532%3Alevi.agnt.eth> ;
   rdfs:label "levi.agnt.eth" .
 ```
 
@@ -456,24 +456,24 @@ classDiagram
 
 **Example**:
 ```turtle
-<https://www.core.io/id/agent/did%3A8004%3A84532%3A1811>
+<https://www.agentictrust.io/id/agent/did%3A8004%3A84532%3A1811>
   a core:AIAgent ;
-  core:hasIdentifier <https://www.core.io/id/account-identifier/84532/0x1234...> ;
-  eth:hasAccountIdentifier <https://www.core.io/id/account-identifier/84532/0x1234...> .
+  core:hasIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> ;
+  eth:hasAccountIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> .
 
-<https://www.core.io/id/account-identifier/84532/0x1234...>
+<https://www.agentictrust.io/id/account-identifier/84532/0x1234...>
   a eth:AccountIdentifier,
     core:Identifier,
     prov:Entity ;
   core:identifierType eth:IdentifierType_account ;
-  eth:hasDID <https://www.core.io/id/did/did%3Aethr%3A84532%3A0x1234...> .
+  eth:hasDID <https://www.agentictrust.io/id/did/did%3Aethr%3A84532%3A0x1234...> .
 
-<https://www.core.io/id/account/84532/0x1234...>
+<https://www.agentictrust.io/id/account/84532/0x1234...>
   a eth:Account, prov:Entity ;
   eth:accountChainId 84532 ;
   eth:accountAddress "0x1234..." ;
   eth:accountType "SmartAccount" ;
-  core:hasIdentifier <https://www.core.io/id/account-identifier/84532/0x1234...> .
+  core:hasIdentifier <https://www.agentictrust.io/id/account-identifier/84532/0x1234...> .
 ```
 
 ### 4. Account (apps/ontology/ontology/eth.ttl)
@@ -569,8 +569,8 @@ Descriptors are resolver-produced, normalized metadata views that aggregate all 
 ### Get All Identifiers for an Agent
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?identifier ?identifierType ?identifierValue ?did
@@ -619,8 +619,8 @@ ORDER BY ?agentId ?identifierType
 ### Get Agent with Account, NameENS, and Identity8004
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?account ?accountAddress ?ensName ?ensNameValue ?identity ?identityIdentifier
@@ -654,8 +654,8 @@ WHERE {
 ### Get Agent with Descriptors
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?agent ?agentId ?agentDescriptor ?accountIdentifier ?accountDescriptor ?ensName ?ensNameDescriptor ?identity ?identityDescriptor
@@ -694,7 +694,7 @@ WHERE {
 ### Get Identifier Type Counts
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?identifierType (COUNT(DISTINCT ?identifier) AS ?count)
 WHERE {
@@ -730,6 +730,6 @@ ORDER BY DESC(?count)
 
 ## Related Documentation
 
-- [`core-overview.md`](./core-overview.md): Overview of the AgenticTrust ontology
+- [`agentictrust-overview.md`](./agentictrust-overview.md): Overview of the AgenticTrust ontology
 - [`sparql-queries.md`](./sparql-queries.md): Additional SPARQL queries for agent data
 - [`descriptor.md`](./descriptor.md): Descriptor pattern and metadata assembly

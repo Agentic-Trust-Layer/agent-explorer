@@ -33,7 +33,7 @@ TrustDescription --|> SituationDescription
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?cls
 WHERE {
@@ -57,7 +57,7 @@ Situation --> SituationDescription : hasSituationDescription
 **SPARQL: situations with their descriptions**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?description
 WHERE {
@@ -81,7 +81,7 @@ SituationAssertion --> SituationDescription : assertsDescription
 **SPARQL: assertions and the descriptions they assert under**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?assertion ?description
 WHERE {
@@ -108,7 +108,7 @@ TrustSituation --> TrustDescription : hasSituationDescription
 **SPARQL: TrustSituations and their TrustDescriptions**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?desc
 WHERE {

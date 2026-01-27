@@ -41,8 +41,8 @@ AssociatedAccountsAct --> AssociatedAccounts : generatedAssertionRecord (core)
 
 **Query AssociatedAccounts8092 with its asserted relationship situation:**
 ```sparql
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?association ?situation ?relationship ?initiator ?approver ?initiatorAccountId ?approverAccountId
 WHERE {

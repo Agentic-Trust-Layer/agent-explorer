@@ -37,12 +37,12 @@ This example data is shipped in `apps/ontology/ontology/usecase-validator-collec
 ## SPARQL: list the membership plan steps
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 
 SELECT ?planTitle ?step ?order ?taskType ?actionType
 WHERE {
-  GRAPH <https://www.core.io/graph/ontology/core> {
+  GRAPH <https://www.agentictrust.io/graph/ontology/core> {
     core:plan.joinValidationAgentsCollection a core:Plan ;
       dcterms:title ?planTitle ;
       core:hasStep ?step .

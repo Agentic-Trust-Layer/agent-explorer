@@ -2,56 +2,56 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix p-plan: <http://purl.org/net/p-plan#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
 
-agentictrust:Diagram_TrustBuildingAbstract a owl:Ontology ;
+core:Diagram_TrustBuildingAbstract a owl:Ontology ;
   rdfs:label "TrustBuildingAbstract" .
 
 ### Core trust graph nodes
-agentictrust:TrustDescription a owl:Class ;
+core:TrustDescription a owl:Class ;
   rdfs:label "TrustPlan(TrustDescription)" ;
   rdfs:subClassOf prov:Plan, p-plan:Plan .
 
-agentictrust:TrustSituation a owl:Class ;
+core:TrustSituation a owl:Class ;
   rdfs:label "TrustSituation(TrustEvent)" ;
   rdfs:subClassOf prov:Activity .
 
-agentictrust:TrustAssertion a owl:Class ;
+core:TrustAssertion a owl:Class ;
   rdfs:label "TrustAssertion(DurableClaim)" ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:VerificationTrustAssertion a owl:Class ;
-  rdfs:subClassOf agentictrust:TrustAssertion .
+core:VerificationTrustAssertion a owl:Class ;
+  rdfs:subClassOf core:TrustAssertion .
 
-agentictrust:ReputationTrustAssertion a owl:Class ;
-  rdfs:subClassOf agentictrust:TrustAssertion .
+core:ReputationTrustAssertion a owl:Class ;
+  rdfs:subClassOf core:TrustAssertion .
 
-agentictrust:Relationship a owl:Class ;
+core:Relationship a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:RelationshipTrustAssertion a owl:Class ;
-  rdfs:subClassOf agentictrust:TrustAssertion .
+core:RelationshipTrustAssertion a owl:Class ;
+  rdfs:subClassOf core:TrustAssertion .
 
 ### Core edges (trust graph overlay)
-agentictrust:hasSituationDescription a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustSituation ;
-  rdfs:range agentictrust:TrustDescription .
+core:hasSituationDescription a owl:ObjectProperty ;
+  rdfs:domain core:TrustSituation ;
+  rdfs:range core:TrustDescription .
 
-agentictrust:generatedSituation a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustAssertion ;
-  rdfs:range agentictrust:TrustSituation .
+core:generatedSituation a owl:ObjectProperty ;
+  rdfs:domain core:TrustAssertion ;
+  rdfs:range core:TrustSituation .
 
-agentictrust:aboutSubject a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustAssertion ;
+core:aboutSubject a owl:ObjectProperty ;
+  rdfs:domain core:TrustAssertion ;
   rdfs:range prov:Entity .
 
-agentictrust:assertsRelationship a owl:ObjectProperty ;
-  rdfs:domain agentictrust:RelationshipTrustAssertion ;
-  rdfs:range agentictrust:Relationship .
+core:assertsRelationship a owl:ObjectProperty ;
+  rdfs:domain core:RelationshipTrustAssertion ;
+  rdfs:range core:Relationship .
 
-agentictrust:qualifiesRelationship a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TrustAssertion ;
-  rdfs:range agentictrust:Relationship .
+core:qualifiesRelationship a owl:ObjectProperty ;
+  rdfs:domain core:TrustAssertion ;
+  rdfs:range core:Relationship .
 
 ### PROV association / evidence (for “who validated” and “what evidence was used”)
 prov:Agent a owl:Class .

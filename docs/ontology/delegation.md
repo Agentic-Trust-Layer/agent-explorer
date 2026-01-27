@@ -65,7 +65,7 @@ graph TB
 ## SPARQL: list delegation grants (delegator → delegatee + permissions)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?delegationSituation ?delegator ?delegatee ?action ?resource ?expires
 WHERE {

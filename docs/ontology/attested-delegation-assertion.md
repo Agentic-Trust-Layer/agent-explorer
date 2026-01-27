@@ -71,7 +71,7 @@ graph LR
 ## SPARQL: find reputation/verification assertions and the delegation that authorized them
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?assertion ?assertionType ?delegation
 WHERE {

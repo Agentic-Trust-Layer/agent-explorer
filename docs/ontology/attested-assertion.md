@@ -123,7 +123,7 @@ See also: [`attested-delegation-assertion.md`](./attested-delegation-assertion.m
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?attested ?act ?agent
 WHERE {
@@ -139,7 +139,7 @@ LIMIT 200
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?attestation ?assertion ?attestedAssertion ?agent
 WHERE {
@@ -155,7 +155,7 @@ LIMIT 200
 ### 3) Trust assertions (as AttestedAssertions) and their situations
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?trustAssertion ?trustAssertionType ?situation ?situationType
@@ -174,7 +174,7 @@ LIMIT 200
 ### 4) Backward-compat check: resources typed as AssertionRecord (only if older data exists)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT (COUNT(?x) AS ?count)
 WHERE {

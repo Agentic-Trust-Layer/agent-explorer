@@ -38,7 +38,7 @@ RelationshipTrustSituation --|> TrustSituation
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?cls
 WHERE {
@@ -51,7 +51,7 @@ ORDER BY ?cls
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?type
 WHERE {
@@ -141,7 +141,7 @@ graph TB
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?cls
 WHERE {
@@ -154,7 +154,7 @@ ORDER BY ?cls
 
 ```sparql
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?assertion ?assertionType ?situation ?situationType
 WHERE {
@@ -189,7 +189,7 @@ TrustAssertionAct --> TrustAssertion : generatedAssertionRecord
 **SPARQL: TrustAssertion + asserted TrustSituation + description**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?trustAssertion ?trustSituation ?trustDescription
 WHERE {
@@ -224,8 +224,8 @@ ValidationResponse --> provAgent : validatorAgentForResponse
 **SPARQL: validation responses and their requests**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?response ?request ?validator
 WHERE {
@@ -250,7 +250,7 @@ These query-friendly abstractions are defined in `apps/ontology/ontology/core.tt
 ### SPARQL: situations + evaluated agent + participants
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?aboutAgent ?participant
 WHERE {
@@ -265,7 +265,7 @@ LIMIT 200
 ### SPARQL: assertion acts + asserted situation + assertedBy
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT ?act ?situation ?assertedBy
@@ -309,8 +309,8 @@ Mappings (diagram edge labels → ontology properties):
 **SPARQL: relationship assertions → relationship + participants**
 
 ```sparql
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?assertion ?initiator ?approver
 WHERE {
@@ -326,7 +326,7 @@ LIMIT 200
 **SPARQL: relationship revocations**
 
 ```sparql
-PREFIX erc8092: <https://core.io/ontology/erc8092#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
 
 SELECT ?revocation ?ofAssertion ?revokedAt
 WHERE {
@@ -371,7 +371,7 @@ Mappings (diagram edge labels → ontology properties):
 **SPARQL: assertions about a subject (generic)**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?assertion ?subject
 WHERE {
@@ -384,7 +384,7 @@ LIMIT 200
 **SPARQL: relationship-qualified assertions**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?assertion ?relationship
 WHERE {
@@ -397,7 +397,7 @@ LIMIT 200
 **SPARQL: relationship trust situations asserted by trust assertions**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?assertion ?situation ?relationship
 WHERE {
@@ -428,7 +428,7 @@ Feedback --> Skill : feedbackSkill
 **SPARQL: feedback records**
 
 ```sparql
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT ?agent ?feedback ?score ?ratingPct
 WHERE {

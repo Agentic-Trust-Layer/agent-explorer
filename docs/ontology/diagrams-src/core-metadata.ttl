@@ -1,53 +1,53 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
 
-agentictrust:Diagram_CoreMetadata a owl:Ontology .
+core:Diagram_CoreMetadata a owl:Ontology .
 
 prov:SoftwareAgent a owl:Class .
 prov:Entity a owl:Class .
 
-agentictrust:AIAgent a owl:Class ;
+core:AIAgent a owl:Class ;
   rdfs:subClassOf prov:SoftwareAgent .
 
-agentictrust:AgentDescriptor a owl:Class ;
+core:AgentDescriptor a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:EndpointType a owl:Class ;
+core:EndpointType a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:Endpoint a owl:Class ;
+core:Endpoint a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:AgentSkill a owl:Class ;
+core:AgentSkill a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:AgentSkillClassification a owl:Class ;
+core:AgentSkillClassification a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
-agentictrust:hasAgentDescriptor a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AIAgent ;
-  rdfs:range agentictrust:AgentDescriptor .
+core:hasAgentDescriptor a owl:ObjectProperty ;
+  rdfs:domain core:AIAgent ;
+  rdfs:range core:AgentDescriptor .
 
-agentictrust:assembledFromMetadata a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentDescriptor .
+core:assembledFromMetadata a owl:ObjectProperty ;
+  rdfs:domain core:AgentDescriptor ;
+  rdfs:range core:AgentDescriptor .
 
-agentictrust:hasEndpoint a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:Endpoint .
+core:hasEndpoint a owl:ObjectProperty ;
+  rdfs:domain core:AgentDescriptor ;
+  rdfs:range core:Endpoint .
 
-agentictrust:endpointType a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Endpoint ;
-  rdfs:range agentictrust:EndpointType .
+core:endpointType a owl:ObjectProperty ;
+  rdfs:domain core:Endpoint ;
+  rdfs:range core:EndpointType .
 
-agentictrust:hasSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentSkill .
+core:hasSkill a owl:ObjectProperty ;
+  rdfs:domain core:AgentDescriptor ;
+  rdfs:range core:AgentSkill .
 
-agentictrust:hasSkillClassification a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentSkill ;
-  rdfs:range agentictrust:AgentSkillClassification .
+core:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:domain core:AgentSkill ;
+  rdfs:range core:AgentSkillClassification .
 
 

@@ -1,32 +1,32 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
 
-agentictrust:Diagram_DescriptionToDiscovery a owl:Ontology ;
+core:Diagram_DescriptionToDiscovery a owl:Ontology ;
   rdfs:label "DescriptionToDiscovery" .
 
-agentictrust:TrustDescription a owl:Class .
+core:TrustDescription a owl:Class .
 
-agentictrust:AgentCardFetch a owl:Class .
-agentictrust:AgentDescriptor a owl:Class .
-agentictrust:AgentSkill a owl:Class .
-agentictrust:AgentSkillClassification a owl:Class .
+core:AgentCardFetch a owl:Class .
+core:AgentDescriptor a owl:Class .
+core:AgentSkill a owl:Class .
+core:AgentSkillClassification a owl:Class .
 
-agentictrust:hadPlan a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentCardFetch ;
-  rdfs:range agentictrust:TrustDescription .
+core:hadPlan a owl:ObjectProperty ;
+  rdfs:domain core:AgentCardFetch ;
+  rdfs:range core:TrustDescription .
 
 prov:generated a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentCardFetch ;
-  rdfs:range agentictrust:AgentDescriptor .
+  rdfs:domain core:AgentCardFetch ;
+  rdfs:range core:AgentDescriptor .
 
-agentictrust:hasSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentDescriptor ;
-  rdfs:range agentictrust:AgentSkill .
+core:hasSkill a owl:ObjectProperty ;
+  rdfs:domain core:AgentDescriptor ;
+  rdfs:range core:AgentSkill .
 
-agentictrust:hasSkillClassification a owl:ObjectProperty ;
-  rdfs:domain agentictrust:AgentSkill ;
-  rdfs:range agentictrust:AgentSkillClassification .
+core:hasSkillClassification a owl:ObjectProperty ;
+  rdfs:domain core:AgentSkill ;
+  rdfs:range core:AgentSkillClassification .
 
 

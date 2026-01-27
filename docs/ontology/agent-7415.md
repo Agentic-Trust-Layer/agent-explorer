@@ -9,9 +9,9 @@ PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 ```
 
 ## 0) Resolve the agent anchor (account-anchored AIAgent) + optional ERC-8004 identity
@@ -19,8 +19,8 @@ PREFIX erc8004: <https://core.io/ontology/erc8004#>
 Run this first. If it returns more than one row, pick the `?chainId` you care about and use it in later queries.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT DISTINCT ?agent ?chainId ?accountAddress ?didAccount ?identity ?didIdentity
 WHERE {
@@ -43,9 +43,9 @@ This collects A2A endpoints from:
 - A2A protocol descriptor (`core:serviceUrl`)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?agent ?chainId
@@ -66,7 +66,7 @@ WHERE {
   # Registration endpoint URL (endpointType=a2a)
   OPTIONAL {
     ?reg core:hasEndpoint ?ep .
-    ?ep core:endpointType <https://core.io/ontology/core/endpointType/a2a> ;
+    ?ep core:endpointType <https://agentictrust.io/ontology/core/endpointType/a2a> ;
         core:endpointUrl ?registrationEndpointUrl .
   }
 
@@ -91,9 +91,9 @@ Note: endpoint payloads often provide `endpoints[].a2aSkills` / `endpoints[].a2a
 If you see an “empty row” in results, that’s usually because both Skills and Domains are in `OPTIONAL { ... }` blocks; SPARQL still returns a solution for the bound `?agent/?identity/?reg` but leaves `?skillId/?domainId` unbound. Use the `FILTER(BOUND(...))` below to suppress that.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -136,9 +136,9 @@ LIMIT 200
 If `IntentType` mappings are present in your repo, this returns **only the intents that target skills advertised by agent 7415**.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT
   ?intentType
@@ -173,8 +173,8 @@ LIMIT 200
 This shows what intent types appear in situations for agent 7415 without blowing up into record-level detail.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 
 SELECT DISTINCT ?intentType (COUNT(DISTINCT ?situation) AS ?situationCount)
 WHERE {
@@ -205,9 +205,9 @@ Important: `erc8004:ValidationRequestSituation` and `core:FeedbackAuthRequestSit
 Note: this query scopes to request situations **about agent 7415** (i.e., where 7415 is the agent being validated / the agent whose feedback is being given). If agent 7415 is acting primarily as a **validator** for other agents, use **5c**.
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT ?requestSituation ?requestType ?delegation ?delegatee ?action ?expires
 WHERE {
@@ -244,9 +244,9 @@ LIMIT 200
 ### 5b) Authorized assertions (assertion → delegation) — only returns rows when assertions exist
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT ?assertion ?assertionType ?delegation
 WHERE {
@@ -277,9 +277,9 @@ LIMIT 200
 This finds `erc8004:ValidationRequestSituation` records where the validator is agent 7415 (either via `erc8004:validationValidator` account IRI or via `erc8004:validatorAgent` mapping).
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
-PREFIX erc8004: <https://core.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
 SELECT DISTINCT ?requestSituation ?requestingAgentId ?validator ?validatorAgent
 WHERE {
@@ -291,7 +291,7 @@ WHERE {
          eth:accountAddress ?addr .
 
   BIND(CONCAT("0x", LCASE(STR(?addr))) AS ?addrLc) # defensively normalize
-  BIND(IRI(CONCAT("https://www.core.io/id/account/", STR(?chainId), "/", ?addrLc)) AS ?acct)
+  BIND(IRI(CONCAT("https://www.agentictrust.io/id/account/", STR(?chainId), "/", ?addrLc)) AS ?acct)
 
   ?requestSituation a erc8004:ValidationRequestSituation .
   OPTIONAL { ?requestSituation erc8004:requestingAgentId ?requestingAgentId . }

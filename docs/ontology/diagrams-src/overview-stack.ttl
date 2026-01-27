@@ -3,53 +3,53 @@
 @prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 @prefix p-plan: <http://purl.org/net/p-plan#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust#> .
-@prefix erc8004: <https://www.agentictrust.io/ontology/ERC8004#> .
-@prefix erc8092: <https://www.agentictrust.io/ontology/ERC8092#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .
+@prefix erc8092: <https://agentictrust.io/ontology/erc8092#> .
 
-agentictrust:Diagram_OverviewStack a owl:Ontology ;
+core:Diagram_OverviewStack a owl:Ontology ;
   dcterms:title "AgenticTrustOntologyOverviewStack" ;
   rdfs:label "AgenticTrustOntologyOverviewStack" .
 
 ### “Layer” nodes (modeled as classes for diagram purposes)
-agentictrust:UpperOntologyPatterns a owl:Class ;
+core:UpperOntologyPatterns a owl:Class ;
   rdfs:label "UpperOntologyPatterns" .
 
 prov:PROVO a owl:Class ;
   rdfs:label "PROV-O" ;
-  rdfs:subClassOf agentictrust:UpperOntologyPatterns .
+  rdfs:subClassOf core:UpperOntologyPatterns .
 
 p-plan:PPLAN a owl:Class ;
   rdfs:label "P-PLAN" ;
-  rdfs:subClassOf agentictrust:UpperOntologyPatterns .
+  rdfs:subClassOf core:UpperOntologyPatterns .
 
-agentictrust:DnSPrinciples a owl:Class ;
+core:DnSPrinciples a owl:Class ;
   rdfs:label "DnSPrinciples" ;
-  rdfs:subClassOf agentictrust:UpperOntologyPatterns .
+  rdfs:subClassOf core:UpperOntologyPatterns .
 
-agentictrust:DOLCEPrinciples a owl:Class ;
+core:DOLCEPrinciples a owl:Class ;
   rdfs:label "DOLCEPrinciples" ;
-  rdfs:subClassOf agentictrust:UpperOntologyPatterns .
+  rdfs:subClassOf core:UpperOntologyPatterns .
 
-agentictrust:AgenticTrustCore a owl:Class ;
+core:AgenticTrustCore a owl:Class ;
   rdfs:label "AgenticTrustCoreOntology" ;
-  rdfs:subClassOf prov:PROVO, p-plan:PPLAN, agentictrust:DnSPrinciples, agentictrust:DOLCEPrinciples .
+  rdfs:subClassOf prov:PROVO, p-plan:PPLAN, core:DnSPrinciples, core:DOLCEPrinciples .
 
-agentictrust:ERC8004 a owl:Class ;
+core:ERC8004 a owl:Class ;
   rdfs:label "ERC8004" ;
-  rdfs:subClassOf agentictrust:AgenticTrustCore .
+  rdfs:subClassOf core:AgenticTrustCore .
 
-agentictrust:NANDA a owl:Class ;
+core:NANDA a owl:Class ;
   rdfs:label "NANDA" ;
-  rdfs:subClassOf agentictrust:AgenticTrustCore .
+  rdfs:subClassOf core:AgenticTrustCore .
 
-agentictrust:AGNTCY a owl:Class ;
+core:AGNTCY a owl:Class ;
   rdfs:label "AGNTCY" ;
-  rdfs:subClassOf agentictrust:AgenticTrustCore .
+  rdfs:subClassOf core:AgenticTrustCore .
 
-agentictrust:ANS a owl:Class ;
+core:ANS a owl:Class ;
   rdfs:label "ANS" ;
-  rdfs:subClassOf agentictrust:AgenticTrustCore .
+  rdfs:subClassOf core:AgenticTrustCore .
 
 
 

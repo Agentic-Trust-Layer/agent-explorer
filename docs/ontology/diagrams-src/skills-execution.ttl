@@ -1,38 +1,38 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
-@prefix agentictrust: <https://www.agentictrust.io/ontology/agentictrust-core#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
 
-agentictrust:Diagram_SkillsExecution a owl:Ontology .
+core:Diagram_SkillsExecution a owl:Ontology .
 
 prov:Activity a owl:Class .
 prov:Entity a owl:Class .
 
-agentictrust:Task a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:TaskExecution a owl:Class ; rdfs:subClassOf prov:Activity .
-agentictrust:SkillInvocation a owl:Class ; rdfs:subClassOf prov:Activity .
-agentictrust:AgentSkillClassification a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:Message a owl:Class ; rdfs:subClassOf prov:Entity .
-agentictrust:Intent a owl:Class ; rdfs:subClassOf prov:Entity .
+core:Task a owl:Class ; rdfs:subClassOf prov:Entity .
+core:TaskExecution a owl:Class ; rdfs:subClassOf prov:Activity .
+core:SkillInvocation a owl:Class ; rdfs:subClassOf prov:Activity .
+core:AgentSkillClassification a owl:Class ; rdfs:subClassOf prov:Entity .
+core:Message a owl:Class ; rdfs:subClassOf prov:Entity .
+core:Intent a owl:Class ; rdfs:subClassOf prov:Entity .
 
-agentictrust:taskRealizedBy a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Task ;
-  rdfs:range agentictrust:TaskExecution .
+core:taskRealizedBy a owl:ObjectProperty ;
+  rdfs:domain core:Task ;
+  rdfs:range core:TaskExecution .
 
-agentictrust:hasInvocation a owl:ObjectProperty ;
-  rdfs:domain agentictrust:TaskExecution ;
-  rdfs:range agentictrust:SkillInvocation .
+core:hasInvocation a owl:ObjectProperty ;
+  rdfs:domain core:TaskExecution ;
+  rdfs:range core:SkillInvocation .
 
-agentictrust:invokesSkill a owl:ObjectProperty ;
-  rdfs:domain agentictrust:SkillInvocation ;
-  rdfs:range agentictrust:AgentSkillClassification .
+core:invokesSkill a owl:ObjectProperty ;
+  rdfs:domain core:SkillInvocation ;
+  rdfs:range core:AgentSkillClassification .
 
-agentictrust:invocationUsedMessage a owl:ObjectProperty ;
-  rdfs:domain agentictrust:SkillInvocation ;
-  rdfs:range agentictrust:Message .
+core:invocationUsedMessage a owl:ObjectProperty ;
+  rdfs:domain core:SkillInvocation ;
+  rdfs:range core:Message .
 
-agentictrust:fulfilledByInvocation a owl:ObjectProperty ;
-  rdfs:domain agentictrust:Intent ;
-  rdfs:range agentictrust:SkillInvocation .
+core:fulfilledByInvocation a owl:ObjectProperty ;
+  rdfs:domain core:Intent ;
+  rdfs:range core:SkillInvocation .
 
 

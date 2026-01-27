@@ -50,15 +50,15 @@ Validator agent must:
 ## SPARQL: list request-validation intent types
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?intentType ?label
 WHERE {
-  GRAPH <https://www.core.io/graph/ontology/core> {
+  GRAPH <https://www.agentictrust.io/graph/ontology/core> {
     ?intentType a core:IntentType ;
       rdfs:label ?label .
-    FILTER(STRSTARTS(STR(?intentType), "https://core.io/ontology/core#intentType.requestValidation."))
+    FILTER(STRSTARTS(STR(?intentType), "https://agentictrust.io/ontology/core#intentType.requestValidation."))
   }
 }
 ORDER BY ?intentType

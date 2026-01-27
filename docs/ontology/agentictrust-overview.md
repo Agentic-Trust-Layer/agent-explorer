@@ -23,16 +23,16 @@ We treat these as **guiding principles** for modeling trust, rather than importi
 
 ### Full diagram (generated)
 
-- PNG: `docs/ontology/images/core.png`
-- SVG: `docs/ontology/images/core.svg`
+- PNG: `docs/ontology/images/agentictrust.png`
+- SVG: `docs/ontology/images/agentictrust.svg`
 
-![AgenticTrust ontology diagram](./images/core.png)
+![AgenticTrust ontology diagram](./images/agentictrust.png)
 
 ### Why a common “AgenticTrust” core matters
 
 ERC registries and protocols encode related trust facts (identity/metadata, validation, feedback, relationships, protocol capabilities) but expose them in **different event shapes and storage locations**.
 
-By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituation / TrustAssertion, plus Skills/Intents/Tasks), we get a **normalized, cross-registry view** that the `core.io` application can use for:
+By mapping these into a shared AgenticTrust core (TrustDescription / TrustSituation / TrustAssertion, plus Skills/Intents/Tasks), we get a **normalized, cross-registry view** that the `agentictrust.io` application can use for:
 
 - **Agent discovery**: consistent filtering/search across sources (skills, endpoints, intent/task types, validations, feedback, relationships)
 - **Community development**: shared vocabulary to build “communities” around task types, skills, validators, relationship networks, and contribution/reputation signals

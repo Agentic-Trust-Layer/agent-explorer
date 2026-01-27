@@ -197,7 +197,7 @@ But: **DNS TXT usage ≠ an interaction protocol standard**. It’s a reusable v
 ### Find deployments and their provider (if modeled)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?app ?provider
 WHERE {
@@ -210,7 +210,7 @@ LIMIT 200
 ### Find deployments and their model identifiers (descriptor-level)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?app ?descriptor ?modelId ?modelVersion ?providerValue
 WHERE {
@@ -229,7 +229,7 @@ If you don’t want deployment identities, you can skip `AgentDeployment` nodes 
 
 ```sparql
 PREFIX prov: <http://www.w3.org/ns/prov#>
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?deployment ?agent
 WHERE {

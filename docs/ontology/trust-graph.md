@@ -57,7 +57,7 @@ note for assertedBy "Agent that performed the assertion act"
 **SPARQL: situations and their about agents**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?situationType ?aboutAgent ?agentId
 WHERE {
@@ -76,7 +76,7 @@ LIMIT 200
 **SPARQL: situations and their participants**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation ?participant ?participantType
 WHERE {
@@ -91,7 +91,7 @@ LIMIT 200
 **SPARQL: assertion acts and their asserting agents**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?assertionAct ?assertingAgent ?situation
 WHERE {
@@ -140,7 +140,7 @@ TrustAssertionRecord --> TrustSituation : recordsSituation
 **SPARQL: count assertion records per situation**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation (COUNT(?assertionRecord) AS ?assertionCount)
 WHERE {
@@ -155,7 +155,7 @@ LIMIT 200
 **SPARQL: count assertion acts per situation**
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?situation (COUNT(?assertionAct) AS ?actCount)
 WHERE {

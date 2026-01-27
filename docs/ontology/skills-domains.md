@@ -141,7 +141,7 @@ We extract string skill IDs/domains from:
 ### Query: Agent Skill Classifications declared by AgentDescriptors (with tags/domains/schemas/intents)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
@@ -186,7 +186,7 @@ LIMIT 200
 ### Query: OASF-only Agent Skill Classification view (category + GitHub source)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -212,7 +212,7 @@ LIMIT 200
 ### Query: Agent Domain Classifications only (no joins)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX dcterms: <http://purl.org/dc/terms/>
 
@@ -239,7 +239,7 @@ LIMIT 200
 ### Query: Agent Domain Classifications declared on AgentDescriptors (and linked skill classifications)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT
@@ -276,7 +276,7 @@ LIMIT 200
 ### Query: OASF-only Agent Domain Classification view (category + GitHub source)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT DISTINCT

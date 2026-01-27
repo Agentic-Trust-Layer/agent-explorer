@@ -94,7 +94,7 @@ This is why portfolios are **orthogonal** to registries: the same portfolio conc
 ### 1) List registries and how many identities they issue
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?registry (COUNT(DISTINCT ?identity) AS ?identityCount)
 WHERE {
@@ -109,7 +109,7 @@ LIMIT 200
 ### 2) Registry → Agents (via identities)
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT DISTINCT ?registry ?agent ?identity
 WHERE {
@@ -128,7 +128,7 @@ If you model a curation link (e.g., `core:curatesPortfolio` or encode curation i
 Today, this repo treats curation as a **pattern** (not a required OWL property).
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX prov: <http://www.w3.org/ns/prov#>
 
 SELECT DISTINCT ?portfolio ?agent

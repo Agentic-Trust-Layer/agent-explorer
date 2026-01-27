@@ -101,8 +101,8 @@ AgentDescriptor --> Endpoint : hasEndpoint
 ### SPARQL Query: Entity Discovery via Descriptor
 
 ```sparql
-PREFIX core: <https://core.io/ontology/core#>
-PREFIX eth: <https://core.io/ontology/eth#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 
 SELECT ?entity ?entityType ?descriptor ?descriptorType ?skill ?domain
