@@ -27,7 +27,7 @@ SELECT
   (SAMPLE(?operator) AS ?operator)
   (SAMPLE(?wallet) AS ?wallet)
   (SAMPLE(?smartAccount) AS ?smartAccount)
-  (SAMPLE(?ensIdentity) AS ?ensIdentity)
+  (SAMPLE(?identityEns) AS ?identityEns)
 WHERE {
   VALUES ?did8004 { "did:8004:11155111:4476" }
 
@@ -49,8 +49,8 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity .
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity .
   }
 }
 GROUP BY ?agent
@@ -78,8 +78,8 @@ WHERE {
   OPTIONAL { ?identityDescriptor core:json ?registrationJson . }
 
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity ;
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity ;
                  core:hasIdentifier ?ensIdent .
     ?ensIdent core:protocolIdentifier ?ensDid .
   }

@@ -47,11 +47,11 @@ ORDER BY ?agent ?accountRole ?address
 # 2) Agent → ENS identity (+ did:ens)
 ################################################################################
 
-SELECT ?agent ?ensIdentity ?didEns
+SELECT ?agent ?identityEns ?didEns
 WHERE {
   ?agent a core:AIAgent ;
-         core:hasIdentity ?ensIdentity .
-  ?ensIdentity a ens:EnsIdentity ;
+         core:hasIdentity ?identityEns .
+  ?identityEns a ens:EnsIdentity ;
                core:hasIdentifier ?ensIdent .
   ?ensIdent core:protocolIdentifier ?didEns .
 }

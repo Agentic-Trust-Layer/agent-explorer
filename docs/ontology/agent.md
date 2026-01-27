@@ -41,7 +41,7 @@ SELECT
   (SAMPLE(?did8004) AS ?did8004)
   (SAMPLE(?didAccount) AS ?didAccount)
   (SAMPLE(?identity8004) AS ?identity8004)
-  (SAMPLE(?ensIdentity) AS ?ensIdentity)
+  (SAMPLE(?identityEns) AS ?identityEns)
   (SAMPLE(?didEns) AS ?didEns)
   (SAMPLE(?smartAccount) AS ?smartAccount)
 WHERE {
@@ -57,8 +57,8 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity ;
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity ;
                  core:hasIdentifier ?ensIdentifier .
     ?ensIdentifier core:protocolIdentifier ?didEns .
   }
@@ -210,7 +210,7 @@ SELECT ?agent
        (SAMPLE(?walletAccount) AS ?walletAccount)
        (SAMPLE(?smartAccount) AS ?smartAccount)
        (SAMPLE(?didAccount) AS ?didAccount)
-       (SAMPLE(?ensIdentity) AS ?ensIdentity)
+       (SAMPLE(?identityEns) AS ?identityEns)
        (SAMPLE(?ensDid) AS ?ensDid)
 WHERE {
   OPTIONAL {
@@ -249,8 +249,8 @@ WHERE {
 
   # ENS identity + did:ens:...
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity ;
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity ;
                  core:hasIdentifier ?ensIdent .
     ?ensIdent core:protocolIdentifier ?ensDid .
   }
@@ -296,8 +296,8 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity ;
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity ;
                  core:hasDescriptor ?ensDescriptor .
   }
 }
@@ -396,7 +396,7 @@ SELECT ?agent
        (SAMPLE(?identity8004) AS ?identity8004)
        (SAMPLE(?identityDescriptor) AS ?identityDescriptor)
        (SAMPLE(?registrationJson) AS ?registrationJson)
-       (SAMPLE(?ensIdentity) AS ?ensIdentity)
+       (SAMPLE(?identityEns) AS ?identityEns)
        (SAMPLE(?ensDescriptor) AS ?ensDescriptor)
        (SAMPLE(?a2aEndpoint) AS ?a2aEndpoint)
        (SAMPLE(?a2aDescriptor) AS ?a2aDescriptor)
@@ -421,8 +421,8 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity ;
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity ;
                  core:hasDescriptor ?ensDescriptor .
   }
 }

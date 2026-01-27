@@ -36,7 +36,7 @@ SELECT
   (SAMPLE(?walletAccount) AS ?walletAccount)
   (SAMPLE(?smartAccount) AS ?smartAccount)
   (SAMPLE(?didAccount) AS ?didAccount)
-  (SAMPLE(?ensIdentity) AS ?ensIdentity)
+  (SAMPLE(?identityEns) AS ?identityEns)
   (SAMPLE(?didEns) AS ?didEns)
 WHERE {
   ?agent a core:AIAgent .
@@ -70,8 +70,8 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity ;
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity ;
                  core:hasIdentifier ?ensIdent .
     ?ensIdent core:protocolIdentifier ?didEns .
   }

@@ -85,8 +85,8 @@ WHERE {
   }
 
   OPTIONAL {
-    ?agent core:hasIdentity ?ensIdentity .
-    ?ensIdentity a ens:EnsIdentity ;
+    ?agent core:hasIdentity ?identityEns .
+    ?identityEns a ens:EnsIdentity ;
                  core:hasIdentifier ?ensIdent .
     ?ensIdent core:protocolIdentifier ?didEns .
   }
