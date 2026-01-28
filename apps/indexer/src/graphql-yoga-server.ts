@@ -150,6 +150,11 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
     typeDefs: graphQLSchemaStringKb,
     resolvers: {
       Query: {
+        oasfSkills: (_p: unknown, args: any) => sharedKb.oasfSkills(args),
+        oasfDomains: (_p: unknown, args: any) => sharedKb.oasfDomains(args),
+        intentTypes: (_p: unknown, args: any) => sharedKb.intentTypes(args),
+        taskTypes: (_p: unknown, args: any) => sharedKb.taskTypes(args),
+        intentTaskMappings: (_p: unknown, args: any) => sharedKb.intentTaskMappings(args),
         kbAgents: (_p: unknown, args: any) => sharedKb.kbAgents(args),
         kbAgent: (_p: unknown, args: any) => sharedKb.kbAgent(args),
         kbAgentByDid: (_p: unknown, args: any) => sharedKb.kbAgentByDid(args),

@@ -50,10 +50,14 @@ export type KbAgentHydratedRow = {
   mcpSkills: string[];
   identityEnsIri: string | null;
   didEns: string | null;
-  ownerAccountIri: string | null;
-  walletAccountIri: string | null;
-  operatorAccountIri: string | null;
-  smartAccountIri: string | null;
+  identityOwnerAccountIri: string | null;
+  identityWalletAccountIri: string | null;
+  identityOperatorAccountIri: string | null;
+  agentOwnerAccountIri: string | null;
+  agentOperatorAccountIri: string | null;
+  agentWalletAccountIri: string | null;
+  agentOwnerEOAAccountIri: string | null;
+  agentAccountIri: string | null;
 };
 
 export async function kbHydrateAgentsByDid8004(args: { chainId: number; did8004List: string[] }): Promise<KbAgentHydratedRow[]> {
@@ -90,10 +94,14 @@ export async function kbHydrateAgentsByDid8004(args: { chainId: number; did8004L
     '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
     '  (SAMPLE(?identityEns) AS ?identityEns)',
     '  (SAMPLE(?didEns) AS ?didEns)',
-    '  (SAMPLE(?ownerAccount) AS ?ownerAccount)',
-    '  (SAMPLE(?walletAccount) AS ?walletAccount)',
-    '  (SAMPLE(?operatorAccount) AS ?operatorAccount)',
-    '  (SAMPLE(?smartAccount) AS ?smartAccount)',
+    '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
+    '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
+    '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
+    '  (SAMPLE(?agentOwnerAccount) AS ?agentOwnerAccount)',
+    '  (SAMPLE(?agentOperatorAccount) AS ?agentOperatorAccount)',
+    '  (SAMPLE(?agentWalletAccount) AS ?agentWalletAccount)',
+    '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
+    '  (SAMPLE(?agentAccount) AS ?agentAccount)',
     'WHERE {',
     `  GRAPH <${ctx}> {`,
     `    VALUES ?did8004 { ${values} }`,
@@ -123,10 +131,14 @@ export async function kbHydrateAgentsByDid8004(args: { chainId: number; did8004L
     '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill }',
     '      }',
     '    }',
-    '    OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?ownerAccount }',
-    '    OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?walletAccount }',
-    '    OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?operatorAccount }',
-    '    OPTIONAL { ?agent a erc8004:SmartAgent ; erc8004:hasSmartAccount ?smartAccount }',
+    '    OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?identityOwnerAccount }',
+    '    OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount }',
+    '    OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount }',
+    '    OPTIONAL { ?agent a erc8004:SmartAgent ; erc8004:hasAgentAccount ?agentAccount }',
+    '    OPTIONAL { ?agent erc8004:agentOwnerAccount ?agentOwnerAccount }',
+    '    OPTIONAL { ?agent erc8004:agentOperatorAccount ?agentOperatorAccount }',
+    '    OPTIONAL { ?agent erc8004:agentWalletAccount ?agentWalletAccount }',
+    '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount }',
     '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identityEns .',
     '      ?identityEns a ens:EnsIdentity ; core:hasIdentifier ?ensIdent .',
@@ -166,10 +178,14 @@ export async function kbHydrateAgentsByDid8004(args: { chainId: number; did8004L
         mcpSkills: splitConcat(asString(b?.mcpSkills)),
         identityEnsIri: asString(b?.identityEns),
         didEns: asString(b?.didEns),
-        ownerAccountIri: asString(b?.ownerAccount),
-        walletAccountIri: asString(b?.walletAccount),
-        operatorAccountIri: asString(b?.operatorAccount),
-        smartAccountIri: asString(b?.smartAccount),
+        identityOwnerAccountIri: asString(b?.identityOwnerAccount),
+        identityWalletAccountIri: asString(b?.identityWalletAccount),
+        identityOperatorAccountIri: asString(b?.identityOperatorAccount),
+        agentOwnerAccountIri: asString(b?.agentOwnerAccount),
+        agentOperatorAccountIri: asString(b?.agentOperatorAccount),
+        agentWalletAccountIri: asString(b?.agentWalletAccount),
+        agentOwnerEOAAccountIri: asString(b?.agentOwnerEOAAccount),
+        agentAccountIri: asString(b?.agentAccount),
       } satisfies KbAgentHydratedRow;
     })
     .filter((x): x is KbAgentHydratedRow => Boolean(x));

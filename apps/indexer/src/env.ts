@@ -79,7 +79,8 @@ export const GRAPHQL_POLL_MS   = Number(process.env.GRAPHQL_POLL_MS ?? 120000);
 export const GRAPHQL_SERVER_PORT = Number(process.env.GRAPHQL_SERVER_PORT ?? 4000);
 
 // Cloudflare D1 configuration (required for all environments)
-// Only enforce in Node.js (local dev), not in Workers
-export const CLOUDFLARE_ACCOUNT_ID = isNodeEnvironment ? must("CLOUDFLARE_ACCOUNT_ID") : '';
-export const CLOUDFLARE_D1_DATABASE_ID = isNodeEnvironment ? must("CLOUDFLARE_D1_DATABASE_ID") : '';
-export const CLOUDFLARE_API_TOKEN = isNodeEnvironment ? must("CLOUDFLARE_API_TOKEN") : '';
+// NOTE: Do not hard-require these at module import time. KB-only GraphQL can run without D1.
+// D1-backed codepaths should validate these when they actually need DB access.
+export const CLOUDFLARE_ACCOUNT_ID = isNodeEnvironment ? (process.env.CLOUDFLARE_ACCOUNT_ID || '') : '';
+export const CLOUDFLARE_D1_DATABASE_ID = isNodeEnvironment ? (process.env.CLOUDFLARE_D1_DATABASE_ID || '') : '';
+export const CLOUDFLARE_API_TOKEN = isNodeEnvironment ? (process.env.CLOUDFLARE_API_TOKEN || '') : '';

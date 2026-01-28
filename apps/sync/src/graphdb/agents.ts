@@ -72,7 +72,7 @@ SELECT ?agent ?didIdentity ?didAccount ?a2aEndpoint ?agentUriJson WHERE {
     # didAccount: prefer SmartAgent smartAccount DID, else fall back to wallet account DID
     OPTIONAL {
       ?agent a erc8004:SmartAgent ;
-             erc8004:hasSmartAccount ?sa .
+             erc8004:hasAgentAccount ?sa .
       ?sa eth:hasAccountIdentifier ?saIdent .
       ?saIdent core:protocolIdentifier ?didAccount .
     }

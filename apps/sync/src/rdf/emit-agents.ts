@@ -230,14 +230,28 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
     if (name) lines.push(`  core:agentName "${escapeTurtleString(name)}" ;`);
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
 
+    // Agent-scoped account relationships (distinct from identity-scoped accounts).
+    // For AIAgent8004 these are copied from the identity accounts; for SmartAgent,
+    // agentOwnerEOAAccount is resolved later via sync:account-types from the agentAccount.
+    const ownerAcctIri = accountIri(chainId, ownerAddress);
+    const operatorAcctIri = operatorAddress ? accountIri(chainId, operatorAddress) : null;
+    const walletAcctIri = accountIri(chainId, agentWallet);
+    lines.push(`  erc8004:agentOwnerAccount ${ownerAcctIri} ;`);
+    lines.push(`  erc8004:agentWalletAccount ${walletAcctIri} ;`);
+    if (operatorAcctIri) lines.push(`  erc8004:agentOperatorAccount ${operatorAcctIri} ;`);
+    if (!metaAgentAccount) {
+      // AIAgent8004: agentOwnerEOAAccount is the identity owner account (no indirection).
+      lines.push(`  erc8004:agentOwnerEOAAccount ${ownerAcctIri} ;`);
+    }
+
     if (metaAgentAccount) {
-      // SmartAgent should be the only thing that links to SmartAccount
-      if (smartAccountIri) lines.push(`  erc8004:hasSmartAccount ${smartAccountIri} ;`);
+      // SmartAgent should be the only thing that links to its agentAccount
+      if (smartAccountIri) lines.push(`  erc8004:hasAgentAccount ${smartAccountIri} ;`);
       // Defer SmartAccount + identifier node emission until after the agent triple is terminated with '.'
       const acctIdIri = accountIdentifierIri(didAccountSmart!);
       if (smartAccountIri) {
-        // Type only as eth:Account here; `sync:account-types` will add eth:SmartAccount vs eth:EOAAccount.
-        deferredNodes.push(`${smartAccountIri} a eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+        // Type as ERC-8004 AgentAccount + eth:Account here; `sync:account-types` will add eth:SmartAccount vs eth:EOAAccount.
+        deferredNodes.push(`${smartAccountIri} a erc8004:AgentAccount, eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
         deferredNodes.push(`  eth:accountChainId ${chainId} ;`);
         deferredNodes.push(`  eth:accountAddress "${escapeTurtleString(metaAgentAccount)}" ;`);
         deferredNodes.push(`  eth:hasAccountIdentifier ${acctIdIri} .\n`);
@@ -272,9 +286,6 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
     lines.push(`${identityIri} a erc8004:AgentIdentity8004, core:AgentIdentity, prov:Entity ;`);
     lines.push(`  core:identityOf ${agentNodeIri} ;`);
     // ERC-8004 identity owns owner/operator/wallet → Account relationships (account subtype resolved later via RPC)
-    const ownerAcctIri = accountIri(chainId, ownerAddress);
-    const walletAcctIri = accountIri(chainId, agentWallet);
-    const operatorAcctIri = operatorAddress ? accountIri(chainId, operatorAddress) : null;
     lines.push(`  erc8004:hasOwnerAccount ${ownerAcctIri} ;`);
     lines.push(`  erc8004:hasWalletAccount ${walletAcctIri} ;`);
     if (operatorAcctIri) lines.push(`  erc8004:hasOperatorAccount ${operatorAcctIri} ;`);

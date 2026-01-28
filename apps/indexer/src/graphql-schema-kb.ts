@@ -8,6 +8,43 @@
 import { buildSchema, type GraphQLSchema } from 'graphql';
 
 export const graphQLSchemaStringKb = `
+  type OasfSkill {
+    key: String!
+    nameKey: String
+    uid: Int
+    caption: String
+    extendsKey: String
+    category: String
+  }
+
+  type OasfDomain {
+    key: String!
+    nameKey: String
+    uid: Int
+    caption: String
+    extendsKey: String
+    category: String
+  }
+
+  type IntentType {
+    key: String!
+    label: String
+    description: String
+  }
+
+  type TaskType {
+    key: String!
+    label: String
+    description: String
+  }
+
+  type IntentTaskMapping {
+    intent: IntentType!
+    task: TaskType!
+    requiredSkills: [String!]!
+    optionalSkills: [String!]!
+  }
+
   enum OrderDirection {
     ASC
     DESC
@@ -79,10 +116,19 @@ export const graphQLSchemaStringKb = `
     identity8004: KbIdentity
     identityEns: KbIdentity
 
-    ownerAccount: KbAccount
-    walletAccount: KbAccount
-    operatorAccount: KbAccount
-    smartAccount: KbAccount
+    # Accounts attached to the ERC-8004 identity (identity-scoped)
+    identityOwnerAccount: KbAccount
+    identityOperatorAccount: KbAccount
+    identityWalletAccount: KbAccount
+
+    # Accounts attached to the agent (agent-scoped)
+    agentOwnerAccount: KbAccount
+    agentOperatorAccount: KbAccount
+    agentWalletAccount: KbAccount
+    agentOwnerEOAAccount: KbAccount
+
+    # SmartAgent -> ERC-8004 agent-controlled account (AgentAccount)
+    agentAccount: KbAccount
   }
 
   type KbAgentSearchResult {
@@ -198,8 +244,62 @@ export const graphQLSchemaStringKb = `
   }
 
   type Query {
+    # Discovery taxonomy (GraphDB-backed, same shape as v1 schema)
+    oasfSkills(
+      key: String
+      nameKey: String
+      category: String
+      extendsKey: String
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [OasfSkill!]!
+
+    oasfDomains(
+      key: String
+      nameKey: String
+      category: String
+      extendsKey: String
+      limit: Int
+      offset: Int
+      orderBy: String
+      orderDirection: String
+    ): [OasfDomain!]!
+
+    intentTypes(
+      key: String
+      label: String
+      limit: Int
+      offset: Int
+    ): [IntentType!]!
+
+    taskTypes(
+      key: String
+      label: String
+      limit: Int
+      offset: Int
+    ): [TaskType!]!
+
+    intentTaskMappings(
+      intentKey: String
+      taskKey: String
+      limit: Int
+      offset: Int
+    ): [IntentTaskMapping!]!
+
     kbAgents(
       where: KbAgentWhereInput
+      first: Int
+      skip: Int
+      orderBy: KbAgentOrderBy
+      orderDirection: OrderDirection
+    ): KbAgentSearchResult!
+
+    # Convenience query: agents whose ERC-8004 identity hasOwnerAccount matches ownerAddress
+    kbOwnedAgents(
+      chainId: Int!
+      ownerAddress: String!
       first: Int
       skip: Int
       orderBy: KbAgentOrderBy

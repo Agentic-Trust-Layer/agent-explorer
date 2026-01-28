@@ -13,17 +13,19 @@ const isNodeEnvironment = typeof process !== 'undefined' &&
 let db: any;
 
 if (isNodeEnvironment) {
-  // Always use Cloudflare D1 database (for local development)
+  // KB-first: only enable D1 if env vars are present.
+  // This allows running GraphQL against GraphDB without any D1 configuration.
   if (!CLOUDFLARE_ACCOUNT_ID || !CLOUDFLARE_D1_DATABASE_ID || !CLOUDFLARE_API_TOKEN) {
-    throw new Error('D1 configuration incomplete. Please set CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_D1_DATABASE_ID, and CLOUDFLARE_API_TOKEN');
+    console.warn('⚠️  D1 disabled (missing CLOUDFLARE_* env vars). KB-only mode will work; D1-backed features will be unavailable.');
+    db = null;
+  } else {
+    console.log('📡 Using Cloudflare D1 database (local Node.js)');
+    db = createD1Database({
+      accountId: CLOUDFLARE_ACCOUNT_ID,
+      databaseId: CLOUDFLARE_D1_DATABASE_ID,
+      apiToken: CLOUDFLARE_API_TOKEN,
+    });
   }
-
-  console.log('📡 Using Cloudflare D1 database (local Node.js)');
-  db = createD1Database({
-    accountId: CLOUDFLARE_ACCOUNT_ID,
-    databaseId: CLOUDFLARE_D1_DATABASE_ID,
-    apiToken: CLOUDFLARE_API_TOKEN,
-  });
 } else {
   // In Workers, db will be provided via env.DB - this is just a placeholder
   // The actual db instance should be passed from the Worker's env parameter

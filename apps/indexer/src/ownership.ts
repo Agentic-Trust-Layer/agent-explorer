@@ -9,6 +9,7 @@ import {
   getAddress,
 } from 'viem';
 import { baseSepolia, optimismSepolia, sepolia } from 'viem/chains';
+import { getAccountOwner } from './account-owner.js';
 
 import {
   BASE_SEPOLIA_RPC_HTTP_URL,
@@ -40,37 +41,6 @@ const cycleWarning = new Set<string>();
 const missingClientInfoWarning = new Set<number>();
 const bytecodeTypeCache = new Map<string, 'eoa' | 'aa'>();
 const bytecodeTypePromiseCache = new Map<string, Promise<'eoa' | 'aa' | null>>();
-
-// ABIs for reading owner/controller from smart accounts (MetaMask Hybrid Accounts, etc.)
-const OWNER_ABI: Abi = [
-  {
-    name: 'owner',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'address' }],
-  },
-] as const;
-
-const GET_OWNER_ABI: Abi = [
-  {
-    name: 'getOwner',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'address' }],
-  },
-] as const;
-
-const OWNERS_ABI: Abi = [
-  {
-    name: 'owners',
-    type: 'function',
-    stateMutability: 'view',
-    inputs: [],
-    outputs: [{ type: 'address[]' }],
-  },
-] as const;
 
 async function getBytecodeSafe(
   client: PublicClient,
@@ -142,74 +112,6 @@ async function getClient(chainId: number): Promise<PublicClient | null> {
   return client;
 }
 
-async function tryReadContract<T>(
-  client: PublicClient,
-  params: {
-    address: Address;
-    abi: Abi;
-    functionName: string;
-    args?: readonly unknown[];
-  },
-): Promise<T | null> {
-  try {
-    return (await client.readContract(params as any)) as T;
-  } catch {
-    return null;
-  }
-}
-
-async function findControllerAddress(client: PublicClient, account: Address): Promise<Address | null> {
-  // Try owner() first (most common pattern, including MetaMask Hybrid Accounts)
-  let controller = await tryReadContract<Address>(client, {
-    address: account,
-    abi: OWNER_ABI,
-    functionName: 'owner',
-    args: [],
-  });
-
-  if (controller) {
-    const normalized = normalizeAddress(controller);
-    if (normalized && normalized !== ZERO_ADDRESS) {
-      console.log(`[ownership] Resolved owner for account abstraction ${account}: ${normalized} (via owner())`);
-      return normalized;
-    }
-  }
-
-  // Fallback: try getOwner()
-  controller = await tryReadContract<Address>(client, {
-    address: account,
-    abi: GET_OWNER_ABI,
-    functionName: 'getOwner',
-    args: [],
-  });
-
-  if (controller) {
-    const normalized = normalizeAddress(controller);
-    if (normalized && normalized !== ZERO_ADDRESS) {
-      console.log(`[ownership] Resolved owner for account abstraction ${account}: ${normalized} (via getOwner())`);
-      return normalized;
-    }
-  }
-
-  // Fallback: try owners() array (multi-sig pattern)
-  const owners = await tryReadContract<Address[]>(client, {
-    address: account,
-    abi: OWNERS_ABI,
-    functionName: 'owners',
-    args: [],
-  });
-
-  if (owners && owners.length > 0) {
-    const normalized = normalizeAddress(owners[0]);
-    if (normalized && normalized !== ZERO_ADDRESS) {
-      console.log(`[ownership] Resolved owner for account abstraction ${account}: ${normalized} (via owners()[0])`);
-      return normalized;
-    }
-  }
-
-  return null;
-}
-
 async function resolveWithClient(
   chainId: number,
   client: PublicClient,
@@ -247,8 +149,8 @@ async function resolveWithClient(
     return account;
   }
 
-  const controller = await findControllerAddress(client, account);
-  if (!controller) {
+  const owner = await getAccountOwner(chainId, account);
+  if (!owner) {
     const key = cacheKey(chainId, account);
     if (!unresolvedControllerWarning.has(key)) {
       unresolvedControllerWarning.add(key);
@@ -259,7 +161,7 @@ async function resolveWithClient(
 
   // If the AA exposes an owner/controller address, trust it and stop.
   // (User requirement: do not do additional verification checks.)
-  return controller;
+  return normalizeAddress(owner);
 }
 
 export async function resolveEoaOwner(chainId: number, ownerAddress: string | null | undefined): Promise<string | null> {

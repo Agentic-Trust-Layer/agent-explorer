@@ -71,8 +71,8 @@ export const graphiqlHTML = `<!DOCTYPE html>
         }
       })();
       
-      const isKbEndpoint = window.location.pathname.startsWith('/graphql-kb');
-      const graphqlPostPath = isKbEndpoint ? '/graphql-kb' : '/graphql';
+      // KB-only: /graphql is the primary endpoint; /graphql-kb remains as an alias.
+      const graphqlPostPath = window.location.pathname.startsWith('/graphql-kb') ? '/graphql-kb' : '/graphql';
 
       const graphQLFetcher = async (graphQLParams) => {
         // Get Authorization header from multiple sources
@@ -125,37 +125,8 @@ export const graphiqlHTML = `<!DOCTYPE html>
         }).then(response => response.json());
       };
       
-      // Set default query value
-      const defaultQueryV1 = \`query {
-  agents(limit: 5, offset: 0, orderBy: "createdAtTime", orderDirection: "DESC") {
-    chainId
-    agentId
-    agentAccount
-    agentName
-    agentOwner
-    eoaOwner
-    didIdentity
-    didAccount
-    didName
-    tokenUri
-    description
-    image
-    type
-    a2aEndpoint
-    ensEndpoint
-    supportedTrust
-    did
-    mcp
-    x402support
-    active
-    createdAtBlock
-    createdAtTime
-    updatedAtTime
-    rawJson
-  }
-}\`;
-
-      const defaultQueryKb = \`query {
+      // Default query value (KB schema)
+      const defaultQueryValue = \`query {
   kbAgents(where: { chainId: 11155111 }, first: 5, skip: 0, orderBy: agentId8004, orderDirection: DESC) {
     total
     hasMore
@@ -173,8 +144,6 @@ export const graphiqlHTML = `<!DOCTYPE html>
     }
   }
 }\`;
-
-      const defaultQueryValue = isKbEndpoint ? defaultQueryKb : defaultQueryV1;
       
       ReactDOM.render(
         React.createElement(GraphiQL, { 

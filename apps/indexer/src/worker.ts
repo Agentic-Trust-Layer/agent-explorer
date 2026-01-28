@@ -349,6 +349,11 @@ export default {
         typeDefs: graphQLSchemaStringKb,
         resolvers: {
           Query: {
+            oasfSkills: (_p: any, args: any) => sharedKb.oasfSkills(args),
+            oasfDomains: (_p: any, args: any) => sharedKb.oasfDomains(args),
+            intentTypes: (_p: any, args: any) => sharedKb.intentTypes(args),
+            taskTypes: (_p: any, args: any) => sharedKb.taskTypes(args),
+            intentTaskMappings: (_p: any, args: any) => sharedKb.intentTaskMappings(args),
             kbAgents: (_p: any, args: any) => sharedKb.kbAgents(args),
             kbAgent: (_p: any, args: any) => sharedKb.kbAgent(args),
             kbAgentByDid: (_p: any, args: any) => sharedKb.kbAgentByDid(args),

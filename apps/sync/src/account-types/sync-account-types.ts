@@ -1,9 +1,18 @@
 import { getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from '../graphdb-http.js';
 import { listAccountsForChain } from '../graphdb/accounts.js';
 import { isSmartAccountViaRpc } from '../net/eth-get-code.js';
+import { getAccountOwner } from '../net/account-owner.js';
 
 function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
+}
+
+function iriEncodeSegment(value: string): string {
+  return encodeURIComponent(value).replace(/%/g, '_');
+}
+
+function accountIriPlain(chainId: number, address: string): string {
+  return `https://www.agentictrust.io/id/account/${chainId}/${iriEncodeSegment(String(address).toLowerCase())}`;
 }
 
 function rpcUrlForChain(chainId: number): string {
@@ -126,21 +135,134 @@ WHERE {
     console.info(`[sync] [account-types] updated ${chunk.length} accounts (chunk ${i / chunkSize + 1})`);
   }
 
-  // Ensure SmartAgent always refers to an actual SmartAccount:
-  // - If hasSmartAccount points to an account that is EOA, remove the SmartAgent typing and the hasSmartAccount link.
+  // Ensure SmartAgent always refers to an actual AgentAccount (typed as eth:SmartAccount after classification):
+  // - If hasAgentAccount points to an account that is EOA, remove the SmartAgent typing and the hasAgentAccount link.
   const fixup = `
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 WITH <${ctx}>
-DELETE { ?agent a erc8004:SmartAgent . ?agent erc8004:hasSmartAccount ?acct . }
+DELETE { ?agent a erc8004:SmartAgent . ?agent erc8004:hasAgentAccount ?acct . }
 INSERT { ?agent a erc8004:AIAgent8004 . }
 WHERE {
   ?agent a erc8004:SmartAgent ;
-         erc8004:hasSmartAccount ?acct .
+         erc8004:hasAgentAccount ?acct .
   ?acct a eth:EOAAccount .
 }
 `;
   await updateGraphdb(baseUrl, repository, auth, fixup);
   console.info('[sync] [account-types] fixed SmartAgent links that pointed to EOAs');
+
+  // Always resolve SmartAccount -> EOA owner relationship (eth:hasEOAOwner).
+  const smartRows = usable.filter((r) => r.address && smartSet.has(r.account));
+  console.info(`[sync] [account-types] resolving eoa owners for smart accounts count=${smartRows.length}`);
+
+  const resolved = await mapWithConcurrency(
+    smartRows,
+    // Keep this low; owner resolution fans out into multiple RPC calls and many providers 429 easily.
+    1,
+    async (row) => {
+      try {
+        console.info('[sync] [account-types] resolve owner for agentAccount', { chainId, agentAccount: row.account, address: row.address });
+        const owner = await getAccountOwner({ rpcUrl, address: row.address! });
+        console.info('[sync] [account-types] resolved owner for agentAccount', {
+          chainId,
+          agentAccount: row.account,
+          address: row.address,
+          owner,
+          wroteEthHasEOAOwner: Boolean(owner && owner.toLowerCase() !== row.address!.toLowerCase()),
+        });
+        // Only write eth:hasEOAOwner when we actually found a distinct owner address.
+        if (!owner) return null;
+        if (owner.toLowerCase() === row.address!.toLowerCase()) return null;
+        return { smartAccountIri: row.account, eoaAddress: owner };
+      } catch (e: any) {
+        console.warn('[sync] [account-types] failed to resolve eoa owner', {
+          chainId,
+          smart: row.address,
+          err: String(e?.message || e),
+        });
+        return null;
+      }
+    },
+  );
+
+  const pairs = resolved.filter(Boolean) as Array<{ smartAccountIri: string; eoaAddress: string }>;
+  console.info(`[sync] [account-types] resolved eoa owners count=${pairs.length}`);
+
+  const chunkPairs = 150;
+  for (let i = 0; i < pairs.length; i += chunkPairs) {
+    const chunk = pairs.slice(i, i + chunkPairs);
+    const valueRows: string[] = [];
+    for (const p of chunk) {
+      const eoaIri = accountIriPlain(chainId, p.eoaAddress);
+      valueRows.push(`(<${p.smartAccountIri}> <${eoaIri}> "${chainId}"^^<http://www.w3.org/2001/XMLSchema#integer> "${p.eoaAddress}")`);
+    }
+
+    const updateOwners = `
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+WITH <${ctx}>
+DELETE { ?smart eth:hasEOAOwner ?old . }
+INSERT {
+  ?smart eth:hasEOAOwner ?eoa .
+  ?eoa a eth:Account, eth:EOAAccount ;
+       eth:accountChainId ?chainId ;
+       eth:accountAddress ?addr .
+}
+WHERE {
+  VALUES (?smart ?eoa ?chainId ?addr) {
+    ${valueRows.join('\n    ')}
+  }
+  OPTIONAL { ?smart eth:hasEOAOwner ?old . }
+}
+`;
+    await updateGraphdb(baseUrl, repository, auth, updateOwners);
+    console.info(`[sync] [account-types] updated eth:hasEOAOwner for ${chunk.length} smart accounts (chunk ${i / chunkPairs + 1})`);
+  }
+
+  // Populate agentOwnerEOAAccount for SmartAgent from its agentAccount's eth:hasEOAOwner.
+  const updateAgentOwnerEoa = `
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${ctx}>
+DELETE { ?agent erc8004:agentOwnerEOAAccount ?old . }
+INSERT { ?agent erc8004:agentOwnerEOAAccount ?eoa . }
+WHERE {
+  ?agent a erc8004:SmartAgent ;
+         erc8004:hasAgentAccount ?acct .
+  ?acct eth:hasEOAOwner ?eoa .
+  OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?old . }
+}
+`;
+  await updateGraphdb(baseUrl, repository, auth, updateAgentOwnerEoa);
+  console.info('[sync] [account-types] updated SmartAgent agentOwnerEOAAccount from eth:hasEOAOwner');
+
+  // Populate hasOwnerEOAAccount on AgentIdentity8004:
+  // - if identity ownerAccount is an EOA => ownerEOA = ownerAccount
+  // - if identity ownerAccount has eth:hasEOAOwner => ownerEOA = that EOA
+  const updateIdentityOwnerEoa = `
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${ctx}>
+DELETE { ?identity erc8004:hasOwnerEOAAccount ?old . }
+INSERT { ?identity erc8004:hasOwnerEOAAccount ?eoa . }
+WHERE {
+  ?identity a erc8004:AgentIdentity8004 ;
+            erc8004:hasOwnerAccount ?owner .
+  BIND(
+    IF(
+      EXISTS { ?owner a eth:EOAAccount },
+      ?owner,
+      IF(
+        EXISTS { ?owner eth:hasEOAOwner ?_eoa },
+        ?_eoa,
+        UNDEF
+      )
+    ) AS ?eoa
+  )
+  OPTIONAL { ?identity erc8004:hasOwnerEOAAccount ?old . }
+}
+`;
+  await updateGraphdb(baseUrl, repository, auth, updateIdentityOwnerEoa);
+  console.info('[sync] [account-types] updated AgentIdentity8004 hasOwnerEOAAccount (from ownerAccount / eth:hasEOAOwner)');
 }
 
