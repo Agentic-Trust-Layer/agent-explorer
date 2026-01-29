@@ -51,19 +51,21 @@ WHERE {
     OPTIONAL {
       ?agent a erc8004:SmartAgent ;
              erc8004:hasAgentAccount ?acct .
-      OPTIONAL {
-        ?acct eth:hasAccountIdentifier ?acctIdent .
-        ?acctIdent core:protocolIdentifier ?didAccount .
-      }
+      OPTIONAL { ?acct eth:hasAccountIdentifier ?acctIdent . ?acctIdent core:protocolIdentifier ?didAccount . }
       OPTIONAL { ?acct eth:accountChainId ?cid . }
       OPTIONAL { ?acct eth:accountAddress ?addr . }
-      BIND(
-        COALESCE(
-          ?didAccount,
-          IF(BOUND(?cid) && BOUND(?addr), CONCAT("did:ethr:", STR(?cid), ":", LCASE(STR(?addr))), UNDEF)
-        )
-        AS ?uaidSmart
-      )
+
+      # Prefer the canonical DID when present.
+      OPTIONAL { FILTER(BOUND(?didAccount)) BIND(CONCAT("uaid:", ?didAccount) AS ?uaidSmartDid) }
+
+      # Fallback: derive UAID from chainId + address.
+      OPTIONAL {
+        FILTER(!BOUND(?uaidSmartDid))
+        FILTER(BOUND(?cid) && BOUND(?addr))
+        BIND(CONCAT("uaid:did:ethr:", STR(?cid), ":", LCASE(STR(?addr))) AS ?uaidSmartDerived)
+      }
+
+      BIND(COALESCE(?uaidSmartDid, ?uaidSmartDerived) AS ?uaidSmart)
     }
 
     OPTIONAL {
@@ -71,7 +73,7 @@ WHERE {
       ?identity8004 a erc8004:AgentIdentity8004 ;
                     core:hasIdentifier ?ident8004 .
       ?ident8004 core:protocolIdentifier ?didIdentity .
-      BIND(?didIdentity AS ?uaid8004)
+      BIND(CONCAT("uaid:", ?didIdentity) AS ?uaid8004)
     }
 
     BIND(COALESCE(?uaidSmart, ?uaid8004) AS ?uaid)
@@ -81,5 +83,25 @@ WHERE {
 `;
     await updateGraphdb(baseUrl, repository, auth, sparqlUpdate);
     console.info('[sync] uaid backfill complete', { chainId: opts.chainId, context });
+
+    // Normalize any existing core:uaid literals that were previously stored as did:* (without uaid: prefix).
+    const normalizeUpdate = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+DELETE {
+  GRAPH <${context}> { ?agent core:uaid ?old . }
+}
+INSERT {
+  GRAPH <${context}> { ?agent core:uaid ?new . }
+}
+WHERE {
+  GRAPH <${context}> {
+    ?agent a core:AIAgent ; core:uaid ?old .
+    FILTER(!STRSTARTS(STR(?old), "uaid:"))
+    BIND(CONCAT("uaid:", STR(?old)) AS ?new)
+  }
+}
+`;
+    await updateGraphdb(baseUrl, repository, auth, normalizeUpdate);
+    console.info('[sync] uaid normalize complete', { chainId: opts.chainId, context });
   }
 }

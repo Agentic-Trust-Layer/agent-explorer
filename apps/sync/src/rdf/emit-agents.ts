@@ -212,7 +212,11 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
     const didIdentity = `did:8004:${chainId}:${agentId}`;
     const didAccountEoa = `did:ethr:${chainId}:${agentWallet}`;
     const didAccountSmart = metaAgentAccount ? `did:ethr:${chainId}:${metaAgentAccount}` : null;
-    const uaid = didAccountSmart ?? didIdentity;
+    // UAID is a UAID-string (not a DID). Clients expect it to start with "uaid:".
+    // We currently derive it from the authority / native identifier we already have:
+    // - SmartAgent: did:ethr:<chainId>:<smartAccount>
+    // - AIAgent8004: did:8004:<chainId>:<agentId>
+    const uaid = `uaid:${didAccountSmart ?? didIdentity}`;
     const didAccountForProtocols = didAccountSmart ?? didAccountEoa;
     const deferredNodes: string[] = [];
 

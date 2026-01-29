@@ -200,6 +200,36 @@ export function createGraphQLServer(port: number = 4000) {
     try {
       const request = parseGraphQLRequestExpress(req);
 
+      // Hard fail on legacy v1 queries hitting the KB endpoint, with a targeted message for frontend teams.
+      const queryText = String(request.query || '');
+      if (/\bagentMetadata\b/.test(queryText) || /\bAgentMetadataWhereInput\b/.test(queryText)) {
+        return res.status(400).json({
+          errors: [
+            {
+              message:
+                'Legacy agentMetadata query is not supported on the KB GraphQL endpoint (/graphql-kb). ' +
+                'Your client is using v1 schema types like AgentMetadataWhereInput / Query.agentMetadata. ' +
+                'Fix: update the client to use KB-v2 queries (kbAgents, kbAgent, identity8004.descriptor.json, etc.) or stop requesting token metadata from GraphQL.',
+            },
+          ],
+        });
+      }
+
+      // Hard fail on DID passed where UAID is required.
+      const vars = request.variables || {};
+      if (typeof (vars as any).uaid === 'string' && String((vars as any).uaid).trim().startsWith('did:')) {
+        return res.status(400).json({
+          errors: [
+            {
+              message:
+                'Invalid uaid variable: expected "uaid:*" (must start with "uaid:"). ' +
+                `Received "${String((vars as any).uaid).trim()}". ` +
+                'If you have a DID like "did:8004:..." you must wrap it as "uaid:did:8004:...".',
+            },
+          ],
+        });
+      }
+
       const result = await graphql({
         schema: schemaKb as GraphQLSchema,
         source: request.query || '',

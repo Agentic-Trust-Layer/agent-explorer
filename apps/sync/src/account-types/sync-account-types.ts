@@ -248,17 +248,10 @@ INSERT { ?identity erc8004:hasOwnerEOAAccount ?eoa . }
 WHERE {
   ?identity a erc8004:AgentIdentity8004 ;
             erc8004:hasOwnerAccount ?owner .
-  BIND(
-    IF(
-      EXISTS { ?owner a eth:EOAAccount },
-      ?owner,
-      IF(
-        EXISTS { ?owner eth:hasEOAOwner ?_eoa },
-        ?_eoa,
-        UNDEF
-      )
-    ) AS ?eoa
-  )
+  OPTIONAL { ?owner a eth:EOAAccount . BIND(?owner AS ?eoaDirect) }
+  OPTIONAL { FILTER(!BOUND(?eoaDirect)) ?owner eth:hasEOAOwner ?eoaIndirect . }
+  BIND(COALESCE(?eoaDirect, ?eoaIndirect) AS ?eoa)
+  FILTER(BOUND(?eoa))
   OPTIONAL { ?identity erc8004:hasOwnerEOAAccount ?old . }
 }
 `;

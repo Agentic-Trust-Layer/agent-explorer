@@ -39,10 +39,35 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
 
   const skillKeyFromIri = (iri: string): string | null => keyFromIri(iri, OASF_SKILL_BASE);
 
+  const ensureUaidPrefix = (value: string | null | undefined): string | null => {
+    const v = typeof value === 'string' ? value.trim() : '';
+    if (!v) return null;
+    return v.startsWith('uaid:') ? v : `uaid:${v}`;
+  };
+
+  const stripUaidPrefix = (value: string): string => {
+    const v = String(value || '').trim();
+    return v.startsWith('uaid:') ? v.slice('uaid:'.length) : v;
+  };
+
+  const assertUaidInput = (value: unknown, fieldName: string): string => {
+    const v = typeof value === 'string' ? value.trim() : '';
+    if (!v) throw new Error(`Invalid ${fieldName}: expected non-empty UAID starting with "uaid:" (e.g. uaid:did:8004:11155111:543).`);
+    if (!v.startsWith('uaid:')) {
+      throw new Error(
+        `Invalid ${fieldName}: expected UAID to start with "uaid:". ` +
+          `Received "${v}". ` +
+          `If you have a DID like "did:8004:..." you must wrap it as "uaid:did:8004:...".`,
+      );
+    }
+    return v;
+  };
+
   const mapRowToKbAgent = (r: any) => ({
     iri: r.iri,
     uaid:
-      r.uaid ??
+      ensureUaidPrefix(
+        r.uaid ??
       (() => {
         // Backfill UAID for older KB data that predates core:uaid on core:AIAgent.
         // - SmartAgent: UAID is did:ethr:<chainId>:<agentAccountAddress>
@@ -53,6 +78,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
         if (m?.[1] && m?.[2]) return `did:ethr:${m[1]}:${m[2].toLowerCase()}`;
         return r.did8004 ?? null;
       })(),
+      ),
     agentName: r.agentName,
     agentTypes: r.agentTypes,
     did8004: r.did8004,
@@ -122,7 +148,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
   };
 
   const parseUaidChainId = (uaid: string): number | null => {
-    const u = String(uaid || '').trim();
+    const u = stripUaidPrefix(String(uaid || '').trim());
     const mEthr = u.match(/^did:ethr:(\d+):0x[0-9a-fA-F]{40}$/);
     if (mEthr?.[1]) {
       const n = Number(mEthr[1]);
@@ -143,7 +169,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-SELECT (SAMPLE(?addr) AS ?addr) WHERE {
+SELECT (SAMPLE(?addr) AS ?addrOut) WHERE {
   GRAPH ?g {
     FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))
     ?agent a core:AIAgent ;
@@ -158,7 +184,7 @@ LIMIT 1
 `;
     const res = await queryGraphdb(baseUrl, repository, auth, sparql);
     const b = res?.results?.bindings?.[0];
-    const v = typeof b?.addr?.value === 'string' ? b.addr.value.trim().toLowerCase() : '';
+    const v = typeof b?.addrOut?.value === 'string' ? b.addrOut.value.trim().toLowerCase() : '';
     return normalizeHexAddr(v);
   };
 
@@ -400,6 +426,15 @@ LIMIT 1
 
     kbAgents: async (args: any) => {
       const where = args?.where ?? null;
+      if (where && typeof where === 'object') {
+        if (where.uaid != null) assertUaidInput(where.uaid, 'where.uaid');
+        if (where.uaid_in != null) {
+          if (!Array.isArray(where.uaid_in)) throw new Error(`Invalid where.uaid_in: expected an array of "uaid:*" strings.`);
+          for (let i = 0; i < where.uaid_in.length; i++) {
+            assertUaidInput(where.uaid_in[i], `where.uaid_in[${i}]`);
+          }
+        }
+      }
       const first = args?.first ?? null;
       const skip = args?.skip ?? null;
       const orderBy = args?.orderBy ?? null;
@@ -463,7 +498,7 @@ LIMIT 1
     },
 
     kbIsOwner: async (args: any) => {
-      const uaid = typeof args?.uaid === 'string' ? args.uaid.trim() : '';
+      const uaid = assertUaidInput(args?.uaid, 'uaid');
       const walletAddressRaw = typeof args?.walletAddress === 'string' ? args.walletAddress.trim() : '';
       if (!uaid || !walletAddressRaw) return false;
 
