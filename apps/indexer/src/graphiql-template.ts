@@ -118,11 +118,45 @@ export const graphiqlHTML = `<!DOCTYPE html>
           console.error('Error extracting headers:', e);
         }
         
-        return fetch(graphqlPostPath, {
-          method: 'post',
-          headers: headers,
-          body: JSON.stringify(graphQLParams),
-        }).then(response => response.json());
+        try {
+          const resp = await fetch(graphqlPostPath, {
+            method: 'post',
+            headers: headers,
+            body: JSON.stringify(graphQLParams),
+          });
+          const text = await resp.text();
+          try {
+            return JSON.parse(text);
+          } catch {
+            return {
+              errors: [
+                {
+                  message:
+                    'GraphQL endpoint returned non-JSON response (HTTP ' +
+                    resp.status +
+                    '). ' +
+                    'Path=' +
+                    graphqlPostPath +
+                    '. ' +
+                    'Body (first 800 chars): ' +
+                    text.slice(0, 800),
+                },
+              ],
+            };
+          }
+        } catch (e) {
+          return {
+            errors: [
+              {
+                message:
+                  'Network error calling GraphQL endpoint. Path=' +
+                  graphqlPostPath +
+                  '. Error=' +
+                  String(e?.message || e),
+              },
+            ],
+          };
+        }
       };
       
       // Default query value (KB schema)

@@ -164,18 +164,7 @@ export const FEEDBACKS_QUERY = `query RepFeedbacks($first: Int!, $skip: Int!) {
     agent { id }
     clientAddress
     feedbackIndex
-    score
-    tag1
-    tag2
-    endpoint
-    feedbackUri
     feedbackJson
-    feedbackType
-    domain
-    comment
-    ratingPct
-    feedbackTimestamp
-    feedbackHash
     txHash
     blockNumber
     timestamp
@@ -213,11 +202,9 @@ export const FEEDBACK_RESPONSES_QUERY = `query RepResponseAppendeds($first: Int!
 export const VALIDATION_REQUESTS_QUERY = `query ValidationRequests($first: Int!, $skip: Int!) {
   validationRequests(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
     id
-    validatorAddress
     agent { id }
     requestUri
     requestJson
-    requestHash
     txHash
     blockNumber
     timestamp
@@ -227,14 +214,8 @@ export const VALIDATION_REQUESTS_QUERY = `query ValidationRequests($first: Int!,
 export const VALIDATION_RESPONSES_QUERY = `query ValidationResponses($first: Int!, $skip: Int!) {
   validationResponses(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
     id
-    validatorAddress
     agent { id }
-    requestHash
-    response
-    responseUri
     responseJson
-    responseHash
-    tag
     txHash
     blockNumber
     timestamp
@@ -246,17 +227,7 @@ export const ASSOCIATIONS_QUERY = `query Associations($first: Int!, $skip: Int!)
     id
     initiatorAccount { id }
     approverAccount { id }
-    initiator
-    approver
-    validAt
-    validUntil
     interfaceId
-    data
-    initiatorKeyType
-    approverKeyType
-    initiatorSignature
-    approverSignature
-    revokedAt
     createdTxHash
     createdBlockNumber
     createdTimestamp

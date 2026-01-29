@@ -151,7 +151,9 @@ export async function kbValidationResponsesQuery(args: {
     '  (SAMPLE(?timestamp) AS ?timestamp)',
     'WHERE {',
     `  GRAPH <${ctx}> {`,
-    '    ?agent core:hasVerificationAssertion ?validation .',
+    // Anchor on the validation node itself so results don't disappear if the agent linkage wasn't emitted/mapped.
+    '    ?validation a erc8004:ValidationResponse, prov:Entity .',
+    '    OPTIONAL { ?agent core:hasVerificationAssertion ?validation . }',
     '    OPTIONAL { ?validation core:json ?json }',
     '    OPTIONAL {',
     '      ?record a erc8004:SubgraphIngestRecord, prov:Entity ;',

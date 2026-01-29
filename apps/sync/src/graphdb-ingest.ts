@@ -1,5 +1,144 @@
 import { clearStatements, ensureRepositoryExistsOrThrow, getGraphdbConfigFromEnv, updateGraphdb, uploadTurtleToRepository } from './graphdb-http.js';
 
+async function clearSectionStatements(args: {
+  baseUrl: string;
+  repository: string;
+  auth: any;
+  context: string;
+  section: string;
+}): Promise<void> {
+  const { baseUrl, repository, auth, context, section } = args;
+
+  // IMPORTANT: we use one named graph per chain for all synced data.
+  // When running `sync:<section> --reset`, we should NOT wipe the whole chain graph,
+  // otherwise we delete agents/accounts and break linkability (SmartAgent IRIs in particular).
+  const sparqlUpdate = (() => {
+    switch (section) {
+      case 'validation-requests':
+        return `
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?s ?p ?o }
+WHERE {
+  {
+    ?s a erc8004:ValidationRequestSituation .
+    ?s ?p ?o .
+  }
+  UNION
+  {
+    ?s a erc8004:SubgraphIngestRecord ;
+       erc8004:subgraphEntityKind "validation-requests" .
+    ?s ?p ?o .
+  }
+}
+`;
+      case 'validation-responses':
+        return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?s ?p ?o }
+WHERE {
+  {
+    ?s a erc8004:ValidationResponse .
+    ?s ?p ?o .
+  }
+  UNION
+  {
+    ?agent core:hasVerificationAssertion ?s .
+    ?agent core:hasVerificationAssertion ?s .
+  }
+  UNION
+  {
+    ?s a erc8004:SubgraphIngestRecord ;
+       erc8004:subgraphEntityKind "validation-responses" .
+    ?s ?p ?o .
+  }
+}
+`;
+      case 'associations':
+        return `
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+WITH <${context}>
+DELETE { ?s ?p ?o }
+WHERE {
+  {
+    ?s a erc8092:AssociatedAccounts8092 .
+    ?s ?p ?o .
+  }
+  UNION
+  {
+    ?acct erc8092:hasAssociatedAccounts ?s .
+    ?acct erc8092:hasAssociatedAccounts ?s .
+  }
+  UNION
+  {
+    ?s a erc8004:SubgraphIngestRecord ;
+       erc8004:subgraphEntityKind "associations" .
+    ?s ?p ?o .
+  }
+}
+`;
+      case 'association-revocations':
+        return `
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+WITH <${context}>
+DELETE { ?s ?p ?o }
+WHERE {
+  {
+    ?s a erc8092:AssociatedAccountsRevocation8092 .
+    ?s ?p ?o .
+  }
+  UNION
+  {
+    ?s a erc8004:SubgraphIngestRecord ;
+       erc8004:subgraphEntityKind "association-revocations" .
+    ?s ?p ?o .
+  }
+}
+`;
+      case 'feedbacks':
+        return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?s ?p ?o }
+WHERE {
+  {
+    ?s a erc8004:Feedback .
+    ?s ?p ?o .
+  }
+  UNION
+  {
+    ?agent core:hasReputationAssertion ?s .
+    ?agent core:hasReputationAssertion ?s .
+  }
+  UNION
+  {
+    ?s a erc8004:SubgraphIngestRecord ;
+       erc8004:subgraphEntityKind "feedbacks" .
+    ?s ?p ?o .
+  }
+}
+`;
+      default:
+        return null;
+    }
+  })();
+
+  if (!sparqlUpdate) {
+    // Fallback: clear whole graph only when we don't know how to clear selectively.
+    await clearStatements(baseUrl, repository, auth, { context });
+    console.info('[sync] cleared subgraph context (fallback)', { context, section });
+    return;
+  }
+
+  await updateGraphdb(baseUrl, repository, auth, sparqlUpdate);
+  console.info('[sync] cleared subgraph section', { context, section });
+}
+
 export async function ingestSubgraphTurtleToGraphdb(opts: {
   chainId: number;
   section: string;
@@ -11,8 +150,12 @@ export async function ingestSubgraphTurtleToGraphdb(opts: {
 
   const context = `https://www.agentictrust.io/graph/data/subgraph/${opts.chainId}`;
   if (opts.resetContext) {
-    await clearStatements(baseUrl, repository, auth, { context });
-    console.info('[sync] cleared subgraph context', { context });
+    if (opts.section === 'agents') {
+      await clearStatements(baseUrl, repository, auth, { context });
+      console.info('[sync] cleared subgraph context', { context });
+    } else {
+      await clearSectionStatements({ baseUrl, repository, auth, context, section: opts.section });
+    }
   }
 
   const rdfContent = opts.turtle;

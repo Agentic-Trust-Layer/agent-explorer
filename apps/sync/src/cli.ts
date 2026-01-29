@@ -164,58 +164,67 @@ async function syncFeedbackResponses(endpoint: { url: string; chainId: number; n
 
 async function syncValidationRequests(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching validation requests from ${endpoint.name} (chainId: ${endpoint.chainId})`);
-  const last = (await getCheckpoint(endpoint.chainId, 'validation-requests')) ?? '0';
   let lastBlock = 0n;
-  try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  if (!resetContext) {
+    const last = (await getCheckpoint(endpoint.chainId, 'validation-requests')) ?? '0';
+    try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  }
   const items = await fetchAllFromSubgraph(endpoint.url, VALIDATION_REQUESTS_QUERY, 'validationRequests', { optional: true });
   console.info(`[sync] fetched ${items.length} validation requests from ${endpoint.name}`);
   const { turtle, maxBlock } = emitValidationRequestsTurtle(endpoint.chainId, items, lastBlock);
-  if (turtle.trim()) {
+  // Only ingest if we actually emitted at least 1 new record (avoid uploading prefix-only TTL).
+  if (maxBlock > lastBlock) {
     await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'validation-requests', turtle, resetContext });
-    if (maxBlock > lastBlock) await setCheckpoint(endpoint.chainId, 'validation-requests', maxBlock.toString());
+    await setCheckpoint(endpoint.chainId, 'validation-requests', maxBlock.toString());
   }
 }
 
 async function syncValidationResponses(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching validation responses from ${endpoint.name} (chainId: ${endpoint.chainId})`);
-  const last = (await getCheckpoint(endpoint.chainId, 'validation-responses')) ?? '0';
   let lastBlock = 0n;
-  try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  if (!resetContext) {
+    const last = (await getCheckpoint(endpoint.chainId, 'validation-responses')) ?? '0';
+    try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  }
   const agentIriByDidIdentity = await listAgentIriByDidIdentity(endpoint.chainId).catch(() => new Map<string, string>());
   const items = await fetchAllFromSubgraph(endpoint.url, VALIDATION_RESPONSES_QUERY, 'validationResponses', { optional: true });
   console.info(`[sync] fetched ${items.length} validation responses from ${endpoint.name}`);
   const { turtle, maxBlock } = emitValidationResponsesTurtle(endpoint.chainId, items, lastBlock, agentIriByDidIdentity);
-  if (turtle.trim()) {
+  if (maxBlock > lastBlock) {
     await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'validation-responses', turtle, resetContext });
-    if (maxBlock > lastBlock) await setCheckpoint(endpoint.chainId, 'validation-responses', maxBlock.toString());
+    await setCheckpoint(endpoint.chainId, 'validation-responses', maxBlock.toString());
   }
 }
 
 async function syncAssociations(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching associations from ${endpoint.name} (chainId: ${endpoint.chainId})`);
-  const last = (await getCheckpoint(endpoint.chainId, 'associations')) ?? '0';
   let lastBlock = 0n;
-  try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  if (!resetContext) {
+    const last = (await getCheckpoint(endpoint.chainId, 'associations')) ?? '0';
+    try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  }
   const items = await fetchAllFromSubgraph(endpoint.url, ASSOCIATIONS_QUERY, 'associations', { optional: true });
   console.info(`[sync] fetched ${items.length} associations from ${endpoint.name}`);
   const { turtle, maxBlock } = emitAssociationsTurtle(endpoint.chainId, items, lastBlock);
-  if (turtle.trim()) {
+  if (maxBlock > lastBlock) {
     await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'associations', turtle, resetContext });
-    if (maxBlock > lastBlock) await setCheckpoint(endpoint.chainId, 'associations', maxBlock.toString());
+    await setCheckpoint(endpoint.chainId, 'associations', maxBlock.toString());
   }
 }
 
 async function syncAssociationRevocations(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching association revocations from ${endpoint.name} (chainId: ${endpoint.chainId})`);
-  const last = (await getCheckpoint(endpoint.chainId, 'association-revocations')) ?? '0';
   let lastBlock = 0n;
-  try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  if (!resetContext) {
+    const last = (await getCheckpoint(endpoint.chainId, 'association-revocations')) ?? '0';
+    try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  }
   const items = await fetchAllFromSubgraph(endpoint.url, ASSOCIATION_REVOCATIONS_QUERY, 'associationRevocations', { optional: true });
   console.info(`[sync] fetched ${items.length} association revocations from ${endpoint.name}`);
   const { turtle, maxBlock } = emitAssociationRevocationsTurtle(endpoint.chainId, items, lastBlock);
-  if (turtle.trim()) {
+  if (maxBlock > lastBlock) {
     await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'association-revocations', turtle, resetContext });
-    if (maxBlock > lastBlock) await setCheckpoint(endpoint.chainId, 'association-revocations', maxBlock.toString());
+    await setCheckpoint(endpoint.chainId, 'association-revocations', maxBlock.toString());
   }
 }
 
