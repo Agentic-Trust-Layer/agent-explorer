@@ -1,4 +1,4 @@
-import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb-http.js';
+import { getGraphdbConfigFromEnv, queryGraphdbWithContext, type GraphdbQueryContext } from './graphdb-http.js';
 
 function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
@@ -23,9 +23,9 @@ function splitConcat(value: string | null): string[] {
     .filter(Boolean);
 }
 
-async function runGraphdbQuery(sparql: string): Promise<any[]> {
+async function runGraphdbQuery(sparql: string, ctx?: GraphdbQueryContext | null, label?: string): Promise<any[]> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
-  const result = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const result = await queryGraphdbWithContext(baseUrl, repository, auth, sparql, ctx ? { ...ctx, label: label ?? ctx.label } : ctx);
   return Array.isArray(result?.results?.bindings) ? result.results.bindings : [];
 }
 
@@ -60,7 +60,10 @@ export type KbAgentHydratedRow = {
   agentAccountIri: string | null;
 };
 
-export async function kbHydrateAgentsByDid8004(args: { chainId: number; did8004List: string[] }): Promise<KbAgentHydratedRow[]> {
+export async function kbHydrateAgentsByDid8004(
+  args: { chainId: number; did8004List: string[] },
+  graphdbCtx?: GraphdbQueryContext | null,
+): Promise<KbAgentHydratedRow[]> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
   const dids = Array.from(new Set((args.did8004List ?? []).map((d) => String(d ?? '').trim()).filter(Boolean)));
   if (!dids.length) return [];
@@ -150,7 +153,7 @@ export async function kbHydrateAgentsByDid8004(args: { chainId: number; did8004L
     '',
   ].join('\n');
 
-  const rows = await runGraphdbQuery(sparql);
+  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbHydrateAgentsByDid8004');
   return rows
     .map((b: any) => {
       const did8004 = asString(b?.did8004);

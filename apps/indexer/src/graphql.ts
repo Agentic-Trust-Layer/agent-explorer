@@ -1,4 +1,5 @@
 import { graphql, GraphQLSchema } from 'graphql';
+import { randomUUID } from 'node:crypto';
 import { buildGraphQLSchemaKb } from './graphql-schema-kb';
 import express from 'express';
 import { createGraphQLResolversKb } from './graphql-resolvers-kb';
@@ -198,6 +199,16 @@ export function createGraphQLServer(port: number = 4000) {
   // We run graphql() directly so we can log GraphQL execution errors (otherwise they only reach the client).
   const handleGraphqlKbPost = async (req: express.Request, res: express.Response) => {
     try {
+      const requestId = (req.header('x-request-id') || '').trim() || randomUUID();
+      const timings: Array<{ label: string; ms: number; resultBindings?: number | null }> = [];
+      const contextValue = {
+        graphdb: {
+          requestId,
+          requestCache: new Map<string, Promise<any>>(),
+          timings,
+        },
+      };
+
       const request = parseGraphQLRequestExpress(req);
 
       // Hard fail on legacy v1 queries hitting the KB endpoint, with a targeted message for frontend teams.
@@ -236,6 +247,7 @@ export function createGraphQLServer(port: number = 4000) {
         rootValue: rootKb,
         variableValues: request.variables || {},
         operationName: request.operationName,
+        contextValue,
       });
 
       if (Array.isArray((result as any)?.errors) && (result as any).errors.length) {
@@ -243,6 +255,13 @@ export function createGraphQLServer(port: number = 4000) {
           `⚠️  GraphQL errors (${req.path})`,
           (result as any).errors.map((e: any) => e?.message || String(e)),
         );
+      }
+
+      if (process.env.DEBUG_GRAPHQL_KB_TIMING && timings.length) {
+        const totalMs = timings.reduce((a, t) => a + (Number.isFinite(t.ms) ? t.ms : 0), 0);
+        const top = [...timings].sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0)).slice(0, 10);
+        // eslint-disable-next-line no-console
+        console.log(`[graphql-kb] timings ${totalMs.toFixed(1)}ms`, { requestId, top });
       }
 
       res.setHeader('Content-Type', 'application/json');

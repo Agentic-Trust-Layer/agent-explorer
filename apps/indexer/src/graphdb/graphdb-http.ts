@@ -1,6 +1,21 @@
 import fs from 'node:fs';
+import { performance } from 'node:perf_hooks';
 
 type GraphdbAuth = { username: string; password: string } | null;
+
+export type GraphdbQueryContext = {
+  /**
+   * Per-request cache (dedupes identical SPARQL strings within a single GraphQL request).
+   * Keyed by the full SPARQL string.
+   */
+  requestCache?: Map<string, Promise<any>>;
+  /** Optional label for logging/timing (e.g. "kbAgentsQuery"). */
+  label?: string;
+  /** Optional request id for log correlation. */
+  requestId?: string;
+  /** Collect timings (if provided). */
+  timings?: Array<{ label: string; ms: number; resultBindings?: number | null }>;
+};
 
 function envString(key: string): string | null {
   const v = process.env[key];
@@ -289,22 +304,76 @@ export async function queryGraphdb(
   auth: GraphdbAuth,
   sparql: string,
 ): Promise<any> {
-  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}`);
-  const res = await graphdbFetch(url, {
-    method: 'POST',
-    auth,
-    timeoutMs: 30_000,
-    headers: {
-      'Content-Type': 'application/sparql-query',
-      Accept: 'application/sparql-results+json',
-    },
-    body: sparql,
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`GraphDB SPARQL query failed: HTTP ${res.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+  return await queryGraphdbWithContext(baseUrl, repository, auth, sparql);
+}
+
+export async function queryGraphdbWithContext(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  sparql: string,
+  ctx?: GraphdbQueryContext | null,
+): Promise<any> {
+  const cache = ctx?.requestCache ?? null;
+  if (cache) {
+    const hit = cache.get(sparql);
+    if (hit) return await hit;
   }
-  return res.json();
+
+  const t0 = performance.now();
+  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}`);
+
+  const run: Promise<any> = (async () => {
+    const res = await graphdbFetch(url, {
+      method: 'POST',
+      auth,
+      timeoutMs: 30_000,
+      headers: {
+        'Content-Type': 'application/sparql-query',
+        Accept: 'application/sparql-results+json',
+      },
+      body: sparql,
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`GraphDB SPARQL query failed: HTTP ${res.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+    }
+    return await res.json();
+  })();
+
+  if (cache) cache.set(sparql, run);
+
+  try {
+    const json: any = await run;
+    const ms = performance.now() - t0;
+    const label = ctx?.label ?? 'graphdb';
+    const bindings = Array.isArray(json?.results?.bindings) ? json.results.bindings.length : null;
+
+    if (ctx?.timings) ctx.timings.push({ label, ms, resultBindings: bindings });
+    if (envString('DEBUG_GRAPHDB_TIMING') || ms > 750) {
+      // eslint-disable-next-line no-console
+      console.log(`[graphdb] ${label} ${ms.toFixed(1)}ms`, {
+        bindings,
+        requestId: ctx?.requestId ?? null,
+      });
+    }
+
+    return json;
+  } finally {
+    // If the promise rejects, don’t poison the request cache.
+    if (cache) {
+      const p = cache.get(sparql);
+      if (p === run) {
+        run.catch(() => {
+          try {
+            cache.delete(sparql);
+          } catch {
+            // ignore
+          }
+        });
+      }
+    }
+  }
 }
 
 

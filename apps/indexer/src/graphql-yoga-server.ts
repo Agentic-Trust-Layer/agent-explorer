@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'http';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { graphQLSchemaString } from './graphql-schema';
@@ -150,20 +151,20 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
     typeDefs: graphQLSchemaStringKb,
     resolvers: {
       Query: {
-        oasfSkills: (_p: unknown, args: any) => sharedKb.oasfSkills(args),
-        oasfDomains: (_p: unknown, args: any) => sharedKb.oasfDomains(args),
-        intentTypes: (_p: unknown, args: any) => sharedKb.intentTypes(args),
-        taskTypes: (_p: unknown, args: any) => sharedKb.taskTypes(args),
-        intentTaskMappings: (_p: unknown, args: any) => sharedKb.intentTaskMappings(args),
-        kbAgents: (_p: unknown, args: any) => sharedKb.kbAgents(args),
-        kbAgent: (_p: unknown, args: any) => sharedKb.kbAgent(args),
-        kbAgentByDid: (_p: unknown, args: any) => sharedKb.kbAgentByDid(args),
-        kbSemanticAgentSearch: (_p: unknown, args: any) => sharedKb.kbSemanticAgentSearch(args),
-        kbFeedbacks: (_p: unknown, args: any) => sharedKb.kbFeedbacks(args),
-        kbValidations: (_p: unknown, args: any) => sharedKb.kbValidations(args),
-        kbAssociations: (_p: unknown, args: any) => sharedKb.kbAssociations(args),
-        kbAgentTrustIndex: (_p: unknown, args: any) => sharedKb.kbAgentTrustIndex(args),
-        kbTrustLedgerBadgeDefinitions: (_p: unknown, args: any) => sharedKb.kbTrustLedgerBadgeDefinitions(args),
+        oasfSkills: (_p: unknown, args: any, ctx: any) => sharedKb.oasfSkills(args, ctx),
+        oasfDomains: (_p: unknown, args: any, ctx: any) => sharedKb.oasfDomains(args, ctx),
+        intentTypes: (_p: unknown, args: any, ctx: any) => sharedKb.intentTypes(args, ctx),
+        taskTypes: (_p: unknown, args: any, ctx: any) => sharedKb.taskTypes(args, ctx),
+        intentTaskMappings: (_p: unknown, args: any, ctx: any) => sharedKb.intentTaskMappings(args, ctx),
+        kbAgents: (_p: unknown, args: any, ctx: any) => sharedKb.kbAgents(args, ctx),
+        kbAgent: (_p: unknown, args: any, ctx: any) => sharedKb.kbAgent(args, ctx),
+        kbAgentByDid: (_p: unknown, args: any, ctx: any) => sharedKb.kbAgentByDid(args, ctx),
+        kbSemanticAgentSearch: (_p: unknown, args: any, ctx: any) => sharedKb.kbSemanticAgentSearch(args, ctx),
+        kbFeedbacks: (_p: unknown, args: any, ctx: any) => sharedKb.kbFeedbacks(args, ctx),
+        kbValidations: (_p: unknown, args: any, ctx: any) => sharedKb.kbValidations(args, ctx),
+        kbAssociations: (_p: unknown, args: any, ctx: any) => sharedKb.kbAssociations(args, ctx),
+        kbAgentTrustIndex: (_p: unknown, args: any, ctx: any) => sharedKb.kbAgentTrustIndex(args, ctx),
+        kbTrustLedgerBadgeDefinitions: (_p: unknown, args: any, ctx: any) => sharedKb.kbTrustLedgerBadgeDefinitions(args, ctx),
       },
     },
   });
@@ -175,6 +176,8 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
       maskedErrors: false,
       // Auth in Yoga context (mirrors Express middleware behavior)
       context: async ({ request }) => {
+        const requestId = request.headers.get('x-request-id') || randomUUID();
+        const timings: Array<{ label: string; ms: number; resultBindings?: number | null }> = [];
         try {
           const url = new URL(request.url, 'http://localhost');
           let body: any = null;
@@ -200,7 +203,13 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
         } catch {
           // If parsing fails, fall through - GraphQL execution will handle errors
         }
-        return {};
+        return {
+          graphdb: {
+            requestId,
+            requestCache: new Map<string, Promise<any>>(),
+            timings,
+          },
+        };
       },
     });
 

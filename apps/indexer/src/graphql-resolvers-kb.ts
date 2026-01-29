@@ -2,18 +2,24 @@ import type { SemanticSearchService } from './semantic/semantic-search-service.j
 import { kbAgentsQuery, kbOwnedAgentsAllChainsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
 import {
   kbAssociationsQuery,
-  kbFeedbacksForAgentQuery,
+  kbFeedbackItemsForAgentQuery,
   kbFeedbacksQuery,
   kbValidationResponsesForAgentQuery,
   kbValidationResponsesQuery,
 } from './graphdb/kb-queries-events.js';
 import { kbHydrateAgentsByDid8004 } from './graphdb/kb-queries-hydration.js';
-import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb/graphdb-http.js';
+import { getGraphdbConfigFromEnv, queryGraphdbWithContext, type GraphdbQueryContext } from './graphdb/graphdb-http.js';
 import { getAccountOwner } from './account-owner.js';
 
-async function runGraphdbQueryBindings(sparql: string): Promise<any[]> {
+async function runGraphdbQueryBindings(sparql: string, graphdbCtx?: GraphdbQueryContext | null, label?: string): Promise<any[]> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
-  const result = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const result = await queryGraphdbWithContext(
+    baseUrl,
+    repository,
+    auth,
+    sparql,
+    graphdbCtx ? { ...graphdbCtx, label: label ?? graphdbCtx.label } : graphdbCtx,
+  );
   return Array.isArray(result?.results?.bindings) ? result.results.bindings : [];
 }
 
@@ -196,39 +202,49 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     agentAccount: r.agentAccountIri ? { iri: r.agentAccountIri } : null,
 
     // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
-    assertionsFeedback8004: async (args: any) => {
+    assertionsFeedback8004: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const total = Number.isFinite(r.feedbackAssertionCount8004) ? Math.max(0, Math.trunc(r.feedbackAssertionCount8004)) : 0;
       const first = args?.first ?? null;
       const skip = args?.skip ?? null;
       return {
         total,
-        items: async () => {
-          const res = await kbFeedbacksForAgentQuery({
-            chainId: r.chainId ?? null,
-            agentIri: r.iri,
-            agentDid8004: r.did8004 ?? null,
-            first,
-            skip,
-          });
-          return res.items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
+        items: async (_args: any, ctx2: any) => {
+          const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
+          const items = await kbFeedbackItemsForAgentQuery(
+            {
+              chainId: r.chainId ?? null,
+              agentIri: r.iri,
+              agentDid8004: r.did8004 ?? null,
+              first,
+              skip,
+            },
+            gctx,
+          );
+          return items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
         },
       };
     },
 
-    assertionsValidation8004: async (args: any) => {
+    assertionsValidation8004: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const total = Number.isFinite(r.validationAssertionCount8004) ? Math.max(0, Math.trunc(r.validationAssertionCount8004)) : 0;
       const first = args?.first ?? null;
       const skip = args?.skip ?? null;
       return {
         total,
-        items: async () => {
-          const res = await kbValidationResponsesForAgentQuery({
-            chainId: r.chainId ?? null,
-            agentIri: r.iri,
-            agentDid8004: r.did8004 ?? null,
-            first,
-            skip,
-          });
+        items: async (_args: any, ctx2: any) => {
+          const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
+          const res = await kbValidationResponsesForAgentQuery(
+            {
+              chainId: r.chainId ?? null,
+              agentIri: r.iri,
+              agentDid8004: r.did8004 ?? null,
+              first,
+              skip,
+            },
+            gctx,
+          );
           return res.items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
         },
       };
@@ -265,7 +281,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     return null;
   };
 
-  const resolveAgentOwnerEoaAddressByUaid = async (uaid: string): Promise<string | null> => {
+  const resolveAgentOwnerEoaAddressByUaid = async (uaid: string, graphdbCtx?: GraphdbQueryContext | null): Promise<string | null> => {
     const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
     const u = String(uaid || '').trim().replace(/"/g, '\\"');
     const sparql = `
@@ -285,14 +301,21 @@ SELECT (SAMPLE(?addr) AS ?addrOut) WHERE {
 }
 LIMIT 1
 `;
-    const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+    const res = await queryGraphdbWithContext(
+      baseUrl,
+      repository,
+      auth,
+      sparql,
+      graphdbCtx ? { ...graphdbCtx, label: 'kbIsOwner.resolveAgentOwnerEoaAddressByUaid' } : { label: 'kbIsOwner.resolveAgentOwnerEoaAddressByUaid' },
+    );
     const b = res?.results?.bindings?.[0];
     const v = typeof b?.addrOut?.value === 'string' ? b.addrOut.value.trim().toLowerCase() : '';
     return normalizeHexAddr(v);
   };
 
   return {
-    oasfSkills: async (args: any) => {
+    oasfSkills: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const { key, nameKey, category, extendsKey } = args || {};
       const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
@@ -328,7 +351,7 @@ LIMIT 1
         .filter(Boolean)
         .join('\n');
 
-      const rows = await runGraphdbQueryBindings(sparql);
+      const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'oasfSkills');
       return rows.map((row: any) => ({
         key: row.key?.value ?? '',
         nameKey: row.name?.value ?? null,
@@ -339,7 +362,8 @@ LIMIT 1
       }));
     },
 
-    oasfDomains: async (args: any) => {
+    oasfDomains: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const { key, nameKey, category, extendsKey } = args || {};
       const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
@@ -375,7 +399,7 @@ LIMIT 1
         .filter(Boolean)
         .join('\n');
 
-      const rows = await runGraphdbQueryBindings(sparql);
+      const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'oasfDomains');
       return rows.map((row: any) => ({
         key: row.key?.value ?? '',
         nameKey: row.name?.value ?? null,
@@ -386,7 +410,8 @@ LIMIT 1
       }));
     },
 
-    intentTypes: async (args: any) => {
+    intentTypes: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
       const filters: string[] = [];
@@ -412,7 +437,7 @@ LIMIT 1
         .filter(Boolean)
         .join('\n');
 
-      const rows = await runGraphdbQueryBindings(sparql);
+      const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'intentTypes');
       return rows.map((row: any) => ({
         key: decodeKey(row.key?.value ?? ''),
         label: row.label?.value ?? null,
@@ -420,7 +445,8 @@ LIMIT 1
       }));
     },
 
-    taskTypes: async (args: any) => {
+    taskTypes: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
       const filters: string[] = [];
@@ -446,7 +472,7 @@ LIMIT 1
         .filter(Boolean)
         .join('\n');
 
-      const rows = await runGraphdbQueryBindings(sparql);
+      const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'taskTypes');
       return rows.map((row: any) => ({
         key: decodeKey(row.key?.value ?? ''),
         label: row.label?.value ?? null,
@@ -454,7 +480,8 @@ LIMIT 1
       }));
     },
 
-    intentTaskMappings: async (args: any) => {
+    intentTaskMappings: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const limit = typeof args?.limit === 'number' && Number.isFinite(args.limit) ? Math.max(1, Math.min(5000, args.limit)) : 2000;
       const offset = typeof args?.offset === 'number' && Number.isFinite(args.offset) ? Math.max(0, args.offset) : 0;
       const filters: string[] = [];
@@ -487,7 +514,7 @@ LIMIT 1
         .filter(Boolean)
         .join('\n');
 
-      const rows = await runGraphdbQueryBindings(sparql);
+      const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'intentTaskMappings');
       const map = new Map<string, any>();
       for (const row of rows) {
         const intentKey = decodeKey(row.intentKey?.value ?? '');
@@ -527,7 +554,8 @@ LIMIT 1
       }));
     },
 
-    kbAgents: async (args: any) => {
+    kbAgents: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const where = args?.where ?? null;
       if (where && typeof where === 'object') {
         if (where.uaid != null) assertUaidInput(where.uaid, 'where.uaid');
@@ -543,20 +571,24 @@ LIMIT 1
       const orderBy = args?.orderBy ?? null;
       const orderDirection = args?.orderDirection ?? null;
 
-      const { rows, total, hasMore } = await kbAgentsQuery({
-        where,
-        first,
-        skip,
-        orderBy,
-        orderDirection,
-      });
+      const { rows, total, hasMore } = await kbAgentsQuery(
+        {
+          where,
+          first,
+          skip,
+          orderBy,
+          orderDirection,
+        },
+        graphdbCtx,
+      );
 
       const agents = rows.map((r) => mapRowToKbAgent(r));
 
       return { agents, total, hasMore };
     },
 
-    kbOwnedAgents: async (args: any) => {
+    kbOwnedAgents: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const chainId = Number(args?.chainId);
       const ownerAddress = typeof args?.ownerAddress === 'string' ? args.ownerAddress : '';
       const first = args?.first ?? null;
@@ -568,39 +600,47 @@ LIMIT 1
         return { agents: [], total: 0, hasMore: false };
       }
 
-      const { rows, total, hasMore } = await kbOwnedAgentsQuery({
-        chainId: Math.trunc(chainId),
-        ownerAddress,
-        first,
-        skip,
-        orderBy,
-        orderDirection,
-      });
+      const { rows, total, hasMore } = await kbOwnedAgentsQuery(
+        {
+          chainId: Math.trunc(chainId),
+          ownerAddress,
+          first,
+          skip,
+          orderBy,
+          orderDirection,
+        },
+        graphdbCtx,
+      );
 
       const agents = rows.map((r) => mapRowToKbAgent(r));
       return { agents, total, hasMore };
     },
 
-    kbOwnedAgentsAllChains: async (args: any) => {
+    kbOwnedAgentsAllChains: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const ownerAddress = typeof args?.ownerAddress === 'string' ? args.ownerAddress : '';
       const first = args?.first ?? null;
       const skip = args?.skip ?? null;
       const orderBy = args?.orderBy ?? null;
       const orderDirection = args?.orderDirection ?? null;
 
-      const { rows, total, hasMore } = await kbOwnedAgentsAllChainsQuery({
-        ownerAddress,
-        first,
-        skip,
-        orderBy,
-        orderDirection,
-      });
+      const { rows, total, hasMore } = await kbOwnedAgentsAllChainsQuery(
+        {
+          ownerAddress,
+          first,
+          skip,
+          orderBy,
+          orderDirection,
+        },
+        graphdbCtx,
+      );
 
       const agents = rows.map((r) => mapRowToKbAgent(r));
       return { agents, total, hasMore };
     },
 
-    kbIsOwner: async (args: any) => {
+    kbIsOwner: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const uaid = assertUaidInput(args?.uaid, 'uaid');
       const walletAddressRaw = typeof args?.walletAddress === 'string' ? args.walletAddress.trim() : '';
       if (!uaid || !walletAddressRaw) return false;
@@ -610,7 +650,7 @@ LIMIT 1
       if (!walletAddr) return false;
 
       // Try to resolve the agent's recorded EOA owner from KB.
-      const agentOwnerEoa = await resolveAgentOwnerEoaAddressByUaid(uaid);
+      const agentOwnerEoa = await resolveAgentOwnerEoaAddressByUaid(uaid, graphdbCtx);
       if (!agentOwnerEoa) return false;
 
       // Normalize caller wallet into an EOA when possible (smart-account wallet inputs).
@@ -624,12 +664,13 @@ LIMIT 1
       return walletEoa === agentOwnerEoa;
     },
 
-    kbAgent: async (args: any) => {
+    kbAgent: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const chainId = Number(args?.chainId);
       const agentId8004 = Number(args?.agentId8004);
       if (!Number.isFinite(chainId) || !Number.isFinite(agentId8004)) return null;
       const did8004 = `did:8004:${Math.trunc(chainId)}:${Math.trunc(agentId8004)}`;
-      const res = await kbAgentsQuery({ where: { chainId: Math.trunc(chainId), did8004 }, first: 1, skip: 0 });
+      const res = await kbAgentsQuery({ where: { chainId: Math.trunc(chainId), did8004 }, first: 1, skip: 0 }, graphdbCtx);
       if (!res.rows.length) return null;
       const agent = res.rows[0]!;
       return {
@@ -699,16 +740,18 @@ LIMIT 1
       };
     },
 
-    kbAgentByDid: async (args: any) => {
+    kbAgentByDid: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const did8004 = typeof args?.did8004 === 'string' ? args.did8004.trim() : '';
       if (!did8004) return null;
-      const res = await kbAgentsQuery({ where: { did8004 }, first: 1, skip: 0 });
+      const res = await kbAgentsQuery({ where: { did8004 }, first: 1, skip: 0 }, graphdbCtx);
       if (!res.rows.length) return null;
       const agent = res.rows[0]!;
       return mapRowToKbAgent(agent);
     },
 
-    kbSemanticAgentSearch: async (args: any) => {
+    kbSemanticAgentSearch: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       if (!semanticSearchService) {
         return { matches: [], total: 0, intentType: null };
       }
@@ -732,7 +775,7 @@ LIMIT 1
 
       const hydrated = new Map<string, any>();
       for (const [chainId, didList] of didsByChain.entries()) {
-        const rows = await kbHydrateAgentsByDid8004({ chainId, did8004List: didList });
+        const rows = await kbHydrateAgentsByDid8004({ chainId, did8004List: didList }, graphdbCtx);
         for (const r of rows) {
           hydrated.set(r.did8004, {
             iri: r.agentIri,
@@ -816,12 +859,13 @@ LIMIT 1
       return { matches: out, total: out.length, intentType: null };
     },
 
-    kbAgentTrustIndex: async (_args: any) => {
+    kbAgentTrustIndex: async (_args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const chainId = Number(_args?.chainId);
       const agentId = String(_args?.agentId ?? '').trim();
       if (!Number.isFinite(chainId) || !agentId) return null;
 
-      const ctx = `https://www.agentictrust.io/graph/data/analytics/${Math.trunc(chainId)}`;
+      const graphCtx = `https://www.agentictrust.io/graph/data/analytics/${Math.trunc(chainId)}`;
       const sparql = [
         'PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>',
         'PREFIX prov: <http://www.w3.org/ns/prov#>',
@@ -831,7 +875,7 @@ LIMIT 1
         '  ?ati ?overallScore ?overallConfidence ?version ?computedAt ?bundleJson',
         '  ?component ?cScore ?cWeight ?evidenceCountsJson',
         'WHERE {',
-        `  GRAPH <${ctx}> {`,
+        `  GRAPH <${graphCtx}> {`,
         '    ?ati a analytics:AgentTrustIndex, prov:Entity ;',
         `         analytics:chainId ${Math.trunc(chainId)} ;`,
         `         analytics:agentId "${agentId.replace(/"/g, '\\"')}" ;`,
@@ -853,7 +897,7 @@ LIMIT 1
         '',
       ].join('\n');
 
-      const rows = await runGraphdbQueryBindings(sparql);
+      const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'kbAgentTrustIndex');
       if (!rows.length) return null;
 
       const first = rows[0]!;
@@ -878,14 +922,15 @@ LIMIT 1
       };
     },
 
-    kbTrustLedgerBadgeDefinitions: async () => {
-      const ctx = `https://www.agentictrust.io/graph/data/analytics/system`;
+    kbTrustLedgerBadgeDefinitions: async (_args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
+      const graphCtx = `https://www.agentictrust.io/graph/data/analytics/system`;
       const sparql = [
         'PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>',
         'PREFIX prov: <http://www.w3.org/ns/prov#>',
         '',
         'SELECT ?badgeId ?program ?name ?description ?iconRef ?points ?ruleId ?ruleJson ?active ?createdAt ?updatedAt WHERE {',
-        `  GRAPH <${ctx}> {`,
+        `  GRAPH <${graphCtx}> {`,
         '    ?b a analytics:TrustLedgerBadgeDefinition, prov:Entity ;',
         '       analytics:badgeId ?badgeId ;',
         '       analytics:program ?program ;',
@@ -903,7 +948,7 @@ LIMIT 1
         'ORDER BY ?badgeId',
         '',
       ].join('\n');
-      const rows = await runGraphdbQueryBindings(sparql);
+      const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'kbTrustLedgerBadgeDefinitions');
       return rows.map((r: any) => ({
         badgeId: r.badgeId?.value ?? '',
         program: r.program?.value ?? '',
@@ -919,10 +964,14 @@ LIMIT 1
       }));
     },
 
-    kbFeedbacks: async (args: any) => {
+    kbFeedbacks: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const chainId = Number(args?.chainId);
       if (!Number.isFinite(chainId)) return [];
-      const rows = await kbFeedbacksQuery({ chainId: Math.trunc(chainId), first: args?.first ?? null, skip: args?.skip ?? null });
+      const rows = await kbFeedbacksQuery(
+        { chainId: Math.trunc(chainId), first: args?.first ?? null, skip: args?.skip ?? null },
+        graphdbCtx,
+      );
       return rows.map((row) => ({
         iri: row.iri,
         agentDid8004: row.agentDid8004,
@@ -931,10 +980,14 @@ LIMIT 1
       }));
     },
 
-    kbValidations: async (args: any) => {
+    kbValidations: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const chainId = Number(args?.chainId);
       if (!Number.isFinite(chainId)) return [];
-      const rows = await kbValidationResponsesQuery({ chainId: Math.trunc(chainId), first: args?.first ?? null, skip: args?.skip ?? null });
+      const rows = await kbValidationResponsesQuery(
+        { chainId: Math.trunc(chainId), first: args?.first ?? null, skip: args?.skip ?? null },
+        graphdbCtx,
+      );
       return rows.map((row) => ({
         iri: row.iri,
         agentDid8004: row.agentDid8004,
@@ -943,10 +996,14 @@ LIMIT 1
       }));
     },
 
-    kbAssociations: async (args: any) => {
+    kbAssociations: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const chainId = Number(args?.chainId);
       if (!Number.isFinite(chainId)) return [];
-      const rows = await kbAssociationsQuery({ chainId: Math.trunc(chainId), first: args?.first ?? null, skip: args?.skip ?? null });
+      const rows = await kbAssociationsQuery(
+        { chainId: Math.trunc(chainId), first: args?.first ?? null, skip: args?.skip ?? null },
+        graphdbCtx,
+      );
       return rows.map((row) => ({
         iri: row.iri,
         record: row.record,

@@ -1,4 +1,4 @@
-import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb-http.js';
+import { getGraphdbConfigFromEnv, queryGraphdbWithContext, type GraphdbQueryContext } from './graphdb-http.js';
 
 export type GraphdbBinding = { type: string; value: string; datatype?: string; 'xml:lang'?: string };
 
@@ -87,14 +87,14 @@ function splitConcat(value: string | null): string[] {
     .filter(Boolean);
 }
 
-async function runGraphdbQuery(sparql: string): Promise<any[]> {
+async function runGraphdbQuery(sparql: string, ctx?: GraphdbQueryContext | null, label?: string): Promise<any[]> {
   const debug = Boolean(process.env.DEBUG_GRAPHDB_SPARQL);
   if (debug) {
     // eslint-disable-next-line no-console
     console.log('[graphdb] sparql (first 30 lines):\n' + sparql.split('\n').slice(0, 30).join('\n'));
   }
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
-  const result = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const result = await queryGraphdbWithContext(baseUrl, repository, auth, sparql, ctx ? { ...ctx, label: label ?? ctx.label } : ctx);
   const bindings = Array.isArray(result?.results?.bindings) ? result.results.bindings : [];
   if (debug) {
     // eslint-disable-next-line no-console
@@ -141,7 +141,7 @@ export async function kbAgentsQuery(args: {
   skip?: number | null;
   orderBy?: 'agentId8004' | 'agentName' | 'uaid' | null;
   orderDirection?: 'ASC' | 'DESC' | null;
-}): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const where = args.where ?? {};
   const first = clampInt(args.first, 1, 500, 20);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
@@ -366,7 +366,10 @@ export async function kbAgentsQuery(args: {
     .filter(Boolean)
     .join('\n');
 
-  const [rowsBindings, countBindings] = await Promise.all([runGraphdbQuery(sparql), runGraphdbQuery(countSparql)]);
+  const [rowsBindings, countBindings] = await Promise.all([
+    runGraphdbQuery(sparql, graphdbCtx, 'kbAgentsQuery'),
+    runGraphdbQuery(countSparql, graphdbCtx, 'kbAgentsQuery.count'),
+  ]);
   const total = countBindings.length ? Number(asString(countBindings[0]?.count) ?? '0') : 0;
   const hasMore = skip + first < total;
 
@@ -431,7 +434,7 @@ export async function kbOwnedAgentsQuery(args: {
   skip?: number | null;
   orderBy?: 'agentId8004' | 'agentName' | 'uaid' | null;
   orderDirection?: 'ASC' | 'DESC' | null;
-}): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
   const ownerAddress = typeof args.ownerAddress === 'string' ? args.ownerAddress.trim() : '';
   const ownerIri = ownerAddress ? accountIriFromAddress(chainId, ownerAddress) : '';
@@ -583,7 +586,7 @@ export async function kbOwnedAgentsQuery(args: {
     '',
   ].join('\n');
 
-  const bindings = await runGraphdbQuery(sparql);
+  const bindings = await runGraphdbQuery(sparql, graphdbCtx, 'kbOwnedAgentsQuery');
   const rows = bindings.map((b) => ({
     iri: asString(b?.agent) ?? '',
     uaid: asString(b?.uaid),
@@ -649,7 +652,7 @@ export async function kbOwnedAgentsQuery(args: {
     '',
   ].join('\n');
 
-  const countBindings = await runGraphdbQuery(countSparql);
+  const countBindings = await runGraphdbQuery(countSparql, graphdbCtx, 'kbOwnedAgentsQuery.count');
   const total = clampInt(asNumber(countBindings?.[0]?.count), 0, 10_000_000_000, 0);
 
   return { rows: trimmed, total, hasMore };
@@ -661,7 +664,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   skip?: number | null;
   orderBy?: 'agentId8004' | 'agentName' | 'uaid' | null;
   orderDirection?: 'ASC' | 'DESC' | null;
-}): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const ownerAddress = typeof args.ownerAddress === 'string' ? args.ownerAddress.trim().toLowerCase() : '';
   if (!ownerAddress) return { rows: [], total: 0, hasMore: false };
 
@@ -804,7 +807,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '',
   ].join('\n');
 
-  const bindings = await runGraphdbQuery(sparql);
+  const bindings = await runGraphdbQuery(sparql, graphdbCtx, 'kbOwnedAgentsAllChainsQuery');
   const rows = bindings.map((b) => ({
     iri: asString(b?.agent) ?? '',
     uaid: asString(b?.uaid),
@@ -871,7 +874,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '',
   ].join('\n');
 
-  const countBindings = await runGraphdbQuery(countSparql);
+  const countBindings = await runGraphdbQuery(countSparql, graphdbCtx, 'kbOwnedAgentsAllChainsQuery.count');
   const total = clampInt(asNumber(countBindings?.[0]?.count), 0, 10_000_000_000, 0);
 
   return { rows: trimmed, total, hasMore };

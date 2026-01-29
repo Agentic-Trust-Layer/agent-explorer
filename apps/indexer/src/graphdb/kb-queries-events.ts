@@ -1,4 +1,4 @@
-import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb-http.js';
+import { getGraphdbConfigFromEnv, queryGraphdbWithContext, type GraphdbQueryContext } from './graphdb-http.js';
 
 function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
@@ -22,9 +22,9 @@ function asNumber(b?: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-async function runGraphdbQuery(sparql: string): Promise<any[]> {
+async function runGraphdbQuery(sparql: string, ctx?: GraphdbQueryContext | null, label?: string): Promise<any[]> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
-  const result = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const result = await queryGraphdbWithContext(baseUrl, repository, auth, sparql, ctx ? { ...ctx, label: label ?? ctx.label } : ctx);
   return Array.isArray(result?.results?.bindings) ? result.results.bindings : [];
 }
 
@@ -55,17 +55,20 @@ function graphClauseForChain(chainId?: number | null): { open: string; close: st
   };
 }
 
-export async function kbFeedbacksForAgentQuery(args: {
+export async function kbFeedbackItemsForAgentQuery(
+  args: {
   chainId?: number | null;
   agentIri: string;
   agentDid8004?: string | null;
   first?: number | null;
   skip?: number | null;
-}): Promise<KbConnection<KbFeedbackRow>> {
+  },
+  graphdbCtx?: GraphdbQueryContext | null,
+): Promise<KbFeedbackRow[]> {
   const first = clampInt(args.first, 1, 2000, 25);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
   const agentIri = String(args.agentIri || '').trim();
-  if (!agentIri) return { total: 0, items: [] };
+  if (!agentIri) return [];
 
   const chainId = args.chainId != null ? clampInt(args.chainId, 1, 1_000_000_000, 0) : null;
   const graph = graphClauseForChain(chainId);
@@ -104,19 +107,7 @@ export async function kbFeedbacksForAgentQuery(args: {
     '',
   ].join('\n');
 
-  const countSparql = [
-    'PREFIX core: <https://agentictrust.io/ontology/core#>',
-    '',
-    'SELECT (COUNT(DISTINCT ?feedback) AS ?count) WHERE {',
-    `  ${graph.open}`,
-    `    <${agentIri}> core:hasReputationAssertion ?feedback .`,
-    `  ${graph.close}`,
-    '}',
-    '',
-  ].join('\n');
-
-  const [rows, countRows] = await Promise.all([runGraphdbQuery(sparql), runGraphdbQuery(countSparql)]);
-  const total = clampInt(asNumber(countRows?.[0]?.count), 0, 10_000_000_000, 0);
+  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbFeedbackItemsForAgentQuery');
   const items = rows
     .map((b: any) => {
       const iri = asString(b?.feedback);
@@ -142,6 +133,50 @@ export async function kbFeedbacksForAgentQuery(args: {
     })
     .filter((x): x is KbFeedbackRow => Boolean(x));
 
+  // Keep the agentDid8004 on each row (useful for GraphQL callers).
+  if (did8004) {
+    for (const it of items) it.agentDid8004 = did8004;
+  }
+  return items;
+}
+
+export async function kbFeedbackCountForAgentQuery(
+  args: { chainId?: number | null; agentIri: string },
+  graphdbCtx?: GraphdbQueryContext | null,
+): Promise<number> {
+  const agentIri = String(args.agentIri || '').trim();
+  if (!agentIri) return 0;
+  const chainId = args.chainId != null ? clampInt(args.chainId, 1, 1_000_000_000, 0) : null;
+  const graph = graphClauseForChain(chainId);
+  const countSparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    '',
+    'SELECT (COUNT(DISTINCT ?feedback) AS ?count) WHERE {',
+    `  ${graph.open}`,
+    `    <${agentIri}> core:hasReputationAssertion ?feedback .`,
+    `  ${graph.close}`,
+    '}',
+    '',
+  ].join('\n');
+
+  const countRows = await runGraphdbQuery(countSparql, graphdbCtx, 'kbFeedbackCountForAgentQuery');
+  return clampInt(asNumber(countRows?.[0]?.count), 0, 10_000_000_000, 0);
+}
+
+export async function kbFeedbacksForAgentQuery(
+  args: {
+    chainId?: number | null;
+    agentIri: string;
+    agentDid8004?: string | null;
+    first?: number | null;
+    skip?: number | null;
+  },
+  graphdbCtx?: GraphdbQueryContext | null,
+): Promise<KbConnection<KbFeedbackRow>> {
+  const [items, total] = await Promise.all([
+    kbFeedbackItemsForAgentQuery(args, graphdbCtx),
+    kbFeedbackCountForAgentQuery({ chainId: args.chainId ?? null, agentIri: args.agentIri }, graphdbCtx),
+  ]);
   return { total, items };
 }
 
@@ -149,7 +184,7 @@ export async function kbFeedbacksQuery(args: {
   chainId: number;
   first?: number | null;
   skip?: number | null;
-}): Promise<KbFeedbackRow[]> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<KbFeedbackRow[]> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
   const first = clampInt(args.first, 1, 2000, 100);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
@@ -195,7 +230,7 @@ export async function kbFeedbacksQuery(args: {
     '',
   ].join('\n');
 
-  const rows = await runGraphdbQuery(sparql);
+  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbFeedbacksQuery');
   return rows
     .map((b: any) => {
       const iri = asString(b?.feedback);
@@ -235,7 +270,7 @@ export async function kbValidationResponsesForAgentQuery(args: {
   agentDid8004?: string | null;
   first?: number | null;
   skip?: number | null;
-}): Promise<KbConnection<KbValidationResponseRow>> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<KbConnection<KbValidationResponseRow>> {
   const first = clampInt(args.first, 1, 2000, 25);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
   const agentIri = String(args.agentIri || '').trim();
@@ -289,7 +324,10 @@ export async function kbValidationResponsesForAgentQuery(args: {
     '',
   ].join('\n');
 
-  const [rows, countRows] = await Promise.all([runGraphdbQuery(sparql), runGraphdbQuery(countSparql)]);
+  const [rows, countRows] = await Promise.all([
+    runGraphdbQuery(sparql, graphdbCtx, 'kbValidationResponsesForAgentQuery'),
+    runGraphdbQuery(countSparql, graphdbCtx, 'kbValidationResponsesForAgentQuery.count'),
+  ]);
   const total = clampInt(asNumber(countRows?.[0]?.count), 0, 10_000_000_000, 0);
   const items = rows
     .map((b: any) => {
@@ -323,7 +361,7 @@ export async function kbValidationResponsesQuery(args: {
   chainId: number;
   first?: number | null;
   skip?: number | null;
-}): Promise<KbValidationResponseRow[]> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<KbValidationResponseRow[]> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
   const first = clampInt(args.first, 1, 2000, 100);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
@@ -371,7 +409,7 @@ export async function kbValidationResponsesQuery(args: {
     '',
   ].join('\n');
 
-  const rows = await runGraphdbQuery(sparql);
+  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbValidationResponsesQuery');
   return rows
     .map((b: any) => {
       const iri = asString(b?.validation);
@@ -407,7 +445,7 @@ export async function kbAssociationsQuery(args: {
   chainId: number;
   first?: number | null;
   skip?: number | null;
-}): Promise<KbAssociationRow[]> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<KbAssociationRow[]> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
   const first = clampInt(args.first, 1, 2000, 100);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
@@ -442,7 +480,7 @@ export async function kbAssociationsQuery(args: {
     `OFFSET ${skip}`,
     '',
   ].join('\n');
-  const rows = await runGraphdbQuery(sparql);
+  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbAssociationsQuery');
   return rows
     .map((b: any) => {
       const iri = asString(b?.association);
