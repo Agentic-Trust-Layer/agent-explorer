@@ -111,17 +111,20 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
 
 async function syncFeedbacks(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching feedbacks from ${endpoint.name} (chainId: ${endpoint.chainId})`);
-  const last = (await getCheckpoint(endpoint.chainId, 'feedbacks')) ?? '0';
   let lastBlock = 0n;
-  try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  if (!resetContext) {
+    const last = (await getCheckpoint(endpoint.chainId, 'feedbacks')) ?? '0';
+    try { lastBlock = BigInt(last); } catch { lastBlock = 0n; }
+  }
 
   const agentIriByDidIdentity = await listAgentIriByDidIdentity(endpoint.chainId).catch(() => new Map<string, string>());
   const items = await fetchAllFromSubgraph(endpoint.url, FEEDBACKS_QUERY, 'repFeedbacks', { optional: true });
   console.info(`[sync] fetched ${items.length} feedbacks from ${endpoint.name}`);
   const { turtle, maxBlock } = emitFeedbacksTurtle(endpoint.chainId, items, lastBlock, agentIriByDidIdentity);
-  if (turtle.trim()) {
+  // Only ingest if we actually emitted at least 1 new record (avoid uploading prefix-only TTL).
+  if (maxBlock > lastBlock) {
     await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'feedbacks', turtle, resetContext });
-    if (maxBlock > lastBlock) await setCheckpoint(endpoint.chainId, 'feedbacks', maxBlock.toString());
+    await setCheckpoint(endpoint.chainId, 'feedbacks', maxBlock.toString());
   }
 }
 

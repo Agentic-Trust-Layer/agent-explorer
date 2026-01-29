@@ -1,6 +1,12 @@
 import type { SemanticSearchService } from './semantic/semantic-search-service.js';
 import { kbAgentsQuery, kbOwnedAgentsAllChainsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
-import { kbAssociationsQuery, kbFeedbacksQuery, kbValidationResponsesQuery } from './graphdb/kb-queries-events.js';
+import {
+  kbAssociationsQuery,
+  kbFeedbacksForAgentQuery,
+  kbFeedbacksQuery,
+  kbValidationResponsesForAgentQuery,
+  kbValidationResponsesQuery,
+} from './graphdb/kb-queries-events.js';
 import { kbHydrateAgentsByDid8004 } from './graphdb/kb-queries-hydration.js';
 import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb/graphdb-http.js';
 import { getAccountOwner } from './account-owner.js';
@@ -188,6 +194,55 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     agentOwnerEOAAccount: r.agentOwnerEOAAccountIri ? { iri: r.agentOwnerEOAAccountIri } : null,
 
     agentAccount: r.agentAccountIri ? { iri: r.agentAccountIri } : null,
+
+    // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
+    assertionsFeedback8004: async (args: any) => {
+      const total = Number.isFinite(r.feedbackAssertionCount8004) ? Math.max(0, Math.trunc(r.feedbackAssertionCount8004)) : 0;
+      const first = args?.first ?? null;
+      const skip = args?.skip ?? null;
+      return {
+        total,
+        items: async () => {
+          const res = await kbFeedbacksForAgentQuery({
+            chainId: r.chainId ?? null,
+            agentIri: r.iri,
+            agentDid8004: r.did8004 ?? null,
+            first,
+            skip,
+          });
+          return res.items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
+        },
+      };
+    },
+
+    assertionsValidation8004: async (args: any) => {
+      const total = Number.isFinite(r.validationAssertionCount8004) ? Math.max(0, Math.trunc(r.validationAssertionCount8004)) : 0;
+      const first = args?.first ?? null;
+      const skip = args?.skip ?? null;
+      return {
+        total,
+        items: async () => {
+          const res = await kbValidationResponsesForAgentQuery({
+            chainId: r.chainId ?? null,
+            agentIri: r.iri,
+            agentDid8004: r.did8004 ?? null,
+            first,
+            skip,
+          });
+          return res.items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
+        },
+      };
+    },
+
+    assertions: async () => {
+      const fbTotal = Number.isFinite(r.feedbackAssertionCount8004) ? Math.max(0, Math.trunc(r.feedbackAssertionCount8004)) : 0;
+      const vrTotal = Number.isFinite(r.validationAssertionCount8004) ? Math.max(0, Math.trunc(r.validationAssertionCount8004)) : 0;
+      return {
+        total: fbTotal + vrTotal,
+        feedback8004: { total: fbTotal, items: [] },
+        validation8004: { total: vrTotal, items: [] },
+      };
+    },
   });
 
   const normalizeHexAddr = (addr: string): string | null => {

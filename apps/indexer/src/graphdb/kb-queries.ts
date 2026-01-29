@@ -7,6 +7,8 @@ export type KbAgentRow = {
   uaid: string | null;
   agentName: string | null;
   agentTypes: string[];
+  feedbackAssertionCount8004: number | null;
+  validationAssertionCount8004: number | null;
   createdAtBlock: number | null;
   createdAtTime: number | null;
   updatedAtTime: number | null;
@@ -131,6 +133,9 @@ export async function kbAgentsQuery(args: {
     agentName_contains?: string | null;
     isSmartAgent?: boolean | null;
     hasA2a?: boolean | null;
+    hasAssertions?: boolean | null;
+    hasFeedback8004?: boolean | null;
+    hasValidation8004?: boolean | null;
   } | null;
   first?: number | null;
   skip?: number | null;
@@ -205,6 +210,15 @@ export async function kbAgentsQuery(args: {
     filters.push(`NOT EXISTS { ?desc8004 core:assembledFromMetadata ?pdA2a . ?pdA2a a core:A2AProtocolDescriptor . }`);
   }
 
+  const hasFeedbackExpr = `EXISTS { ?agent core:hasReputationAssertion ?_fb . }`;
+  const hasValidationExpr = `EXISTS { ?agent core:hasVerificationAssertion ?_vr . }`;
+  if (where.hasAssertions === true) filters.push(`(${hasFeedbackExpr} || ${hasValidationExpr})`);
+  if (where.hasAssertions === false) filters.push(`NOT (${hasFeedbackExpr} || ${hasValidationExpr})`);
+  if (where.hasFeedback8004 === true) filters.push(hasFeedbackExpr);
+  if (where.hasFeedback8004 === false) filters.push(`NOT ${hasFeedbackExpr}`);
+  if (where.hasValidation8004 === true) filters.push(hasValidationExpr);
+  if (where.hasValidation8004 === false) filters.push(`NOT ${hasValidationExpr}`);
+
   const sparql = [
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
@@ -216,6 +230,8 @@ export async function kbAgentsQuery(args: {
     '  ?agent',
     '  (SAMPLE(?uaid) AS ?uaid)',
     '  (SAMPLE(?agentName) AS ?agentName)',
+    '  (COUNT(DISTINCT ?fb) AS ?feedbackAssertionCount8004)',
+    '  (COUNT(DISTINCT ?vr) AS ?validationAssertionCount8004)',
     '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
     '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
     '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -254,6 +270,8 @@ export async function kbAgentsQuery(args: {
     '    OPTIONAL { ?agent core:uaid ?uaid . }',
     '    OPTIONAL { ?agent core:agentName ?agentName . }',
     '    OPTIONAL { ?agent a ?agentType . }',
+    '    OPTIONAL { ?agent core:hasReputationAssertion ?fb . }',
+    '    OPTIONAL { ?agent core:hasVerificationAssertion ?vr . }',
     '    OPTIONAL {',
     '      ?record a erc8004:SubgraphIngestRecord ;',
     '              erc8004:recordsEntity ?agent ;',
@@ -363,6 +381,8 @@ export async function kbAgentsQuery(args: {
       uaid: asString(b?.uaid),
       agentName: asString(b?.agentName),
       agentTypes: pickAgentTypesFromRow(typeIris),
+      feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
+      validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
       createdAtBlock: asNumber(b?.createdAtBlock),
       createdAtTime: asNumber(b?.createdAtTime),
       updatedAtTime: asNumber(b?.updatedAtTime),
@@ -451,6 +471,8 @@ export async function kbOwnedAgentsQuery(args: {
     '  ?agent',
     '  (SAMPLE(?uaid) AS ?uaid)',
     '  (SAMPLE(?agentName) AS ?agentName)',
+    '  (COUNT(DISTINCT ?fb) AS ?feedbackAssertionCount8004)',
+    '  (COUNT(DISTINCT ?vr) AS ?validationAssertionCount8004)',
     '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
     '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
     '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -489,6 +511,8 @@ export async function kbOwnedAgentsQuery(args: {
     '    OPTIONAL { ?agent core:uaid ?uaid . }',
     '    OPTIONAL { ?agent core:agentName ?agentName . }',
     '    OPTIONAL { ?agent a ?agentType . }',
+    '    OPTIONAL { ?agent core:hasReputationAssertion ?fb . }',
+    '    OPTIONAL { ?agent core:hasVerificationAssertion ?vr . }',
     '    OPTIONAL {',
     '      ?record a erc8004:SubgraphIngestRecord ;',
     '              erc8004:recordsEntity ?agent ;',
@@ -564,6 +588,8 @@ export async function kbOwnedAgentsQuery(args: {
     iri: asString(b?.agent) ?? '',
     uaid: asString(b?.uaid),
     agentName: asString(b?.agentName),
+    feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
+    validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
     createdAtBlock: asNumber(b?.createdAtBlock),
     createdAtTime: asNumber(b?.createdAtTime),
     updatedAtTime: asNumber(b?.updatedAtTime),
@@ -663,6 +689,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '  ?agent',
     '  (SAMPLE(?uaid) AS ?uaid)',
     '  (SAMPLE(?agentName) AS ?agentName)',
+    '  (COUNT(DISTINCT ?fb) AS ?feedbackAssertionCount8004)',
+    '  (COUNT(DISTINCT ?vr) AS ?validationAssertionCount8004)',
     '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
     '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
     '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -702,6 +730,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '    OPTIONAL { ?agent core:uaid ?uaid . }',
     '    OPTIONAL { ?agent core:agentName ?agentName . }',
     '    OPTIONAL { ?agent a ?agentType . }',
+    '    OPTIONAL { ?agent core:hasReputationAssertion ?fb . }',
+    '    OPTIONAL { ?agent core:hasVerificationAssertion ?vr . }',
     '    OPTIONAL {',
     '      ?record a erc8004:SubgraphIngestRecord ;',
     '              erc8004:recordsEntity ?agent ;',
@@ -779,6 +809,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     iri: asString(b?.agent) ?? '',
     uaid: asString(b?.uaid),
     agentName: asString(b?.agentName),
+    feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
+    validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
     createdAtBlock: asNumber(b?.createdAtBlock),
     createdAtTime: asNumber(b?.createdAtTime),
     updatedAtTime: asNumber(b?.updatedAtTime),

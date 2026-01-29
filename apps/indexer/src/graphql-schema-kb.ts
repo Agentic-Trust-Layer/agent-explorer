@@ -65,6 +65,9 @@ export const graphQLSchemaStringKb = `
     agentName_contains: String
     isSmartAgent: Boolean
     hasA2a: Boolean
+    hasAssertions: Boolean
+    hasFeedback8004: Boolean
+    hasValidation8004: Boolean
   }
 
   type KbAccount {
@@ -125,6 +128,11 @@ export const graphQLSchemaStringKb = `
     identity8004: KbIdentity
     identityEns: KbIdentity
 
+    # Counts are always available; items are only fetched when you request a specific agent.
+    assertions: KbAgentAssertions
+    assertionsFeedback8004(first: Int, skip: Int): KbFeedbackConnection
+    assertionsValidation8004(first: Int, skip: Int): KbValidationResponseConnection
+
     # Accounts attached to the ERC-8004 identity (identity-scoped)
     identityOwnerAccount: KbAccount
     identityOperatorAccount: KbAccount
@@ -160,11 +168,27 @@ export const graphQLSchemaStringKb = `
     record: KbSubgraphRecord
   }
 
+  type KbFeedbackConnection {
+    total: Int!
+    items: [KbFeedback!]!
+  }
+
   type KbValidationResponse {
     iri: ID!
     agentDid8004: String
     json: String
     record: KbSubgraphRecord
+  }
+
+  type KbValidationResponseConnection {
+    total: Int!
+    items: [KbValidationResponse!]!
+  }
+
+  type KbAgentAssertions {
+    total: Int!
+    feedback8004: KbFeedbackConnection!
+    validation8004: KbValidationResponseConnection!
   }
 
   type KbAssociation {
