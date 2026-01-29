@@ -1,8 +1,9 @@
 import type { SemanticSearchService } from './semantic/semantic-search-service.js';
-import { kbAgentsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
+import { kbAgentsQuery, kbOwnedAgentsAllChainsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
 import { kbAssociationsQuery, kbFeedbacksQuery, kbValidationResponsesQuery } from './graphdb/kb-queries-events.js';
 import { kbHydrateAgentsByDid8004 } from './graphdb/kb-queries-hydration.js';
 import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb/graphdb-http.js';
+import { getAccountOwner } from './account-owner.js';
 
 async function runGraphdbQueryBindings(sparql: string): Promise<any[]> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
@@ -40,7 +41,18 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
 
   const mapRowToKbAgent = (r: any) => ({
     iri: r.iri,
-    uaid: r.uaid,
+    uaid:
+      r.uaid ??
+      (() => {
+        // Backfill UAID for older KB data that predates core:uaid on core:AIAgent.
+        // - SmartAgent: UAID is did:ethr:<chainId>:<agentAccountAddress>
+        // - AIAgent8004: UAID is did:8004:<chainId>:<agentId>
+        const m = typeof r.agentAccountIri === 'string'
+          ? r.agentAccountIri.match(/^https:\/\/www\.agentictrust\.io\/id\/account\/(\d+)\/(0x[0-9a-fA-F]{40})$/)
+          : null;
+        if (m?.[1] && m?.[2]) return `did:ethr:${m[1]}:${m[2].toLowerCase()}`;
+        return r.did8004 ?? null;
+      })(),
     agentName: r.agentName,
     agentTypes: r.agentTypes,
     did8004: r.did8004,
@@ -103,6 +115,52 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
 
     agentAccount: r.agentAccountIri ? { iri: r.agentAccountIri } : null,
   });
+
+  const normalizeHexAddr = (addr: string): string | null => {
+    const a = String(addr || '').trim().toLowerCase();
+    return /^0x[0-9a-f]{40}$/.test(a) ? a : null;
+  };
+
+  const parseUaidChainId = (uaid: string): number | null => {
+    const u = String(uaid || '').trim();
+    const mEthr = u.match(/^did:ethr:(\d+):0x[0-9a-fA-F]{40}$/);
+    if (mEthr?.[1]) {
+      const n = Number(mEthr[1]);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    }
+    const m8004 = u.match(/^did:8004:(\d+):\d+$/);
+    if (m8004?.[1]) {
+      const n = Number(m8004[1]);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    }
+    return null;
+  };
+
+  const resolveAgentOwnerEoaAddressByUaid = async (uaid: string): Promise<string | null> => {
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    const u = String(uaid || '').trim().replace(/"/g, '\\"');
+    const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+SELECT (SAMPLE(?addr) AS ?addr) WHERE {
+  GRAPH ?g {
+    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))
+    ?agent a core:AIAgent ;
+           core:uaid "${u}" .
+    OPTIONAL {
+      ?agent erc8004:agentOwnerEOAAccount ?acct .
+      ?acct eth:accountAddress ?addr .
+    }
+  }
+}
+LIMIT 1
+`;
+    const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+    const b = res?.results?.bindings?.[0];
+    const v = typeof b?.addr?.value === 'string' ? b.addr.value.trim().toLowerCase() : '';
+    return normalizeHexAddr(v);
+  };
 
   return {
     oasfSkills: async (args: any) => {
@@ -383,6 +441,49 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
 
       const agents = rows.map((r) => mapRowToKbAgent(r));
       return { agents, total, hasMore };
+    },
+
+    kbOwnedAgentsAllChains: async (args: any) => {
+      const ownerAddress = typeof args?.ownerAddress === 'string' ? args.ownerAddress : '';
+      const first = args?.first ?? null;
+      const skip = args?.skip ?? null;
+      const orderBy = args?.orderBy ?? null;
+      const orderDirection = args?.orderDirection ?? null;
+
+      const { rows, total, hasMore } = await kbOwnedAgentsAllChainsQuery({
+        ownerAddress,
+        first,
+        skip,
+        orderBy,
+        orderDirection,
+      });
+
+      const agents = rows.map((r) => mapRowToKbAgent(r));
+      return { agents, total, hasMore };
+    },
+
+    kbIsOwner: async (args: any) => {
+      const uaid = typeof args?.uaid === 'string' ? args.uaid.trim() : '';
+      const walletAddressRaw = typeof args?.walletAddress === 'string' ? args.walletAddress.trim() : '';
+      if (!uaid || !walletAddressRaw) return false;
+
+      const chainId = parseUaidChainId(uaid);
+      const walletAddr = normalizeHexAddr(walletAddressRaw);
+      if (!walletAddr) return false;
+
+      // Try to resolve the agent's recorded EOA owner from KB.
+      const agentOwnerEoa = await resolveAgentOwnerEoaAddressByUaid(uaid);
+      if (!agentOwnerEoa) return false;
+
+      // Normalize caller wallet into an EOA when possible (smart-account wallet inputs).
+      let walletEoa = walletAddr;
+      if (chainId) {
+        const resolved = await getAccountOwner(chainId, walletAddr);
+        const normalized = resolved ? normalizeHexAddr(resolved) : null;
+        if (normalized) walletEoa = normalized;
+      }
+
+      return walletEoa === agentOwnerEoa;
     },
 
     kbAgent: async (args: any) => {

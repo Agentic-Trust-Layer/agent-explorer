@@ -123,6 +123,8 @@ export async function kbAgentsQuery(args: {
     chainId?: number | null;
     agentId8004?: number | null;
     did8004?: string | null;
+    uaid?: string | null;
+    uaid_in?: string[] | null;
     agentName_contains?: string | null;
     isSmartAgent?: boolean | null;
     hasA2a?: boolean | null;
@@ -148,6 +150,12 @@ export async function kbAgentsQuery(args: {
   const agentNameContains =
     typeof where.agentName_contains === 'string' && where.agentName_contains.trim() ? where.agentName_contains.trim() : null;
 
+  const uaidFilter = typeof where.uaid === 'string' && where.uaid.trim() ? where.uaid.trim() : null;
+  const uaidIn =
+    Array.isArray(where.uaid_in) && where.uaid_in.length
+      ? where.uaid_in.map((u) => String(u ?? '').trim()).filter(Boolean)
+      : null;
+
   const orderBy = args.orderBy ?? 'agentId8004';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const orderBaseExpr =
@@ -162,8 +170,20 @@ export async function kbAgentsQuery(args: {
   const graphClose = graphs ? `  }` : `}`;
 
   const filters: string[] = [];
+  // When searching across all graphs, restrict to subgraph data graphs only.
+  if (!graphs) {
+    filters.push(`STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/")`);
+  }
   if (did8004Filter) {
     filters.push(`?did8004 = "${did8004Filter}"`);
+  }
+  if (uaidFilter) {
+    const escaped = uaidFilter.replace(/"/g, '\\"');
+    filters.push(`?uaid = "${escaped}"`);
+  }
+  if (uaidIn && uaidIn.length) {
+    const values = uaidIn.map((u) => `"${u.replace(/"/g, '\\"')}"`).join(' ');
+    filters.push(`?uaid IN (${values})`);
   }
   if (agentNameContains) {
     const escaped = agentNameContains.replace(/"/g, '\\"');
@@ -566,6 +586,207 @@ export async function kbOwnedAgentsQuery(args: {
     '    ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:hasOwnerAccount ?ownerAccount .',
     `    FILTER(?ownerAccount = <${ownerIri}> || EXISTS { ?ownerAccount eth:hasEOAOwner <${ownerIri}> })`,
     `  ${graphClose}`,
+    '}',
+    '',
+  ].join('\n');
+
+  const countBindings = await runGraphdbQuery(countSparql);
+  const total = clampInt(asNumber(countBindings?.[0]?.count), 0, 10_000_000_000, 0);
+
+  return { rows: trimmed, total, hasMore };
+}
+
+export async function kbOwnedAgentsAllChainsQuery(args: {
+  ownerAddress: string;
+  first?: number | null;
+  skip?: number | null;
+  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | null;
+  orderDirection?: 'ASC' | 'DESC' | null;
+}): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
+  const ownerAddress = typeof args.ownerAddress === 'string' ? args.ownerAddress.trim().toLowerCase() : '';
+  if (!ownerAddress) return { rows: [], total: 0, hasMore: false };
+
+  const first = clampInt(args.first, 1, 500, 20);
+  const skip = clampInt(args.skip, 0, 1_000_000, 0);
+
+  const orderBy = args.orderBy ?? 'agentId8004';
+  const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+  const orderBaseExpr =
+    orderBy === 'agentName'
+      ? 'LCASE(STR(?agentName))'
+      : orderBy === 'uaid'
+        ? 'LCASE(STR(?uaid))'
+        : '?agentId8004';
+  const orderExpr = orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`;
+
+  const sparql = [
+    'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
+    '',
+    'SELECT',
+    '  ?agent',
+    '  (SAMPLE(?uaid) AS ?uaid)',
+    '  (SAMPLE(?agentName) AS ?agentName)',
+    '  (SAMPLE(?identity8004) AS ?identity8004)',
+    '  (SAMPLE(?did8004) AS ?did8004)',
+    '  (SAMPLE(?agentId8004) AS ?agentId8004)',
+    '  (SAMPLE(?identityEns) AS ?identityEns)',
+    '  (SAMPLE(?didEns) AS ?didEns)',
+    '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
+    '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
+    '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
+    '  (SAMPLE(?agentOwnerAccount) AS ?agentOwnerAccount)',
+    '  (SAMPLE(?agentOperatorAccount) AS ?agentOperatorAccount)',
+    '  (SAMPLE(?agentWalletAccount) AS ?agentWalletAccount)',
+    '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
+    '  (SAMPLE(?agentAccount) AS ?agentAccount)',
+    '  (SAMPLE(?identity8004Descriptor) AS ?identity8004Descriptor)',
+    '  (SAMPLE(?registrationJson) AS ?registrationJson)',
+    '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
+    '  (SAMPLE(?registeredBy) AS ?registeredBy)',
+    '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
+    '  (SAMPLE(?pdA2a) AS ?pdA2a)',
+    '  (SAMPLE(?a2aServiceUrl) AS ?a2aServiceUrl)',
+    '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
+    '  (SAMPLE(?a2aJson) AS ?a2aJson)',
+    '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
+    '  (SAMPLE(?pdMcp) AS ?pdMcp)',
+    '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
+    '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
+    '  (SAMPLE(?mcpJson) AS ?mcpJson)',
+    '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
+    '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
+    'WHERE {',
+    '  GRAPH ?g {',
+    '    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))',
+    '    ?agent a core:AIAgent .',
+    '    OPTIONAL { ?agent core:uaid ?uaid . }',
+    '    OPTIONAL { ?agent core:agentName ?agentName . }',
+    '    OPTIONAL { ?agent a ?agentType . }',
+    '',
+    '    OPTIONAL {',
+    '      ?agent core:hasIdentity ?identity8004 .',
+    '      ?identity8004 a erc8004:AgentIdentity8004 ;',
+    '                    core:hasIdentifier ?ident8004 ;',
+    '                    core:hasDescriptor ?desc8004 .',
+    '      ?ident8004 core:protocolIdentifier ?did8004 .',
+    '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
+    '      BIND(?desc8004 AS ?identity8004Descriptor)',
+    '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
+    '      OPTIONAL { ?desc8004 erc8004:onchainMetadataJson ?onchainMetadataJson . }',
+    '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
+    '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
+    '      OPTIONAL {',
+    '        ?desc8004 core:assembledFromMetadata ?pdA2a .',
+    '        ?pdA2a a core:A2AProtocolDescriptor ;',
+    '               core:serviceUrl ?a2aServiceUrl .',
+    '        OPTIONAL { ?pdA2a core:protocolVersion ?a2aProtocolVersion . }',
+    '        OPTIONAL { ?pdA2a core:json ?a2aJson . }',
+    '        OPTIONAL { ?pdA2a core:hasSkill ?a2aSkill . }',
+    '      }',
+    '      OPTIONAL {',
+    '        ?desc8004 core:assembledFromMetadata ?pdMcp .',
+    '        ?pdMcp a core:MCPProtocolDescriptor ;',
+    '              core:serviceUrl ?mcpServiceUrl .',
+    '        OPTIONAL { ?pdMcp core:protocolVersion ?mcpProtocolVersion . }',
+    '        OPTIONAL { ?pdMcp core:json ?mcpJson . }',
+    '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill . }',
+    '      }',
+    '      OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?identityOwnerAccount . }',
+    '      OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount . }',
+    '      OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount . }',
+    '    }',
+    '',
+    '    OPTIONAL { ?agent a erc8004:SmartAgent ; erc8004:hasAgentAccount ?agentAccount . }',
+    '    OPTIONAL { ?agent erc8004:agentOwnerAccount ?agentOwnerAccount . }',
+    '    OPTIONAL { ?agent erc8004:agentOperatorAccount ?agentOperatorAccount . }',
+    '    OPTIONAL { ?agent erc8004:agentWalletAccount ?agentWalletAccount . }',
+    '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount . }',
+    '',
+    '    OPTIONAL {',
+    '      ?agent core:hasIdentity ?identityEns .',
+    '      ?identityEns a ens:EnsIdentity ;',
+    '                  core:hasIdentifier ?ensIdent .',
+    '      ?ensIdent core:protocolIdentifier ?didEns .',
+    '    }',
+    '',
+    // Ownership filter (address-based, across any chain):
+    // - direct: identity owner account address matches
+    // - indirect: identity owner account hasEOAOwner whose address matches
+    '    FILTER(',
+    `      EXISTS { ?identityOwnerAccount eth:accountAddress ?addr . FILTER(LCASE(STR(?addr)) = "${ownerAddress}") }`,
+    `      || EXISTS { ?identityOwnerAccount eth:hasEOAOwner ?eoa . ?eoa eth:accountAddress ?addr2 . FILTER(LCASE(STR(?addr2)) = "${ownerAddress}") }`,
+    '    )',
+    '  }',
+    '}',
+    'GROUP BY ?agent',
+    `ORDER BY ${orderExpr}`,
+    `LIMIT ${first + 1}`,
+    `OFFSET ${skip}`,
+    '',
+  ].join('\n');
+
+  const bindings = await runGraphdbQuery(sparql);
+  const rows = bindings.map((b) => ({
+    iri: asString(b?.agent) ?? '',
+    uaid: asString(b?.uaid),
+    agentName: asString(b?.agentName),
+    identity8004Iri: asString(b?.identity8004),
+    did8004: asString(b?.did8004),
+    agentId8004: asNumber(b?.agentId8004),
+    identityEnsIri: asString(b?.identityEns),
+    didEns: asString(b?.didEns),
+    identityOwnerAccountIri: asString(b?.identityOwnerAccount),
+    identityWalletAccountIri: asString(b?.identityWalletAccount),
+    identityOperatorAccountIri: asString(b?.identityOperatorAccount),
+    agentOwnerAccountIri: asString(b?.agentOwnerAccount),
+    agentOperatorAccountIri: asString(b?.agentOperatorAccount),
+    agentWalletAccountIri: asString(b?.agentWalletAccount),
+    agentOwnerEOAAccountIri: asString(b?.agentOwnerEOAAccount),
+    agentAccountIri: asString(b?.agentAccount),
+
+    identity8004DescriptorIri: asString(b?.identity8004Descriptor),
+    identity8004RegistrationJson: asString(b?.registrationJson),
+    identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
+    identity8004RegisteredBy: asString(b?.registeredBy),
+    identity8004RegistryNamespace: asString(b?.registryNamespace),
+
+    a2aProtocolDescriptorIri: asString(b?.pdA2a),
+    a2aServiceUrl: asString(b?.a2aServiceUrl),
+    a2aProtocolVersion: asString(b?.a2aProtocolVersion),
+    a2aJson: asString(b?.a2aJson),
+    a2aSkills: splitConcat(asString(b?.a2aSkills)),
+
+    mcpProtocolDescriptorIri: asString(b?.pdMcp),
+    mcpServiceUrl: asString(b?.mcpServiceUrl),
+    mcpProtocolVersion: asString(b?.mcpProtocolVersion),
+    mcpJson: asString(b?.mcpJson),
+    mcpSkills: splitConcat(asString(b?.mcpSkills)),
+
+    agentTypes: splitConcat(asString(b?.agentTypes)),
+  }));
+
+  const hasMore = rows.length > first;
+  const trimmed = hasMore ? rows.slice(0, first) : rows;
+
+  const countSparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    '',
+    'SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {',
+    '  GRAPH ?g {',
+    '    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))',
+    '    ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
+    '    ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:hasOwnerAccount ?identityOwnerAccount .',
+    '    FILTER(',
+    `      EXISTS { ?identityOwnerAccount eth:accountAddress ?addr . FILTER(LCASE(STR(?addr)) = "${ownerAddress}") }`,
+    `      || EXISTS { ?identityOwnerAccount eth:hasEOAOwner ?eoa . ?eoa eth:accountAddress ?addr2 . FILTER(LCASE(STR(?addr2)) = "${ownerAddress}") }`,
+    '    )',
+    '  }',
     '}',
     '',
   ].join('\n');

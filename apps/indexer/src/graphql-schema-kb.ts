@@ -60,6 +60,8 @@ export const graphQLSchemaStringKb = `
     chainId: Int
     agentId8004: Int
     did8004: String
+    uaid: String
+    uaid_in: [String!]
     agentName_contains: String
     isSmartAgent: Boolean
     hasA2a: Boolean
@@ -305,6 +307,18 @@ export const graphQLSchemaStringKb = `
       orderBy: KbAgentOrderBy
       orderDirection: OrderDirection
     ): KbAgentSearchResult!
+
+    # Like kbOwnedAgents, but searches across all subgraph graphs (no chainId required).
+    kbOwnedAgentsAllChains(
+      ownerAddress: String!
+      first: Int
+      skip: Int
+      orderBy: KbAgentOrderBy
+      orderDirection: OrderDirection
+    ): KbAgentSearchResult!
+
+    # UAID-native ownership check. Returns true if walletAddress resolves to the same EOA as the agent's owner.
+    kbIsOwner(uaid: String!, walletAddress: String!): Boolean!
 
     kbAgent(chainId: Int!, agentId8004: Int!): KbAgent
     kbAgentByDid(did8004: String!): KbAgent
