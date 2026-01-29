@@ -81,6 +81,9 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       ),
     agentName: r.agentName,
     agentTypes: r.agentTypes,
+    createdAtBlock: r.createdAtBlock == null ? null : Math.trunc(r.createdAtBlock),
+    createdAtTime: r.createdAtTime == null ? null : Math.trunc(r.createdAtTime),
+    updatedAtTime: r.updatedAtTime == null ? null : Math.trunc(r.updatedAtTime),
     did8004: r.did8004,
     agentId8004: r.agentId8004 == null ? null : Math.trunc(r.agentId8004),
     isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
@@ -130,6 +133,51 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
           }
         : null,
     identityEns: r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null,
+    identity:
+      (r.identity8004Iri && r.did8004
+        ? {
+            iri: r.identity8004Iri,
+            kind: '8004',
+            did: r.did8004,
+            descriptor:
+              r.identity8004DescriptorIri
+                ? {
+                    iri: r.identity8004DescriptorIri,
+                    kind: '8004',
+                    json: r.identity8004RegistrationJson,
+                    onchainMetadataJson: r.identity8004OnchainMetadataJson,
+                    registeredBy: r.identity8004RegisteredBy,
+                    registryNamespace: r.identity8004RegistryNamespace,
+                    skills: [],
+                    domains: [],
+                    protocolDescriptors: [
+                      r.a2aProtocolDescriptorIri && r.a2aServiceUrl
+                        ? {
+                            iri: r.a2aProtocolDescriptorIri,
+                            protocol: 'a2a',
+                            serviceUrl: r.a2aServiceUrl,
+                            protocolVersion: r.a2aProtocolVersion,
+                            json: r.a2aJson,
+                            skills: r.a2aSkills,
+                            domains: [],
+                          }
+                        : null,
+                      r.mcpProtocolDescriptorIri && r.mcpServiceUrl
+                        ? {
+                            iri: r.mcpProtocolDescriptorIri,
+                            protocol: 'mcp',
+                            serviceUrl: r.mcpServiceUrl,
+                            protocolVersion: r.mcpProtocolVersion,
+                            json: r.mcpJson,
+                            skills: r.mcpSkills,
+                            domains: [],
+                          }
+                        : null,
+                    ].filter(Boolean),
+                  }
+                : null,
+          }
+        : null) ?? (r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null),
     identityOwnerAccount: r.identityOwnerAccountIri ? { iri: r.identityOwnerAccountIri } : null,
     identityWalletAccount: r.identityWalletAccountIri ? { iri: r.identityWalletAccountIri } : null,
     identityOperatorAccount: r.identityOperatorAccountIri ? { iri: r.identityOperatorAccountIri } : null,

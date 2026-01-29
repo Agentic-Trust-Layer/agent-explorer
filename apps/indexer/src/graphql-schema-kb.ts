@@ -110,11 +110,18 @@ export const graphQLSchemaStringKb = `
     agentName: String
     agentTypes: [String!]!
 
+    # Provenance (best-effort; may be null for older/missing records)
+    createdAtBlock: Int
+    createdAtTime: Int
+    updatedAtTime: Int
+
     did8004: String
     agentId8004: Int
 
     isSmartAgent: Boolean!
 
+    # Convenience: primary identity (prefer identity8004, else identityEns)
+    identity: KbIdentity
     identity8004: KbIdentity
     identityEns: KbIdentity
 
