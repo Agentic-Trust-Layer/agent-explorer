@@ -87,13 +87,6 @@ function splitConcat(value: string | null): string[] {
     .filter(Boolean);
 }
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = [];
-  const n = Math.max(1, Math.trunc(size));
-  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
-  return out;
-}
-
 async function runGraphdbQuery(sparql: string, ctx?: GraphdbQueryContext | null, label?: string): Promise<any[]> {
   const debug = Boolean(process.env.DEBUG_GRAPHDB_SPARQL);
   if (debug) {
@@ -108,153 +101,6 @@ async function runGraphdbQuery(sparql: string, ctx?: GraphdbQueryContext | null,
     console.log('[graphdb] sparql result', { bindings: bindings.length });
   }
   return bindings;
-}
-
-async function getAssertionCountsForAgents(args: {
-  agentIris: string[];
-  graphs: string[] | null;
-  graphdbCtx?: GraphdbQueryContext | null;
-}): Promise<Map<string, { fb: number; vr: number }>> {
-  const agentIris = Array.from(new Set((args.agentIris ?? []).map((s) => String(s ?? '').trim()).filter(Boolean)));
-  const out = new Map<string, { fb: number; vr: number }>();
-  if (!agentIris.length) return out;
-
-  const graphdbCtx = args.graphdbCtx ?? null;
-
-  const graphClause = args.graphs ? `VALUES ?g { ${args.graphs.join(' ')} }\n  GRAPH ?g {` : `GRAPH ?g {`;
-  const graphClose = args.graphs ? `  }` : `}`;
-  const graphFilter = args.graphs ? '' : `    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))`;
-
-  // Chunk to avoid overly-large SPARQL requests.
-  for (const batch of chunk(agentIris, 200)) {
-    const values = batch.map((iri) => `<${iri}>`).join(' ');
-
-    const fbSparql = [
-      'PREFIX core: <https://agentictrust.io/ontology/core#>',
-      '',
-      'SELECT ?agent (COUNT(DISTINCT ?fb) AS ?count) WHERE {',
-      `  ${graphClause}`,
-      graphFilter,
-      `    VALUES ?agent { ${values} }`,
-      '    ?agent core:hasReputationAssertion ?fb .',
-      `  ${graphClose}`,
-      '}',
-      'GROUP BY ?agent',
-      '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const vrSparql = [
-      'PREFIX core: <https://agentictrust.io/ontology/core#>',
-      '',
-      'SELECT ?agent (COUNT(DISTINCT ?vr) AS ?count) WHERE {',
-      `  ${graphClause}`,
-      graphFilter,
-      `    VALUES ?agent { ${values} }`,
-      '    ?agent core:hasVerificationAssertion ?vr .',
-      `  ${graphClose}`,
-      '}',
-      'GROUP BY ?agent',
-      '',
-    ]
-      .filter(Boolean)
-      .join('\n');
-
-    const [fbRows, vrRows] = await Promise.all([
-      runGraphdbQuery(fbSparql, graphdbCtx, 'kbAgentsQuery.assertionCounts.feedback'),
-      runGraphdbQuery(vrSparql, graphdbCtx, 'kbAgentsQuery.assertionCounts.validation'),
-    ]);
-
-    for (const r of fbRows) {
-      const iri = asString((r as any)?.agent);
-      if (!iri) continue;
-      const count = clampInt(asNumber((r as any)?.count), 0, 10_000_000_000, 0);
-      const prev = out.get(iri) ?? { fb: 0, vr: 0 };
-      prev.fb = count;
-      out.set(iri, prev);
-    }
-    for (const r of vrRows) {
-      const iri = asString((r as any)?.agent);
-      if (!iri) continue;
-      const count = clampInt(asNumber((r as any)?.count), 0, 10_000_000_000, 0);
-      const prev = out.get(iri) ?? { fb: 0, vr: 0 };
-      prev.vr = count;
-      out.set(iri, prev);
-    }
-  }
-
-  return out;
-}
-
-async function getAssertionCountsForAgentPairs(args: {
-  pairs: Array<{ g: string; agent: string }>;
-  graphdbCtx?: GraphdbQueryContext | null;
-}): Promise<Map<string, { fb: number; vr: number }>> {
-  const pairsRaw = Array.isArray(args.pairs) ? args.pairs : [];
-  const pairs = pairsRaw
-    .map((p) => ({ g: String(p?.g ?? '').trim(), agent: String(p?.agent ?? '').trim() }))
-    .filter((p) => p.g && p.agent);
-  const out = new Map<string, { fb: number; vr: number }>();
-  if (!pairs.length) return out;
-
-  const graphdbCtx = args.graphdbCtx ?? null;
-
-  for (const batch of chunk(pairs, 150)) {
-    const values = batch.map((p) => `(<${p.g}> <${p.agent}>)`).join(' ');
-
-    const fbSparql = [
-      'PREFIX core: <https://agentictrust.io/ontology/core#>',
-      '',
-      // NOTE: within a single graph, the (agent -> assertion) edges should be unique,
-      // so COUNT(?fb) is safe and usually much faster than COUNT(DISTINCT ?fb).
-      'SELECT ?agent (COUNT(?fb) AS ?count) WHERE {',
-      `  VALUES (?g ?agent) { ${values} }`,
-      '  GRAPH ?g {',
-      '    ?agent core:hasReputationAssertion ?fb .',
-      '  }',
-      '}',
-      'GROUP BY ?agent',
-      '',
-    ].join('\n');
-
-    const vrSparql = [
-      'PREFIX core: <https://agentictrust.io/ontology/core#>',
-      '',
-      'SELECT ?agent (COUNT(?vr) AS ?count) WHERE {',
-      `  VALUES (?g ?agent) { ${values} }`,
-      '  GRAPH ?g {',
-      '    ?agent core:hasVerificationAssertion ?vr .',
-      '  }',
-      '}',
-      'GROUP BY ?agent',
-      '',
-    ].join('\n');
-
-    const [fbRows, vrRows] = await Promise.all([
-      runGraphdbQuery(fbSparql, graphdbCtx, 'kbAgentsQuery.assertionCounts.feedback'),
-      runGraphdbQuery(vrSparql, graphdbCtx, 'kbAgentsQuery.assertionCounts.validation'),
-    ]);
-
-    for (const r of fbRows) {
-      const iri = asString((r as any)?.agent);
-      if (!iri) continue;
-      const count = clampInt(asNumber((r as any)?.count), 0, 10_000_000_000, 0);
-      const prev = out.get(iri) ?? { fb: 0, vr: 0 };
-      prev.fb = count;
-      out.set(iri, prev);
-    }
-    for (const r of vrRows) {
-      const iri = asString((r as any)?.agent);
-      if (!iri) continue;
-      const count = clampInt(asNumber((r as any)?.count), 0, 10_000_000_000, 0);
-      const prev = out.get(iri) ?? { fb: 0, vr: 0 };
-      prev.vr = count;
-      out.set(iri, prev);
-    }
-  }
-
-  return out;
 }
 
 function did8004FromParts(chainId: number, agentId8004: number): string {
@@ -328,14 +174,12 @@ export async function kbAgentsQuery(args: {
         : '?agentId8004';
   const orderExpr = orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`;
 
-  const graphClause = graphs ? `VALUES ?g { ${graphs.join(' ')} }\n  GRAPH ?g {` : `GRAPH ?g {`;
+  const graphClause = graphs
+    ? `VALUES ?g { ${graphs.join(' ')} }\n  GRAPH ?g {`
+    : `GRAPH ?g {\n    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))`;
   const graphClose = graphs ? `  }` : `}`;
 
   const filters: string[] = [];
-  // When searching across all graphs, restrict to subgraph data graphs only.
-  if (!graphs) {
-    filters.push(`STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/")`);
-  }
   if (did8004Filter) {
     filters.push(`?did8004 = "${did8004Filter}"`);
   }
@@ -448,6 +292,8 @@ export async function kbAgentsQuery(args: {
           '  ?agent',
           '  (SAMPLE(?uaid) AS ?uaid)',
           '  (SAMPLE(?agentName) AS ?agentName)',
+          '  (SAMPLE(?feedbackAssertionCount8004) AS ?feedbackAssertionCount8004)',
+          '  (SAMPLE(?validationAssertionCount8004) AS ?validationAssertionCount8004)',
           '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
           '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
           '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -487,6 +333,8 @@ export async function kbAgentsQuery(args: {
           '    OPTIONAL { ?agent core:uaid ?uaid . }',
           '    OPTIONAL { ?agent core:agentName ?agentName . }',
           '    OPTIONAL { ?agent a ?agentType . }',
+            '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
+            '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
           '    OPTIONAL {',
           '      ?record a erc8004:SubgraphIngestRecord ;',
           '              erc8004:recordsEntity ?agent ;',
@@ -587,8 +435,8 @@ export async function kbAgentsQuery(args: {
       uaid: asString(b?.uaid),
       agentName: asString(b?.agentName),
       agentTypes: pickAgentTypesFromRow(typeIris),
-      feedbackAssertionCount8004: 0,
-      validationAssertionCount8004: 0,
+      feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
+      validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
       createdAtBlock: asNumber(b?.createdAtBlock),
       createdAtTime: asNumber(b?.createdAtTime),
       updatedAtTime: asNumber(b?.updatedAtTime),
@@ -626,15 +474,6 @@ export async function kbAgentsQuery(args: {
       mcpSkills: splitConcat(asString(b?.mcpSkills)),
     };
   });
-
-  // Batched assertion counts (for the agents on this page only).
-  // Much faster than counting inside the main query (avoids join explosion).
-  const counts = await getAssertionCountsForAgentPairs({ pairs: trimmedPairs, graphdbCtx });
-  for (const r of rows) {
-    const c = counts.get(r.iri);
-    r.feedbackAssertionCount8004 = c ? c.fb : 0;
-    r.validationAssertionCount8004 = c ? c.vr : 0;
-  }
 
   const byIri = new Map(rows.map((r) => [r.iri, r]));
   const ordered = trimmedPairs.map((p) => byIri.get(p.agent)).filter((x): x is KbAgentRow => Boolean(x));
@@ -689,8 +528,8 @@ export async function kbOwnedAgentsQuery(args: {
     '  ?agent',
     '  (SAMPLE(?uaid) AS ?uaid)',
     '  (SAMPLE(?agentName) AS ?agentName)',
-    '  (COUNT(DISTINCT ?fb) AS ?feedbackAssertionCount8004)',
-    '  (COUNT(DISTINCT ?vr) AS ?validationAssertionCount8004)',
+    '  (SAMPLE(?feedbackAssertionCount8004) AS ?feedbackAssertionCount8004)',
+    '  (SAMPLE(?validationAssertionCount8004) AS ?validationAssertionCount8004)',
     '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
     '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
     '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -729,8 +568,8 @@ export async function kbOwnedAgentsQuery(args: {
     '    OPTIONAL { ?agent core:uaid ?uaid . }',
     '    OPTIONAL { ?agent core:agentName ?agentName . }',
     '    OPTIONAL { ?agent a ?agentType . }',
-    '    OPTIONAL { ?agent core:hasReputationAssertion ?fb . }',
-    '    OPTIONAL { ?agent core:hasVerificationAssertion ?vr . }',
+    '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
+    '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
     '    OPTIONAL {',
     '      ?record a erc8004:SubgraphIngestRecord ;',
     '              erc8004:recordsEntity ?agent ;',
@@ -907,8 +746,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '  ?agent',
     '  (SAMPLE(?uaid) AS ?uaid)',
     '  (SAMPLE(?agentName) AS ?agentName)',
-    '  (COUNT(DISTINCT ?fb) AS ?feedbackAssertionCount8004)',
-    '  (COUNT(DISTINCT ?vr) AS ?validationAssertionCount8004)',
+    '  (SAMPLE(?feedbackAssertionCount8004) AS ?feedbackAssertionCount8004)',
+    '  (SAMPLE(?validationAssertionCount8004) AS ?validationAssertionCount8004)',
     '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
     '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
     '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -948,8 +787,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '    OPTIONAL { ?agent core:uaid ?uaid . }',
     '    OPTIONAL { ?agent core:agentName ?agentName . }',
     '    OPTIONAL { ?agent a ?agentType . }',
-    '    OPTIONAL { ?agent core:hasReputationAssertion ?fb . }',
-    '    OPTIONAL { ?agent core:hasVerificationAssertion ?vr . }',
+    '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
+    '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
     '    OPTIONAL {',
     '      ?record a erc8004:SubgraphIngestRecord ;',
     '              erc8004:recordsEntity ?agent ;',
@@ -1080,6 +919,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))',
     '    ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
     '    ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:hasOwnerAccount ?identityOwnerAccount .',
+      '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
+      '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
     '    FILTER(',
     `      EXISTS { ?identityOwnerAccount eth:accountAddress ?addr . FILTER(LCASE(STR(?addr)) = "${ownerAddress}") }`,
     `      || EXISTS { ?identityOwnerAccount eth:hasEOAOwner ?eoa . ?eoa eth:accountAddress ?addr2 . FILTER(LCASE(STR(?addr2)) = "${ownerAddress}") }`,

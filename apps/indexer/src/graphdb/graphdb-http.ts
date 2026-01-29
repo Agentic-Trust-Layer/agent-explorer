@@ -3,6 +3,48 @@ import { performance } from 'node:perf_hooks';
 
 type GraphdbAuth = { username: string; password: string } | null;
 
+type GlobalQueryCacheEntry = { expiresAt: number; promise: Promise<any> };
+const globalQueryCache = new Map<string, GlobalQueryCacheEntry>();
+
+function globalQueryCacheTtlMs(): number {
+  const raw = process.env.GRAPHDB_RESPONSE_CACHE_TTL_MS;
+  const n = raw && String(raw).trim() ? Number(raw) : 2000;
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+}
+
+function globalQueryCacheMaxEntries(): number {
+  const raw = process.env.GRAPHDB_RESPONSE_CACHE_MAX_ENTRIES;
+  const n = raw && String(raw).trim() ? Number(raw) : 300;
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+}
+
+function globalCacheGet(sparql: string): Promise<any> | null {
+  const ttl = globalQueryCacheTtlMs();
+  if (!ttl) return null;
+  const e = globalQueryCache.get(sparql);
+  if (!e) return null;
+  if (Date.now() > e.expiresAt) {
+    globalQueryCache.delete(sparql);
+    return null;
+  }
+  return e.promise;
+}
+
+function globalCacheSet(sparql: string, promise: Promise<any>): void {
+  const ttl = globalQueryCacheTtlMs();
+  if (!ttl) return;
+  const max = globalQueryCacheMaxEntries();
+  if (max && globalQueryCache.size >= max) {
+    // Drop oldest entries.
+    while (globalQueryCache.size >= max) {
+      const oldestKey = globalQueryCache.keys().next().value as string | undefined;
+      if (!oldestKey) break;
+      globalQueryCache.delete(oldestKey);
+    }
+  }
+  globalQueryCache.set(sparql, { expiresAt: Date.now() + ttl, promise });
+}
+
 export type GraphdbQueryContext = {
   /**
    * Per-request cache (dedupes identical SPARQL strings within a single GraphQL request).
@@ -314,6 +356,9 @@ export async function queryGraphdbWithContext(
   sparql: string,
   ctx?: GraphdbQueryContext | null,
 ): Promise<any> {
+  const globalHit = globalCacheGet(sparql);
+  if (globalHit) return await globalHit;
+
   const cache = ctx?.requestCache ?? null;
   if (cache) {
     const hit = cache.get(sparql);
@@ -342,6 +387,7 @@ export async function queryGraphdbWithContext(
   })();
 
   if (cache) cache.set(sparql, run);
+  globalCacheSet(sparql, run);
 
   try {
     const json: any = await run;
@@ -373,6 +419,11 @@ export async function queryGraphdbWithContext(
         });
       }
     }
+    // If the promise rejects, don’t poison the global cache.
+    run.catch(() => {
+      const e = globalQueryCache.get(sparql);
+      if (e?.promise === run) globalQueryCache.delete(sparql);
+    });
   }
 }
 

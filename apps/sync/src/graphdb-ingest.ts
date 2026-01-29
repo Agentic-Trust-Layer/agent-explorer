@@ -172,6 +172,49 @@ export async function ingestSubgraphTurtleToGraphdb(opts: {
     context,
   });
 
+  // Precompute assertion counts on agents (materialized fields for fast kbAgents queries).
+  // We recompute after assertion ingests so queries don't need COUNT() over assertions.
+  if (opts.section === 'feedbacks' || opts.section === 'validation-responses') {
+    const update = (() => {
+      if (opts.section === 'feedbacks') {
+        return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?agent erc8004:feedbackAssertionCount8004 ?o }
+WHERE  { ?agent erc8004:feedbackAssertionCount8004 ?o } ;
+WITH <${context}>
+INSERT { ?agent erc8004:feedbackAssertionCount8004 ?cnt }
+WHERE  {
+  SELECT ?agent (COUNT(?fb) AS ?cnt) WHERE {
+    ?agent a core:AIAgent ; core:hasReputationAssertion ?fb .
+  }
+  GROUP BY ?agent
+} ;
+`;
+      }
+      // validation-responses
+      return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?agent erc8004:validationAssertionCount8004 ?o }
+WHERE  { ?agent erc8004:validationAssertionCount8004 ?o } ;
+WITH <${context}>
+INSERT { ?agent erc8004:validationAssertionCount8004 ?cnt }
+WHERE  {
+  SELECT ?agent (COUNT(?vr) AS ?cnt) WHERE {
+    ?agent a core:AIAgent ; core:hasVerificationAssertion ?vr .
+  }
+  GROUP BY ?agent
+} ;
+`;
+    })();
+
+    await updateGraphdb(baseUrl, repository, auth, update);
+    console.info('[sync] assertion count materialization complete', { chainId: opts.chainId, context, section: opts.section });
+  }
+
   // UAID backfill (always-on): older KB data may predate core:uaid on core:AIAgent.
   // Derivation rules:
   // - SmartAgent: UAID = did:ethr:<chainId>:<agentAccountAddress> (from hasAgentAccount / eth:accountAddress)

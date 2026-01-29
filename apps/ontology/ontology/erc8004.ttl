@@ -227,3 +227,14 @@
   rdfs:label "checkpointUpdatedAt" ;
   rdfs:domain :SubgraphIngestCheckpoint ;
   rdfs:range xsd:integer .
+::feedbackAssertionCount8004 a owl:DatatypeProperty ;
+  rdfs:label "feedbackAssertionCount8004" ;
+  rdfs:comment "Precomputed count of ERC-8004 feedback assertions (core:hasReputationAssertion) for an agent within a chain subgraph graph." ;
+  rdfs:domain core:AIAgent ;
+  rdfs:range xsd:integer .
+
+::validationAssertionCount8004 a owl:DatatypeProperty ;
+  rdfs:label "validationAssertionCount8004" ;
+  rdfs:comment "Precomputed count of ERC-8004 validation assertions (core:hasVerificationAssertion) for an agent within a chain subgraph graph." ;
+  rdfs:domain core:AIAgent ;
+  rdfs:range xsd:integer .
