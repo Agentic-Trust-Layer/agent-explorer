@@ -260,7 +260,12 @@ export async function kbAgentsQuery(args: {
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
     '',
-    'SELECT ?g ?agent ?uaid ?agentName ?did8004 ?agentId8004 WHERE {',
+    // IMPORTANT:
+    // When anchoring the query on assertion edges (e.g. `?agent core:hasReputationAssertion ?_fbReq`),
+    // the query can produce MANY rows per agent (one per assertion). If we LIMIT those rows, we can end
+    // up with far fewer DISTINCT agents than requested (classic "edge fanout" pagination bug).
+    // Use DISTINCT so LIMIT/OFFSET are applied to unique agents.
+    'SELECT DISTINCT ?g ?agent WHERE {',
     `  ${graphClause}`,
     '    ?agent a core:AIAgent .',
     ...requiredPatterns,
