@@ -1,7 +1,9 @@
 import { getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from '../graphdb-http.js';
 import { listAccountsForChain } from '../graphdb/accounts.js';
+import { getCheckpoint, setCheckpoint } from '../graphdb/checkpoints.js';
 import { isSmartAccountViaRpc } from '../net/eth-get-code.js';
 import { getAccountOwner } from '../net/account-owner.js';
+import { createHash } from 'node:crypto';
 
 function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
@@ -56,6 +58,24 @@ export async function syncAccountTypesForChain(chainId: number, opts?: { limit?:
   const ctx = chainContext(chainId);
   const accounts = await listAccountsForChain(chainId, limit);
   const usable = accounts.filter((a) => a.address && a.chainId === chainId);
+
+  // Fingerprint inputs so watch-mode doesn't redo expensive RPC classification when nothing changed.
+  // (We treat "no new accounts" as "no need to re-run account-types".)
+  const fingerprint = createHash('sha256')
+    .update(
+      usable
+        .map((a) => `${a.account}|${a.address ?? ''}`)
+        .sort()
+        .join('\n'),
+    )
+    .digest('hex');
+  const cpSection = 'account-types-fingerprint';
+  const prev = await getCheckpoint(chainId, cpSection).catch(() => null);
+  if (prev === fingerprint) {
+    console.info(`[sync] [account-types] chainId=${chainId} unchanged; skipping (usable=${usable.length})`);
+    return;
+  }
+
   console.info(`[sync] [account-types] chainId=${chainId} accounts=${accounts.length} usable=${usable.length}`);
 
   // Diagnostics: confirm the chain context actually has data
@@ -257,5 +277,7 @@ WHERE {
 `;
   await updateGraphdb(baseUrl, repository, auth, updateIdentityOwnerEoa);
   console.info('[sync] [account-types] updated AgentIdentity8004 hasOwnerEOAAccount (from ownerAccount / eth:hasEOAOwner)');
+
+  await setCheckpoint(chainId, cpSection, fingerprint).catch(() => {});
 }
 

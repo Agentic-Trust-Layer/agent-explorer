@@ -13,94 +13,14 @@ import {
   extractAccessCode,
   validateRequestAccessCode,
 } from './graphql-handler';
-import { createIndexAgentResolver, type ChainConfig } from './index-agent';
-import {
-  ETH_SEPOLIA_IDENTITY_REGISTRY,
-  BASE_SEPOLIA_IDENTITY_REGISTRY,
-  OP_SEPOLIA_IDENTITY_REGISTRY,
-  ETH_SEPOLIA_RPC_HTTP_URL,
-  BASE_SEPOLIA_RPC_HTTP_URL,
-  OP_SEPOLIA_RPC_HTTP_URL,
-} from './env';
-import { ERC8004Client, EthersAdapter } from '@agentic-trust/8004-sdk';
-import { ethers } from 'ethers';
-
-function makeRpcProvider(rpcUrl: string): ethers.JsonRpcProvider {
-  const timeoutMsRaw = process.env.RPC_HTTP_TIMEOUT_MS;
-  const timeoutMs = timeoutMsRaw && String(timeoutMsRaw).trim() ? Number(timeoutMsRaw) : 60_000;
-  const req = new ethers.FetchRequest(rpcUrl);
-  (req as any).timeout = Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 60_000;
-  return new ethers.JsonRpcProvider(req);
-}
+import { createIndexAgentResolver } from './index-agent';
 
 async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL_SERVER_PORT ?? 4000)) {
   await ensureSchemaInitialized();
-  // Configure chains (same as express server)
-  const chains: ChainConfig[] = [
-    {
-      rpcUrl: ETH_SEPOLIA_RPC_HTTP_URL,
-      registryAddress: ETH_SEPOLIA_IDENTITY_REGISTRY!,
-      chainId: 11155111,
-      chainName: 'ETH Sepolia',
-    },
-    {
-      rpcUrl: BASE_SEPOLIA_RPC_HTTP_URL,
-      registryAddress: BASE_SEPOLIA_IDENTITY_REGISTRY!,
-      chainId: 84532,
-      chainName: 'Base Sepolia',
-    },
-  ];
-
-  if (OP_SEPOLIA_RPC_HTTP_URL && OP_SEPOLIA_IDENTITY_REGISTRY) {
-    chains.push({
-      rpcUrl: OP_SEPOLIA_RPC_HTTP_URL,
-      registryAddress: OP_SEPOLIA_IDENTITY_REGISTRY,
-      chainId: 11155420,
-      chainName: 'Optimism Sepolia',
-    });
-  }
-
-  // Backfill clients for optional full indexing trigger
-  const backfillClients: ERC8004Client[] = [
-    new ERC8004Client({
-      adapter: new EthersAdapter(makeRpcProvider(ETH_SEPOLIA_RPC_HTTP_URL)),
-      addresses: {
-        identityRegistry: ETH_SEPOLIA_IDENTITY_REGISTRY!,
-        reputationRegistry: '0x0000000000000000000000000000000000000000',
-        validationRegistry: '0x0000000000000000000000000000000000000000',
-        chainId: 11155111,
-      }
-    }),
-    new ERC8004Client({
-      adapter: new EthersAdapter(makeRpcProvider(BASE_SEPOLIA_RPC_HTTP_URL)),
-      addresses: {
-        identityRegistry: BASE_SEPOLIA_IDENTITY_REGISTRY!,
-        reputationRegistry: '0x0000000000000000000000000000000000000000',
-        validationRegistry: '0x0000000000000000000000000000000000000000',
-        chainId: 84532,
-      }
-    }),
-  ];
-
-  if (OP_SEPOLIA_RPC_HTTP_URL && OP_SEPOLIA_IDENTITY_REGISTRY) {
-    backfillClients.push(
-      new ERC8004Client({
-        adapter: new EthersAdapter(makeRpcProvider(OP_SEPOLIA_RPC_HTTP_URL)),
-        addresses: {
-          identityRegistry: OP_SEPOLIA_IDENTITY_REGISTRY,
-          reputationRegistry: '0x0000000000000000000000000000000000000000',
-          validationRegistry: '0x0000000000000000000000000000000000000000',
-          chainId: 11155420,
-        }
-      })
-    );
-  }
 
   const localIndexAgentResolver = await createIndexAgentResolver({
     db,
-    chains,
-    triggerBackfill: true,
-    backfillClients,
+    chains: [],
   });
 
   const semanticSearchService = createSemanticSearchServiceFromEnv();
@@ -137,6 +57,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
     Mutation: {
       createAccessCode: (_parent: unknown, args: any) => shared.createAccessCode(args),
       indexAgent: (_parent: unknown, args: any) => shared.indexAgent(args),
+      indexAgentByUaid: (_parent: unknown, args: any) => shared.indexAgentByUaid(args),
       upsertTrustLedgerBadgeDefinition: (_parent: unknown, args: any) => shared.upsertTrustLedgerBadgeDefinition(args),
       setTrustLedgerBadgeActive: (_parent: unknown, args: any) => shared.setTrustLedgerBadgeActive(args),
     },

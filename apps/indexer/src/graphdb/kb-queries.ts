@@ -136,6 +136,8 @@ export async function kbAgentsQuery(args: {
     hasAssertions?: boolean | null;
     hasFeedback8004?: boolean | null;
     hasValidation8004?: boolean | null;
+    minFeedbackAssertionCount8004?: number | null;
+    minValidationAssertionCount8004?: number | null;
   } | null;
   first?: number | null;
   skip?: number | null;
@@ -163,6 +165,11 @@ export async function kbAgentsQuery(args: {
     Array.isArray(where.uaid_in) && where.uaid_in.length
       ? where.uaid_in.map((u) => String(u ?? '').trim()).filter(Boolean)
       : null;
+
+  const minFb =
+    where.minFeedbackAssertionCount8004 != null ? clampInt(where.minFeedbackAssertionCount8004, 0, 10_000_000_000, 0) : null;
+  const minVr =
+    where.minValidationAssertionCount8004 != null ? clampInt(where.minValidationAssertionCount8004, 0, 10_000_000_000, 0) : null;
 
   const orderBy = args.orderBy ?? 'agentId8004';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -234,6 +241,19 @@ export async function kbAgentsQuery(args: {
   if (where.hasFeedback8004 === false) filters.push(`NOT ${hasFeedbackExpr}`);
   if (where.hasValidation8004 === false) filters.push(`NOT ${hasValidationExpr}`);
 
+  // Min-count filters use precomputed count properties (materialized during sync ingest).
+  const pagePreFilter: string[] = [];
+  if (minFb != null) {
+    pagePreFilter.push('    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }');
+    pagePreFilter.push('    BIND(IF(BOUND(?feedbackAssertionCount8004), xsd:integer(?feedbackAssertionCount8004), 0) AS ?fbCntFilter)');
+    filters.push(`?fbCntFilter >= ${minFb}`);
+  }
+  if (minVr != null) {
+    pagePreFilter.push('    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }');
+    pagePreFilter.push('    BIND(IF(BOUND(?validationAssertionCount8004), xsd:integer(?validationAssertionCount8004), 0) AS ?vrCntFilter)');
+    filters.push(`?vrCntFilter >= ${minVr}`);
+  }
+
   // Phase 1: page query (agent ids + graph context only).
   const pageSparql = [
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
@@ -252,6 +272,7 @@ export async function kbAgentsQuery(args: {
     '      ?ident8004 core:protocolIdentifier ?did8004 .',
     '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
     '    }',
+    ...pagePreFilter,
     filters.length ? `    FILTER(${filters.join(' && ')})` : '',
     `  ${graphClose}`,
     '}',
@@ -403,6 +424,7 @@ export async function kbAgentsQuery(args: {
   const countSparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     '',
     'SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {',
     `  ${graphClause}`,
@@ -413,6 +435,7 @@ export async function kbAgentsQuery(args: {
     '                    core:hasIdentifier ?ident8004 .',
     '      ?ident8004 core:protocolIdentifier ?did8004 .',
     '    }',
+    ...pagePreFilter,
     filters.length ? `    FILTER(${filters.join(' && ')})` : '',
     `  ${graphClose}`,
     '}',

@@ -854,6 +854,7 @@ export const graphQLSchemaString = `
   type Mutation {
     createAccessCode(address: String!): AccessCode!
     indexAgent(agentId: String!, chainId: Int): IndexAgentResult!
+    indexAgentByUaid(uaid: String!): IndexAgentResult!
 
     upsertTrustLedgerBadgeDefinition(
       input: TrustLedgerBadgeDefinitionInput!

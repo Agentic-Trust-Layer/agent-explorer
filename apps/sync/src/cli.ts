@@ -34,7 +34,12 @@ type SyncCommand =
   | 'association-revocations'
   | 'agent-cards'
   | 'account-types'
+  | 'watch'
   | 'all';
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function syncAgents(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching agents from ${endpoint.name} (chainId: ${endpoint.chainId})`);
@@ -241,6 +246,9 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
   for (const endpoint of SUBGRAPH_ENDPOINTS) {
     try {
       switch (command) {
+        case 'watch':
+          // handled outside runSync
+          break;
         case 'agents':
           await syncAgents(endpoint, resetContext);
           break;
@@ -306,10 +314,49 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
   }
 }
 
+async function runWatch(args: { subcommand: SyncCommand; resetContext: boolean }) {
+  const intervalMsRaw = process.env.SYNC_WATCH_INTERVAL_MS;
+  const intervalMs = intervalMsRaw && String(intervalMsRaw).trim() ? Number(intervalMsRaw) : 60_000;
+  const ms = Number.isFinite(intervalMs) && intervalMs > 1000 ? Math.trunc(intervalMs) : 60_000;
+
+  console.info('[sync] watch enabled', {
+    subcommand: args.subcommand,
+    intervalMs: ms,
+    resetFirstCycle: args.resetContext,
+    endpoints: SUBGRAPH_ENDPOINTS.map((e) => ({ name: e.name, chainId: e.chainId })),
+  });
+
+  let cycle = 0;
+  for (;;) {
+    cycle++;
+    const startedAt = Date.now();
+    try {
+      await runSync(args.subcommand, cycle === 1 ? args.resetContext : false);
+    } catch (e) {
+      console.error('[sync] watch cycle error:', e);
+    }
+    const elapsed = Date.now() - startedAt;
+    const delay = Math.max(1000, ms - elapsed);
+    console.info('[sync] watch cycle complete', { cycle, elapsedMs: elapsed, nextInMs: delay });
+    await sleep(delay);
+  }
+}
+
 const command = (process.argv[2] || 'all') as SyncCommand;
 const resetContext = process.argv.includes('--reset') || process.env.SYNC_RESET === '1';
+const watchSubcommand = (process.argv[3] || 'all') as SyncCommand;
 
-runSync(command, resetContext).catch((error) => {
+const main = async () => {
+  if (command === 'watch') {
+    // Watch mode: continuously re-run incremental syncs using GraphDB checkpoints.
+    // Example: pnpm --filter sync sync:watch all
+    await runWatch({ subcommand: watchSubcommand, resetContext });
+    return;
+  }
+  await runSync(command, resetContext);
+};
+
+main().catch((error) => {
   console.error('[sync] fatal error:', error);
   process.exitCode = 1;
 });

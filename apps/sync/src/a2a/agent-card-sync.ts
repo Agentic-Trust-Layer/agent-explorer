@@ -3,9 +3,11 @@ import { extractProtocolDataFromAgentUriJson, extractSkillsFromAgentCard, isOasf
 import { listAgentsWithA2AEndpoint } from '../graphdb/agents.js';
 import { getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from '../graphdb-http.js';
 import { ingestSubgraphTurtleToGraphdb } from '../graphdb-ingest.js';
+import { getCheckpoint, setCheckpoint } from '../graphdb/checkpoints.js';
 import { identity8004DescriptorIri } from '../rdf/common.js';
 import { emitA2AProtocolDescriptorTurtle } from '../rdf/emit-a2a-protocol-descriptor.js';
 import { emitIdentityDescriptorSkillsDomains } from '../rdf/emit-identity-descriptor-skills-domains.js';
+import { createHash } from 'node:crypto';
 
 function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
@@ -62,6 +64,31 @@ export async function syncAgentCardsForChain(chainId: number, opts?: { force?: b
   const limit = opts?.limit ?? 5000;
 
   const rows = await listAgentsWithA2AEndpoint(chainId, limit);
+  // Fingerprint the input set so watch-mode doesn't redo work when nothing changed.
+  // Include didAccount (often derived) and endpoint; include identity + registration JSON since those impact skill merging.
+  const fingerprint = createHash('sha256')
+    .update(
+      rows
+        .map((r) =>
+          [
+            r.agent || '',
+            r.a2aEndpoint || '',
+            r.didAccount || '',
+            r.didIdentity || '',
+            r.agentUriJson || '',
+          ].join('|'),
+        )
+        .sort()
+        .join('\n'),
+    )
+    .digest('hex');
+  const cpSection = 'agent-cards-fingerprint';
+  const prev = await getCheckpoint(chainId, cpSection).catch(() => null);
+  if (!force && prev === fingerprint) {
+    console.info(`[sync] [agent-cards] chainId=${chainId} unchanged; skipping (agentsWithA2A=${rows.length})`);
+    return;
+  }
+
   console.info(`[sync] [agent-cards] chainId=${chainId} agentsWithA2A=${rows.length}`);
 
   for (const row of rows) {
@@ -121,5 +148,7 @@ export async function syncAgentCardsForChain(chainId: number, opts?: { force?: b
     }
     await ingestSubgraphTurtleToGraphdb({ chainId, section: 'agent-cards', turtle: combinedTurtle, resetContext: false });
   }
+
+  await setCheckpoint(chainId, cpSection, fingerprint).catch(() => {});
 }
 

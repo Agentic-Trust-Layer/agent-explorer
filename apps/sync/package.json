@@ -12,7 +12,8 @@
     "sync:validations": "tsx src/cli.ts validations",
     "sync:agent-cards": "tsx src/cli.ts agent-cards",
     "sync:account-types": "tsx src/cli.ts account-types",
-    "sync:all": "tsx src/cli.ts all"
+    "sync:all": "tsx src/cli.ts all",
+    "sync:watch": "tsx src/cli.ts watch all"
   },
   "dependencies": {
     "@metamask/smart-accounts-kit": "^0.3.0",

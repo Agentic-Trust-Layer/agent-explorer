@@ -68,6 +68,8 @@ export const graphQLSchemaStringKb = `
     hasAssertions: Boolean
     hasFeedback8004: Boolean
     hasValidation8004: Boolean
+    minFeedbackAssertionCount8004: Int
+    minValidationAssertionCount8004: Int
   }
 
   type KbAccount {

@@ -340,6 +340,28 @@ export async function uploadTurtleToRepository(
   return { bytes };
 }
 
+export async function updateGraphdb(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  sparqlUpdate: string,
+): Promise<void> {
+  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}/statements`);
+  const res = await graphdbFetch(url, {
+    method: 'POST',
+    auth,
+    timeoutMs: 60_000,
+    headers: {
+      'Content-Type': 'application/sparql-update',
+    },
+    body: sparqlUpdate,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GraphDB SPARQL update failed: HTTP ${res.status}${text ? `: ${text.slice(0, 800)}` : ''}`);
+  }
+}
+
 export async function queryGraphdb(
   baseUrl: string,
   repository: string,

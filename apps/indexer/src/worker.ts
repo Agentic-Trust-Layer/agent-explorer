@@ -11,7 +11,7 @@ import { validateAccessCode } from './graphql-resolvers.js';
 import { processAgentDirectly } from './process-agent.js';
 import { createDBQueries } from './create-resolvers.js';
 import { createGraphQLResolversKb } from './graphql-resolvers-kb.js';
-import { createIndexAgentResolver, type ChainConfig } from './index-agent.js';
+import { createIndexAgentResolver } from './index-agent.js';
 import {
   needsAuthentication,
   extractAccessCode,
@@ -25,121 +25,9 @@ import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
  * Workers-specific indexAgent resolver factory
  */
 async function createWorkersIndexAgentResolver(db: any, env?: any) {
-  const chains: ChainConfig[] = [];
-
-  // Get environment variables for RPC URLs and registry addresses
-  const ethSepoliaRpc = env?.ETH_SEPOLIA_RPC_URL || env?.ETH_SEPOLIA_RPC_HTTP_URL;
-  const baseSepoliaRpc = env?.BASE_SEPOLIA_RPC_URL || env?.BASE_SEPOLIA_RPC_HTTP_URL;
-  const opSepoliaRpc = env?.OP_SEPOLIA_RPC_URL || env?.OP_SEPOLIA_RPC_HTTP_URL;
-  
-  const ethSepoliaRegistry = env?.ETH_SEPOLIA_IDENTITY_REGISTRY;
-  const baseSepoliaRegistry = env?.BASE_SEPOLIA_IDENTITY_REGISTRY;
-  const opSepoliaRegistry = env?.OP_SEPOLIA_IDENTITY_REGISTRY;
-
-  // Log configuration status for debugging
-  console.log('🔧 Chain configuration check:', {
-    'ETH Sepolia': { rpc: !!ethSepoliaRpc, registry: !!ethSepoliaRegistry },
-    'Base Sepolia': { rpc: !!baseSepoliaRpc, registry: !!baseSepoliaRegistry },
-    'Optimism Sepolia': { rpc: !!opSepoliaRpc, registry: !!opSepoliaRegistry },
-  });
-
-  if (ethSepoliaRpc && ethSepoliaRegistry) {
-    chains.push({
-      rpcUrl: ethSepoliaRpc,
-      registryAddress: ethSepoliaRegistry,
-      chainId: 11155111,
-      chainName: 'ETH Sepolia',
-    });
-  }
-
-  if (baseSepoliaRpc && baseSepoliaRegistry) {
-    chains.push({
-      rpcUrl: baseSepoliaRpc,
-      registryAddress: baseSepoliaRegistry,
-      chainId: 84532,
-      chainName: 'Base Sepolia',
-    });
-  }
-
-  if (opSepoliaRpc && opSepoliaRegistry) {
-    chains.push({
-      rpcUrl: opSepoliaRpc,
-      registryAddress: opSepoliaRegistry,
-      chainId: 11155420,
-      chainName: 'Optimism Sepolia',
-    });
-  }
-
-  // Create ERC8004Client instances for backfill (dynamically import to avoid Workers compatibility issues)
-  const backfillClients: any[] = [];
-  try {
-    const { ethers } = await import('ethers');
-    const { ERC8004Client, EthersAdapter } = await import('@agentic-trust/8004-sdk');
-    
-    if (ethSepoliaRpc && ethSepoliaRegistry) {
-      const provider = new ethers.JsonRpcProvider(ethSepoliaRpc);
-      const adapter = new EthersAdapter(provider);
-      backfillClients.push(new ERC8004Client({
-        adapter,
-        addresses: {
-          identityRegistry: ethSepoliaRegistry,
-          reputationRegistry: '0x0000000000000000000000000000000000000000',
-          validationRegistry: '0x0000000000000000000000000000000000000000',
-          chainId: 11155111,
-        }
-      }));
-    }
-    
-    if (baseSepoliaRpc && baseSepoliaRegistry) {
-      const provider = new ethers.JsonRpcProvider(baseSepoliaRpc);
-      const adapter = new EthersAdapter(provider);
-      backfillClients.push(new ERC8004Client({
-        adapter,
-        addresses: {
-          identityRegistry: baseSepoliaRegistry,
-          reputationRegistry: '0x0000000000000000000000000000000000000000',
-          validationRegistry: '0x0000000000000000000000000000000000000000',
-          chainId: 84532,
-        }
-      }));
-    }
-    
-    if (opSepoliaRpc && opSepoliaRegistry) {
-      const provider = new ethers.JsonRpcProvider(opSepoliaRpc);
-      const adapter = new EthersAdapter(provider);
-      backfillClients.push(new ERC8004Client({
-        adapter,
-        addresses: {
-          identityRegistry: opSepoliaRegistry,
-          reputationRegistry: '0x0000000000000000000000000000000000000000',
-          validationRegistry: '0x0000000000000000000000000000000000000000',
-          chainId: 11155420,
-        }
-      }));
-    }
-  } catch (error) {
-    console.warn('⚠️ Failed to create backfill clients (backfill will be disabled):', error);
-  }
-
-  // Warn if no chains are configured
-  if (chains.length === 0) {
-    console.error('❌ No chains configured! Please set the following environment variables in Cloudflare Workers:');
-    console.error('   Required for ETH Sepolia: ETH_SEPOLIA_RPC_URL (or ETH_SEPOLIA_RPC_HTTP_URL) and ETH_SEPOLIA_IDENTITY_REGISTRY');
-    console.error('   Required for Base Sepolia: BASE_SEPOLIA_RPC_URL (or BASE_SEPOLIA_RPC_HTTP_URL) and BASE_SEPOLIA_IDENTITY_REGISTRY');
-    console.error('   Optional for Optimism Sepolia: OP_SEPOLIA_RPC_URL (or OP_SEPOLIA_RPC_HTTP_URL) and OP_SEPOLIA_IDENTITY_REGISTRY');
-    console.error('   These can be set as environment variables in wrangler.toml [vars] or as secrets via: wrangler secret put <NAME>');
-  } else {
-    console.log(`✅ Configured ${chains.length} chain(s) for indexing`);
-  }
-
-  // Enable backfill on Workers
-  // WARNING: This may timeout on large backfills due to Workers' 30s request limit
-  // The backfill will still run but may be interrupted if it takes too long
   return createIndexAgentResolver({
     db,
-    chains,
-    triggerBackfill: backfillClients.length > 0, // Enable if clients are available
-    backfillClients: backfillClients.length > 0 ? backfillClients : undefined,
+    chains: [],
   });
 }
 
@@ -334,6 +222,7 @@ export default {
           Mutation: {
             createAccessCode: (_p: any, args: any, ctx: any) => ctx.dbQueries.createAccessCode(args),
             indexAgent: (_p: any, args: any, ctx: any) => ctx.dbQueries.indexAgent(args),
+            indexAgentByUaid: (_p: any, args: any, ctx: any) => ctx.dbQueries.indexAgentByUaid(args),
             upsertTrustLedgerBadgeDefinition: (_p: any, args: any, ctx: any) => ctx.dbQueries.upsertTrustLedgerBadgeDefinition(args),
             setTrustLedgerBadgeActive: (_p: any, args: any, ctx: any) => ctx.dbQueries.setTrustLedgerBadgeActive(args),
           },

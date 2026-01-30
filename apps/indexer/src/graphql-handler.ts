@@ -29,7 +29,8 @@ export function needsAuthentication(query: string, operationName?: string): bool
     (typeof queryString === 'string' && queryString.includes('createAccessCode'));
   const isIndexAgentOperation = 
     operationName === 'indexAgent' ||
-    (typeof queryString === 'string' && queryString.includes('indexAgent'));
+    operationName === 'indexAgentByUaid' ||
+    (typeof queryString === 'string' && (queryString.includes('indexAgent(') || queryString.includes('indexAgentByUaid')));
   
   return !isAccessCodeOperation && !isIndexAgentOperation;
 }
