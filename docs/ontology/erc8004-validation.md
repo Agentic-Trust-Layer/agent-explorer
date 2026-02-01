@@ -64,8 +64,8 @@ query AgentsWithMinValidations($chainId: Int, $min: Int!, $first: Int, $skip: In
   kbAgents(
     where: {
       chainId: $chainId
-      hasValidation8004: true
-      minValidationAssertionCount8004: $min
+      hasValidations: true
+      minValidationAssertionCount: $min
     }
     first: $first
     skip: $skip

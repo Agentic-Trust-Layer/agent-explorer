@@ -476,9 +476,6 @@ export async function importAgentverseAgentsIntoD1(db: AnyDb, opts?: AgentverseI
         const parsed = JSON.parse(raw);
         const o = Number(parsed?.offset ?? NaN);
         if (Number.isFinite(o) && o >= 0) startOffset = Math.trunc(o);
-        // Back-compat with older {page}
-        const p = Number(parsed?.page ?? NaN);
-        if (!Number.isFinite(o) && Number.isFinite(p) && p >= 1) startOffset = (Math.trunc(p) - 1) * pageSize;
       } catch {
         // ignore
       }

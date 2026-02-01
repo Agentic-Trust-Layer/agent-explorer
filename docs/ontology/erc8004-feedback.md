@@ -64,8 +64,8 @@ query AgentsWithMinFeedback($chainId: Int, $min: Int!, $first: Int, $skip: Int) 
   kbAgents(
     where: {
       chainId: $chainId
-      hasFeedback8004: true
-      minFeedbackAssertionCount8004: $min
+      hasReviews: true
+      minReviewAssertionCount: $min
     }
     first: $first
     skip: $skip

@@ -312,7 +312,6 @@ async function backfillDb(db: AnyDb, which: 'hol' | 'agentverse'): Promise<void>
         cursorChainId = Number(parsed?.chainId ?? 0) || 0;
         cursorAgentId = typeof parsed?.agentId === 'string' ? parsed.agentId : '';
       } catch {
-        // Back-compat: older cursor might be a number (internalId).
         cursorChainId = 0;
         cursorAgentId = '';
       }

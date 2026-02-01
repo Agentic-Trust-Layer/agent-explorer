@@ -138,12 +138,6 @@ export async function kbAgentsQuery(args: {
     hasValidations?: boolean | null;
     minReviewAssertionCount?: number | null;
     minValidationAssertionCount?: number | null;
-
-    // Back-compat (older callers; not in KB-v2 schema anymore)
-    hasFeedback8004?: boolean | null;
-    hasValidation8004?: boolean | null;
-    minFeedbackAssertionCount8004?: number | null;
-    minValidationAssertionCount8004?: number | null;
   } | null;
   first?: number | null;
   skip?: number | null;
@@ -173,18 +167,9 @@ export async function kbAgentsQuery(args: {
       ? where.uaid_in.map((u) => String(u ?? '').trim()).filter(Boolean)
       : null;
 
-  const minReview =
-    where.minReviewAssertionCount != null
-      ? clampInt(where.minReviewAssertionCount, 0, 10_000_000_000, 0)
-      : where.minFeedbackAssertionCount8004 != null
-        ? clampInt(where.minFeedbackAssertionCount8004, 0, 10_000_000_000, 0)
-        : null;
+  const minReview = where.minReviewAssertionCount != null ? clampInt(where.minReviewAssertionCount, 0, 10_000_000_000, 0) : null;
   const minValidation =
-    where.minValidationAssertionCount != null
-      ? clampInt(where.minValidationAssertionCount, 0, 10_000_000_000, 0)
-      : where.minValidationAssertionCount8004 != null
-        ? clampInt(where.minValidationAssertionCount8004, 0, 10_000_000_000, 0)
-        : null;
+    where.minValidationAssertionCount != null ? clampInt(where.minValidationAssertionCount, 0, 10_000_000_000, 0) : null;
 
   const orderBy = args.orderBy ?? 'agentId8004';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -240,8 +225,8 @@ export async function kbAgentsQuery(args: {
   const hasFeedbackExpr = `EXISTS { ?agent core:hasReputationAssertion ?_fb . }`;
   const hasValidationExpr = `EXISTS { ?agent core:hasVerificationAssertion ?_vr . }`;
 
-  const wantReviews = where.hasReviews ?? where.hasFeedback8004;
-  const wantValidations = where.hasValidations ?? where.hasValidation8004;
+  const wantReviews = where.hasReviews;
+  const wantValidations = where.hasValidations;
 
   if (wantReviews === true && wantValidations === true) {
     requiredPatterns.push('    ?agent core:hasReputationAssertion ?_fbReq .');
@@ -1007,113 +992,12 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   return { rows, total, hasMore };
 }
 
-export async function kbFeedbackIrisQuery(args: { chainId: number; first?: number | null; skip?: number | null }): Promise<string[]> {
-  const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
-  const first = clampInt(args.first, 1, 5000, 100);
-  const skip = clampInt(args.skip, 0, 1_000_000, 0);
-  const ctx = chainContext(chainId);
-  const sparql = [
-    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
-    'PREFIX prov: <http://www.w3.org/ns/prov#>',
-    '',
-    'SELECT ?feedback WHERE {',
-    `  GRAPH <${ctx}> {`,
-    '    ?feedback a erc8004:Feedback, prov:Entity .',
-    '  }',
-    '}',
-    `LIMIT ${first}`,
-    `OFFSET ${skip}`,
-    '',
-  ].join('\n');
-  const rows = await runGraphdbQuery(sparql);
-  return rows.map((b: any) => asString(b?.feedback)).filter((x): x is string => Boolean(x));
-}
-
 export type KbSubgraphRecord = {
   rawJson: string | null;
   txHash: string | null;
   blockNumber: number | null;
   timestamp: number | null;
 };
-
-export type KbFeedbackRow = {
-  iri: string;
-  agentDid8004: string | null;
-  json: string | null;
-  record: KbSubgraphRecord | null;
-};
-
-export async function kbFeedbacksQuery(args: {
-  chainId: number;
-  first?: number | null;
-  skip?: number | null;
-}): Promise<KbFeedbackRow[]> {
-  const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
-  const first = clampInt(args.first, 1, 2000, 100);
-  const skip = clampInt(args.skip, 0, 1_000_000, 0);
-  const ctx = chainContext(chainId);
-
-  const sparql = [
-    'PREFIX core: <https://agentictrust.io/ontology/core#>',
-    'PREFIX prov: <http://www.w3.org/ns/prov#>',
-    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
-    '',
-    'SELECT',
-    '  ?feedback',
-    '  (SAMPLE(?did8004) AS ?did8004)',
-    '  (SAMPLE(?json) AS ?json)',
-    '  (SAMPLE(?rawJson) AS ?rawJson)',
-    '  (SAMPLE(?txHash) AS ?txHash)',
-    '  (SAMPLE(?blockNumber) AS ?blockNumber)',
-    '  (SAMPLE(?timestamp) AS ?timestamp)',
-    'WHERE {',
-    `  GRAPH <${ctx}> {`,
-    '    ?agent core:hasReputationAssertion ?feedback .',
-    '    OPTIONAL { ?feedback core:json ?json }',
-    '    OPTIONAL {',
-    '      ?record a erc8004:SubgraphIngestRecord, prov:Entity ;',
-    '              erc8004:recordsEntity ?feedback .',
-    '      OPTIONAL { ?record erc8004:subgraphRawJson ?rawJson }',
-    '      OPTIONAL { ?record erc8004:subgraphTxHash ?txHash }',
-    '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?blockNumber }',
-    '      OPTIONAL { ?record erc8004:subgraphTimestamp ?timestamp }',
-    '    }',
-    '    OPTIONAL {',
-    '      ?agent core:hasIdentity ?identity8004 .',
-    '      ?identity8004 core:hasIdentifier ?ident8004 .',
-    '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '      FILTER(STRSTARTS(STR(?did8004), "did:8004:"))',
-    '    }',
-    '  }',
-    '}',
-    'GROUP BY ?feedback',
-    'ORDER BY DESC(STR(?timestamp)) DESC(STR(?feedback))',
-    `LIMIT ${first}`,
-    `OFFSET ${skip}`,
-    '',
-  ].join('\n');
-
-  const rows = await runGraphdbQuery(sparql);
-  return rows
-    .map((b: any) => {
-      const iri = asString(b?.feedback);
-      if (!iri) return null;
-      const rawJson = asString(b?.rawJson);
-      const txHash = asString(b?.txHash);
-      const blockNumber = asNumber(b?.blockNumber);
-      const timestamp = asNumber(b?.timestamp);
-      return {
-        iri,
-        agentDid8004: asString(b?.did8004),
-        json: asString(b?.json),
-        record:
-          rawJson || txHash || blockNumber != null || timestamp != null
-            ? { rawJson, txHash, blockNumber: blockNumber == null ? null : Math.trunc(blockNumber), timestamp: timestamp == null ? null : Math.trunc(timestamp) }
-            : null,
-      } satisfies KbFeedbackRow;
-    })
-    .filter((x): x is KbFeedbackRow => Boolean(x));
-}
 
 export async function kbValidationResponseIrisQuery(args: {
   chainId: number;

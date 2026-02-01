@@ -1018,8 +1018,7 @@ async function attachAgentMetadataToAgents(db: any, agents: any[]): Promise<void
   }
 }
 
-// Back-compat for resolver callsites (the storage table is `agent_metadata` now).
-const attachTokenMetadataToAgents = attachAgentMetadataToAgents;
+
 
 function parseChainIdValue(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -1635,7 +1634,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${where} ${orderByClause} LIMIT ? OFFSET ?`;
         const allParams = [...params, limit, offset];
         const results = await executeQuery(db, query, allParams);
-        await attachTokenMetadataToAgents(db, results);
+        await attachAgentMetadataToAgents(db, results);
         console.log('[agents] rows:', results.length, 'params:', { chainId, agentId, agentIdentityOwnerAccount, eoaAgentIdentityOwnerAccount, agentName, limit, offset, execOrderBy, execOrderDirection });
         return enrichAgentRecords(results);
       } catch (error) {
@@ -1664,7 +1663,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         const agentsQuery = `SELECT ${AGENT_BASE_COLUMNS} FROM agents ${whereSql} ${orderByClause} LIMIT ? OFFSET ?`;
         const agentsParams = [...params, pageSize, offset];
         const agentsRaw = await executeQuery(db, agentsQuery, agentsParams);
-        await attachTokenMetadataToAgents(db, agentsRaw);
+        await attachAgentMetadataToAgents(db, agentsRaw);
         const agents = enrichAgentRecords(agentsRaw);
 
         const countQuery = `SELECT COUNT(*) as count FROM agents ${whereSql}`;
@@ -1685,7 +1684,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         const { chainId, agentId } = args;
         const result = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? AND agentId = ?`, [chainId, agentId]);
         if (result) {
-          await attachTokenMetadataToAgents(db, [result]);
+          await attachAgentMetadataToAgents(db, [result]);
         }
         return enrichAgentRecord(result);
       } catch (error) {
@@ -1706,7 +1705,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         const result = await executeQuerySingle(db, `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE LOWER(agentName) = ? LIMIT 1`, [lowerName]);
         console.log('🔍 result:', JSON.stringify(result, null, 2)); 
         if (result) {
-          await attachTokenMetadataToAgents(db, [result]);
+          await attachAgentMetadataToAgents(db, [result]);
         }
         return enrichAgentRecord(result);
       } catch (error) {
@@ -1721,7 +1720,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         const orderByClause = buildOrderByClause(orderBy, orderDirection);
         const query = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE chainId = ? ${orderByClause} LIMIT ? OFFSET ?`;
         const results = await executeQuery(db, query, [chainId, limit, offset]);
-        await attachTokenMetadataToAgents(db, results);
+        await attachAgentMetadataToAgents(db, results);
         console.log('[agentsByChain] rows:', results.length, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
       } catch (error) {
@@ -1746,7 +1745,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         params.push(limit, offset);
         
         const results = await executeQuery(db, query, params);
-        await attachTokenMetadataToAgents(db, results);
+        await attachAgentMetadataToAgents(db, results);
         console.log('[agentsByOwner] rows:', results.length, 'agentIdentityOwnerAccount:', agentIdentityOwnerAccount, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
       } catch (error) {
@@ -1776,7 +1775,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
         params.push(limit, offset);
 
         const results = await executeQuery(db, sqlQuery, params);
-        await attachTokenMetadataToAgents(db, results);
+        await attachAgentMetadataToAgents(db, results);
         console.log('[searchAgents] rows:', results.length, 'query:', searchQuery, 'chainId:', chainId, 'limit:', limit, 'offset:', offset);
         return enrichAgentRecords(results);
       } catch (error) {
@@ -2991,7 +2990,7 @@ async function hydrateAssociations(db: any, rows: any[]): Promise<any[]> {
       const placeholders = chunk.map(() => '?').join(',');
       const sql = `SELECT ${AGENT_BASE_COLUMNS} FROM agents WHERE substr(LOWER(agentAccount), -40) IN (${placeholders})`;
       const agentRows = await executeQuery(db, sql, chunk);
-      await attachTokenMetadataToAgents(db, agentRows);
+      await attachAgentMetadataToAgents(db, agentRows);
       for (const arow of agentRows) {
         const acctId = normalizeHexLike(arow?.agentAccount);
         const acctAddr = acctId && acctId.includes(':') ? acctId.split(':').pop() : acctId;
