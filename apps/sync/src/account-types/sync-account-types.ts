@@ -19,6 +19,7 @@ function accountIriPlain(chainId: number, address: string): string {
 
 function rpcUrlForChain(chainId: number): string {
   // Prefer explicit per-chain env vars
+  if (chainId === 1) return process.env.ETH_MAINNET_RPC_HTTP_URL || process.env.ETH_MAINNET_RPC_URL || '';
   if (chainId === 11155111) return process.env.ETH_SEPOLIA_RPC_HTTP_URL || process.env.ETH_SEPOLIA_RPC_URL || '';
   if (chainId === 84532) return process.env.BASE_SEPOLIA_RPC_HTTP_URL || process.env.BASE_SEPOLIA_RPC_URL || '';
   if (chainId === 11155420) return process.env.OP_SEPOLIA_RPC_HTTP_URL || process.env.OP_SEPOLIA_RPC_URL || '';
@@ -48,7 +49,7 @@ export async function syncAccountTypesForChain(chainId: number, opts?: { limit?:
   const rpcUrl = rpcUrlForChain(chainId);
   if (!rpcUrl) {
     throw new Error(
-      `[sync] missing RPC url for chainId=${chainId}. Set ETH_SEPOLIA_RPC_HTTP_URL / BASE_SEPOLIA_RPC_HTTP_URL / OP_SEPOLIA_RPC_HTTP_URL or RPC_HTTP_URL_${chainId}`,
+      `[sync] missing RPC url for chainId=${chainId}. Set ETH_MAINNET_RPC_HTTP_URL / ETH_SEPOLIA_RPC_HTTP_URL / BASE_SEPOLIA_RPC_HTTP_URL / OP_SEPOLIA_RPC_HTTP_URL or RPC_HTTP_URL_${chainId}`,
     );
   }
 
@@ -81,20 +82,42 @@ export async function syncAccountTypesForChain(chainId: number, opts?: { limit?:
   // Diagnostics: confirm the chain context actually has data
   try {
     const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    // IMPORTANT: do NOT use "?s ?p ?o" here. That forces a full triple scan and can stall GraphDB,
+    // especially while this job is running large SPARQL UPDATEs.
+    // Keep diagnostics index-friendly (type-based counts).
     const diag = `
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
-SELECT (COUNT(*) AS ?triples) (COUNT(DISTINCT ?a) AS ?accounts) WHERE {
-  GRAPH <${ctx}> {
-    ?s ?p ?o .
-    OPTIONAL { ?a a eth:Account . }
+SELECT ?accounts ?eoa ?smart WHERE {
+  {
+    SELECT (COUNT(DISTINCT ?a) AS ?accounts) WHERE {
+      GRAPH <${ctx}> { ?a a eth:Account . }
+    }
+  }
+  {
+    SELECT (COUNT(DISTINCT ?eoaA) AS ?eoa) WHERE {
+      GRAPH <${ctx}> { ?eoaA a eth:EOAAccount . }
+    }
+  }
+  {
+    SELECT (COUNT(DISTINCT ?smartA) AS ?smart) WHERE {
+      GRAPH <${ctx}> { ?smartA a eth:SmartAccount . }
+    }
   }
 }
 `;
     const res = await queryGraphdb(baseUrl, repository, auth, diag);
     const b = res?.results?.bindings?.[0];
-    const triples = b?.triples?.value ?? '0';
     const accountsInGraph = b?.accounts?.value ?? '0';
-    console.info('[sync] [account-types] graph diagnostics', { baseUrl, repository, ctx, triples, accounts: accountsInGraph });
+    const eoaInGraph = b?.eoa?.value ?? '0';
+    const smartInGraph = b?.smart?.value ?? '0';
+    console.info('[sync] [account-types] graph diagnostics', {
+      baseUrl,
+      repository,
+      ctx,
+      accounts: accountsInGraph,
+      eoa: eoaInGraph,
+      smart: smartInGraph,
+    });
   } catch (e: any) {
     console.warn('[sync] [account-types] diagnostics failed', { chainId, ctx, err: String(e?.message || e || '') });
   }
@@ -103,36 +126,50 @@ SELECT (COUNT(*) AS ?triples) (COUNT(DISTINCT ?a) AS ?accounts) WHERE {
     usable,
     concurrency,
     async (row) => {
-      let smart = false;
+      let smart: boolean | null = false;
       let lastErr: any = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      for (let attempt = 0; attempt < 5; attempt++) {
         try {
           smart = await isSmartAccountViaRpc(rpcUrl, row.address!);
           lastErr = null;
           break;
         } catch (e) {
           lastErr = e;
-          await new Promise((r) => setTimeout(r, 250 * Math.pow(2, attempt)));
+          const msg = String((e as any)?.message || e || '');
+          const is429 = msg.includes(' 429') || msg.includes('"code":429') || msg.toLowerCase().includes('too many');
+          const base = is429 ? 2_000 : 250;
+          await new Promise((r) => setTimeout(r, base * Math.pow(2, attempt)));
         }
       }
       if (lastErr) {
-        console.warn('[sync] [account-types] rpc check failed; treating as EOA', { chainId, account: row.account, address: row.address, err: String(lastErr?.message || lastErr) });
+        // IMPORTANT: don't poison account typing on rate limits / transient RPC failures.
+        // Leave it unknown; a later run (with a healthier RPC) can classify it correctly.
+        smart = null;
+        console.warn('[sync] [account-types] rpc check failed; leaving untyped', {
+          chainId,
+          account: row.account,
+          address: row.address,
+          err: String(lastErr?.message || lastErr),
+        });
       }
       return { account: row.account, smart };
     },
   );
 
-  const smartSet = new Set(classified.filter((c) => c.smart).map((c) => c.account));
-  const eoaSet = new Set(classified.filter((c) => !c.smart).map((c) => c.account));
+  const smartSet = new Set(classified.filter((c) => c.smart === true).map((c) => c.account));
+  const eoaSet = new Set(classified.filter((c) => c.smart === false).map((c) => c.account));
+  const unknownSet = new Set(classified.filter((c) => c.smart == null).map((c) => c.account));
 
-  console.info(`[sync] [account-types] chainId=${chainId} smart=${smartSet.size} eoa=${eoaSet.size}`);
+  console.info(`[sync] [account-types] chainId=${chainId} smart=${smartSet.size} eoa=${eoaSet.size} unknown=${unknownSet.size}`);
 
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
 
-  const chunkSize = 250;
-  const allAccounts = classified.map((c) => c.account);
-  for (let i = 0; i < allAccounts.length; i += chunkSize) {
-    const chunk = allAccounts.slice(i, i + chunkSize);
+  // Keep GraphDB responsive: write in small chunks and pause between updates.
+  // Large SPARQL UPDATEs can stall the repo (esp. with inference enabled).
+  const chunkSize = 25;
+  const knownAccounts = classified.filter((c) => c.smart != null).map((c) => c.account);
+  for (let i = 0; i < knownAccounts.length; i += chunkSize) {
+    const chunk = knownAccounts.slice(i, i + chunkSize);
     const valueRows: string[] = [];
     for (const acct of chunk) {
       const isSmart = smartSet.has(acct);
@@ -151,26 +188,66 @@ WHERE {
   }
 }
 `;
-    await updateGraphdb(baseUrl, repository, auth, update);
-    console.info(`[sync] [account-types] updated ${chunk.length} accounts (chunk ${i / chunkSize + 1})`);
+    try {
+      // Fail fast so this job doesn't make GraphDB unusable for minutes.
+      await updateGraphdb(baseUrl, repository, auth, update, { timeoutMs: 15_000, retries: 0 });
+      console.info(`[sync] [account-types] updated ${chunk.length} accounts (chunk ${i / chunkSize + 1})`);
+    } catch (e: any) {
+      console.warn('[sync] [account-types] typing update timed out/failed; stopping early to keep GraphDB responsive', {
+        chainId,
+        ctx,
+        chunk: i / chunkSize + 1,
+        err: String(e?.message || e || ''),
+      });
+      return;
+    }
+    // Small pause between chunks to reduce write pressure.
+    await new Promise((r) => setTimeout(r, 250));
   }
 
   // Ensure SmartAgent always refers to an actual AgentAccount (typed as eth:SmartAccount after classification):
   // - If hasAgentAccount points to an account that is EOA, remove the SmartAgent typing and the hasAgentAccount link.
-  const fixup = `
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
+  //
+  // IMPORTANT: the naive graph-wide join can stall GraphDB during update-heavy periods.
+  // Rewrite this as a VALUES-driven update using the EOA account list we *already* computed via RPC.
+  const eoaAccounts = usable.filter((r) => r.address && eoaSet.has(r.account)).map((r) => r.account);
+  // Keep this small; even though it's VALUES-driven, GraphDB can be busy right after big UPDATEs.
+  const fixChunk = 50;
+  let attemptedAccounts = 0;
+  // Give GraphDB a brief breather after the large account typing updates.
+  await new Promise((r) => setTimeout(r, 500));
+  for (let i = 0; i < eoaAccounts.length; i += fixChunk) {
+    const chunk = eoaAccounts.slice(i, i + fixChunk);
+    if (!chunk.length) continue;
+    attemptedAccounts += chunk.length;
+    const valueRows = chunk.map((acct) => `(<${acct}>)`).join('\n    ');
+    const fixup = `
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 WITH <${ctx}>
 DELETE { ?agent a erc8004:SmartAgent . ?agent erc8004:hasAgentAccount ?acct . }
 INSERT { ?agent a erc8004:AIAgent8004 . }
 WHERE {
+  VALUES (?acct) {
+    ${valueRows}
+  }
   ?agent a erc8004:SmartAgent ;
          erc8004:hasAgentAccount ?acct .
-  ?acct a eth:EOAAccount .
 }
 `;
-  await updateGraphdb(baseUrl, repository, auth, fixup);
-  console.info('[sync] [account-types] fixed SmartAgent links that pointed to EOAs');
+    try {
+      // Fail fast: this fixup is best-effort and should not block the whole sync job.
+      await updateGraphdb(baseUrl, repository, auth, fixup, { timeoutMs: 10_000, retries: 0 });
+      console.info(`[sync] [account-types] fixed SmartAgent links for ${chunk.length} EOA accounts (chunk ${i / fixChunk + 1})`);
+    } catch (e: any) {
+      console.warn('[sync] [account-types] SmartAgent fixup timed out/failed; skipping remaining fixup work', {
+        chainId,
+        ctx,
+        err: String(e?.message || e || ''),
+      });
+      break;
+    }
+  }
+  console.info('[sync] [account-types] fixed SmartAgent links that pointed to EOAs', { attemptedAccounts });
 
   // Always resolve SmartAccount -> EOA owner relationship (eth:hasEOAOwner).
   const smartRows = usable.filter((r) => r.address && smartSet.has(r.account));

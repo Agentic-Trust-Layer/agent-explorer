@@ -440,7 +440,7 @@ export async function createIndexAgentResolver(_config: IndexAgentConfig) {
       if (!agentId) throw new Error('agentId is required');
       if (chainId !== undefined && (!Number.isFinite(chainId) || chainId <= 0)) throw new Error('invalid chainId');
 
-      const targets = chainId !== undefined ? [chainId] : [11155111, 84532, 11155420];
+      const targets = chainId !== undefined ? [chainId] : [1];
       const processedChains: string[] = [];
       const errors: string[] = [];
       for (const cid of targets) {

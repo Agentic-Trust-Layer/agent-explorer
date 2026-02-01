@@ -1,5 +1,67 @@
 import { clearStatements, ensureRepositoryExistsOrThrow, getGraphdbConfigFromEnv, updateGraphdb, uploadTurtleToRepository } from './graphdb-http.js';
 
+// Hard-coded defaults (no env-based tuning):
+// - Larger chunk size reduces HTTP round trips (2-3MB tested as optimal for GraphDB).
+// - No artificial inter-chunk delay (let GraphDB/network be the limiting factor).
+// - Parallel uploads with concurrency limit to speed up ingestion.
+const GRAPHDB_UPLOAD_CHUNK_BYTES = 2_500_000; // 2.5MB (increased from 1MB for fewer HTTP requests)
+const GRAPHDB_UPLOAD_CHUNK_DELAY_MS = 0;
+// IMPORTANT: Keep uploads sequential so GraphDB remains queryable during sync runs.
+const GRAPHDB_UPLOAD_CONCURRENCY = 1;
+
+function splitTurtleIntoChunks(turtle: string, maxBytes: number): string[] {
+  const content = String(turtle || '');
+  if (!content.trim()) return [];
+  if (!maxBytes || maxBytes <= 0) return [content];
+
+  const B = (globalThis as any).Buffer as any;
+  const byteLen = (s: string) => (B ? B.byteLength(s, 'utf8') : s.length);
+
+  if (byteLen(content) <= maxBytes) return [content];
+
+  // Heuristic split:
+  // - keep prefix block at top of every chunk
+  // - split the remaining content on double-newlines (emitters already separate entities with blank lines)
+  const lines = content.split('\n');
+  let prefixEnd = -1;
+  for (let i = 0; i < Math.min(lines.length, 200); i++) {
+    if (lines[i].trim() === '') {
+      prefixEnd = i;
+      break;
+    }
+  }
+  const prefixes = prefixEnd >= 0 ? lines.slice(0, prefixEnd + 1).join('\n') : '';
+  const body = prefixEnd >= 0 ? lines.slice(prefixEnd + 1).join('\n') : content;
+  const blocks = body
+    .split(/\n\s*\n/g)
+    .map((b) => b.trim())
+    .filter(Boolean);
+
+  const out: string[] = [];
+  let cur = prefixes ? `${prefixes}\n` : '';
+  let curBytes = byteLen(cur);
+
+  for (const block of blocks) {
+    const piece = `${block}\n\n`;
+    const pieceBytes = byteLen(piece);
+    if (curBytes > 0 && curBytes + pieceBytes > maxBytes) {
+      out.push(cur);
+      cur = prefixes ? `${prefixes}\n${piece}` : piece;
+      curBytes = byteLen(cur);
+      continue;
+    }
+    cur += piece;
+    curBytes += pieceBytes;
+  }
+
+  if (cur.trim()) out.push(cur);
+  return out;
+}
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function clearSectionStatements(args: {
   baseUrl: string;
   repository: string;
@@ -144,6 +206,11 @@ export async function ingestSubgraphTurtleToGraphdb(opts: {
   section: string;
   turtle: string;
   resetContext?: boolean;
+  upload?: {
+    chunkBytes?: number;
+    concurrency?: number;
+    chunkDelayMs?: number;
+  };
 }): Promise<void> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
   await ensureRepositoryExistsOrThrow(baseUrl, repository, auth);
@@ -161,16 +228,86 @@ export async function ingestSubgraphTurtleToGraphdb(opts: {
   const rdfContent = opts.turtle;
   if (!rdfContent || rdfContent.trim().length === 0) {
     console.info('[sync] no RDF content generated', { section: opts.section, chainId: opts.chainId });
-    return;
-  }
+  } else {
+    const chunkBytes =
+      Number.isFinite(Number(opts.upload?.chunkBytes)) && Number(opts.upload?.chunkBytes) > 0
+        ? Math.trunc(Number(opts.upload?.chunkBytes))
+        : GRAPHDB_UPLOAD_CHUNK_BYTES;
+    const chunkDelayMs =
+      Number.isFinite(Number(opts.upload?.chunkDelayMs)) && Number(opts.upload?.chunkDelayMs) >= 0
+        ? Math.trunc(Number(opts.upload?.chunkDelayMs))
+        : GRAPHDB_UPLOAD_CHUNK_DELAY_MS;
+    const concurrency = GRAPHDB_UPLOAD_CONCURRENCY;
+    const chunks = splitTurtleIntoChunks(rdfContent, chunkBytes);
+    let totalBytes = 0;
 
-  const { bytes } = await uploadTurtleToRepository(baseUrl, repository, auth, { turtle: rdfContent, context });
-  console.info('[sync] uploaded subgraph data', {
-    section: opts.section,
-    chainId: opts.chainId,
-    bytes,
-    context,
-  });
+    // Upload chunks in parallel with concurrency limit
+    async function uploadChunkWithTiming(chunk: string, index: number): Promise<{ bytes: number; durationMs: number }> {
+      const startTime = Date.now();
+      try {
+        const { bytes } = await uploadTurtleToRepository(baseUrl, repository, auth, { turtle: chunk, context });
+        const durationMs = Date.now() - startTime;
+        console.info('[sync] uploaded subgraph data chunk', {
+          section: opts.section,
+          chainId: opts.chainId,
+          context,
+          chunkIndex: index + 1,
+          chunkCount: chunks.length,
+          bytes,
+          durationMs,
+        });
+        return { bytes, durationMs };
+      } catch (err: any) {
+        const durationMs = Date.now() - startTime;
+        const errMsg = String(err?.message || err || 'unknown error');
+        console.error('[sync] chunk upload failed', {
+          section: opts.section,
+          chainId: opts.chainId,
+          context,
+          chunkIndex: index + 1,
+          chunkCount: chunks.length,
+          durationMs,
+          error: errMsg.slice(0, 200),
+        });
+        throw err;
+      }
+    }
+
+    // Process chunks in batches with concurrency limit
+    const results: Array<{ bytes: number; durationMs: number }> = [];
+    for (let i = 0; i < chunks.length; i += concurrency) {
+      const batch = chunks.slice(i, i + concurrency);
+      const batchPromises = batch.map((chunk, batchIdx) => uploadChunkWithTiming(chunk, i + batchIdx));
+      const batchResults = await Promise.all(batchPromises);
+      results.push(...batchResults);
+      totalBytes += batchResults.reduce((sum, r) => sum + r.bytes, 0);
+      if (chunkDelayMs > 0 && i + concurrency < chunks.length) {
+        await sleep(chunkDelayMs);
+      }
+    }
+
+    const totalDurationMs = results.reduce((sum, r) => sum + r.durationMs, 0);
+    const avgDurationMs = results.length > 0 ? Math.round(totalDurationMs / results.length) : 0;
+    const maxDurationMs = results.length > 0 ? Math.max(...results.map((r) => r.durationMs)) : 0;
+    const minDurationMs = results.length > 0 ? Math.min(...results.map((r) => r.durationMs)) : 0;
+
+    console.info('[sync] uploaded subgraph data', {
+      section: opts.section,
+      chainId: opts.chainId,
+      bytes: totalBytes,
+      context,
+      chunks: chunks.length,
+      chunkBytes,
+      chunkDelayMs,
+      concurrency,
+      timing: {
+        totalMs: totalDurationMs,
+        avgMs: avgDurationMs,
+        minMs: minDurationMs,
+        maxMs: maxDurationMs,
+      },
+    });
+  }
 
   // Precompute assertion counts on agents (materialized fields for fast kbAgents queries).
   // We recompute after assertion ingests so queries don't need COUNT() over assertions.
@@ -220,6 +357,13 @@ WHERE  {
   // - SmartAgent: UAID = did:ethr:<chainId>:<agentAccountAddress> (from hasAgentAccount / eth:accountAddress)
   // - AIAgent8004: UAID = did:8004:<chainId>:<agentId> (from identity protocolIdentifier)
   if (opts.section === 'agents') {
+    // Default: skip these expensive GraphDB-wide maintenance updates.
+    // - New ingests already emit core:uaid (with uaid: prefix) and erc8004:agentId8004 directly in Turtle.
+    // - Normalization/backfill is only needed for legacy data and can be run separately if desired.
+    console.info('[sync] skipping post-ingest agent maintenance updates (default)', { chainId: opts.chainId, context });
+    return;
+
+    console.info('[sync] uaid backfill starting', { chainId: opts.chainId, context });
     const sparqlUpdate = `
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
@@ -271,6 +415,7 @@ WHERE {
     console.info('[sync] uaid backfill complete', { chainId: opts.chainId, context });
 
     // Normalize any existing core:uaid literals that were previously stored as did:* (without uaid: prefix).
+    console.info('[sync] uaid normalize starting', { chainId: opts.chainId, context });
     const normalizeUpdate = `
 PREFIX core: <https://agentictrust.io/ontology/core#>
 DELETE {
@@ -289,5 +434,30 @@ WHERE {
 `;
     await updateGraphdb(baseUrl, repository, auth, normalizeUpdate);
     console.info('[sync] uaid normalize complete', { chainId: opts.chainId, context });
+
+    // Materialize numeric agentId8004 for fast ORDER BY / filters.
+    console.info('[sync] agentId8004 materialization starting', { chainId: opts.chainId, context });
+    const agentIdUpdate = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+WITH <${context}>
+INSERT {
+  ?agent erc8004:agentId8004 ?agentId8004 .
+}
+WHERE {
+  ?agent a core:AIAgent .
+  FILTER(!EXISTS { ?agent erc8004:agentId8004 ?_existing })
+
+  ?agent core:hasIdentity ?identity8004 .
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 .
+  ?ident8004 core:protocolIdentifier ?did8004 .
+
+  BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
+}
+`;
+    await updateGraphdb(baseUrl, repository, auth, agentIdUpdate);
+    console.info('[sync] agentId8004 materialization complete', { chainId: opts.chainId, context });
   }
 }

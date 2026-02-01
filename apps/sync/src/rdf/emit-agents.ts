@@ -15,9 +15,10 @@ import {
   turtleJsonLiteral,
 } from './common.js';
 import { emitRawSubgraphRecord } from './emit-raw-record.js';
-import { emitProtocolDescriptorFromRegistration } from './emit-protocol-descriptor-from-registration.js';
-import { emitIdentityDescriptorSkillsDomains } from './emit-identity-descriptor-skills-domains.js';
-import { extractProtocolDataFromAgentUriJson, isOasfSkillId } from '../a2a/skill-extraction.js';
+// SKIPPED: Protocol descriptor and skills extraction removed for performance (agentUri JSON parsing)
+// import { emitProtocolDescriptorFromRegistration } from './emit-protocol-descriptor-from-registration.js';
+// import { emitIdentityDescriptorSkillsDomains } from './emit-identity-descriptor-skills-domains.js';
+// import { extractProtocolDataFromAgentUriJson, isOasfSkillId } from '../a2a/skill-extraction.js';
 
 function normalizeHex(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -143,7 +144,12 @@ function findLabeledValue(obj: any, label: string): string {
   return walk(obj);
 }
 
-export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mintedAt', minCursorExclusive: bigint): { turtle: string; maxCursor: bigint } {
+export function emitAgentsTurtle(
+  chainId: number,
+  items: any[],
+  cursorKey: 'mintedAt',
+  minCursorExclusive: bigint,
+): { turtle: string; maxCursor: bigint } {
   const lines: string[] = [rdfPrefixes()];
   let maxCursor = minCursorExclusive;
   const emittedAccounts = new Set<string>();
@@ -233,6 +239,9 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
     const name = (typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '') || metaAgentName;
     if (name) lines.push(`  core:agentName "${escapeTurtleString(name)}" ;`);
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
+    // Materialize numeric agentId for fast sorting/filtering (avoid runtime STR/REPLACE parsing).
+    const agentIdNum = Number(agentId);
+    if (Number.isFinite(agentIdNum) && agentIdNum > 0) lines.push(`  erc8004:agentId8004 ${Math.trunc(agentIdNum)} ;`);
 
     // Agent-scoped account relationships (distinct from identity-scoped accounts).
     // For AIAgent8004 these are copied from the identity accounts; for SmartAgent,
@@ -340,118 +349,22 @@ export function emitAgentsTurtle(chainId: number, items: any[], cursorKey: 'mint
       const imgTok = turtleIriOrLiteral(String(item.image));
       if (imgTok) lines.push(`  core:descriptorImage ${imgTok} ;`);
     }
+    // AgentURI / registration JSON: ALWAYS store on identity descriptor.
     if (registrationJsonText) lines.push(`  core:json ${turtleJsonLiteral(registrationJsonText)} ;`);
-    if (onchainMetadataText) lines.push(`  erc8004:onchainMetadataJson ${turtleJsonLiteral(onchainMetadataText)} ;`);
+    // NOTE: We still skip agentUri JSON expansion (protocol descriptors / skills extraction) for performance.
+    // - Protocol descriptor extraction removed (A2A/MCP skills/endpoints from registration JSON)
+    // - Skills/domains extraction from registration JSON removed
+    // SKIPPED: onchainMetadataJson removed for performance (was 1-3KB per agent, stored as escaped JSON literal)
+    // Essential fields (registeredBy, registryNamespace) are still stored as individual triples
     if (metaRegisteredBy) lines.push(`  erc8004:registeredBy "${escapeTurtleString(metaRegisteredBy)}" ;`);
     if (metaRegistryNamespace) lines.push(`  erc8004:registryNamespace "${escapeTurtleString(metaRegistryNamespace)}" ;`);
     // terminate descriptor
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
 
-    // Extract endpoint skills from registration JSON and attach to endpoint protocol descriptor(s)
-    if (registrationJsonText) {
-      const protocolData = extractProtocolDataFromAgentUriJson(registrationJsonText);
-      const a2aSkills = protocolData.a2a.skills;
-      const mcpSkills = protocolData.mcp.skills;
-      const mcpTools = protocolData.mcp.tools;
-      const oasfEndpointSkills = protocolData.oasf.skills;
-      const oasfEndpointDomains = protocolData.oasf.domains;
-
-      // Also attach these skills/domains to the ERC-8004 identity descriptor (in addition to protocol descriptors)
-      const identitySkillsAll = [...a2aSkills, ...mcpSkills, ...oasfEndpointSkills];
-      if (identitySkillsAll.length || oasfEndpointDomains.length) {
-        lines.push(
-          emitIdentityDescriptorSkillsDomains({
-            descriptorIri,
-            subjectKey: didIdentity,
-            skills: identitySkillsAll,
-            domains: oasfEndpointDomains,
-          }),
-        );
-        lines.push('');
-      }
-      const splitSkills = (skills: string[]) => {
-        const oasf: string[] = [];
-        const other: string[] = [];
-        for (const s of skills) {
-          if (isOasfSkillId(s)) oasf.push(s);
-          else other.push(s);
-        }
-        return { oasf, other };
-      };
-
-      // A2A descriptor (emit if A2A endpoint exists, even if skills are empty)
-      {
-        let serviceUrl = '';
-        let version: string | null = null;
-        try {
-          const parsed = JSON.parse(registrationJsonText);
-          const eps = Array.isArray(parsed?.services) ? parsed.services : Array.isArray(parsed?.endpoints) ? parsed.endpoints : [];
-          const a2aEp = eps.find((e: any) => String(e?.name || '').trim().toLowerCase() === 'a2a');
-          if (a2aEp && typeof a2aEp.endpoint === 'string' && a2aEp.endpoint.trim()) serviceUrl = a2aEp.endpoint.trim();
-          if (a2aEp && typeof a2aEp.version === 'string' && a2aEp.version.trim()) version = a2aEp.version.trim();
-        } catch {}
-        if (serviceUrl) {
-          lines.push(
-            emitProtocolDescriptorFromRegistration({
-              didAccount: didAccountForProtocols,
-              protocol: 'a2a',
-              serviceUrl,
-              protocolVersion: version,
-              endpointJson: null,
-              skills: splitSkills(a2aSkills),
-              assembledFromDescriptorIri: descriptorIri,
-            }),
-          );
-          lines.push('');
-        }
-      }
-
-      // MCP descriptor
-      if (mcpSkills.length) {
-        let serviceUrl = '';
-        let version: string | null = null;
-        let endpointObj: any | null = null;
-        try {
-          const parsed = JSON.parse(registrationJsonText);
-          const eps = Array.isArray(parsed?.services) ? parsed.services : Array.isArray(parsed?.endpoints) ? parsed.endpoints : [];
-          const mcpEp = eps.find((e: any) => String(e?.name || '').trim().toLowerCase() === 'mcp');
-          if (mcpEp && typeof mcpEp.endpoint === 'string' && mcpEp.endpoint.trim()) serviceUrl = mcpEp.endpoint.trim();
-          if (mcpEp && typeof mcpEp.version === 'string' && mcpEp.version.trim()) version = mcpEp.version.trim();
-          endpointObj = mcpEp || null;
-        } catch {}
-        // Ensure mcpTools are preserved on the descriptor JSON even if subgraph didn't include them in mcpSkills
-        if (endpointObj && mcpTools.length && !Array.isArray((endpointObj as any).mcpTools)) {
-          (endpointObj as any).mcpTools = mcpTools;
-        }
-        if (serviceUrl) {
-          lines.push(
-            emitProtocolDescriptorFromRegistration({
-              didAccount: didAccountForProtocols,
-              protocol: 'mcp',
-              serviceUrl,
-              protocolVersion: version,
-              endpointJson: endpointObj,
-              skills: splitSkills(mcpSkills),
-              assembledFromDescriptorIri: descriptorIri,
-            }),
-          );
-          lines.push('');
-        }
-      }
-    }
-
-    // ENS Identity (optional): accept subgraph ensName OR registration JSON service entry OR on-chain metadata AGENT NAME if it looks like an ENS name
+    // ENS Identity (optional): accept subgraph ensName OR on-chain metadata AGENT NAME if it looks like an ENS name
+    // SKIPPED: registration JSON parsing for ENS name extraction (performance)
     let ensName = typeof item?.ensName === 'string' ? item.ensName.trim() : '';
-    if (!ensName && registrationJsonText) {
-      try {
-        const parsed = JSON.parse(registrationJsonText);
-        const eps = Array.isArray(parsed?.services) ? parsed.services : Array.isArray(parsed?.endpoints) ? parsed.endpoints : [];
-        const ensEp = eps.find((e: any) => String(e?.name || '').trim().toLowerCase() === 'ens');
-        const candidate = ensEp && ensEp.endpoint != null ? String(ensEp.endpoint).trim() : '';
-        if (candidate && candidate.includes('.')) ensName = candidate;
-      } catch {}
-    }
     if (!ensName && metaAgentName && metaAgentName.includes('.') && metaAgentName.toLowerCase().endsWith('.eth')) {
       ensName = metaAgentName;
     }

@@ -2,8 +2,11 @@ import './env-load.js';
 import {
   SUBGRAPH_ENDPOINTS,
   fetchAllFromSubgraph,
+  fetchAllFromSubgraphByIdCursor,
   AGENTS_QUERY,
+  AGENTS_QUERY_BY_ID_CURSOR,
   AGENT_METADATA_COLLECTION_QUERY,
+  AGENT_METADATA_COLLECTION_QUERY_BY_ID_CURSOR,
   FEEDBACKS_QUERY,
   FEEDBACK_REVOCATIONS_QUERY,
   FEEDBACK_RESPONSES_QUERY,
@@ -58,8 +61,32 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
   // Agents query is mint-ordered; many subgraphs don't support mintedAt_gt filters reliably, so we filter client-side like indexer.
   // Some chains/subgraphs don't expose "agents" at all; skip cleanly in that case.
   let items: any[] = [];
+  let cursorModeUsed = false;
+  const limitArg = process.argv.find((a) => a.startsWith('--limit=')) ?? '';
+  const parsedLimit = limitArg ? Number(limitArg.split('=')[1]) : NaN;
+  const maxAgentsPerRun =
+    Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.trunc(parsedLimit) : 5000; // keep runs bounded; repeated runs/watch will catch up
+  const uploadChunkArg = process.argv.find((a) => a.startsWith('--uploadChunkBytes=')) ?? '';
+  const parsedUploadChunk = uploadChunkArg ? Number(uploadChunkArg.split('=')[1]) : NaN;
+  const uploadChunkBytes = Number.isFinite(parsedUploadChunk) && parsedUploadChunk > 0 ? Math.trunc(parsedUploadChunk) : undefined;
   try {
-    items = await fetchAllFromSubgraph(endpoint.url, AGENTS_QUERY, 'agents', { optional: false });
+    // Prefer cursor pagination (bypasses skip<=5000 limits).
+    try {
+      const lastIdCheckpoint = resetContext ? null : await getCheckpoint(endpoint.chainId, 'agents-id');
+      const startAfterId =
+        lastIdCheckpoint && /^\d+$/.test(lastIdCheckpoint.trim()) ? lastIdCheckpoint.trim() : '0';
+      items = await fetchAllFromSubgraphByIdCursor(endpoint.url, AGENTS_QUERY_BY_ID_CURSOR, 'agents', {
+        optional: false,
+        first: Math.min(500, maxAgentsPerRun),
+        startAfterId,
+        maxItems: maxAgentsPerRun,
+      });
+      cursorModeUsed = true;
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      console.warn(`[sync] agents cursor pagination failed; falling back to skip pagination: ${msg}`);
+      items = await fetchAllFromSubgraph(endpoint.url, AGENTS_QUERY, 'agents', { optional: false });
+    }
   } catch (e: any) {
     const msg = String(e?.message || e || '');
     if (msg.includes('Subgraph schema mismatch') && msg.includes('no field "agents"')) {
@@ -68,9 +95,14 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
     }
     throw e;
   }
-  console.info(`[sync] fetched ${items.length} agents from ${endpoint.name}`);
+  console.info(`[sync] fetched ${items.length} agents from ${endpoint.name}`, {
+    cursorModeUsed,
+    maxAgentsPerRun,
+  });
 
   // Attach on-chain metadata KV rows if the subgraph exposes them (optional).
+  // Default: skip for performance + to avoid subgraph pagination limits. Agents still sync fine without it.
+  const skipMetadata = true;
   const inferAgentIdFromMetadataId = (id: unknown): string => {
     const s = String(id ?? '').trim();
     if (!s) return '';
@@ -83,34 +115,119 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
     return match ? match[0] : '';
   };
 
-  const metas = await fetchAllFromSubgraph(endpoint.url, AGENT_METADATA_COLLECTION_QUERY, 'agentMetadata_collection', {
-    optional: true,
-    maxSkip: 50_000,
-  });
-  if (metas.length) {
-    const byAgent = new Map<string, any[]>();
-    for (const m of metas) {
-      const aid = inferAgentIdFromMetadataId(m?.id);
-      if (!aid) continue;
-      const arr = byAgent.get(aid) ?? [];
-      arr.push(m);
-      byAgent.set(aid, arr);
+  if (!skipMetadata) {
+    const metas = await fetchAllFromSubgraph(endpoint.url, AGENT_METADATA_COLLECTION_QUERY, 'agentMetadata_collection', {
+      optional: true,
+      maxSkip: 50_000,
+    });
+    // If we hit skip caps, retry using cursor pagination (best effort).
+    let metasCursor: any[] = [];
+    try {
+      metasCursor = await fetchAllFromSubgraphByIdCursor(
+        endpoint.url,
+        AGENT_METADATA_COLLECTION_QUERY_BY_ID_CURSOR,
+        'agentMetadata_collection',
+        {
+          optional: true,
+          first: 500,
+          maxItems: 250_000,
+        },
+      );
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      console.warn(`[sync] agentMetadata_collection cursor pagination unsupported/failed; keeping skip-based results: ${msg}`);
+      metasCursor = [];
     }
-    for (const it of items) {
-      const aid = String(it?.id || '').trim();
-      if (!aid) continue;
-      const arr = byAgent.get(aid);
-      if (arr && arr.length) (it as any).agentMetadatas = arr;
+    const metasToUse = metasCursor.length ? metasCursor : metas;
+    if (metasToUse.length) {
+      const byAgent = new Map<string, any[]>();
+      for (const m of metasToUse) {
+        const aid = inferAgentIdFromMetadataId(m?.id);
+        if (!aid) continue;
+        const arr = byAgent.get(aid) ?? [];
+        arr.push(m);
+        byAgent.set(aid, arr);
+      }
+      for (const it of items) {
+        const aid = String(it?.id || '').trim();
+        if (!aid) continue;
+        const arr = byAgent.get(aid);
+        if (arr && arr.length) (it as any).agentMetadatas = arr;
+      }
+      console.info(`[sync] attached ${metasToUse.length} agentMetadatas rows to agents`);
     }
-    console.info(`[sync] attached ${metas.length} agentMetadatas rows to agents`);
+  } else {
+    console.info('[sync] skipping agentMetadata_collection attachment (default)');
   }
 
-  const { turtle, maxCursor } = emitAgentsTurtle(endpoint.chainId, items, 'mintedAt', lastCursor);
+  // If we used id-cursor pagination, the subgraph already returned only new ids.
+  // In that case, avoid mintedAt checkpoint filtering (it can drop valid rows when mintedAt is missing/0).
+  const effectiveLastCursor = cursorModeUsed ? -1n : lastCursor;
+  const { turtle, maxCursor } = emitAgentsTurtle(endpoint.chainId, items, 'mintedAt', effectiveLastCursor);
   if (turtle.trim()) {
-    await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'agents', turtle, resetContext });
-    if (maxCursor > lastCursor) {
-      await setCheckpoint(endpoint.chainId, 'agents', maxCursor.toString());
+    console.info('[sync] ingest starting', { chainId: endpoint.chainId, turtleBytes: turtle.length });
+    await ingestSubgraphTurtleToGraphdb({
+      chainId: endpoint.chainId,
+      section: 'agents',
+      turtle,
+      resetContext,
+      upload: {
+        // Uploads are always sequential (GraphDB stays queryable during sync).
+        chunkBytes: uploadChunkBytes,
+      },
+    });
+    console.info('[sync] ingest complete, waiting before checkpoint', { chainId: endpoint.chainId });
+    
+    // Give GraphDB a moment to finish processing the uploads before updating checkpoint
+    // This prevents checkpoint updates from timing out when GraphDB is still indexing
+    await sleep(2000); // 2 second delay
+    console.info('[sync] delay complete, updating checkpoints', { chainId: endpoint.chainId, cursorModeUsed });
+    
+    if (!cursorModeUsed && maxCursor > lastCursor) {
+      console.info('[sync] updating agents checkpoint', { chainId: endpoint.chainId, maxCursor: maxCursor.toString() });
+      try {
+        await setCheckpoint(endpoint.chainId, 'agents', maxCursor.toString());
+        console.info('[sync] agents checkpoint updated', { chainId: endpoint.chainId });
+      } catch (e: any) {
+        console.warn('[sync] checkpoint update failed (non-fatal)', {
+          chainId: endpoint.chainId,
+          section: 'agents',
+          error: String(e?.message || e || ''),
+        });
+      }
     }
+    if (cursorModeUsed && items.length) {
+      const last = items[items.length - 1];
+      const lastId = typeof last?.id === 'string' ? last.id.trim() : '';
+      if (lastId) {
+        console.info('[sync] updating agents-id checkpoint', { chainId: endpoint.chainId, lastId });
+        try {
+          await setCheckpoint(endpoint.chainId, 'agents-id', lastId);
+          console.info('[sync] agents-id checkpoint updated', { chainId: endpoint.chainId, lastId });
+        } catch (e: any) {
+          console.warn('[sync] checkpoint update failed (non-fatal)', {
+            chainId: endpoint.chainId,
+            section: 'agents-id',
+            error: String(e?.message || e || ''),
+          });
+        }
+      } else {
+        console.warn('[sync] no lastId for agents-id checkpoint', { chainId: endpoint.chainId, lastItem: last });
+      }
+    }
+    console.info('[sync] agents sync complete', {
+      chainId: endpoint.chainId,
+      emitted: true,
+      cursorModeUsed,
+      fetched: items.length,
+    });
+  } else {
+    console.info('[sync] agents sync complete', {
+      chainId: endpoint.chainId,
+      emitted: false,
+      cursorModeUsed,
+      fetched: items.length,
+    });
   }
 }
 
@@ -237,13 +354,53 @@ async function syncAssociationRevocations(endpoint: { url: string; chainId: numb
 }
 
 async function runSync(command: SyncCommand, resetContext: boolean = false) {
-  if (SUBGRAPH_ENDPOINTS.length === 0) {
-    console.error('[sync] no subgraph endpoints configured');
+  // Filter endpoints by chainId if specified (default to chainId=1 for mainnet)
+  const chainIdFilterRaw = process.env.SYNC_CHAIN_ID || '1';
+  const chainIdFilters = chainIdFilterRaw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const n = Number(s);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    })
+    .filter((n): n is number => n !== null);
+
+  if (!process.env.SYNC_CHAIN_ID) {
+    console.info(`[sync] defaulting to chainId=1 (mainnet). Set SYNC_CHAIN_ID to override.`);
+  }
+
+  const endpoints = SUBGRAPH_ENDPOINTS.filter((ep) => chainIdFilters.includes(ep.chainId));
+
+  if (endpoints.length === 0) {
+    console.error(
+      `[sync] no subgraph endpoints configured for chainId(s): ${chainIdFilters.join(', ')}. Available: ${SUBGRAPH_ENDPOINTS.map((e) => `${e.name} (${e.chainId})`).join(', ') || 'none'}`,
+    );
+    if (chainIdFilters.includes(1) && !SUBGRAPH_ENDPOINTS.some((e) => e.chainId === 1)) {
+      const hasMainnetGraphql = process.env.ETH_MAINNET_GRAPHQL_URL && process.env.ETH_MAINNET_GRAPHQL_URL.trim();
+      const hasMainnetRpc = process.env.ETH_MAINNET_RPC_HTTP_URL && process.env.ETH_MAINNET_RPC_HTTP_URL.trim();
+      console.error(`[sync] chainId=1 (mainnet) is not configured:`);
+      if (!hasMainnetGraphql) {
+        console.error(`  ❌ ETH_MAINNET_GRAPHQL_URL is not set or empty`);
+      } else {
+        console.info(`  ✓ ETH_MAINNET_GRAPHQL_URL is set`);
+      }
+      if (!hasMainnetRpc) {
+        console.error(`  ❌ ETH_MAINNET_RPC_HTTP_URL is not set or empty`);
+      } else {
+        console.info(`  ✓ ETH_MAINNET_RPC_HTTP_URL is set`);
+      }
+      console.error(`[sync] To enable mainnet (chainId=1), set both:`);
+      console.error(`  - ETH_MAINNET_GRAPHQL_URL=<your-mainnet-subgraph-url>`);
+      console.error(`  - ETH_MAINNET_RPC_HTTP_URL=<your-mainnet-rpc-url>`);
+    }
     process.exitCode = 1;
     return;
   }
 
-  for (const endpoint of SUBGRAPH_ENDPOINTS) {
+  console.info(`[sync] processing chainId(s): ${chainIdFilters.join(', ')} (${endpoints.map((e) => e.name).join(', ')})`);
+
+  for (const endpoint of endpoints) {
     try {
       switch (command) {
         case 'watch':
@@ -316,8 +473,9 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
 
 async function runWatch(args: { subcommand: SyncCommand; resetContext: boolean }) {
   const intervalMsRaw = process.env.SYNC_WATCH_INTERVAL_MS;
-  const intervalMs = intervalMsRaw && String(intervalMsRaw).trim() ? Number(intervalMsRaw) : 60_000;
-  const ms = Number.isFinite(intervalMs) && intervalMs > 1000 ? Math.trunc(intervalMs) : 60_000;
+  // Default slower to reduce subgraph/RPC/GraphDB pressure and avoid rate limits/timeouts.
+  const intervalMs = intervalMsRaw && String(intervalMsRaw).trim() ? Number(intervalMsRaw) : 180_000;
+  const ms = Number.isFinite(intervalMs) && intervalMs > 1000 ? Math.trunc(intervalMs) : 180_000;
 
   console.info('[sync] watch enabled', {
     subcommand: args.subcommand,
@@ -336,7 +494,11 @@ async function runWatch(args: { subcommand: SyncCommand; resetContext: boolean }
       console.error('[sync] watch cycle error:', e);
     }
     const elapsed = Date.now() - startedAt;
-    const delay = Math.max(1000, ms - elapsed);
+    // Ensure a minimum cooldown even if the cycle runs longer than the interval.
+    const minDelayRaw = process.env.SYNC_WATCH_MIN_DELAY_MS;
+    const minDelayParsed = minDelayRaw && String(minDelayRaw).trim() ? Number(minDelayRaw) : 15_000;
+    const minDelay = Number.isFinite(minDelayParsed) && minDelayParsed >= 1000 ? Math.trunc(minDelayParsed) : 15_000;
+    const delay = Math.max(minDelay, ms - elapsed);
     console.info('[sync] watch cycle complete', { cycle, elapsedMs: elapsed, nextInMs: delay });
     await sleep(delay);
   }

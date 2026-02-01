@@ -4030,8 +4030,8 @@ export async function runIndexerMain() {
   }
 
   // Initial run (don't crash on failure)
-  // Default: run only ETH Sepolia. To run multiple, set INDEXER_CHAIN_IDS="11155111,84532,11155420".
-  const chainIdsRaw = (process.env.INDEXER_CHAIN_IDS || '11155111').trim();
+  // Default: run only ETH Mainnet. To run multiple, set INDEXER_CHAIN_IDS="1,84532,11155420".
+  const chainIdsRaw = (process.env.INDEXER_CHAIN_IDS || '1').trim();
   const chainIds = chainIdsRaw
     .split(',')
     .map((s) => s.trim())

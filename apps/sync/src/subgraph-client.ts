@@ -1,4 +1,4 @@
-import { ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY } from './env';
+import { ETH_MAINNET_GRAPHQL_URL, ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY } from './env';
 
 export type SubgraphEndpoint = {
   url: string;
@@ -7,6 +7,7 @@ export type SubgraphEndpoint = {
 };
 
 export const SUBGRAPH_ENDPOINTS: SubgraphEndpoint[] = [
+  { url: ETH_MAINNET_GRAPHQL_URL, chainId: 1, name: 'eth-mainnet' },
   { url: ETH_SEPOLIA_GRAPHQL_URL, chainId: 11155111, name: 'eth-sepolia' },
   { url: BASE_SEPOLIA_GRAPHQL_URL, chainId: 84532, name: 'base-sepolia' },
   { url: OP_SEPOLIA_GRAPHQL_URL, chainId: 11155420, name: 'op-sepolia' },
@@ -142,6 +143,38 @@ export const AGENTS_QUERY = `query Agents($first: Int!, $skip: Int!) {
   }
 }`;
 
+// Cursor-based pagination to avoid subgraph skip limits (many hosted gateways cap skip to 5000).
+// We paginate by id (monotonic) rather than mintedAt because some subgraphs don't implement mintedAt filters reliably.
+export const AGENTS_QUERY_BY_ID_CURSOR = `query AgentsByIdCursor($first: Int!, $lastId: String!) {
+  agents(first: $first, where: { id_gt: $lastId }, orderBy: id, orderDirection: asc) {
+    id
+    mintedAt
+    agentURI
+    name
+    description
+    image
+    ensName
+    agentWallet
+    a2aEndpoint
+    chatEndpoint
+    registration {
+      id
+      agentURI
+      raw
+      type
+      name
+      description
+      image
+      supportedTrust
+      a2aEndpoint
+      chatEndpoint
+      ensName
+      updatedAt
+    }
+    owner { id }
+  }
+}`;
+
 // NFT on-chain metadata KV rows (AgentMetadata entity)
 // NOTE: some subgraphs expose this as agentMetadata_collection (not agentMetadatas).
 export const AGENT_METADATA_COLLECTION_QUERY = `query AgentMetadataCollection($first: Int!, $skip: Int!) {
@@ -157,6 +190,124 @@ export const AGENT_METADATA_COLLECTION_QUERY = `query AgentMetadataCollection($f
     timestamp
   }
 }`;
+
+export const AGENT_METADATA_COLLECTION_QUERY_BY_ID_CURSOR = `query AgentMetadataCollectionByIdCursor($first: Int!, $lastId: String!) {
+  agentMetadata_collection(first: $first, where: { id_gt: $lastId }, orderBy: id, orderDirection: asc) {
+    id
+    key
+    value
+    indexedKey
+    setAt
+    setBy
+    txHash
+    blockNumber
+    timestamp
+  }
+}`;
+
+function isCursorUnsupportedErrorMessage(message: unknown): boolean {
+  const msg = String(message ?? '').toLowerCase();
+  return (
+    msg.includes('unknown argument') ||
+    (msg.includes('has no argument') && (msg.includes('where') || msg.includes('orderby'))) ||
+    msg.includes('cannot query field') ||
+    (msg.includes('where') && msg.includes('argument')) ||
+    (msg.includes('orderby') && msg.includes('argument'))
+  );
+}
+
+export async function fetchAllFromSubgraphByIdCursor(
+  graphqlUrl: string,
+  query: string,
+  field: string,
+  opts?: {
+    optional?: boolean;
+    first?: number;
+    maxRetries?: number;
+    startAfterId?: string;
+    maxItems?: number;
+  },
+): Promise<any[]> {
+  const pageSize = opts?.first ?? 500;
+  const optional = opts?.optional ?? false;
+  const maxRetries = opts?.maxRetries ?? (optional ? 6 : 3);
+  const maxItems = opts?.maxItems ?? 250_000;
+  const allItems: any[] = [];
+  let lastId = typeof opts?.startAfterId === 'string' ? opts.startAfterId : '0';
+  let batchNumber = 0;
+
+  const queryFields = await fetchQueryFieldNames(graphqlUrl);
+  if (queryFields.size > 0 && !queryFields.has(field) && !optional) {
+    const available = Array.from(queryFields).sort().slice(0, 80).join(', ');
+    throw new Error(
+      `Subgraph schema mismatch: Query has no field "${field}". ` +
+        `Available query fields (first 80): ${available}`,
+    );
+  }
+
+  while (true) {
+    if (allItems.length >= maxItems) {
+      console.warn(`[subgraph] Reached maxItems (${maxItems}); stopping cursor pagination after ${allItems.length} items`);
+      break;
+    }
+
+    batchNumber++;
+    if (batchNumber === 1) {
+      console.info(`[subgraph] Fetching first cursor page (pageSize=${pageSize}, field=${field}, startAfterId=${lastId})`);
+    }
+
+    const variables = { first: pageSize, lastId };
+
+    let resp: any;
+    try {
+      resp = await fetchJson(graphqlUrl, { query, variables }, maxRetries);
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (optional) {
+        console.warn(`[subgraph] Skipping due to fetch error (optional=true): ${msg}`);
+        return allItems;
+      }
+      throw e;
+    }
+
+    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
+      const firstErr = resp.errors[0];
+      const firstMsg = firstErr?.message ?? '';
+      if (isCursorUnsupportedErrorMessage(firstMsg)) {
+        throw new Error(`Cursor pagination unsupported for "${field}": ${String(firstMsg || 'unknown error')}`);
+      }
+      const errJson = JSON.stringify(resp.errors, null, 2) ?? String(resp.errors);
+      if (optional) {
+        console.warn(`[subgraph] Skipping due to GraphQL errors (optional=true). itemsSoFar=${allItems.length} errors=${errJson}`);
+        return allItems;
+      }
+      throw new Error(`GraphQL query failed: ${errJson}`);
+    }
+
+    const batchItems = (((resp?.data?.[field] as any[]) || []) as any[]).filter(Boolean);
+    if (batchItems.length === 0) {
+      console.info(`[subgraph] No more rows found, stopping cursor pagination (field=${field})`);
+      break;
+    }
+
+    allItems.push(...batchItems);
+
+    const last = batchItems[batchItems.length - 1];
+    const newLastId = typeof last?.id === 'string' && last.id.trim() ? last.id.trim() : lastId;
+    if (newLastId === lastId) {
+      console.warn(`[subgraph] Cursor did not advance (field=${field}, lastId=${lastId}); stopping to avoid infinite loop`);
+      break;
+    }
+    lastId = newLastId;
+
+    if (batchItems.length < pageSize) {
+      console.info(`[subgraph] Reached end (got ${batchItems.length} < ${pageSize})`);
+      break;
+    }
+  }
+
+  return allItems;
+}
 
 export const FEEDBACKS_QUERY = `query RepFeedbacks($first: Int!, $skip: Int!) {
   repFeedbacks(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {

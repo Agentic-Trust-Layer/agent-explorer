@@ -238,3 +238,9 @@
   rdfs:comment "Precomputed count of ERC-8004 validation assertions (core:hasVerificationAssertion) for an agent within a chain subgraph graph." ;
   rdfs:domain core:AIAgent ;
   rdfs:range xsd:integer .
+
+::agentId8004 a owl:DatatypeProperty ;
+  rdfs:label "agentId8004" ;
+  rdfs:comment "Materialized ERC-8004 agent id (token id) as integer, for fast ordering/filtering without string parsing of did:8004." ;
+  rdfs:domain core:AIAgent ;
+  rdfs:range xsd:integer .

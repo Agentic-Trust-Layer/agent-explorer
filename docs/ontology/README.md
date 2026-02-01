@@ -265,6 +265,8 @@ AgenticTrust core (`apps/ontology/ontology/core.ttl`)
 ERC ontologies
 
 - [`erc8004.md`](./erc8004.md): ERC-8004 registration metadata + validation + feedback (with diagram)
+- [`erc8004-feedback.md`](./erc8004-feedback.md): KB query patterns (GraphQL + SPARQL) + ontology mapping for ERC-8004 feedback
+- [`erc8004-validation.md`](./erc8004-validation.md): KB query patterns (GraphQL + SPARQL) + ontology mapping for ERC-8004 validation responses
 - [`erc8092.md`](./erc8092.md): ERC-8092 relationships/assertions/accounts (with diagram)
 - [`hol.md`](./hol.md): HOL ontology (`apps/ontology/ontology/hol.ttl`) documentation (AgentIdentityHOL, IdentityDescriptorHOL, AgentProfileHOL)
 - [`relationshipassertion.md`](./relationshipassertion.md): focused pattern: relationship assertion → account → controlling agent

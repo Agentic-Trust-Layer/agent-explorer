@@ -33,10 +33,12 @@ export function emitRawSubgraphRecord(opts: {
   lines.push(`  erc8004:subgraphCursorValue "${escapeTurtleString(cursorValue)}" ;`);
   lines.push(`  erc8004:recordsEntity ${recordsEntityIri} ;`);
 
-  try {
-    const json = JSON.stringify(raw ?? null);
-    lines.push(`  erc8004:subgraphRawJson ${turtleJsonLiteral(json)} ;`);
-  } catch {}
+  // SKIPPED: subgraphRawJson removed for performance (was 2-5KB per agent, stored as escaped JSON literal)
+  // Essential fields (txHash, blockNumber, timestamp) are still stored as individual triples
+  // try {
+  //   const json = JSON.stringify(raw ?? null);
+  //   lines.push(`  erc8004:subgraphRawJson ${turtleJsonLiteral(json)} ;`);
+  // } catch {}
 
   const tx = typeof txHash === 'string' ? txHash.trim() : '';
   if (tx) lines.push(`  erc8004:subgraphTxHash "${escapeTurtleString(tx)}" ;`);

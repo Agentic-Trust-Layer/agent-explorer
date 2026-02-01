@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
+import { fetchWithRetry } from '../net/fetch-with-retry.js';
 
 type GraphdbAuth = { username: string; password: string } | null;
 
@@ -123,7 +124,20 @@ async function graphdbFetch(
     const accessHeaders = cfAccessHeaders();
     if (accessHeaders['CF-Access-Client-Id']) headers.set('CF-Access-Client-Id', accessHeaders['CF-Access-Client-Id']);
     if (accessHeaders['CF-Access-Client-Secret']) headers.set('CF-Access-Client-Secret', accessHeaders['CF-Access-Client-Secret']);
-    return await fetch(url, { ...init, headers, signal: controller.signal });
+    const retriesRaw = envString('GRAPHDB_HTTP_RETRIES');
+    const retries = Number.isFinite(Number(retriesRaw)) && Number(retriesRaw) >= 0 ? Math.trunc(Number(retriesRaw)) : 3;
+    return await fetchWithRetry(
+      url,
+      { ...init, headers, signal: controller.signal },
+      {
+        timeoutMs,
+        retries,
+        // Cloudflare can intermittently 52x; treat them as transient.
+        retryOnStatuses: [429, 500, 502, 503, 504, 522, 524],
+        minBackoffMs: 750,
+        maxBackoffMs: 20_000,
+      },
+    );
   } finally {
     clearTimeout(t);
   }
@@ -391,10 +405,13 @@ export async function queryGraphdbWithContext(
   const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}`);
 
   const run: Promise<any> = (async () => {
+    const timeoutMsEnvRaw = envString('GRAPHDB_QUERY_TIMEOUT_MS');
+    const timeoutMsEnv = Number.isFinite(Number(timeoutMsEnvRaw)) && Number(timeoutMsEnvRaw) > 0 ? Number(timeoutMsEnvRaw) : null;
+    const timeoutMs = timeoutMsEnv ?? 30_000;
     const res = await graphdbFetch(url, {
       method: 'POST',
       auth,
-      timeoutMs: 30_000,
+      timeoutMs,
       headers: {
         'Content-Type': 'application/sparql-query',
         Accept: 'application/sparql-results+json',
@@ -403,7 +420,15 @@ export async function queryGraphdbWithContext(
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`GraphDB SPARQL query failed: HTTP ${res.status}${text ? `: ${text.slice(0, 500)}` : ''}`);
+      const hint =
+        res.status === 524
+          ? ' (Cloudflare 524: GraphDB origin timeout; retry/backoff or optimize the SPARQL / reduce load)'
+          : res.status === 522
+            ? ' (Cloudflare 522: connection timed out)'
+            : res.status === 429
+              ? ' (rate limited; retry with backoff)'
+              : '';
+      throw new Error(`GraphDB SPARQL query failed: HTTP ${res.status}${hint}${text ? `: ${text.slice(0, 500)}` : ''}`);
     }
     return await res.json();
   })();

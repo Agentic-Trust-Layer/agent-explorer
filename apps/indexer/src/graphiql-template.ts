@@ -161,20 +161,14 @@ export const graphiqlHTML = `<!DOCTYPE html>
       
       // Default query value (KB schema)
       const defaultQueryValue = \`query {
-  kbAgents(where: { chainId: 11155111 }, first: 5, skip: 0, orderBy: agentId8004, orderDirection: DESC) {
+  kbAgents(where: { chainId: 1 }, first: 5, skip: 0, orderBy: agentId8004, orderDirection: DESC) {
     total
     hasMore
     agents {
+      uaid
       agentName
-      did8004
       agentId8004
       isSmartAgent
-      identity8004 {
-        descriptor {
-          json
-          protocolDescriptors { protocol serviceUrl skills }
-        }
-      }
     }
   }
 }\`;

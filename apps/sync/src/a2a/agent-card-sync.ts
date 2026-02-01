@@ -60,6 +60,11 @@ DELETE {
 }
 
 export async function syncAgentCardsForChain(chainId: number, opts?: { force?: boolean; limit?: number }): Promise<void> {
+  // DISABLED: A2A agent card fetching removed for performance
+  // This function previously fetched agent cards via HTTP from A2A endpoints, which caused sync performance issues
+  console.info(`[sync] [agent-cards] chainId=${chainId} disabled (performance optimization)`);
+  return;
+  
   const force = opts?.force ?? false;
   const limit = opts?.limit ?? 5000;
 

@@ -2,8 +2,8 @@ import type { SemanticSearchService } from './semantic/semantic-search-service.j
 import { kbAgentsQuery, kbOwnedAgentsAllChainsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
 import {
   kbAssociationsQuery,
-  kbFeedbackItemsForAgentQuery,
-  kbFeedbacksQuery,
+  kbReviewItemsForAgentQuery,
+  kbReviewsQuery,
   kbValidationResponsesForAgentQuery,
   kbValidationResponsesQuery,
 } from './graphdb/kb-queries-events.js';
@@ -202,7 +202,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     agentAccount: r.agentAccountIri ? { iri: r.agentAccountIri } : null,
 
     // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
-    assertionsFeedback8004: async (args: any, ctx: any) => {
+    reviewAssertions: async (args: any, ctx: any) => {
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const total = Number.isFinite(r.feedbackAssertionCount8004) ? Math.max(0, Math.trunc(r.feedbackAssertionCount8004)) : 0;
       const first = args?.first ?? null;
@@ -211,11 +211,11 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
         total,
         items: async (_args: any, ctx2: any) => {
           const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
-          const items = await kbFeedbackItemsForAgentQuery(
+          const uaid = typeof (r as any).uaid === 'string' ? String((r as any).uaid).trim() : '';
+          if (!uaid) return [];
+          const items = await kbReviewItemsForAgentQuery(
             {
-              chainId: r.chainId ?? null,
-              agentIri: r.iri,
-              agentDid8004: r.did8004 ?? null,
+              uaid,
               first,
               skip,
             },
@@ -226,7 +226,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       };
     },
 
-    assertionsValidation8004: async (args: any, ctx: any) => {
+    validationAssertions: async (args: any, ctx: any) => {
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const total = Number.isFinite(r.validationAssertionCount8004) ? Math.max(0, Math.trunc(r.validationAssertionCount8004)) : 0;
       const first = args?.first ?? null;
@@ -237,9 +237,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
           const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
           const res = await kbValidationResponsesForAgentQuery(
             {
-              chainId: r.chainId ?? null,
-              agentIri: r.iri,
-              agentDid8004: r.did8004 ?? null,
+              uaid: typeof (r as any).uaid === 'string' ? String((r as any).uaid).trim() : '',
               first,
               skip,
             },
@@ -255,8 +253,8 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       const vrTotal = Number.isFinite(r.validationAssertionCount8004) ? Math.max(0, Math.trunc(r.validationAssertionCount8004)) : 0;
       return {
         total: fbTotal + vrTotal,
-        feedback8004: { total: fbTotal, items: [] },
-        validation8004: { total: vrTotal, items: [] },
+        reviewResponses: { total: fbTotal, items: [] },
+        validationResponses: { total: vrTotal, items: [] },
       };
     },
   });
@@ -664,87 +662,11 @@ LIMIT 1
       return walletEoa === agentOwnerEoa;
     },
 
-    kbAgent: async (args: any, ctx: any) => {
+    kbAgentByUaid: async (args: any, ctx: any) => {
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
-      const chainId = Number(args?.chainId);
-      const agentId8004 = Number(args?.agentId8004);
-      if (!Number.isFinite(chainId) || !Number.isFinite(agentId8004)) return null;
-      const did8004 = `did:8004:${Math.trunc(chainId)}:${Math.trunc(agentId8004)}`;
-      const res = await kbAgentsQuery({ where: { chainId: Math.trunc(chainId), did8004 }, first: 1, skip: 0 }, graphdbCtx);
-      if (!res.rows.length) return null;
-      const agent = res.rows[0]!;
-      return {
-        iri: agent.iri,
-        uaid: agent.uaid,
-        agentName: agent.agentName,
-        agentTypes: agent.agentTypes,
-        did8004: agent.did8004,
-        agentId8004: agent.agentId8004 == null ? null : Math.trunc(agent.agentId8004),
-        isSmartAgent: agent.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
-        identity8004:
-          agent.identity8004Iri && agent.did8004
-            ? {
-                iri: agent.identity8004Iri,
-                kind: '8004',
-                did: agent.did8004,
-                descriptor:
-                  agent.identity8004DescriptorIri
-                    ? {
-                        iri: agent.identity8004DescriptorIri,
-                        kind: '8004',
-                        json: agent.identity8004RegistrationJson,
-                        onchainMetadataJson: agent.identity8004OnchainMetadataJson,
-                        registeredBy: agent.identity8004RegisteredBy,
-                        registryNamespace: agent.identity8004RegistryNamespace,
-                        skills: [],
-                        domains: [],
-                        protocolDescriptors: [
-                          agent.a2aProtocolDescriptorIri && agent.a2aServiceUrl
-                            ? {
-                                iri: agent.a2aProtocolDescriptorIri,
-                                protocol: 'a2a',
-                                serviceUrl: agent.a2aServiceUrl,
-                                protocolVersion: agent.a2aProtocolVersion,
-                                json: agent.a2aJson,
-                                skills: agent.a2aSkills,
-                                domains: [],
-                              }
-                            : null,
-                          agent.mcpProtocolDescriptorIri && agent.mcpServiceUrl
-                            ? {
-                                iri: agent.mcpProtocolDescriptorIri,
-                                protocol: 'mcp',
-                                serviceUrl: agent.mcpServiceUrl,
-                                protocolVersion: agent.mcpProtocolVersion,
-                                json: agent.mcpJson,
-                                skills: agent.mcpSkills,
-                                domains: [],
-                              }
-                            : null,
-                        ].filter(Boolean),
-                      }
-                    : null,
-              }
-            : null,
-        identityEns: agent.identityEnsIri && agent.didEns ? { iri: agent.identityEnsIri, kind: 'ens', did: agent.didEns } : null,
-        identityOwnerAccount: agent.identityOwnerAccountIri ? { iri: agent.identityOwnerAccountIri } : null,
-        identityWalletAccount: agent.identityWalletAccountIri ? { iri: agent.identityWalletAccountIri } : null,
-        identityOperatorAccount: agent.identityOperatorAccountIri ? { iri: agent.identityOperatorAccountIri } : null,
-
-        agentOwnerAccount: agent.agentOwnerAccountIri ? { iri: agent.agentOwnerAccountIri } : null,
-        agentOperatorAccount: agent.agentOperatorAccountIri ? { iri: agent.agentOperatorAccountIri } : null,
-        agentWalletAccount: agent.agentWalletAccountIri ? { iri: agent.agentWalletAccountIri } : null,
-        agentOwnerEOAAccount: agent.agentOwnerEOAAccountIri ? { iri: agent.agentOwnerEOAAccountIri } : null,
-
-        agentAccount: agent.agentAccountIri ? { iri: agent.agentAccountIri } : null,
-      };
-    },
-
-    kbAgentByDid: async (args: any, ctx: any) => {
-      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
-      const did8004 = typeof args?.did8004 === 'string' ? args.did8004.trim() : '';
-      if (!did8004) return null;
-      const res = await kbAgentsQuery({ where: { did8004 }, first: 1, skip: 0 }, graphdbCtx);
+      const uaid = assertUaidInput(args?.uaid, 'uaid');
+      if (!uaid) return null;
+      const res = await kbAgentsQuery({ where: { uaid_in: [uaid] }, first: 1, skip: 0 }, graphdbCtx);
       if (!res.rows.length) return null;
       const agent = res.rows[0]!;
       return mapRowToKbAgent(agent);
@@ -964,11 +886,11 @@ LIMIT 1
       }));
     },
 
-    kbFeedbacks: async (args: any, ctx: any) => {
+    kbReviews: async (args: any, ctx: any) => {
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const chainId = Number(args?.chainId);
       if (!Number.isFinite(chainId)) return [];
-      const rows = await kbFeedbacksQuery(
+      const rows = await kbReviewsQuery(
         { chainId: Math.trunc(chainId), first: args?.first ?? null, skip: args?.skip ?? null },
         graphdbCtx,
       );

@@ -1,8 +1,5 @@
 import { getGraphdbConfigFromEnv, queryGraphdbWithContext, type GraphdbQueryContext } from './graphdb-http.js';
-
-function chainContext(chainId: number): string {
-  return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
-}
+import { chainContext, parseUaidToResolvedAgentRef } from './kb-uaid.js';
 
 function clampInt(value: unknown, min: number, max: number, fallback: number): number {
   const n = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
@@ -35,7 +32,7 @@ export type KbSubgraphRecord = {
   timestamp: number | null;
 };
 
-export type KbFeedbackRow = {
+export type KbReviewResponseRow = {
   iri: string;
   agentDid8004: string | null;
   json: string | null;
@@ -44,35 +41,21 @@ export type KbFeedbackRow = {
 
 export type KbConnection<T> = { total: number; items: T[] };
 
-function graphClauseForChain(chainId?: number | null): { open: string; close: string } {
-  if (chainId != null) {
-    const ctx = chainContext(chainId);
-    return { open: `GRAPH <${ctx}> {`, close: '}' };
-  }
-  return {
-    open: 'GRAPH ?g { FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))',
-    close: '}',
-  };
-}
-
-export async function kbFeedbackItemsForAgentQuery(
+export async function kbReviewItemsForAgentQuery(
   args: {
-  chainId?: number | null;
-  agentIri: string;
-  agentDid8004?: string | null;
-  first?: number | null;
-  skip?: number | null;
+    uaid: string;
+    first?: number | null;
+    skip?: number | null;
   },
   graphdbCtx?: GraphdbQueryContext | null,
-): Promise<KbFeedbackRow[]> {
+): Promise<KbReviewResponseRow[]> {
   const first = clampInt(args.first, 1, 2000, 25);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
-  const agentIri = String(args.agentIri || '').trim();
-  if (!agentIri) return [];
 
-  const chainId = args.chainId != null ? clampInt(args.chainId, 1, 1_000_000_000, 0) : null;
-  const graph = graphClauseForChain(chainId);
-  const did8004 = typeof args.agentDid8004 === 'string' && args.agentDid8004.trim() ? args.agentDid8004.trim() : null;
+  const ref = parseUaidToResolvedAgentRef(args.uaid);
+  const ctx = chainContext(ref.chainId);
+  const agentIri = ref.agentIri;
+  const did8004 = ref.did8004;
 
   const sparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
@@ -87,7 +70,7 @@ export async function kbFeedbackItemsForAgentQuery(
     '  (SAMPLE(?blockNumber) AS ?blockNumber)',
     '  (SAMPLE(?timestamp) AS ?timestamp)',
     'WHERE {',
-    `  ${graph.open}`,
+    `  GRAPH <${ctx}> {`,
     `    <${agentIri}> core:hasReputationAssertion ?feedback .`,
     '    OPTIONAL { ?feedback core:json ?json }',
     '    OPTIONAL {',
@@ -98,7 +81,7 @@ export async function kbFeedbackItemsForAgentQuery(
     '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?blockNumber }',
     '      OPTIONAL { ?record erc8004:subgraphTimestamp ?timestamp }',
     '    }',
-    `  ${graph.close}`,
+    '  }',
     '}',
     'GROUP BY ?feedback',
     'ORDER BY DESC(STR(?timestamp)) DESC(STR(?feedback))',
@@ -107,7 +90,7 @@ export async function kbFeedbackItemsForAgentQuery(
     '',
   ].join('\n');
 
-  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbFeedbackItemsForAgentQuery');
+  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbReviewItemsForAgentQuery');
   const items = rows
     .map((b: any) => {
       const iri = asString(b?.feedback);
@@ -129,9 +112,9 @@ export async function kbFeedbackItemsForAgentQuery(
                 timestamp: timestamp == null ? null : Math.trunc(timestamp),
               }
             : null,
-      } satisfies KbFeedbackRow;
+      } satisfies KbReviewResponseRow;
     })
-    .filter((x): x is KbFeedbackRow => Boolean(x));
+    .filter((x): x is KbReviewResponseRow => Boolean(x));
 
   // Keep the agentDid8004 on each row (useful for GraphQL callers).
   if (did8004) {
@@ -140,51 +123,48 @@ export async function kbFeedbackItemsForAgentQuery(
   return items;
 }
 
-export async function kbFeedbackCountForAgentQuery(
-  args: { chainId?: number | null; agentIri: string },
+export async function kbReviewCountForAgentQuery(
+  args: { uaid: string },
   graphdbCtx?: GraphdbQueryContext | null,
 ): Promise<number> {
-  const agentIri = String(args.agentIri || '').trim();
-  if (!agentIri) return 0;
-  const chainId = args.chainId != null ? clampInt(args.chainId, 1, 1_000_000_000, 0) : null;
-  const graph = graphClauseForChain(chainId);
+  const ref = parseUaidToResolvedAgentRef(args.uaid);
+  const ctx = chainContext(ref.chainId);
+  const agentIri = ref.agentIri;
   const countSparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     '',
     'SELECT (COUNT(DISTINCT ?feedback) AS ?count) WHERE {',
-    `  ${graph.open}`,
+    `  GRAPH <${ctx}> {`,
     `    <${agentIri}> core:hasReputationAssertion ?feedback .`,
-    `  ${graph.close}`,
+    '  }',
     '}',
     '',
   ].join('\n');
 
-  const countRows = await runGraphdbQuery(countSparql, graphdbCtx, 'kbFeedbackCountForAgentQuery');
+  const countRows = await runGraphdbQuery(countSparql, graphdbCtx, 'kbReviewCountForAgentQuery');
   return clampInt(asNumber(countRows?.[0]?.count), 0, 10_000_000_000, 0);
 }
 
-export async function kbFeedbacksForAgentQuery(
+export async function kbReviewsForAgentQuery(
   args: {
-    chainId?: number | null;
-    agentIri: string;
-    agentDid8004?: string | null;
+    uaid: string;
     first?: number | null;
     skip?: number | null;
   },
   graphdbCtx?: GraphdbQueryContext | null,
-): Promise<KbConnection<KbFeedbackRow>> {
+): Promise<KbConnection<KbReviewResponseRow>> {
   const [items, total] = await Promise.all([
-    kbFeedbackItemsForAgentQuery(args, graphdbCtx),
-    kbFeedbackCountForAgentQuery({ chainId: args.chainId ?? null, agentIri: args.agentIri }, graphdbCtx),
+    kbReviewItemsForAgentQuery(args, graphdbCtx),
+    kbReviewCountForAgentQuery({ uaid: args.uaid }, graphdbCtx),
   ]);
   return { total, items };
 }
 
-export async function kbFeedbacksQuery(args: {
+export async function kbReviewsQuery(args: {
   chainId: number;
   first?: number | null;
   skip?: number | null;
-}, graphdbCtx?: GraphdbQueryContext | null): Promise<KbFeedbackRow[]> {
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<KbReviewResponseRow[]> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
   const first = clampInt(args.first, 1, 2000, 100);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
@@ -230,7 +210,7 @@ export async function kbFeedbacksQuery(args: {
     '',
   ].join('\n');
 
-  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbFeedbacksQuery');
+  const rows = await runGraphdbQuery(sparql, graphdbCtx, 'kbReviewsQuery');
   return rows
     .map((b: any) => {
       const iri = asString(b?.feedback);
@@ -252,9 +232,9 @@ export async function kbFeedbacksQuery(args: {
                 timestamp: timestamp == null ? null : Math.trunc(timestamp),
               }
             : null,
-      } satisfies KbFeedbackRow;
+      } satisfies KbReviewResponseRow;
     })
-    .filter((x): x is KbFeedbackRow => Boolean(x));
+    .filter((x): x is KbReviewResponseRow => Boolean(x));
 }
 
 export type KbValidationResponseRow = {
@@ -265,20 +245,17 @@ export type KbValidationResponseRow = {
 };
 
 export async function kbValidationResponsesForAgentQuery(args: {
-  chainId?: number | null;
-  agentIri: string;
-  agentDid8004?: string | null;
+  uaid: string;
   first?: number | null;
   skip?: number | null;
 }, graphdbCtx?: GraphdbQueryContext | null): Promise<KbConnection<KbValidationResponseRow>> {
   const first = clampInt(args.first, 1, 2000, 25);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
-  const agentIri = String(args.agentIri || '').trim();
-  if (!agentIri) return { total: 0, items: [] };
 
-  const chainId = args.chainId != null ? clampInt(args.chainId, 1, 1_000_000_000, 0) : null;
-  const graph = graphClauseForChain(chainId);
-  const did8004 = typeof args.agentDid8004 === 'string' && args.agentDid8004.trim() ? args.agentDid8004.trim() : null;
+  const ref = parseUaidToResolvedAgentRef(args.uaid);
+  const ctx = chainContext(ref.chainId);
+  const agentIri = ref.agentIri;
+  const did8004 = ref.did8004;
 
   const sparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
@@ -293,7 +270,7 @@ export async function kbValidationResponsesForAgentQuery(args: {
     '  (SAMPLE(?blockNumber) AS ?blockNumber)',
     '  (SAMPLE(?timestamp) AS ?timestamp)',
     'WHERE {',
-    `  ${graph.open}`,
+    `  GRAPH <${ctx}> {`,
     `    <${agentIri}> core:hasVerificationAssertion ?validation .`,
     '    OPTIONAL { ?validation core:json ?json }',
     '    OPTIONAL {',
@@ -304,7 +281,7 @@ export async function kbValidationResponsesForAgentQuery(args: {
     '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?blockNumber }',
     '      OPTIONAL { ?record erc8004:subgraphTimestamp ?timestamp }',
     '    }',
-    `  ${graph.close}`,
+    '  }',
     '}',
     'GROUP BY ?validation',
     'ORDER BY DESC(STR(?timestamp)) DESC(STR(?validation))',
@@ -317,9 +294,9 @@ export async function kbValidationResponsesForAgentQuery(args: {
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     '',
     'SELECT (COUNT(DISTINCT ?validation) AS ?count) WHERE {',
-    `  ${graph.open}`,
+    `  GRAPH <${ctx}> {`,
     `    <${agentIri}> core:hasVerificationAssertion ?validation .`,
-    `  ${graph.close}`,
+    '  }',
     '}',
     '',
   ].join('\n');

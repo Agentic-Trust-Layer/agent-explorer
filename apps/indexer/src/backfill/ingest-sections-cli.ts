@@ -3,9 +3,9 @@ import { ensureSchemaInitialized } from '../db';
 import { ALL_BACKFILL_SECTIONS, type BackfillSection, backfill, getClientsByChainId } from '../indexer';
 
 function usage(): void {
-  console.log('Usage: pnpm --filter erc8004-indexer ingest:sections [--sections agents,feedbacks,...] [--chainIds 11155111,84532,...]');
+  console.log('Usage: pnpm --filter erc8004-indexer ingest:sections [--sections agents,feedbacks,...] [--chainIds 1,84532,...]');
   console.log(`Sections: ${ALL_BACKFILL_SECTIONS.join(', ')}`);
-  console.log('Notes: defaults to all sections; defaults to INDEXER_CHAIN_IDS or 11155111.');
+  console.log('Notes: defaults to all sections; defaults to INDEXER_CHAIN_IDS or 1 (mainnet).');
 }
 
 function parse(argv: string[]): { chainIds: string[]; sections: BackfillSection[] | null } {
@@ -38,7 +38,7 @@ function parse(argv: string[]): { chainIds: string[]; sections: BackfillSection[
   const { chainIds: chainIdsArg, sections } = parse(process.argv.slice(2));
   await ensureSchemaInitialized();
 
-  const chainIdsRaw = chainIdsArg.length ? chainIdsArg.join(',') : (process.env.INDEXER_CHAIN_IDS || '11155111').trim();
+  const chainIdsRaw = chainIdsArg.length ? chainIdsArg.join(',') : (process.env.INDEXER_CHAIN_IDS || '1').trim();
   const chainIds = chainIdsRaw.split(',').map((s) => s.trim()).filter(Boolean);
 
   const clientsByChainId = getClientsByChainId();

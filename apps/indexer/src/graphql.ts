@@ -226,16 +226,47 @@ export function createGraphQLServer(port: number = 4000) {
         });
       }
 
-      // Hard fail on DID passed where UAID is required.
+      // UAID-only enforcement (no raw did:8004 / did:ethr in KB GraphQL requests).
+      // - Allow UAIDs like "uaid:did:8004:1:123" (contains did:* but is UAID-prefixed)
+      // - Reject any raw "did:8004:..." or "did:ethr:..." passed as variables or embedded literals
+      const isBareDidString = (s: string): boolean => {
+        const raw = String(s || '').trim();
+        if (!raw) return false;
+        if (raw.startsWith('uaid:')) return false;
+        return raw.startsWith('did:8004:') || raw.startsWith('did:ethr:');
+      };
+      const containsBareDidInQueryText = (text: string): boolean => {
+        const t = String(text || '');
+        // Scan for did:8004: / did:ethr: that are NOT immediately preceded by "uaid:"
+        const needles = ['did:8004:', 'did:ethr:'] as const;
+        for (const needle of needles) {
+          let idx = 0;
+          while (true) {
+            const at = t.indexOf(needle, idx);
+            if (at < 0) break;
+            const prefix = t.slice(Math.max(0, at - 5), at);
+            if (prefix !== 'uaid:') return true;
+            idx = at + needle.length;
+          }
+        }
+        return false;
+      };
+      const containsBareDidInVariables = (v: any): boolean => {
+        if (v == null) return false;
+        if (typeof v === 'string') return isBareDidString(v);
+        if (Array.isArray(v)) return v.some(containsBareDidInVariables);
+        if (typeof v === 'object') return Object.values(v).some(containsBareDidInVariables);
+        return false;
+      };
+
       const vars = request.variables || {};
-      if (typeof (vars as any).uaid === 'string' && String((vars as any).uaid).trim().startsWith('did:')) {
+      if (containsBareDidInQueryText(queryText) || containsBareDidInVariables(vars)) {
         return res.status(400).json({
           errors: [
             {
               message:
-                'Invalid uaid variable: expected "uaid:*" (must start with "uaid:"). ' +
-                `Received "${String((vars as any).uaid).trim()}". ` +
-                'If you have a DID like "did:8004:..." you must wrap it as "uaid:did:8004:...".',
+                'KB GraphQL requires UAID-form identifiers. Do not send raw DIDs like "did:8004:..." or "did:ethr:...". ' +
+                'Wrap them as "uaid:did:8004:..." / "uaid:did:ethr:..." and use UAID-native fields/filters.',
             },
           ],
         });

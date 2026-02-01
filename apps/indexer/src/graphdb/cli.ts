@@ -1,4 +1,4 @@
-import { createRepository, getGraphdbConfigFromEnv, listRepositories } from './graphdb-http';
+import { createRepository, getGraphdbConfigFromEnv, listRepositories, updateGraphdb } from './graphdb-http';
 
 function usage(): never {
   console.error(
@@ -6,12 +6,13 @@ function usage(): never {
       'Usage:',
       '  tsx src/graphdb/cli.ts repos',
       '  tsx src/graphdb/cli.ts create-repo [--force]',
+      '  tsx src/graphdb/cli.ts clear-all',
       '  tsx src/graphdb/cli.ts ingest [all|agents|ontologies|oasf|intents|analytics] [--reset]',
       '  tsx src/graphdb/cli.ts ingest-hol [all|agents|ontologies] [--reset]',
       '',
       'Env:',
-      '  GRAPHDB_BASE_URL=http://localhost:7200',
-      '  GRAPHDB_REPOSITORY=agentictrust (or holagents for HOL)',
+      '  GRAPHDB_BASE_URL=https://graphdb.agentkg.io (default)',
+      '  GRAPHDB_REPOSITORY=agentkg (default, or holagents for HOL)',
       '  GRAPHDB_USERNAME=... (optional)',
       '  GRAPHDB_PASSWORD=... (optional)',
       '  GRAPHDB_RULESET=owl-horst-optimized (optional)',
@@ -47,6 +48,14 @@ async function main(): Promise<void> {
     const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
     await createRepository(baseUrl, repository, auth, { force });
     console.log(JSON.stringify({ baseUrl, created: repository }, null, 2));
+    return;
+  }
+
+  if (cmd === 'clear-all') {
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    console.log(`[graphdb] clearing all data from repository: ${repository}`);
+    await updateGraphdb(baseUrl, repository, auth, 'CLEAR ALL');
+    console.log('[graphdb] cleared all data');
     return;
   }
 

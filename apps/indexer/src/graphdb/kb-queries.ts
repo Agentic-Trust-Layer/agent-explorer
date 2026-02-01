@@ -134,6 +134,12 @@ export async function kbAgentsQuery(args: {
     isSmartAgent?: boolean | null;
     hasA2a?: boolean | null;
     hasAssertions?: boolean | null;
+    hasReviews?: boolean | null;
+    hasValidations?: boolean | null;
+    minReviewAssertionCount?: number | null;
+    minValidationAssertionCount?: number | null;
+
+    // Back-compat (older callers; not in KB-v2 schema anymore)
     hasFeedback8004?: boolean | null;
     hasValidation8004?: boolean | null;
     minFeedbackAssertionCount8004?: number | null;
@@ -149,7 +155,8 @@ export async function kbAgentsQuery(args: {
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
 
   const chainId = where.chainId != null ? clampInt(where.chainId, 1, 1_000_000_000, 0) : null;
-  const graphs = chainId ? [`<${chainContext(chainId)}>`] : null;
+  const ctxIri = chainId ? chainContext(chainId) : null;
+  const graphs = ctxIri ? [`<${ctxIri}>`] : null;
 
   // Filtering: if agentId8004 is provided without chainId, require did8004 instead.
   let did8004Filter: string | null = typeof where.did8004 === 'string' && where.did8004.trim() ? where.did8004.trim() : null;
@@ -166,10 +173,18 @@ export async function kbAgentsQuery(args: {
       ? where.uaid_in.map((u) => String(u ?? '').trim()).filter(Boolean)
       : null;
 
-  const minFb =
-    where.minFeedbackAssertionCount8004 != null ? clampInt(where.minFeedbackAssertionCount8004, 0, 10_000_000_000, 0) : null;
-  const minVr =
-    where.minValidationAssertionCount8004 != null ? clampInt(where.minValidationAssertionCount8004, 0, 10_000_000_000, 0) : null;
+  const minReview =
+    where.minReviewAssertionCount != null
+      ? clampInt(where.minReviewAssertionCount, 0, 10_000_000_000, 0)
+      : where.minFeedbackAssertionCount8004 != null
+        ? clampInt(where.minFeedbackAssertionCount8004, 0, 10_000_000_000, 0)
+        : null;
+  const minValidation =
+    where.minValidationAssertionCount != null
+      ? clampInt(where.minValidationAssertionCount, 0, 10_000_000_000, 0)
+      : where.minValidationAssertionCount8004 != null
+        ? clampInt(where.minValidationAssertionCount8004, 0, 10_000_000_000, 0)
+        : null;
 
   const orderBy = args.orderBy ?? 'agentId8004';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
@@ -225,12 +240,15 @@ export async function kbAgentsQuery(args: {
   const hasFeedbackExpr = `EXISTS { ?agent core:hasReputationAssertion ?_fb . }`;
   const hasValidationExpr = `EXISTS { ?agent core:hasVerificationAssertion ?_vr . }`;
 
-  if (where.hasFeedback8004 === true && where.hasValidation8004 === true) {
+  const wantReviews = where.hasReviews ?? where.hasFeedback8004;
+  const wantValidations = where.hasValidations ?? where.hasValidation8004;
+
+  if (wantReviews === true && wantValidations === true) {
     requiredPatterns.push('    ?agent core:hasReputationAssertion ?_fbReq .');
     requiredPatterns.push('    ?agent core:hasVerificationAssertion ?_vrReq .');
-  } else if (where.hasFeedback8004 === true) {
+  } else if (wantReviews === true) {
     requiredPatterns.push('    ?agent core:hasReputationAssertion ?_fbReq .');
-  } else if (where.hasValidation8004 === true) {
+  } else if (wantValidations === true) {
     requiredPatterns.push('    ?agent core:hasVerificationAssertion ?_vrReq .');
   } else if (where.hasAssertions === true) {
     requiredPatterns.push('    { ?agent core:hasReputationAssertion ?_fbReq . } UNION { ?agent core:hasVerificationAssertion ?_vrReq . }');
@@ -238,74 +256,112 @@ export async function kbAgentsQuery(args: {
 
   // Keep the negative filters as EXISTS; these inherently need a NOT EXISTS check.
   if (where.hasAssertions === false) filters.push(`NOT (${hasFeedbackExpr} || ${hasValidationExpr})`);
-  if (where.hasFeedback8004 === false) filters.push(`NOT ${hasFeedbackExpr}`);
-  if (where.hasValidation8004 === false) filters.push(`NOT ${hasValidationExpr}`);
+  if (wantReviews === false) filters.push(`NOT ${hasFeedbackExpr}`);
+  if (wantValidations === false) filters.push(`NOT ${hasValidationExpr}`);
 
   // Min-count filters use precomputed count properties (materialized during sync ingest).
   const pagePreFilter: string[] = [];
-  if (minFb != null) {
+  if (minReview != null) {
     pagePreFilter.push('    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }');
     pagePreFilter.push('    BIND(IF(BOUND(?feedbackAssertionCount8004), xsd:integer(?feedbackAssertionCount8004), 0) AS ?fbCntFilter)');
-    filters.push(`?fbCntFilter >= ${minFb}`);
+    filters.push(`?fbCntFilter >= ${minReview}`);
   }
-  if (minVr != null) {
+  if (minValidation != null) {
     pagePreFilter.push('    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }');
     pagePreFilter.push('    BIND(IF(BOUND(?validationAssertionCount8004), xsd:integer(?validationAssertionCount8004), 0) AS ?vrCntFilter)');
-    filters.push(`?vrCntFilter >= ${minVr}`);
+    filters.push(`?vrCntFilter >= ${minValidation}`);
   }
 
+  const needsUaid = Boolean(uaidFilter || (uaidIn && uaidIn.length) || orderBy === 'uaid');
+  const needsAgentName = Boolean(agentNameContains || orderBy === 'agentName');
+  const needsDid8004 = Boolean(did8004Filter);
+
+  const pageOptional: string[] = [];
+  if (needsUaid) pageOptional.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
+  if (needsAgentName) pageOptional.push('    OPTIONAL { ?agent core:agentName ?agentName . }');
+
+  // Fast path: when ordering by agentId8004, use the materialized numeric literal on the agent node
+  // (avoids joining identity + expensive STR/REPLACE parsing).
+  const pageRequireAgentId = orderBy === 'agentId8004';
+  const pageAgentIdPattern = pageRequireAgentId
+    ? ['    ?agent erc8004:agentId8004 ?agentId8004 .']
+    : ['    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }'];
+
+  const pageDid8004Optional = needsDid8004
+    ? [
+        '    OPTIONAL {',
+        '      ?agent core:hasIdentity ?identity8004 .',
+        '      ?identity8004 a erc8004:AgentIdentity8004 ; core:hasIdentifier ?ident8004 .',
+        '      ?ident8004 core:protocolIdentifier ?did8004 .',
+        '    }',
+      ]
+    : [];
+
   // Phase 1: page query (agent ids + graph context only).
+  const pageSelectVars =
+    orderBy === 'uaid' ? '?agent ?uaid' : orderBy === 'agentName' ? '?agent ?agentName' : '?agent ?agentId8004';
+
+  const pageGraphClause = ctxIri
+    ? `GRAPH <${ctxIri}> {`
+    : graphClause;
+  const pageGraphClose = ctxIri ? `}` : graphClose;
+  const pageSelect = ctxIri ? `SELECT DISTINCT ${pageSelectVars} WHERE {` : `SELECT DISTINCT ?g ${pageSelectVars} WHERE {`;
+
   const pageSparql = [
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
     '',
-    // IMPORTANT:
-    // When anchoring the query on assertion edges (e.g. `?agent core:hasReputationAssertion ?_fbReq`),
-    // the query can produce MANY rows per agent (one per assertion). If we LIMIT those rows, we can end
-    // up with far fewer DISTINCT agents than requested (classic "edge fanout" pagination bug).
-    // Use DISTINCT so LIMIT/OFFSET are applied to unique agents.
-    'SELECT DISTINCT ?g ?agent WHERE {',
-    `  ${graphClause}`,
-    '    ?agent a core:AIAgent .',
+    // DISTINCT is required when anchoring on assertion edges to avoid LIMIT being applied to fanout rows.
+    pageSelect,
+    `  ${pageGraphClause}`,
+    // NOTE: keep a core:AIAgent anchor only when we are not already anchored via requiredPatterns.
+    // When requiredPatterns is empty, this keeps the query selective and avoids stray nodes.
+    ...(requiredPatterns.length ? [] : ['    ?agent a core:AIAgent .']),
     ...requiredPatterns,
-    '    OPTIONAL { ?agent core:uaid ?uaid . }',
-    '    OPTIONAL { ?agent core:agentName ?agentName . }',
-    '    OPTIONAL {',
-    '      ?agent core:hasIdentity ?identity8004 .',
-    '      ?identity8004 a erc8004:AgentIdentity8004 ; core:hasIdentifier ?ident8004 .',
-    '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
-    '    }',
+    ...pageOptional,
+    ...pageAgentIdPattern,
+    ...pageDid8004Optional,
     ...pagePreFilter,
     filters.length ? `    FILTER(${filters.join(' && ')})` : '',
-    `  ${graphClose}`,
+    `  ${pageGraphClose}`,
     '}',
     `ORDER BY ${orderExpr}`,
     `LIMIT ${first + 1}`,
     `OFFSET ${skip}`,
     '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  ].join('\n');
 
   const pageBindings = await runGraphdbQuery(pageSparql, graphdbCtx, 'kbAgentsQuery.page');
-  const pagePairs: Array<{ g: string; agent: string }> = [];
-  const seenAgents = new Set<string>();
-  for (const b of pageBindings) {
-    const g = asString((b as any)?.g);
-    const agent = asString((b as any)?.agent);
-    if (!g || !agent) continue;
-    if (seenAgents.has(agent)) continue;
-    seenAgents.add(agent);
-    pagePairs.push({ g, agent });
+  const pageAgents: string[] = [];
+  if (ctxIri) {
+    for (const b of pageBindings) {
+      const agent = asString((b as any)?.agent);
+      if (agent) pageAgents.push(agent);
+    }
   }
-  const hasMore = pagePairs.length > first;
-  const trimmedPairs = hasMore ? pagePairs.slice(0, first) : pagePairs;
+
+  const pagePairs: Array<{ g: string; agent: string }> = [];
+  if (!ctxIri) {
+    const seenAgents = new Set<string>();
+    for (const b of pageBindings) {
+      const g = asString((b as any)?.g);
+      const agent = asString((b as any)?.agent);
+      if (!g || !agent) continue;
+      if (seenAgents.has(agent)) continue;
+      seenAgents.add(agent);
+      pagePairs.push({ g, agent });
+    }
+  }
+
+  const hasMore = ctxIri ? pageAgents.length > first : pagePairs.length > first;
+  const trimmedPairs = ctxIri ? [] : hasMore ? pagePairs.slice(0, first) : pagePairs;
+  const trimmedAgents = ctxIri ? (hasMore ? pageAgents.slice(0, first) : pageAgents) : [];
 
   // Phase 2: hydrate heavy fields for the page only.
   const valuesPairs = trimmedPairs.map((p) => `(<${p.g}> <${p.agent}>)`).join(' ');
-  const rowsBindings = trimmedPairs.length
+  const valuesAgents = trimmedAgents.map((a) => `<${a}>`).join(' ');
+  const rowsBindings = (ctxIri ? trimmedAgents.length : trimmedPairs.length)
     ? await runGraphdbQuery(
         [
           'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
@@ -353,8 +409,8 @@ export async function kbAgentsQuery(args: {
           '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
           '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
           'WHERE {',
-          `  VALUES (?g ?agent) { ${valuesPairs} }`,
-          '  GRAPH ?g {',
+          ctxIri ? `  VALUES ?agent { ${valuesAgents} }` : `  VALUES (?g ?agent) { ${valuesPairs} }`,
+          ctxIri ? `  GRAPH <${ctxIri}> {` : '  GRAPH ?g {',
           '    ?agent a core:AIAgent .',
           '    OPTIONAL { ?agent core:uaid ?uaid . }',
           '    OPTIONAL { ?agent core:agentName ?agentName . }',
@@ -750,6 +806,10 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   const ownerAddress = typeof args.ownerAddress === 'string' ? args.ownerAddress.trim().toLowerCase() : '';
   if (!ownerAddress) return { rows: [], total: 0, hasMore: false };
 
+  // For mainnet (chainId=1), use IRI-based lookup (much faster)
+  const chainId = 1;
+  const ownerIri = accountIriFromAddress(chainId, ownerAddress);
+
   const first = clampInt(args.first, 1, 500, 20);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
 
@@ -763,196 +823,179 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
         : '?agentId8004';
   const orderExpr = orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`;
 
-  const sparql = [
+  // Phase 1: Get agent IRIs only (minimal query for pagination)
+  const pageOptionalOrderBinds: string[] = [];
+  const pageRequiredOrderBinds: string[] = [];
+  const pageSelectVars =
+    orderBy === 'uaid' ? '?agent ?uaid' : orderBy === 'agentName' ? '?agent ?agentName' : '?agent ?agentId8004';
+
+  if (orderBy === 'uaid') {
+    pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
+  } else if (orderBy === 'agentName') {
+    pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:agentName ?agentName . }');
+  } else {
+    // agentId8004: make it required so GraphDB can sort on an indexed numeric literal without unbound values.
+    pageRequiredOrderBinds.push('    ?agent erc8004:agentId8004 ?agentId8004 .');
+  }
+
+  const pageSparql = [
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
-    'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
     '',
-    'SELECT',
-    '  ?agent',
-    '  (SAMPLE(?uaid) AS ?uaid)',
-    '  (SAMPLE(?agentName) AS ?agentName)',
-    '  (SAMPLE(?feedbackAssertionCount8004) AS ?feedbackAssertionCount8004)',
-    '  (SAMPLE(?validationAssertionCount8004) AS ?validationAssertionCount8004)',
-    '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
-    '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
-    '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
-    '  (SAMPLE(?identity8004) AS ?identity8004)',
-    '  (SAMPLE(?did8004) AS ?did8004)',
-    '  (SAMPLE(?agentId8004) AS ?agentId8004)',
-    '  (SAMPLE(?identityEns) AS ?identityEns)',
-    '  (SAMPLE(?didEns) AS ?didEns)',
-    '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
-    '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
-    '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
-    '  (SAMPLE(?agentOwnerAccount) AS ?agentOwnerAccount)',
-    '  (SAMPLE(?agentOperatorAccount) AS ?agentOperatorAccount)',
-    '  (SAMPLE(?agentWalletAccount) AS ?agentWalletAccount)',
-    '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
-    '  (SAMPLE(?agentAccount) AS ?agentAccount)',
-    '  (SAMPLE(?identity8004Descriptor) AS ?identity8004Descriptor)',
-    '  (SAMPLE(?registrationJson) AS ?registrationJson)',
-    '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
-    '  (SAMPLE(?registeredBy) AS ?registeredBy)',
-    '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
-    '  (SAMPLE(?pdA2a) AS ?pdA2a)',
-    '  (SAMPLE(?a2aServiceUrl) AS ?a2aServiceUrl)',
-    '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
-    '  (SAMPLE(?a2aJson) AS ?a2aJson)',
-    '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
-    '  (SAMPLE(?pdMcp) AS ?pdMcp)',
-    '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
-    '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
-    '  (SAMPLE(?mcpJson) AS ?mcpJson)',
-    '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
-    '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
-    'WHERE {',
-    '  GRAPH ?g {',
-    '    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))',
-    '    ?agent a core:AIAgent .',
-    '    OPTIONAL { ?agent core:uaid ?uaid . }',
-    '    OPTIONAL { ?agent core:agentName ?agentName . }',
-    '    OPTIONAL { ?agent a ?agentType . }',
-    '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
-    '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
-    '    OPTIONAL {',
-    '      ?record a erc8004:SubgraphIngestRecord ;',
-    '              erc8004:recordsEntity ?agent ;',
-    '              erc8004:subgraphEntityKind "agents" .',
-    '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?createdAtBlock . }',
-    '      OPTIONAL { ?record erc8004:subgraphTimestamp ?updatedAtTime . }',
-    '      OPTIONAL { ?record erc8004:subgraphCursorValue ?cursorRaw . }',
-    '      BIND(xsd:integer(?cursorRaw) AS ?createdAtTime)',
-    '    }',
-    '',
-    '    OPTIONAL {',
-    '      ?agent core:hasIdentity ?identity8004 .',
-    '      ?identity8004 a erc8004:AgentIdentity8004 ;',
-    '                    core:hasIdentifier ?ident8004 ;',
-    '                    core:hasDescriptor ?desc8004 .',
-    '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
-    '      BIND(?desc8004 AS ?identity8004Descriptor)',
-    '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
-    '      OPTIONAL { ?desc8004 erc8004:onchainMetadataJson ?onchainMetadataJson . }',
-    '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
-    '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
-    '      OPTIONAL {',
-    '        ?desc8004 core:assembledFromMetadata ?pdA2a .',
-    '        ?pdA2a a core:A2AProtocolDescriptor ;',
-    '               core:serviceUrl ?a2aServiceUrl .',
-    '        OPTIONAL { ?pdA2a core:protocolVersion ?a2aProtocolVersion . }',
-    '        OPTIONAL { ?pdA2a core:json ?a2aJson . }',
-    '        OPTIONAL { ?pdA2a core:hasSkill ?a2aSkill . }',
-    '      }',
-    '      OPTIONAL {',
-    '        ?desc8004 core:assembledFromMetadata ?pdMcp .',
-    '        ?pdMcp a core:MCPProtocolDescriptor ;',
-    '              core:serviceUrl ?mcpServiceUrl .',
-    '        OPTIONAL { ?pdMcp core:protocolVersion ?mcpProtocolVersion . }',
-    '        OPTIONAL { ?pdMcp core:json ?mcpJson . }',
-    '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill . }',
-    '      }',
-    '      OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?identityOwnerAccount . }',
-    '      OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount . }',
-    '      OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount . }',
-    '    }',
-    '',
-    '    OPTIONAL { ?agent a erc8004:SmartAgent ; erc8004:hasAgentAccount ?agentAccount . }',
-    '    OPTIONAL { ?agent erc8004:agentOwnerAccount ?agentOwnerAccount . }',
-    '    OPTIONAL { ?agent erc8004:agentOperatorAccount ?agentOperatorAccount . }',
-    '    OPTIONAL { ?agent erc8004:agentWalletAccount ?agentWalletAccount . }',
-    '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount . }',
-    '',
-    '    OPTIONAL {',
-    '      ?agent core:hasIdentity ?identityEns .',
-    '      ?identityEns a ens:EnsIdentity ;',
-    '                  core:hasIdentifier ?ensIdent .',
-    '      ?ensIdent core:protocolIdentifier ?didEns .',
-    '    }',
-    '',
-    // Ownership filter (address-based, across any chain):
-    // - direct: identity owner account address matches
-    // - indirect: identity owner account hasEOAOwner whose address matches
-    '    FILTER(',
-    `      EXISTS { ?identityOwnerAccount eth:accountAddress ?addr . FILTER(LCASE(STR(?addr)) = "${ownerAddress}") }`,
-    `      || EXISTS { ?identityOwnerAccount eth:hasEOAOwner ?eoa . ?eoa eth:accountAddress ?addr2 . FILTER(LCASE(STR(?addr2)) = "${ownerAddress}") }`,
-    '    )',
+    `SELECT DISTINCT ${pageSelectVars} WHERE {`,
+    '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
+    '    # Fast path: single-hop effective EOA ownership (materialized during sync)',
+    `    VALUES ?ownerEOA { <${ownerIri}> }`,
+    '    { ?agent erc8004:agentOwnerEOAAccount ?ownerEOA . }',
+    '    UNION',
+    '    # Fallback: direct owner account is already an EOA (covers older/missing agentOwnerEOAAccount)',
+    '    { ?agent erc8004:agentOwnerAccount ?ownerEOA . }',
+    ...pageRequiredOrderBinds,
+    ...pageOptionalOrderBinds,
     '  }',
     '}',
-    'GROUP BY ?agent',
     `ORDER BY ${orderExpr}`,
     `LIMIT ${first + 1}`,
     `OFFSET ${skip}`,
     '',
   ].join('\n');
 
-  const bindings = await runGraphdbQuery(sparql, graphdbCtx, 'kbOwnedAgentsAllChainsQuery');
-  const rows = bindings.map((b) => ({
+  const pageBindings = await runGraphdbQuery(pageSparql, graphdbCtx, 'kbOwnedAgentsAllChainsQuery.page');
+  const agentIris: string[] = [];
+  for (const b of pageBindings) {
+    const agent = asString((b as any)?.agent);
+    if (agent) agentIris.push(agent);
+  }
+  const hasMore = agentIris.length > first;
+  const trimmedIris = hasMore ? agentIris.slice(0, first) : agentIris;
+
+  if (trimmedIris.length === 0) {
+    return { rows: [], total: 0, hasMore: false };
+  }
+
+  // Phase 2: Hydrate minimal agent data (only fields requested by GraphQL query)
+  const valuesAgents = trimmedIris.map((iri) => `<${iri}>`).join(' ');
+  const sparql = trimmedIris.length
+    ? [
+        'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
+        'PREFIX core: <https://agentictrust.io/ontology/core#>',
+        'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+        '',
+        'SELECT',
+        '  ?agent',
+        '  (SAMPLE(?uaid) AS ?uaid)',
+        '  (SAMPLE(?agentName) AS ?agentName)',
+        '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
+        '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
+        '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
+        '  (SAMPLE(?did8004) AS ?did8004)',
+        '  (SAMPLE(?agentId8004) AS ?agentId8004)',
+        '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
+        'WHERE {',
+        `  VALUES ?agent { ${valuesAgents} }`,
+        '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
+        '    ?agent a core:AIAgent .',
+        '    OPTIONAL { ?agent core:uaid ?uaid . }',
+        '    OPTIONAL { ?agent core:agentName ?agentName . }',
+        '    OPTIONAL {',
+        '      ?agent a ?agentType .',
+        '      FILTER(STRSTARTS(STR(?agentType), "https://agentictrust.io/ontology/"))',
+        '    }',
+        '    OPTIONAL {',
+        '      ?record a erc8004:SubgraphIngestRecord ;',
+        '              erc8004:recordsEntity ?agent ;',
+        '              erc8004:subgraphEntityKind "agents" .',
+        '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?createdAtBlock . }',
+        '      OPTIONAL { ?record erc8004:subgraphTimestamp ?updatedAtTime . }',
+        '      OPTIONAL { ?record erc8004:subgraphCursorValue ?cursorRaw . }',
+        '      BIND(xsd:integer(?cursorRaw) AS ?createdAtTime)',
+        '    }',
+        '    OPTIONAL {',
+        '      ?agent core:hasIdentity ?identity8004 .',
+        '      ?identity8004 a erc8004:AgentIdentity8004 ;',
+        '                    core:hasIdentifier ?ident8004 .',
+        '      ?ident8004 core:protocolIdentifier ?did8004 .',
+        '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
+        '    }',
+        '  }',
+        '}',
+        'GROUP BY ?agent',
+        '',
+      ].join('\n')
+    : '';
+
+  const bindings = sparql ? await runGraphdbQuery(sparql, graphdbCtx, 'kbOwnedAgentsAllChainsQuery.hydrate') : [];
+  
+  // Create a map of agent IRI to binding for quick lookup
+  const bindingMap = new Map<string, any>();
+  for (const b of bindings) {
+    const agent = asString((b as any)?.agent);
+    if (agent) bindingMap.set(agent, b);
+  }
+  
+  // Preserve order from page query (only map fields we actually fetch)
+  const rows = trimmedIris
+    .map((iri) => bindingMap.get(iri))
+    .filter(Boolean)
+    .map((b) => ({
     iri: asString(b?.agent) ?? '',
     uaid: asString(b?.uaid),
     agentName: asString(b?.agentName),
-    feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
-    validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
+    feedbackAssertionCount8004: null, // Not fetched in simplified query
+    validationAssertionCount8004: null, // Not fetched in simplified query
     createdAtBlock: asNumber(b?.createdAtBlock),
     createdAtTime: asNumber(b?.createdAtTime),
     updatedAtTime: asNumber(b?.updatedAtTime),
-    identity8004Iri: asString(b?.identity8004),
+    identity8004Iri: null, // Not fetched in simplified query
     did8004: asString(b?.did8004),
     agentId8004: asNumber(b?.agentId8004),
-    identityEnsIri: asString(b?.identityEns),
-    didEns: asString(b?.didEns),
-    identityOwnerAccountIri: asString(b?.identityOwnerAccount),
-    identityWalletAccountIri: asString(b?.identityWalletAccount),
-    identityOperatorAccountIri: asString(b?.identityOperatorAccount),
-    agentOwnerAccountIri: asString(b?.agentOwnerAccount),
-    agentOperatorAccountIri: asString(b?.agentOperatorAccount),
-    agentWalletAccountIri: asString(b?.agentWalletAccount),
-    agentOwnerEOAAccountIri: asString(b?.agentOwnerEOAAccount),
-    agentAccountIri: asString(b?.agentAccount),
+    identityEnsIri: null, // Not fetched in simplified query
+    didEns: null, // Not fetched in simplified query
+    identityOwnerAccountIri: null, // Not fetched in simplified query
+    identityWalletAccountIri: null, // Not fetched in simplified query
+    identityOperatorAccountIri: null, // Not fetched in simplified query
+    agentOwnerAccountIri: null, // Not fetched in simplified query
+    agentOperatorAccountIri: null, // Not fetched in simplified query
+    agentWalletAccountIri: null, // Not fetched in simplified query
+    agentOwnerEOAAccountIri: null, // Not fetched in simplified query
+    agentAccountIri: null, // Not fetched in simplified query
 
-    identity8004DescriptorIri: asString(b?.identity8004Descriptor),
-    identity8004RegistrationJson: asString(b?.registrationJson),
-    identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
-    identity8004RegisteredBy: asString(b?.registeredBy),
-    identity8004RegistryNamespace: asString(b?.registryNamespace),
+    identity8004DescriptorIri: null, // Not fetched in simplified query
+    identity8004RegistrationJson: null, // Not fetched in simplified query
+    identity8004OnchainMetadataJson: null, // Not fetched in simplified query
+    identity8004RegisteredBy: null, // Not fetched in simplified query
+    identity8004RegistryNamespace: null, // Not fetched in simplified query
 
-    a2aProtocolDescriptorIri: asString(b?.pdA2a),
-    a2aServiceUrl: asString(b?.a2aServiceUrl),
-    a2aProtocolVersion: asString(b?.a2aProtocolVersion),
-    a2aJson: asString(b?.a2aJson),
-    a2aSkills: splitConcat(asString(b?.a2aSkills)),
+    a2aProtocolDescriptorIri: null, // Not fetched in simplified query
+    a2aServiceUrl: null, // Not fetched in simplified query
+    a2aProtocolVersion: null, // Not fetched in simplified query
+    a2aJson: null, // Not fetched in simplified query
+    a2aSkills: [], // Not fetched in simplified query
 
-    mcpProtocolDescriptorIri: asString(b?.pdMcp),
-    mcpServiceUrl: asString(b?.mcpServiceUrl),
-    mcpProtocolVersion: asString(b?.mcpProtocolVersion),
-    mcpJson: asString(b?.mcpJson),
-    mcpSkills: splitConcat(asString(b?.mcpSkills)),
+    mcpProtocolDescriptorIri: null, // Not fetched in simplified query
+    mcpServiceUrl: null, // Not fetched in simplified query
+    mcpProtocolVersion: null, // Not fetched in simplified query
+    mcpJson: null, // Not fetched in simplified query
+    mcpSkills: [], // Not fetched in simplified query
 
     agentTypes: splitConcat(asString(b?.agentTypes)),
   }));
 
-  const hasMore = rows.length > first;
-  const trimmed = hasMore ? rows.slice(0, first) : rows;
-
+  // Optimized count: anchor on owner account first
   const countSparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
     '',
     'SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {',
-    '  GRAPH ?g {',
-    '    FILTER(STRSTARTS(STR(?g), "https://www.agentictrust.io/graph/data/subgraph/"))',
-    '    ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
-    '    ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:hasOwnerAccount ?identityOwnerAccount .',
-      '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
-      '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
-    '    FILTER(',
-    `      EXISTS { ?identityOwnerAccount eth:accountAddress ?addr . FILTER(LCASE(STR(?addr)) = "${ownerAddress}") }`,
-    `      || EXISTS { ?identityOwnerAccount eth:hasEOAOwner ?eoa . ?eoa eth:accountAddress ?addr2 . FILTER(LCASE(STR(?addr2)) = "${ownerAddress}") }`,
-    '    )',
+    '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
+    '    # Match the same ownership logic as page query (fast, single-hop)',
+    `    VALUES ?ownerEOA { <${ownerIri}> }`,
+    '    { ?agent a core:AIAgent ; erc8004:agentOwnerEOAAccount ?ownerEOA . }',
+    '    UNION',
+    '    { ?agent a core:AIAgent ; erc8004:agentOwnerAccount ?ownerEOA . }',
     '  }',
     '}',
     '',
@@ -961,7 +1004,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   const countBindings = await runGraphdbQuery(countSparql, graphdbCtx, 'kbOwnedAgentsAllChainsQuery.count');
   const total = clampInt(asNumber(countBindings?.[0]?.count), 0, 10_000_000_000, 0);
 
-  return { rows: trimmed, total, hasMore };
+  return { rows, total, hasMore };
 }
 
 export async function kbFeedbackIrisQuery(args: { chainId: number; first?: number | null; skip?: number | null }): Promise<string[]> {
