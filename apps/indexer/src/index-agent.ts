@@ -44,6 +44,8 @@ function rdfPrefixes(): string {
     '@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .',
     '@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .',
     '@prefix prov: <http://www.w3.org/ns/prov#> .',
+    '@prefix dcterms: <http://purl.org/dc/terms/> .',
+    '@prefix schema: <http://schema.org/> .',
     '@prefix core: <https://agentictrust.io/ontology/core#> .',
     '@prefix eth: <https://agentictrust.io/ontology/eth#> .',
     '@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .',
@@ -271,7 +273,6 @@ async function syncSingleAgentToGraphdb(chainId: number, agentId: string): Promi
   // Agent node
   lines.push(`${agentNodeIri} a core:AIAgent, ${agentType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
   const name = typeof agentRow?.name === 'string' ? agentRow.name.trim() : '';
-  if (name) lines.push(`  core:agentName "${escapeTurtleString(name)}" ;`);
   lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
   const ownerAcct = accountIri(chainId, owner);
   const walletAcct = accountIri(chainId, wallet);
@@ -279,8 +280,18 @@ async function syncSingleAgentToGraphdb(chainId: number, agentId: string): Promi
   lines.push(`  erc8004:agentWalletAccount ${walletAcct} ;`);
   if (!didAccountSmart) lines.push(`  erc8004:agentOwnerEOAAccount ${ownerAcct} ;`);
   if (didAccountSmart) lines.push(`  erc8004:hasAgentAccount ${accountIri(chainId, metaAgentAccount!)} ;`);
-  lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
-  lines.push('');
+  if (name) {
+    const agentIriInner = agentNodeIri.replace(/^<|>$/g, '');
+    const agentDescIri = `<https://www.agentictrust.io/id/agent-descriptor/${encodeURIComponent(agentIriInner).replace(/%/g, '_')}>`;
+    lines.push(`  core:hasDescriptor ${agentDescIri} ;`);
+    lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
+    lines.push('');
+    lines.push(`${agentDescIri} a core:AgentDescriptor, core:Descriptor, prov:Entity ;`);
+    lines.push(`  dcterms:title "${escapeTurtleString(name)}" .`);
+  } else {
+    lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
+    lines.push('');
+  }
 
   // Identity 8004
   const ident8004 = identity8004Iri(didIdentity);

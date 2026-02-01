@@ -1,6 +1,7 @@
 import {
   accountIdentifierIri,
   accountIri,
+  agentDescriptorIriFromAgentIri,
   agentIriFromAccountDid,
   agentIri,
   escapeTurtleString,
@@ -86,6 +87,22 @@ function buildOnchainMetadataFromAgentMetadatas(rows: any[]): { text: string; ob
   const obj = { entries, byKey };
   const text = JSON.stringify(obj);
   return { text, obj };
+}
+
+function parseDescriptorFieldsFromJson(jsonText: string): { name: string | null; description: string | null; image: string | null } {
+  const raw = typeof jsonText === 'string' ? jsonText.trim() : '';
+  if (!raw) return { name: null, description: null, image: null };
+  // Fast reject non-JSON
+  if (!(raw.startsWith('{') || raw.startsWith('['))) return { name: null, description: null, image: null };
+  try {
+    const obj: any = JSON.parse(raw);
+    const name = typeof obj?.name === 'string' && obj.name.trim() ? obj.name.trim() : null;
+    const description = typeof obj?.description === 'string' && obj.description.trim() ? obj.description.trim() : null;
+    const image = typeof obj?.image === 'string' && obj.image.trim() ? obj.image.trim() : null;
+    return { name, description, image };
+  } catch {
+    return { name: null, description: null, image: null };
+  }
 }
 
 function pickString(obj: any, keys: string[]): string {
@@ -236,12 +253,21 @@ export function emitAgentsTurtle(
     // Emit core:AIAgent explicitly so queries don't rely on inference.
     lines.push(`${agentNodeIri} a core:AIAgent, ${agentType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
 
+    // Prefer UX fields from the identity descriptor JSON (registration JSON).
+    // Requirement: pick the first non-empty value from descriptor JSON (identity descriptor is the first/primary descriptor).
+    const registrationRaw = typeof item?.registration?.raw === 'string' && item.registration.raw.trim() ? item.registration.raw.trim() : '';
+    const registrationJsonText = registrationRaw;
+    const parsedFromDescriptorJson = registrationJsonText ? parseDescriptorFieldsFromJson(registrationJsonText) : { name: null, description: null, image: null };
+
     const name = (typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '') || metaAgentName;
-    if (name) lines.push(`  core:agentName "${escapeTurtleString(name)}" ;`);
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
     // Materialize numeric agentId for fast sorting/filtering (avoid runtime STR/REPLACE parsing).
     const agentIdNum = Number(agentId);
     if (Number.isFinite(agentIdNum) && agentIdNum > 0) lines.push(`  erc8004:agentId8004 ${Math.trunc(agentIdNum)} ;`);
+
+    // AgentDescriptor: normalize UX fields onto a descriptor node (Agent -> core:hasDescriptor -> core:AgentDescriptor)
+    const agentDescriptorIri = agentDescriptorIriFromAgentIri(agentNodeIri);
+    lines.push(`  core:hasDescriptor ${agentDescriptorIri} ;`);
 
     // Agent-scoped account relationships (distinct from identity-scoped accounts).
     // For AIAgent8004 these are copied from the identity accounts; for SmartAgent,
@@ -278,15 +304,30 @@ export function emitAgentsTurtle(
     // - We do NOT store agentURI/a2aEndpoint directly on core:AIAgent anymore (legacy).
     // - We store ERC-8004 registration JSON on the ERC-8004 identity descriptor (core:json).
     // - A2A endpoints are represented via core:A2AProtocolDescriptor + core:serviceUrl.
-    const registrationRaw = typeof item?.registration?.raw === 'string' && item.registration.raw.trim() ? item.registration.raw.trim() : '';
-    const registrationJsonText = registrationRaw;
-
     // Identity node + registration descriptor link (minimal, but standard-aligned)
     const identityIri = identity8004Iri(didIdentity);
     const identityIdentifierIri = identityIdentifier8004Iri(didIdentity);
     const descriptorIri = identity8004DescriptorIri(didIdentity);
     lines.push(`  core:hasIdentity ${identityIri} ;`);
     // terminate agent
+    lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
+    lines.push('');
+
+    // Emit AgentDescriptor node using standard vocab:
+    // - dcterms:title (name)
+    // - dcterms:description (description)
+    // - schema:image (image)
+    // Values sourced from the first identity descriptor JSON that provides them (registration JSON).
+    const agentDescTitle = parsedFromDescriptorJson.name ?? (name ? String(name).trim() : null);
+    const agentDescDescription = parsedFromDescriptorJson.description ?? null;
+    const agentDescImage = parsedFromDescriptorJson.image ?? null;
+    lines.push(`${agentDescriptorIri} a core:AgentDescriptor, core:Descriptor, prov:Entity ;`);
+    if (agentDescTitle) lines.push(`  dcterms:title "${escapeTurtleString(agentDescTitle)}" ;`);
+    if (agentDescDescription) lines.push(`  dcterms:description "${escapeTurtleString(agentDescDescription)}" ;`);
+    if (agentDescImage) {
+      const imgTok = turtleIriOrLiteral(agentDescImage);
+      if (imgTok) lines.push(`  schema:image ${imgTok} ;`);
+    }
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
 
@@ -343,11 +384,18 @@ export function emitAgentsTurtle(
     lines.push(
       `${descriptorIri} a erc8004:IdentityDescriptor8004, erc8004:AgentRegistration8004, core:AgentIdentityDescriptor, core:Descriptor, prov:Entity ;`,
     );
-    if (name) lines.push(`  core:descriptorName "${escapeTurtleString(name)}" ;`);
-    if (typeof item?.description === 'string' && item.description.trim()) lines.push(`  core:descriptorDescription "${escapeTurtleString(item.description.trim())}" ;`);
-    if (item?.image != null) {
-      const imgTok = turtleIriOrLiteral(String(item.image));
-      if (imgTok) lines.push(`  core:descriptorImage ${imgTok} ;`);
+    const parsed = registrationJsonText ? parseDescriptorFieldsFromJson(registrationJsonText) : { name: null, description: null, image: null };
+    const descTitle = parsed.name ?? name;
+    const descDescription =
+      parsed.description ??
+      (typeof item?.description === 'string' && item.description.trim() ? item.description.trim() : null);
+    const descImage = parsed.image ?? (item?.image != null ? String(item.image) : null);
+
+    if (descTitle) lines.push(`  dcterms:title "${escapeTurtleString(descTitle)}" ;`);
+    if (descDescription) lines.push(`  dcterms:description "${escapeTurtleString(descDescription)}" ;`);
+    if (descImage) {
+      const imgTok = turtleIriOrLiteral(descImage);
+      if (imgTok) lines.push(`  schema:image ${imgTok} ;`);
     }
     // AgentURI / registration JSON: ALWAYS store on identity descriptor.
     if (registrationJsonText) lines.push(`  core:json ${turtleJsonLiteral(registrationJsonText)} ;`);

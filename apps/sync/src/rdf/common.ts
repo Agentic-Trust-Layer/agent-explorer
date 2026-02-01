@@ -38,6 +38,8 @@ export function rdfPrefixes(): string {
     '@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .',
     '@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .',
     '@prefix prov: <http://www.w3.org/ns/prov#> .',
+    '@prefix dcterms: <http://purl.org/dc/terms/> .',
+    '@prefix schema: <http://schema.org/> .',
     '@prefix core: <https://agentictrust.io/ontology/core#> .',
     '@prefix eth: <https://agentictrust.io/ontology/eth#> .',
     '@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .',
@@ -60,6 +62,13 @@ export function agentIri(chainId: number, agentId: string): string {
 // not the ERC-8004 NFT agentId.
 export function agentIriFromAccountDid(didAccountValue: string): string {
   return `<https://www.agentictrust.io/id/agent/by-account-did/${iriEncodeSegment(didAccountValue)}>`;
+}
+
+export function agentDescriptorIriFromAgentIri(agentIriValue: string): string {
+  // agentIriValue is already a full IRI string wrapped in <> from our helpers
+  const v = String(agentIriValue || '').trim();
+  const inner = v.startsWith('<') && v.endsWith('>') ? v.slice(1, -1) : v;
+  return `<https://www.agentictrust.io/id/agent-descriptor/${iriEncodeSegment(inner)}>`;
 }
 
 // Descriptor keyed off what it describes

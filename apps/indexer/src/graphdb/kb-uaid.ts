@@ -18,7 +18,9 @@ export function chainContext(chainId: number): string {
 
 export function stripUaidPrefix(uaid: string): string {
   const s = String(uaid || '').trim();
-  return s.startsWith('uaid:') ? s.slice('uaid:'.length) : s;
+  // UAID is required to start with "uaid:" everywhere in KB codepaths.
+  if (!s.startsWith('uaid:')) throw new Error(`Invalid UAID: expected prefix "uaid:". Received "${s}".`);
+  return s.slice('uaid:'.length);
 }
 
 export function parseUaidToResolvedAgentRef(uaidInput: string): KbResolvedAgentRef {

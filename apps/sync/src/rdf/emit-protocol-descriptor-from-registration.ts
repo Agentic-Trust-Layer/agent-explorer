@@ -52,6 +52,21 @@ export function emitProtocolDescriptorFromRegistration(opts: {
     } catch {}
   }
 
+  // Best-effort: mirror UX fields from descriptor JSON onto explicit properties
+  const name = typeof (opts.endpointJson as any)?.name === 'string' ? String((opts.endpointJson as any).name).trim() : '';
+  if (name) {
+    desc.push(`  dcterms:title "${escapeTurtleString(name)}" ;`);
+    desc.push(`  rdfs:label "${escapeTurtleString(name)}" ;`);
+  }
+  const description =
+    typeof (opts.endpointJson as any)?.description === 'string' ? String((opts.endpointJson as any).description).trim() : '';
+  if (description) desc.push(`  dcterms:description "${escapeTurtleString(description)}" ;`);
+  const image = typeof (opts.endpointJson as any)?.image === 'string' ? String((opts.endpointJson as any).image).trim() : '';
+  if (image) {
+    const imgTok = turtleIriOrLiteral(image);
+    if (imgTok) desc.push(`  schema:image ${imgTok} ;`);
+  }
+
   const extra: string[] = [];
   for (const sk of opts.skills.oasf) {
     const skKey = sk.startsWith('https://agentictrust.io/ontology/oasf#skill/')

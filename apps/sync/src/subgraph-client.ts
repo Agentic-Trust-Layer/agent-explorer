@@ -175,6 +175,63 @@ export const AGENTS_QUERY_BY_ID_CURSOR = `query AgentsByIdCursor($first: Int!, $
   }
 }`;
 
+// NOTE: On some subgraphs, Agent.id is a numeric-looking string ID. In that case, `orderBy: id`
+// uses lexicographic ordering and breaks cursor pagination (e.g. "10000" < "9999").
+// mintedAt is a BigInt and supports numeric ordering + numeric comparisons.
+export const AGENTS_QUERY_BY_MINTEDAT_CURSOR = `query AgentsByMintedAtCursor($first: Int!, $lastMintedAt: BigInt!, $lastId: String!) {
+  agents(
+    first: $first,
+    where: { or: [ { mintedAt_gt: $lastMintedAt }, { mintedAt: $lastMintedAt, id_gt: $lastId } ] },
+    orderBy: mintedAt,
+    orderDirection: asc
+  ) {
+    id
+    mintedAt
+    agentURI
+    name
+    description
+    image
+    ensName
+    agentWallet
+    a2aEndpoint
+    chatEndpoint
+    registration {
+      id
+      agentURI
+      raw
+      type
+      name
+      description
+      image
+      supportedTrust
+      a2aEndpoint
+      chatEndpoint
+      ensName
+      updatedAt
+    }
+    owner { id }
+  }
+}`;
+
+export async function fetchAgentMintedAtById(
+  graphqlUrl: string,
+  agentId: string,
+  opts?: { maxRetries?: number },
+): Promise<string | null> {
+  const id = String(agentId || '').trim();
+  if (!id) return null;
+  const query = `query AgentMintedAtById($id: String!) {
+  agents(first: 1, where: { id: $id }) {
+    id
+    mintedAt
+  }
+}`;
+  const resp = await fetchJson(graphqlUrl, { query, variables: { id } }, opts?.maxRetries ?? 3);
+  const row = resp?.data?.agents?.[0];
+  const mintedAt = typeof row?.mintedAt === 'string' ? row.mintedAt.trim() : '';
+  return /^\d+$/.test(mintedAt) ? mintedAt : null;
+}
+
 // NFT on-chain metadata KV rows (AgentMetadata entity)
 // NOTE: some subgraphs expose this as agentMetadata_collection (not agentMetadatas).
 export const AGENT_METADATA_COLLECTION_QUERY = `query AgentMetadataCollection($first: Int!, $skip: Int!) {
@@ -298,6 +355,117 @@ export async function fetchAllFromSubgraphByIdCursor(
       console.warn(`[subgraph] Cursor did not advance (field=${field}, lastId=${lastId}); stopping to avoid infinite loop`);
       break;
     }
+    lastId = newLastId;
+
+    if (batchItems.length < pageSize) {
+      console.info(`[subgraph] Reached end (got ${batchItems.length} < ${pageSize})`);
+      break;
+    }
+  }
+
+  return allItems;
+}
+
+export async function fetchAllFromSubgraphByMintedAtCursor(
+  graphqlUrl: string,
+  query: string,
+  field: string,
+  opts?: {
+    optional?: boolean;
+    first?: number;
+    maxRetries?: number;
+    startAfterMintedAt?: string;
+    startAfterId?: string;
+    maxItems?: number;
+  },
+): Promise<any[]> {
+  const pageSize = opts?.first ?? 500;
+  const optional = opts?.optional ?? false;
+  const maxRetries = opts?.maxRetries ?? (optional ? 6 : 3);
+  const maxItems = opts?.maxItems ?? 250_000;
+  const allItems: any[] = [];
+
+  let lastMintedAt = typeof opts?.startAfterMintedAt === 'string' ? opts.startAfterMintedAt : '0';
+  let lastId = typeof opts?.startAfterId === 'string' ? opts.startAfterId : '0';
+  let batchNumber = 0;
+
+  const queryFields = await fetchQueryFieldNames(graphqlUrl);
+  if (queryFields.size > 0 && !queryFields.has(field) && !optional) {
+    const available = Array.from(queryFields).sort().slice(0, 80).join(', ');
+    throw new Error(
+      `Subgraph schema mismatch: Query has no field "${field}". ` +
+        `Available query fields (first 80): ${available}`,
+    );
+  }
+
+  while (true) {
+    if (allItems.length >= maxItems) {
+      console.warn(`[subgraph] Reached maxItems (${maxItems}); stopping cursor pagination after ${allItems.length} items`);
+      break;
+    }
+
+    batchNumber++;
+    if (batchNumber === 1) {
+      console.info(
+        `[subgraph] Fetching first cursor page (pageSize=${pageSize}, field=${field}, startAfterMintedAt=${lastMintedAt}, startAfterId=${lastId})`,
+      );
+    }
+
+    const variables = { first: pageSize, lastMintedAt, lastId };
+
+    let resp: any;
+    try {
+      resp = await fetchJson(graphqlUrl, { query, variables }, maxRetries);
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (optional) {
+        console.warn(`[subgraph] Skipping due to fetch error (optional=true): ${msg}`);
+        return allItems;
+      }
+      throw e;
+    }
+
+    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
+      const errJson = JSON.stringify(resp.errors, null, 2) ?? String(resp.errors);
+      if (optional) {
+        console.warn(`[subgraph] Skipping due to GraphQL errors (optional=true). itemsSoFar=${allItems.length} errors=${errJson}`);
+        return allItems;
+      }
+      throw new Error(`GraphQL query failed: ${errJson}`);
+    }
+
+    const batchItems = (((resp?.data?.[field] as any[]) || []) as any[]).filter(Boolean);
+    if (batchItems.length === 0) {
+      console.info(`[subgraph] No more rows found, stopping cursor pagination (field=${field})`);
+      break;
+    }
+
+    allItems.push(...batchItems);
+
+    const last = batchItems[batchItems.length - 1];
+    const newLastId = typeof last?.id === 'string' && last.id.trim() ? last.id.trim() : lastId;
+    const newLastMintedAt =
+      typeof last?.mintedAt === 'string'
+        ? last.mintedAt.trim()
+        : typeof last?.mintedAt === 'number'
+          ? String(last.mintedAt)
+          : '';
+
+    if (!/^\d+$/.test(newLastMintedAt)) {
+      console.warn(
+        `[subgraph] mintedAt cursor did not advance (field=${field}, lastMintedAt=${lastMintedAt}); stopping to avoid infinite loop`,
+      );
+      break;
+    }
+
+    if (newLastMintedAt === lastMintedAt && newLastId === lastId) {
+      console.warn(
+        `[subgraph] Cursor did not advance (field=${field}, lastMintedAt=${lastMintedAt}, lastId=${lastId}); stopping to avoid infinite loop`,
+      );
+      break;
+    }
+
+    lastMintedAt = newLastMintedAt;
     lastId = newLastId;
 
     if (batchItems.length < pageSize) {

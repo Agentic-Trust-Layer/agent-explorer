@@ -40,6 +40,54 @@ function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
 }
 
+export async function getMaxAgentId8004(chainId: number): Promise<number | null> {
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  const ctx = chainContext(chainId);
+  const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT (MAX(xsd:integer(?id)) AS ?maxId) WHERE {
+  GRAPH <${ctx}> {
+    ?agent a core:AIAgent ;
+           erc8004:agentId8004 ?id .
+  }
+}
+`;
+  const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const b = res?.results?.bindings?.[0];
+  const raw = typeof b?.maxId?.value === 'string' ? b.maxId.value.trim() : '';
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
+export async function getMaxDid8004AgentId(chainId: number): Promise<number | null> {
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  const ctx = chainContext(chainId);
+  const didPrefix = `did:8004:${chainId}:`;
+  const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT (MAX(?idInt) AS ?maxId) WHERE {
+  GRAPH <${ctx}> {
+    ?agent a core:AIAgent ;
+           core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  core:hasIdentifier ?ident8004 .
+    ?ident8004 core:protocolIdentifier ?did8004 .
+    FILTER(STRSTARTS(STR(?did8004), "${didPrefix}"))
+    BIND(xsd:integer(STRAFTER(STR(?did8004), "${didPrefix}")) AS ?idInt)
+  }
+}
+`;
+  const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const b = res?.results?.bindings?.[0];
+  const raw = typeof b?.maxId?.value === 'string' ? b.maxId.value.trim() : '';
+  const n = Number(raw);
+  return Number.isFinite(n) ? Math.trunc(n) : null;
+}
+
 export async function listAgentsWithA2AEndpoint(chainId: number, limit: number = 5000): Promise<AgentA2AEndpointRow[]> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
   const ctx = chainContext(chainId);

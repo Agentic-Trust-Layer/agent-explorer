@@ -4,7 +4,9 @@ import {
   fetchAllFromSubgraph,
   fetchAllFromSubgraphByIdCursor,
   AGENTS_QUERY,
-  AGENTS_QUERY_BY_ID_CURSOR,
+  AGENTS_QUERY_BY_MINTEDAT_CURSOR,
+  fetchAllFromSubgraphByMintedAtCursor,
+  fetchAgentMintedAtById,
   AGENT_METADATA_COLLECTION_QUERY,
   AGENT_METADATA_COLLECTION_QUERY_BY_ID_CURSOR,
   FEEDBACKS_QUERY,
@@ -23,7 +25,7 @@ import { emitValidationRequestsTurtle, emitValidationResponsesTurtle } from './r
 import { emitAssociationsTurtle, emitAssociationRevocationsTurtle } from './rdf/emit-associations.js';
 import { syncAgentCardsForChain } from './a2a/agent-card-sync.js';
 import { syncAccountTypesForChain } from './account-types/sync-account-types.js';
-import { listAgentIriByDidIdentity } from './graphdb/agents.js';
+import { getMaxAgentId8004, getMaxDid8004AgentId, listAgentIriByDidIdentity } from './graphdb/agents.js';
 
 type SyncCommand =
   | 'agents'
@@ -72,12 +74,69 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
   try {
     // Prefer cursor pagination (bypasses skip<=5000 limits).
     try {
-      const lastIdCheckpoint = resetContext ? null : await getCheckpoint(endpoint.chainId, 'agents-id');
-      const startAfterId =
-        lastIdCheckpoint && /^\d+$/.test(lastIdCheckpoint.trim()) ? lastIdCheckpoint.trim() : '0';
-      items = await fetchAllFromSubgraphByIdCursor(endpoint.url, AGENTS_QUERY_BY_ID_CURSOR, 'agents', {
+      const rawCursor = resetContext ? null : await getCheckpoint(endpoint.chainId, 'agents-mintedat-cursor');
+      let startAfterMintedAt = '0';
+      let startAfterId = '0';
+      if (rawCursor && rawCursor.trim()) {
+        try {
+          const parsed = JSON.parse(rawCursor);
+          const m = typeof parsed?.mintedAt === 'string' ? parsed.mintedAt.trim() : '';
+          const i = typeof parsed?.id === 'string' ? parsed.id.trim() : '';
+          if (/^\d+$/.test(m)) startAfterMintedAt = m;
+          if (i) startAfterId = i;
+        } catch {}
+      } else if (!resetContext) {
+        // Seed the new cursor key from what's already in GraphDB so we don't replay from 0.
+        const maxId = await getMaxAgentId8004(endpoint.chainId).catch(() => null);
+        if (maxId != null && maxId > 0) {
+          const seededId = String(maxId);
+          const seededMintedAt = await fetchAgentMintedAtById(endpoint.url, seededId).catch(() => null);
+          if (seededMintedAt) {
+            startAfterMintedAt = seededMintedAt;
+            startAfterId = seededId;
+            console.info('[sync] seeded agents-mintedat-cursor from GraphDB', {
+              chainId: endpoint.chainId,
+              startAfterMintedAt,
+              startAfterId,
+            });
+          } else {
+            console.warn('[sync] could not seed agents-mintedat-cursor (subgraph mintedAt missing for id)', {
+              chainId: endpoint.chainId,
+              seededId,
+            });
+          }
+        }
+      }
+
+      // If we have a cursor but it's clearly behind what's already present in GraphDB (common after switching checkpoint keys),
+      // jump forward to the GraphDB max derived from did:8004:<chainId>:<agentId>.
+      if (!resetContext) {
+        const maxDidId = await getMaxDid8004AgentId(endpoint.chainId).catch(() => null);
+        const curIdNum = /^\d+$/.test(startAfterId) ? Number(startAfterId) : 0;
+        if (maxDidId != null && maxDidId > 0 && Number.isFinite(curIdNum) && maxDidId > curIdNum + 100) {
+          const seededId = String(maxDidId);
+          const seededMintedAt = await fetchAgentMintedAtById(endpoint.url, seededId).catch(() => null);
+          if (seededMintedAt) {
+            startAfterMintedAt = seededMintedAt;
+            startAfterId = seededId;
+            console.info('[sync] bumped agents-mintedat-cursor to GraphDB max did:8004 agent id', {
+              chainId: endpoint.chainId,
+              startAfterMintedAt,
+              startAfterId,
+            });
+          } else {
+            console.warn('[sync] could not bump agents-mintedat-cursor (subgraph mintedAt missing for id)', {
+              chainId: endpoint.chainId,
+              seededId,
+            });
+          }
+        }
+      }
+
+      items = await fetchAllFromSubgraphByMintedAtCursor(endpoint.url, AGENTS_QUERY_BY_MINTEDAT_CURSOR, 'agents', {
         optional: false,
         first: Math.min(500, maxAgentsPerRun),
+        startAfterMintedAt,
         startAfterId,
         maxItems: maxAgentsPerRun,
       });
@@ -199,20 +258,21 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
     if (cursorModeUsed && items.length) {
       const last = items[items.length - 1];
       const lastId = typeof last?.id === 'string' ? last.id.trim() : '';
-      if (lastId) {
-        console.info('[sync] updating agents-id checkpoint', { chainId: endpoint.chainId, lastId });
+      const lastMintedAt = typeof last?.mintedAt === 'string' ? last.mintedAt.trim() : '';
+      if (lastId && /^\d+$/.test(lastMintedAt)) {
+        console.info('[sync] updating agents-mintedat-cursor checkpoint', { chainId: endpoint.chainId, lastMintedAt, lastId });
         try {
-          await setCheckpoint(endpoint.chainId, 'agents-id', lastId);
-          console.info('[sync] agents-id checkpoint updated', { chainId: endpoint.chainId, lastId });
+          await setCheckpoint(endpoint.chainId, 'agents-mintedat-cursor', JSON.stringify({ mintedAt: lastMintedAt, id: lastId }));
+          console.info('[sync] agents-mintedat-cursor checkpoint updated', { chainId: endpoint.chainId, lastMintedAt, lastId });
         } catch (e: any) {
           console.warn('[sync] checkpoint update failed (non-fatal)', {
             chainId: endpoint.chainId,
-            section: 'agents-id',
+            section: 'agents-mintedat-cursor',
             error: String(e?.message || e || ''),
           });
         }
       } else {
-        console.warn('[sync] no lastId for agents-id checkpoint', { chainId: endpoint.chainId, lastItem: last });
+        console.warn('[sync] no usable cursor for agents-mintedat-cursor checkpoint', { chainId: endpoint.chainId, lastItem: last });
       }
     }
     console.info('[sync] agents sync complete', {

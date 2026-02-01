@@ -16,6 +16,7 @@ function rdfPrefixes(): string {
     '@prefix prov: <http://www.w3.org/ns/prov#> .',
     '@prefix p-plan: <http://purl.org/net/p-plan#> .',
     '@prefix dcterms: <http://purl.org/dc/terms/> .',
+    '@prefix schema: <http://schema.org/> .',
     '@prefix core: <https://agentictrust.io/ontology/core#> .',
     '@prefix eth: <https://agentictrust.io/ontology/eth#> .',
     '@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .',
@@ -51,6 +52,7 @@ function rdfPrefixesForAgent(agent?: ExportOneAgent): string {
     '@prefix prov: <http://www.w3.org/ns/prov#> .',
     '@prefix p-plan: <http://purl.org/net/p-plan#> .',
     '@prefix dcterms: <http://purl.org/dc/terms/> .',
+    '@prefix schema: <http://schema.org/> .',
     '@prefix core: <https://agentictrust.io/ontology/core#> .',
     '@prefix eth: <https://agentictrust.io/ontology/eth#> .',
     '@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .',
@@ -545,7 +547,6 @@ function renderAgentSection(
   lines.push(`${aIri} a core:AIAgent, prov:SoftwareAgent ;`);
   lines.push(`  a eth:Account ;`);
   lines.push(`  core:agentId "${escapeTurtleString(String(agentId))}" ;`);
-  if (row?.agentName) lines.push(`  core:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
 
   // AgentRegistration8004 (ERC-8004 registration descriptor extracted from rawJson)
   const adIri = agentDescriptorIri(chainId, agentId, didAccountValue);
@@ -557,7 +558,7 @@ function renderAgentSection(
     // Do NOT link registration descriptor directly off the Agent.
     // Preferred path: Agent -> hasIdentity -> (AgentIdentity8004) -> hasDescriptor -> AgentRegistration8004.
   } else {
-    lines.push(`  core:hasAgentDescriptor ${adIri} ;`);
+    lines.push(`  core:hasDescriptor ${adIri} ;`);
   }
   
   // Identity8004 and IdentityIdentifier8004 for didIdentity
@@ -794,26 +795,26 @@ function renderAgentSection(
   if (isERC8004 && tokenUriData) {
     // Name, Description, Image
     if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
-      adLines.push(`  core:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+      adLines.push(`  dcterms:title "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
       adLines.push(`  rdfs:label "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
     } else if (row?.agentName) {
-      adLines.push(`  core:descriptorName "${escapeTurtleString(String(row.agentName))}" ;`);
+      adLines.push(`  dcterms:title "${escapeTurtleString(String(row.agentName))}" ;`);
       adLines.push(`  rdfs:label "${escapeTurtleString(String(row.agentName))}" ;`);
     }
     
     if (typeof tokenUriData?.description === 'string' && tokenUriData.description.trim()) {
-      adLines.push(`  core:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
+      adLines.push(`  dcterms:description "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
     }
     
     if (tokenUriData?.image != null) {
       const imgUrl = String(tokenUriData.image).trim();
       if (imgUrl) {
         const imgIri = turtleIriOrLiteral(imgUrl);
-        if (imgIri) adLines.push(`  core:descriptorImage ${imgIri} ;`);
+        if (imgIri) adLines.push(`  schema:image ${imgIri} ;`);
       }
     } else if (row?.image) {
       const imgIri = turtleIriOrLiteral(String(row.image));
-      if (imgIri) adLines.push(`  core:descriptorImage ${imgIri} ;`);
+      if (imgIri) adLines.push(`  schema:image ${imgIri} ;`);
     }
     
     // Endpoints from rawJson
@@ -1014,16 +1015,16 @@ function renderAgentSection(
       
       // Extract Name, Description, Image for IdentityDescriptor8004
       if (typeof tokenUriData?.name === 'string' && tokenUriData.name.trim()) {
-        descriptorLines.push(`  core:descriptorName "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
+        descriptorLines.push(`  dcterms:title "${escapeTurtleString(tokenUriData.name.trim())}" ;`);
       }
       if (typeof tokenUriData?.description === 'string' && tokenUriData.description.trim()) {
-        descriptorLines.push(`  core:descriptorDescription "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
+        descriptorLines.push(`  dcterms:description "${escapeTurtleString(tokenUriData.description.trim())}" ;`);
       }
       if (tokenUriData?.image != null) {
         const imgUrl = String(tokenUriData.image).trim();
         if (imgUrl) {
           const imgIri = turtleIriOrLiteral(imgUrl);
-          if (imgIri) descriptorLines.push(`  core:descriptorImage ${imgIri} ;`);
+          if (imgIri) descriptorLines.push(`  schema:image ${imgIri} ;`);
         }
       }
     }
@@ -1074,16 +1075,16 @@ function renderAgentSection(
     
     // Descriptor fields (name, description, image) - ProtocolDescriptor inherits from Descriptor
     if (typeof agentCard?.name === 'string' && agentCard.name.trim()) {
-      protocolDescriptorLines.push(`  core:descriptorName "${escapeTurtleString(agentCard.name.trim())}" ;`);
+      protocolDescriptorLines.push(`  dcterms:title "${escapeTurtleString(agentCard.name.trim())}" ;`);
       protocolDescriptorLines.push(`  rdfs:label "${escapeTurtleString(agentCard.name.trim())}" ;`);
     }
     if (typeof agentCard?.description === 'string' && agentCard.description.trim())
-      protocolDescriptorLines.push(`  core:descriptorDescription "${escapeTurtleString(agentCard.description.trim())}" ;`);
+      protocolDescriptorLines.push(`  dcterms:description "${escapeTurtleString(agentCard.description.trim())}" ;`);
     if (agentCard?.image != null) {
       const imgUrl = String(agentCard.image).trim();
       if (imgUrl) {
         const imgIri = turtleIriOrLiteral(imgUrl);
-        if (imgIri) protocolDescriptorLines.push(`  core:descriptorImage ${imgIri} ;`);
+        if (imgIri) protocolDescriptorLines.push(`  schema:image ${imgIri} ;`);
       }
     }
     
@@ -1253,7 +1254,7 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   lines.push(`${aIri} a core:AIAgent, prov:SoftwareAgent ;`);
   lines.push(`  a eth:Account ;`);
   lines.push(`  core:agentId "${escapeTurtleString(String(agentId))}" ;`);
-  if (row?.agentName) lines.push(`  core:agentName "${escapeTurtleString(String(row.agentName))}" ;`);
+  // Agent name is represented via AgentDescriptor (dcterms:title), not as a direct Agent property.
   
   // Identity8004 and IdentityIdentifier8004 for didIdentity
   if (row?.didIdentity) {
@@ -1603,7 +1604,7 @@ async function exportAgentsRdfInternal(
     const lines: string[] = [];
     lines.push(`${ai} a core:AIAgent, prov:SoftwareAgent, eth:Account ;`);
     lines.push(`  core:agentId "${escapeTurtleString(String(agentId))}" ;`);
-    if (meta?.agentName) lines.push(`  core:agentName "${escapeTurtleString(String(meta.agentName))}" ;`);
+    // Agent name is represented via AgentDescriptor (dcterms:title), not as a direct Agent property.
     lines.push(`  .\n`);
     chunks.push(lines.join('\n'));
   };

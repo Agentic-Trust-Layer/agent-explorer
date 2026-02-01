@@ -13,6 +13,7 @@ function isRetryableNetworkError(err: unknown): boolean {
   const anyErr = err as any;
   const name = String(anyErr?.name || '');
   const code = String(anyErr?.code || '');
+  const causeCode = String(anyErr?.cause?.code || '');
   const message = String(anyErr?.message || '');
   const lower = message.toLowerCase();
   if (name === 'AbortError') return true;
@@ -21,10 +22,15 @@ function isRetryableNetworkError(err: unknown): boolean {
   if (code === 'EAI_AGAIN') return true;
   if (code === 'ENOTFOUND') return true;
   if (code === 'ECONNREFUSED') return true;
+  if (causeCode === 'UND_ERR_SOCKET') return true;
+  if (causeCode === 'ECONNRESET') return true;
+  if (causeCode === 'ETIMEDOUT') return true;
   if (lower.includes('fetch failed')) return true;
   if (lower.includes('connect timeout')) return true;
   if (lower.includes('socket hang up')) return true;
   if (lower.includes('econnreset')) return true;
+  if (lower.includes('und_err_socket')) return true;
+  if (lower.includes('other side closed')) return true;
   return false;
 }
 
@@ -230,6 +236,9 @@ export async function uploadTurtleToRepository(
     method: 'POST',
     auth,
     timeoutMs: 10 * 60_000,
+    // Uploads are the most failure-prone (large bodies, CF proxy). Always retry a few times even
+    // if the environment retry count is set to 0.
+    retries: 6,
     headers: {
       'Content-Type': 'text/turtle',
       'Content-Length': String(bytes),

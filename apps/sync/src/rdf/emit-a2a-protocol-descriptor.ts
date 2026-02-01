@@ -42,11 +42,15 @@ export function emitA2AProtocolDescriptorTurtle(opts: {
   }
 
   if (typeof opts.agentCard?.name === 'string' && opts.agentCard.name.trim()) {
-    desc.push(`  core:descriptorName "${escapeTurtleString(opts.agentCard.name.trim())}" ;`);
+    desc.push(`  dcterms:title "${escapeTurtleString(opts.agentCard.name.trim())}" ;`);
     desc.push(`  rdfs:label "${escapeTurtleString(opts.agentCard.name.trim())}" ;`);
   }
   if (typeof opts.agentCard?.description === 'string' && opts.agentCard.description.trim()) {
-    desc.push(`  core:descriptorDescription "${escapeTurtleString(opts.agentCard.description.trim())}" ;`);
+    desc.push(`  dcterms:description "${escapeTurtleString(opts.agentCard.description.trim())}" ;`);
+  }
+  if (typeof opts.agentCard?.image === 'string' && opts.agentCard.image.trim()) {
+    const imgTok = turtleIriOrLiteral(opts.agentCard.image.trim());
+    if (imgTok) desc.push(`  schema:image ${imgTok} ;`);
   }
 
   try {

@@ -6,6 +6,11 @@ export type KbAgentRow = {
   iri: string;
   uaid: string | null;
   agentName: string | null;
+  agentImage: string | null;
+  agentDescriptorIri: string | null;
+  agentDescriptorName: string | null;
+  agentDescriptorDescription: string | null;
+  agentDescriptorImage: string | null;
   agentTypes: string[];
   feedbackAssertionCount8004: number | null;
   validationAssertionCount8004: number | null;
@@ -16,6 +21,9 @@ export type KbAgentRow = {
   agentId8004: number | null;
   identity8004Iri: string | null;
   identity8004DescriptorIri: string | null;
+  identity8004DescriptorName: string | null;
+  identity8004DescriptorDescription: string | null;
+  identity8004DescriptorImage: string | null;
   identity8004RegistrationJson: string | null;
   identity8004OnchainMetadataJson: string | null;
   identity8004RegisteredBy: string | null;
@@ -35,12 +43,18 @@ export type KbAgentRow = {
 
   a2aProtocolDescriptorIri: string | null;
   a2aServiceUrl: string | null;
+  a2aDescriptorName: string | null;
+  a2aDescriptorDescription: string | null;
+  a2aDescriptorImage: string | null;
   a2aProtocolVersion: string | null;
   a2aJson: string | null;
   a2aSkills: string[];
 
   mcpProtocolDescriptorIri: string | null;
   mcpServiceUrl: string | null;
+  mcpDescriptorName: string | null;
+  mcpDescriptorDescription: string | null;
+  mcpDescriptorImage: string | null;
   mcpProtocolVersion: string | null;
   mcpJson: string | null;
   mcpSkills: string[];
@@ -126,7 +140,7 @@ function pickAgentTypesFromRow(typeValues: string[]): string[] {
 export async function kbAgentsQuery(args: {
   where?: {
     chainId?: number | null;
-    agentId8004?: number | null;
+    agentIdentifierMatch?: string | null;
     did8004?: string | null;
     uaid?: string | null;
     uaid_in?: string[] | null;
@@ -152,11 +166,12 @@ export async function kbAgentsQuery(args: {
   const ctxIri = chainId ? chainContext(chainId) : null;
   const graphs = ctxIri ? [`<${ctxIri}>`] : null;
 
-  // Filtering: if agentId8004 is provided without chainId, require did8004 instead.
+  // Filtering: agentIdentifierMatch does a suffix match on identifiers (did8004, didEns, uaid)
   let did8004Filter: string | null = typeof where.did8004 === 'string' && where.did8004.trim() ? where.did8004.trim() : null;
-  if (!did8004Filter && chainId && where.agentId8004 != null && Number.isFinite(where.agentId8004)) {
-    did8004Filter = did8004FromParts(chainId, clampInt(where.agentId8004, 0, 10_000_000_000, 0));
-  }
+  const agentIdentifierMatch: string | null =
+    typeof where.agentIdentifierMatch === 'string' && where.agentIdentifierMatch.trim()
+      ? where.agentIdentifierMatch.trim()
+      : null;
 
   const agentNameContains =
     typeof where.agentName_contains === 'string' && where.agentName_contains.trim() ? where.agentName_contains.trim() : null;
@@ -189,6 +204,13 @@ export async function kbAgentsQuery(args: {
   const filters: string[] = [];
   if (did8004Filter) {
     filters.push(`?did8004 = "${did8004Filter}"`);
+  }
+  // agentIdentifierMatch: suffix match on identifiers (did8004, didEns, uaid)
+  if (agentIdentifierMatch) {
+    const escaped = agentIdentifierMatch.replace(/"/g, '\\"').replace(/\\/g, '\\\\');
+    filters.push(
+      `((BOUND(?did8004) && STRENDS(STR(?did8004), ":${escaped}")) || (BOUND(?didEns) && STRENDS(STR(?didEns), ":${escaped}")) || (BOUND(?uaid) && STRENDS(STR(?uaid), ":${escaped}")))`,
+    );
   }
   if (uaidFilter) {
     const escaped = uaidFilter.replace(/"/g, '\\"');
@@ -257,13 +279,18 @@ export async function kbAgentsQuery(args: {
     filters.push(`?vrCntFilter >= ${minValidation}`);
   }
 
-  const needsUaid = Boolean(uaidFilter || (uaidIn && uaidIn.length) || orderBy === 'uaid');
+  const needsUaid = Boolean(uaidFilter || (uaidIn && uaidIn.length) || orderBy === 'uaid' || agentIdentifierMatch);
   const needsAgentName = Boolean(agentNameContains || orderBy === 'agentName');
-  const needsDid8004 = Boolean(did8004Filter);
+  const needsDid8004 = Boolean(did8004Filter || agentIdentifierMatch);
 
   const pageOptional: string[] = [];
   if (needsUaid) pageOptional.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
-  if (needsAgentName) pageOptional.push('    OPTIONAL { ?agent core:agentName ?agentName . }');
+  if (needsAgentName) {
+    pageOptional.push('    OPTIONAL {');
+    pageOptional.push('      ?agent core:hasDescriptor ?agentDesc .');
+    pageOptional.push('      OPTIONAL { ?agentDesc dcterms:title ?agentName . }');
+    pageOptional.push('    }');
+  }
 
   // Fast path: when ordering by agentId8004, use the materialized numeric literal on the agent node
   // (avoids joining identity + expensive STR/REPLACE parsing).
@@ -272,12 +299,22 @@ export async function kbAgentsQuery(args: {
     ? ['    ?agent erc8004:agentId8004 ?agentId8004 .']
     : ['    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }'];
 
+  const needsDidEns = Boolean(agentIdentifierMatch);
   const pageDid8004Optional = needsDid8004
     ? [
         '    OPTIONAL {',
         '      ?agent core:hasIdentity ?identity8004 .',
         '      ?identity8004 a erc8004:AgentIdentity8004 ; core:hasIdentifier ?ident8004 .',
         '      ?ident8004 core:protocolIdentifier ?did8004 .',
+        '    }',
+      ]
+    : [];
+  const pageDidEnsOptional = needsDidEns
+    ? [
+        '    OPTIONAL {',
+        '      ?agent core:hasIdentity ?identityEns .',
+        '      ?identityEns a ens:EnsIdentity ; core:hasIdentifier ?ensIdent .',
+        '      ?ensIdent core:protocolIdentifier ?didEns .',
         '    }',
       ]
     : [];
@@ -296,6 +333,8 @@ export async function kbAgentsQuery(args: {
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX dcterms: <http://purl.org/dc/terms/>',
+    ...(needsDidEns ? ['PREFIX ens: <https://agentictrust.io/ontology/ens#>'] : []),
     '',
     // DISTINCT is required when anchoring on assertion edges to avoid LIMIT being applied to fanout rows.
     pageSelect,
@@ -307,6 +346,7 @@ export async function kbAgentsQuery(args: {
     ...pageOptional,
     ...pageAgentIdPattern,
     ...pageDid8004Optional,
+    ...pageDidEnsOptional,
     ...pagePreFilter,
     filters.length ? `    FILTER(${filters.join(' && ')})` : '',
     `  ${pageGraphClose}`,
@@ -354,11 +394,18 @@ export async function kbAgentsQuery(args: {
           'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
           'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
           'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
+          'PREFIX dcterms: <http://purl.org/dc/terms/>',
+          'PREFIX schema: <http://schema.org/>',
           '',
           'SELECT',
           '  ?agent',
           '  (SAMPLE(?uaid) AS ?uaid)',
           '  (SAMPLE(?agentName) AS ?agentName)',
+          '  (SAMPLE(?agentImage) AS ?agentImage)',
+          '  (SAMPLE(?agentDesc) AS ?agentDesc)',
+          '  (SAMPLE(?agentDescTitle) AS ?agentDescTitle)',
+          '  (SAMPLE(?agentDescDescription) AS ?agentDescDescription)',
+          '  (SAMPLE(?agentDescImage) AS ?agentDescImage)',
           '  (SAMPLE(?feedbackAssertionCount8004) AS ?feedbackAssertionCount8004)',
           '  (SAMPLE(?validationAssertionCount8004) AS ?validationAssertionCount8004)',
           '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
@@ -378,17 +425,26 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
           '  (SAMPLE(?agentAccount) AS ?agentAccount)',
           '  (SAMPLE(?identity8004Descriptor) AS ?identity8004Descriptor)',
+          '  (SAMPLE(?identity8004DescriptorName) AS ?identity8004DescriptorName)',
+          '  (SAMPLE(?identity8004DescriptorDescription) AS ?identity8004DescriptorDescription)',
+          '  (SAMPLE(?identity8004DescriptorImage) AS ?identity8004DescriptorImage)',
           '  (SAMPLE(?registrationJson) AS ?registrationJson)',
           '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
           '  (SAMPLE(?registeredBy) AS ?registeredBy)',
           '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
           '  (SAMPLE(?pdA2a) AS ?pdA2a)',
           '  (SAMPLE(?a2aServiceUrl) AS ?a2aServiceUrl)',
+          '  (SAMPLE(?a2aDescriptorName) AS ?a2aDescriptorName)',
+          '  (SAMPLE(?a2aDescriptorDescription) AS ?a2aDescriptorDescription)',
+          '  (SAMPLE(?a2aDescriptorImage) AS ?a2aDescriptorImage)',
           '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
           '  (SAMPLE(?a2aJson) AS ?a2aJson)',
           '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
           '  (SAMPLE(?pdMcp) AS ?pdMcp)',
           '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
+          '  (SAMPLE(?mcpDescriptorName) AS ?mcpDescriptorName)',
+          '  (SAMPLE(?mcpDescriptorDescription) AS ?mcpDescriptorDescription)',
+          '  (SAMPLE(?mcpDescriptorImage) AS ?mcpDescriptorImage)',
           '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
           '  (SAMPLE(?mcpJson) AS ?mcpJson)',
           '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
@@ -398,7 +454,14 @@ export async function kbAgentsQuery(args: {
           ctxIri ? `  GRAPH <${ctxIri}> {` : '  GRAPH ?g {',
           '    ?agent a core:AIAgent .',
           '    OPTIONAL { ?agent core:uaid ?uaid . }',
-          '    OPTIONAL { ?agent core:agentName ?agentName . }',
+          '    OPTIONAL {',
+          '      ?agent core:hasDescriptor ?agentDesc .',
+          '      OPTIONAL { ?agentDesc dcterms:title ?agentDescTitle . }',
+          '      OPTIONAL { ?agentDesc dcterms:description ?agentDescDescription . }',
+          '      OPTIONAL { ?agentDesc schema:image ?agentDescImage . }',
+          '    }',
+          '    BIND(?agentDescTitle AS ?agentName)',
+          '    BIND(?agentDescImage AS ?agentImage)',
           '    OPTIONAL { ?agent a ?agentType . }',
             '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
             '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
@@ -420,6 +483,9 @@ export async function kbAgentsQuery(args: {
           '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
           '      BIND(?desc8004 AS ?identity8004Descriptor)',
           '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
+          '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
+          '      OPTIONAL { ?desc8004 dcterms:description ?identity8004DescriptorDescription . }',
+          '      OPTIONAL { ?desc8004 schema:image ?identity8004DescriptorImage . }',
           '      OPTIONAL { ?desc8004 erc8004:onchainMetadataJson ?onchainMetadataJson . }',
           '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
           '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
@@ -427,6 +493,9 @@ export async function kbAgentsQuery(args: {
           '        ?desc8004 core:assembledFromMetadata ?pdA2a .',
           '        ?pdA2a a core:A2AProtocolDescriptor ;',
           '               core:serviceUrl ?a2aServiceUrl .',
+          '        OPTIONAL { ?pdA2a dcterms:title ?a2aDescriptorName . }',
+          '        OPTIONAL { ?pdA2a dcterms:description ?a2aDescriptorDescription . }',
+          '        OPTIONAL { ?pdA2a schema:image ?a2aDescriptorImage . }',
           '        OPTIONAL { ?pdA2a core:protocolVersion ?a2aProtocolVersion . }',
           '        OPTIONAL { ?pdA2a core:json ?a2aJson . }',
           '        OPTIONAL { ?pdA2a core:hasSkill ?a2aSkill . }',
@@ -435,6 +504,9 @@ export async function kbAgentsQuery(args: {
           '        ?desc8004 core:assembledFromMetadata ?pdMcp .',
           '        ?pdMcp a core:MCPProtocolDescriptor ;',
           '              core:serviceUrl ?mcpServiceUrl .',
+          '        OPTIONAL { ?pdMcp dcterms:title ?mcpDescriptorName . }',
+          '        OPTIONAL { ?pdMcp dcterms:description ?mcpDescriptorDescription . }',
+          '        OPTIONAL { ?pdMcp schema:image ?mcpDescriptorImage . }',
           '        OPTIONAL { ?pdMcp core:protocolVersion ?mcpProtocolVersion . }',
           '        OPTIONAL { ?pdMcp core:json ?mcpJson . }',
           '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill . }',
@@ -503,6 +575,11 @@ export async function kbAgentsQuery(args: {
       iri: asString(b?.agent) ?? '',
       uaid: asString(b?.uaid),
       agentName: asString(b?.agentName),
+      agentImage: asString(b?.agentImage),
+      agentDescriptorIri: asString(b?.agentDesc),
+      agentDescriptorName: asString(b?.agentDescTitle),
+      agentDescriptorDescription: asString(b?.agentDescDescription),
+      agentDescriptorImage: asString(b?.agentDescImage),
       agentTypes: pickAgentTypesFromRow(typeIris),
       feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
       validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
@@ -513,6 +590,9 @@ export async function kbAgentsQuery(args: {
       did8004: asString(b?.did8004),
       agentId8004: asNumber(b?.agentId8004),
       identity8004DescriptorIri: asString(b?.identity8004Descriptor),
+      identity8004DescriptorName: asString(b?.identity8004DescriptorName),
+      identity8004DescriptorDescription: asString(b?.identity8004DescriptorDescription),
+      identity8004DescriptorImage: asString(b?.identity8004DescriptorImage),
       identity8004RegistrationJson: asString(b?.registrationJson),
       identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
       identity8004RegisteredBy: asString(b?.registeredBy),
@@ -532,12 +612,18 @@ export async function kbAgentsQuery(args: {
 
       a2aProtocolDescriptorIri: asString(b?.pdA2a),
       a2aServiceUrl: asString(b?.a2aServiceUrl),
+      a2aDescriptorName: asString(b?.a2aDescriptorName),
+      a2aDescriptorDescription: asString(b?.a2aDescriptorDescription),
+      a2aDescriptorImage: asString(b?.a2aDescriptorImage),
       a2aProtocolVersion: asString(b?.a2aProtocolVersion),
       a2aJson: asString(b?.a2aJson),
       a2aSkills: splitConcat(asString(b?.a2aSkills)),
 
       mcpProtocolDescriptorIri: asString(b?.pdMcp),
       mcpServiceUrl: asString(b?.mcpServiceUrl),
+      mcpDescriptorName: asString(b?.mcpDescriptorName),
+      mcpDescriptorDescription: asString(b?.mcpDescriptorDescription),
+      mcpDescriptorImage: asString(b?.mcpDescriptorImage),
       mcpProtocolVersion: asString(b?.mcpProtocolVersion),
       mcpJson: asString(b?.mcpJson),
       mcpSkills: splitConcat(asString(b?.mcpSkills)),
@@ -592,6 +678,8 @@ export async function kbOwnedAgentsQuery(args: {
     'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
     'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
+    'PREFIX dcterms: <http://purl.org/dc/terms/>',
+    'PREFIX schema: <http://schema.org/>',
     '',
     'SELECT',
     '  ?agent',
@@ -616,17 +704,26 @@ export async function kbOwnedAgentsQuery(args: {
     '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
     '  (SAMPLE(?agentAccount) AS ?agentAccount)',
     '  (SAMPLE(?identity8004Descriptor) AS ?identity8004Descriptor)',
+    '  (SAMPLE(?identity8004DescriptorName) AS ?identity8004DescriptorName)',
+    '  (SAMPLE(?identity8004DescriptorDescription) AS ?identity8004DescriptorDescription)',
+    '  (SAMPLE(?identity8004DescriptorImage) AS ?identity8004DescriptorImage)',
     '  (SAMPLE(?registrationJson) AS ?registrationJson)',
     '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
     '  (SAMPLE(?registeredBy) AS ?registeredBy)',
     '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
     '  (SAMPLE(?pdA2a) AS ?pdA2a)',
     '  (SAMPLE(?a2aServiceUrl) AS ?a2aServiceUrl)',
+    '  (SAMPLE(?a2aDescriptorName) AS ?a2aDescriptorName)',
+    '  (SAMPLE(?a2aDescriptorDescription) AS ?a2aDescriptorDescription)',
+    '  (SAMPLE(?a2aDescriptorImage) AS ?a2aDescriptorImage)',
     '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
     '  (SAMPLE(?a2aJson) AS ?a2aJson)',
     '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
     '  (SAMPLE(?pdMcp) AS ?pdMcp)',
     '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
+    '  (SAMPLE(?mcpDescriptorName) AS ?mcpDescriptorName)',
+    '  (SAMPLE(?mcpDescriptorDescription) AS ?mcpDescriptorDescription)',
+    '  (SAMPLE(?mcpDescriptorImage) AS ?mcpDescriptorImage)',
     '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
     '  (SAMPLE(?mcpJson) AS ?mcpJson)',
     '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
@@ -635,7 +732,10 @@ export async function kbOwnedAgentsQuery(args: {
     `  ${graphClause}`,
     '    ?agent a core:AIAgent .',
     '    OPTIONAL { ?agent core:uaid ?uaid . }',
-    '    OPTIONAL { ?agent core:agentName ?agentName . }',
+    '    OPTIONAL {',
+    '      ?agent core:hasDescriptor ?agentDesc .',
+    '      OPTIONAL { ?agentDesc dcterms:title ?agentName . }',
+    '    }',
     '    OPTIONAL { ?agent a ?agentType . }',
     '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
     '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
@@ -658,6 +758,9 @@ export async function kbOwnedAgentsQuery(args: {
     '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
     '      BIND(?desc8004 AS ?identity8004Descriptor)',
     '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
+    '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
+    '      OPTIONAL { ?desc8004 dcterms:description ?identity8004DescriptorDescription . }',
+    '      OPTIONAL { ?desc8004 schema:image ?identity8004DescriptorImage . }',
     '      OPTIONAL { ?desc8004 erc8004:onchainMetadataJson ?onchainMetadataJson . }',
     '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
     '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
@@ -665,6 +768,9 @@ export async function kbOwnedAgentsQuery(args: {
     '        ?desc8004 core:assembledFromMetadata ?pdA2a .',
     '        ?pdA2a a core:A2AProtocolDescriptor ;',
     '               core:serviceUrl ?a2aServiceUrl .',
+    '        OPTIONAL { ?pdA2a dcterms:title ?a2aDescriptorName . }',
+    '        OPTIONAL { ?pdA2a dcterms:description ?a2aDescriptorDescription . }',
+    '        OPTIONAL { ?pdA2a schema:image ?a2aDescriptorImage . }',
     '        OPTIONAL { ?pdA2a core:protocolVersion ?a2aProtocolVersion . }',
     '        OPTIONAL { ?pdA2a core:json ?a2aJson . }',
     '        OPTIONAL { ?pdA2a core:hasSkill ?a2aSkill . }',
@@ -673,6 +779,9 @@ export async function kbOwnedAgentsQuery(args: {
     '        ?desc8004 core:assembledFromMetadata ?pdMcp .',
     '        ?pdMcp a core:MCPProtocolDescriptor ;',
     '              core:serviceUrl ?mcpServiceUrl .',
+    '        OPTIONAL { ?pdMcp dcterms:title ?mcpDescriptorName . }',
+    '        OPTIONAL { ?pdMcp dcterms:description ?mcpDescriptorDescription . }',
+    '        OPTIONAL { ?pdMcp schema:image ?mcpDescriptorImage . }',
     '        OPTIONAL { ?pdMcp core:protocolVersion ?mcpProtocolVersion . }',
     '        OPTIONAL { ?pdMcp core:json ?mcpJson . }',
     '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill . }',
@@ -714,6 +823,11 @@ export async function kbOwnedAgentsQuery(args: {
     iri: asString(b?.agent) ?? '',
     uaid: asString(b?.uaid),
     agentName: asString(b?.agentName),
+    agentImage: null, // Not fetched in this query
+    agentDescriptorIri: null, // Not fetched in this query
+    agentDescriptorName: null, // Not fetched in this query
+    agentDescriptorDescription: null, // Not fetched in this query
+    agentDescriptorImage: null, // Not fetched in this query
     feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
     validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
     createdAtBlock: asNumber(b?.createdAtBlock),
@@ -736,6 +850,9 @@ export async function kbOwnedAgentsQuery(args: {
     agentAccountIri: asString(b?.agentAccount),
 
     identity8004DescriptorIri: asString(b?.identity8004Descriptor),
+    identity8004DescriptorName: asString(b?.identity8004DescriptorName),
+    identity8004DescriptorDescription: asString(b?.identity8004DescriptorDescription),
+    identity8004DescriptorImage: asString(b?.identity8004DescriptorImage),
     identity8004RegistrationJson: asString(b?.registrationJson),
     identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
     identity8004RegisteredBy: asString(b?.registeredBy),
@@ -743,12 +860,18 @@ export async function kbOwnedAgentsQuery(args: {
 
     a2aProtocolDescriptorIri: asString(b?.pdA2a),
     a2aServiceUrl: asString(b?.a2aServiceUrl),
+    a2aDescriptorName: asString(b?.a2aDescriptorName),
+    a2aDescriptorDescription: asString(b?.a2aDescriptorDescription),
+    a2aDescriptorImage: asString(b?.a2aDescriptorImage),
     a2aProtocolVersion: asString(b?.a2aProtocolVersion),
     a2aJson: asString(b?.a2aJson),
     a2aSkills: splitConcat(asString(b?.a2aSkills)),
 
     mcpProtocolDescriptorIri: asString(b?.pdMcp),
     mcpServiceUrl: asString(b?.mcpServiceUrl),
+    mcpDescriptorName: asString(b?.mcpDescriptorName),
+    mcpDescriptorDescription: asString(b?.mcpDescriptorDescription),
+    mcpDescriptorImage: asString(b?.mcpDescriptorImage),
     mcpProtocolVersion: asString(b?.mcpProtocolVersion),
     mcpJson: asString(b?.mcpJson),
     mcpSkills: splitConcat(asString(b?.mcpSkills)),
@@ -817,7 +940,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   if (orderBy === 'uaid') {
     pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
   } else if (orderBy === 'agentName') {
-    pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:agentName ?agentName . }');
+    pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:hasDescriptor ?agentDescOrder . OPTIONAL { ?agentDescOrder dcterms:title ?agentName . } }');
   } else {
     // agentId8004: make it required so GraphDB can sort on an indexed numeric literal without unbound values.
     pageRequiredOrderBinds.push('    ?agent erc8004:agentId8004 ?agentId8004 .');
@@ -828,6 +951,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX dcterms: <http://purl.org/dc/terms/>',
     '',
     `SELECT DISTINCT ${pageSelectVars} WHERE {`,
     '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
@@ -867,6 +991,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
         'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
         'PREFIX core: <https://agentictrust.io/ontology/core#>',
         'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+        'PREFIX dcterms: <http://purl.org/dc/terms/>',
         '',
         'SELECT',
         '  ?agent',
@@ -883,7 +1008,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
         '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
         '    ?agent a core:AIAgent .',
         '    OPTIONAL { ?agent core:uaid ?uaid . }',
-        '    OPTIONAL { ?agent core:agentName ?agentName . }',
+        '    OPTIONAL { ?agent core:hasDescriptor ?agentDesc . OPTIONAL { ?agentDesc dcterms:title ?agentName . } }',
         '    OPTIONAL {',
         '      ?agent a ?agentType .',
         '      FILTER(STRSTARTS(STR(?agentType), "https://agentictrust.io/ontology/"))',
@@ -928,6 +1053,11 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     iri: asString(b?.agent) ?? '',
     uaid: asString(b?.uaid),
     agentName: asString(b?.agentName),
+    agentImage: null, // Not fetched in simplified query
+    agentDescriptorIri: null, // Not fetched in simplified query
+    agentDescriptorName: null, // Not fetched in simplified query
+    agentDescriptorDescription: null, // Not fetched in simplified query
+    agentDescriptorImage: null, // Not fetched in simplified query
     feedbackAssertionCount8004: null, // Not fetched in simplified query
     validationAssertionCount8004: null, // Not fetched in simplified query
     createdAtBlock: asNumber(b?.createdAtBlock),
@@ -948,6 +1078,9 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     agentAccountIri: null, // Not fetched in simplified query
 
     identity8004DescriptorIri: null, // Not fetched in simplified query
+    identity8004DescriptorName: null, // Not fetched in simplified query
+    identity8004DescriptorDescription: null, // Not fetched in simplified query
+    identity8004DescriptorImage: null, // Not fetched in simplified query
     identity8004RegistrationJson: null, // Not fetched in simplified query
     identity8004OnchainMetadataJson: null, // Not fetched in simplified query
     identity8004RegisteredBy: null, // Not fetched in simplified query
@@ -955,12 +1088,18 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
 
     a2aProtocolDescriptorIri: null, // Not fetched in simplified query
     a2aServiceUrl: null, // Not fetched in simplified query
+    a2aDescriptorName: null, // Not fetched in simplified query
+    a2aDescriptorDescription: null, // Not fetched in simplified query
+    a2aDescriptorImage: null, // Not fetched in simplified query
     a2aProtocolVersion: null, // Not fetched in simplified query
     a2aJson: null, // Not fetched in simplified query
     a2aSkills: [], // Not fetched in simplified query
 
     mcpProtocolDescriptorIri: null, // Not fetched in simplified query
     mcpServiceUrl: null, // Not fetched in simplified query
+    mcpDescriptorName: null, // Not fetched in simplified query
+    mcpDescriptorDescription: null, // Not fetched in simplified query
+    mcpDescriptorImage: null, // Not fetched in simplified query
     mcpProtocolVersion: null, // Not fetched in simplified query
     mcpJson: null, // Not fetched in simplified query
     mcpSkills: [], // Not fetched in simplified query

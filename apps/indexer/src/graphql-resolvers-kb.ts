@@ -51,15 +51,10 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
 
   const skillKeyFromIri = (iri: string): string | null => keyFromIri(iri, OASF_SKILL_BASE);
 
-  const ensureUaidPrefix = (value: string | null | undefined): string | null => {
-    const v = typeof value === 'string' ? value.trim() : '';
-    if (!v) return null;
-    return v.startsWith('uaid:') ? v : `uaid:${v}`;
-  };
-
   const stripUaidPrefix = (value: string): string => {
     const v = String(value || '').trim();
-    return v.startsWith('uaid:') ? v.slice('uaid:'.length) : v;
+    if (!v.startsWith('uaid:')) throw new Error(`Invalid uaid: expected prefix "uaid:". Received "${v}".`);
+    return v.slice('uaid:'.length);
   };
 
   const assertUaidInput = (value: unknown, fieldName: string): string => {
@@ -77,21 +72,18 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
 
   const mapRowToKbAgent = (r: any) => ({
     iri: r.iri,
-    uaid:
-      ensureUaidPrefix(
-        r.uaid ??
-      (() => {
-        // Backfill UAID for older KB data that predates core:uaid on core:AIAgent.
-        // - SmartAgent: UAID is did:ethr:<chainId>:<agentAccountAddress>
-        // - AIAgent8004: UAID is did:8004:<chainId>:<agentId>
-        const m = typeof r.agentAccountIri === 'string'
-          ? r.agentAccountIri.match(/^https:\/\/www\.agentictrust\.io\/id\/account\/(\d+)\/(0x[0-9a-fA-F]{40})$/)
-          : null;
-        if (m?.[1] && m?.[2]) return `did:ethr:${m[1]}:${m[2].toLowerCase()}`;
-        return r.did8004 ?? null;
-      })(),
-      ),
-    agentName: r.agentName,
+    uaid: r.uaid,
+    agentName: r.agentDescriptorName,
+    agentDescription: r.agentDescriptorDescription,
+    agentImage: r.agentDescriptorImage,
+    agentDescriptor: r.agentDescriptorIri
+      ? {
+          iri: r.agentDescriptorIri,
+          name: r.agentDescriptorName,
+          description: r.agentDescriptorDescription,
+          image: r.agentDescriptorImage,
+        }
+      : null,
     agentTypes: r.agentTypes,
     createdAtBlock: r.createdAtBlock == null ? null : Math.trunc(r.createdAtBlock),
     createdAtTime: r.createdAtTime == null ? null : Math.trunc(r.createdAtTime),
@@ -110,6 +102,9 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                 ? {
                     iri: r.identity8004DescriptorIri,
                     kind: '8004',
+                    name: r.identity8004DescriptorName,
+                    description: r.identity8004DescriptorDescription,
+                    image: r.identity8004DescriptorImage,
                     json: r.identity8004RegistrationJson,
                     onchainMetadataJson: r.identity8004OnchainMetadataJson,
                     registeredBy: r.identity8004RegisteredBy,
@@ -122,6 +117,9 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                             iri: r.a2aProtocolDescriptorIri,
                             protocol: 'a2a',
                             serviceUrl: r.a2aServiceUrl,
+                            name: r.a2aDescriptorName,
+                            description: r.a2aDescriptorDescription,
+                            image: r.a2aDescriptorImage,
                             protocolVersion: r.a2aProtocolVersion,
                             json: r.a2aJson,
                             skills: r.a2aSkills,
@@ -133,6 +131,9 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                             iri: r.mcpProtocolDescriptorIri,
                             protocol: 'mcp',
                             serviceUrl: r.mcpServiceUrl,
+                            name: r.mcpDescriptorName,
+                            description: r.mcpDescriptorDescription,
+                            image: r.mcpDescriptorImage,
                             protocolVersion: r.mcpProtocolVersion,
                             json: r.mcpJson,
                             skills: r.mcpSkills,
@@ -156,6 +157,9 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                 ? {
                     iri: r.identity8004DescriptorIri,
                     kind: '8004',
+                    name: r.identity8004DescriptorName,
+                    description: r.identity8004DescriptorDescription,
+                    image: r.identity8004DescriptorImage,
                     json: r.identity8004RegistrationJson,
                     onchainMetadataJson: r.identity8004OnchainMetadataJson,
                     registeredBy: r.identity8004RegisteredBy,
@@ -168,6 +172,9 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                             iri: r.a2aProtocolDescriptorIri,
                             protocol: 'a2a',
                             serviceUrl: r.a2aServiceUrl,
+                            name: r.a2aDescriptorName,
+                            description: r.a2aDescriptorDescription,
+                            image: r.a2aDescriptorImage,
                             protocolVersion: r.a2aProtocolVersion,
                             json: r.a2aJson,
                             skills: r.a2aSkills,
@@ -179,6 +186,9 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                             iri: r.mcpProtocolDescriptorIri,
                             protocol: 'mcp',
                             serviceUrl: r.mcpServiceUrl,
+                            name: r.mcpDescriptorName,
+                            description: r.mcpDescriptorDescription,
+                            image: r.mcpDescriptorImage,
                             protocolVersion: r.mcpProtocolVersion,
                             json: r.mcpJson,
                             skills: r.mcpSkills,
@@ -703,6 +713,9 @@ LIMIT 1
             iri: r.agentIri,
             uaid: r.uaid,
             agentName: r.agentName,
+            agentDescription: null,
+            agentImage: null,
+            agentDescriptor: null,
             agentTypes: r.agentTypes,
             did8004: r.did8004,
             agentId8004: Number.isFinite(Number(r.did8004.split(':').pop())) ? Number(r.did8004.split(':').pop()) : null,
@@ -717,6 +730,9 @@ LIMIT 1
                       ? {
                           iri: r.identity8004DescriptorIri,
                           kind: '8004',
+                          name: null,
+                          description: null,
+                          image: null,
                           json: r.registrationJson,
                           onchainMetadataJson: null,
                           registeredBy: null,
@@ -729,6 +745,9 @@ LIMIT 1
                                   iri: r.a2aProtocolDescriptorIri,
                                   protocol: 'a2a',
                                   serviceUrl: r.a2aServiceUrl,
+                                  name: null,
+                                  description: null,
+                                  image: null,
                                   protocolVersion: r.a2aProtocolVersion,
                                   json: r.a2aJson,
                                   skills: r.a2aSkills,
@@ -740,6 +759,9 @@ LIMIT 1
                                   iri: r.mcpProtocolDescriptorIri,
                                   protocol: 'mcp',
                                   serviceUrl: r.mcpServiceUrl,
+                                  name: null,
+                                  description: null,
+                                  image: null,
                                   protocolVersion: r.mcpProtocolVersion,
                                   json: r.mcpJson,
                                   skills: r.mcpSkills,

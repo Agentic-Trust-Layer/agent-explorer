@@ -58,7 +58,7 @@ export const graphQLSchemaStringKb = `
 
   input KbAgentWhereInput {
     chainId: Int
-    agentId8004: Int
+    agentIdentifierMatch: String
     did8004: String
     uaid: String
     uaid_in: [String!]
@@ -84,6 +84,9 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     protocol: String! # a2a | mcp
     serviceUrl: String!
+    name: String
+    description: String
+    image: String
     protocolVersion: String
     json: String
     skills: [String!]!
@@ -93,6 +96,9 @@ export const graphQLSchemaStringKb = `
   type KbIdentityDescriptor {
     iri: ID!
     kind: String! # 8004 | ens | hol | nanda | other
+    name: String
+    description: String
+    image: String
     json: String
     onchainMetadataJson: String
     registeredBy: String
@@ -109,10 +115,20 @@ export const graphQLSchemaStringKb = `
     descriptor: KbIdentityDescriptor
   }
 
+  type KbAgentDescriptor {
+    iri: ID!
+    name: String
+    description: String
+    image: String
+  }
+
   type KbAgent {
     iri: ID!
     uaid: String
     agentName: String
+    agentDescription: String
+    agentImage: String
+    agentDescriptor: KbAgentDescriptor
     agentTypes: [String!]!
 
     # Provenance (best-effort; may be null for older/missing records)
