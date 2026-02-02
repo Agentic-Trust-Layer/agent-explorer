@@ -169,3 +169,19 @@ export async function uploadTurtleToRepository(
   }
   return { bytes };
 }
+
+export async function clearStatements(
+  baseUrl: string,
+  repository: string,
+  auth: GraphdbAuth,
+  opts?: { context?: string | null },
+): Promise<void> {
+  const context = opts?.context && opts.context.trim() ? opts.context.trim() : null;
+  const qs = context ? `?context=${encodeURIComponent(`<${context}>`)}` : '';
+  const url = joinUrl(baseUrl, `/repositories/${encodeURIComponent(repository)}/statements${qs}`);
+  const res = await graphdbFetch(url, { method: 'DELETE', auth, timeoutMs: 120_000, retries: 2 });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`GraphDB clear failed: HTTP ${res.status}${text ? `: ${text.slice(0, 300)}` : ''}`);
+  }
+}
