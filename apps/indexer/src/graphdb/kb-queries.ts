@@ -30,6 +30,9 @@ export type KbAgentRow = {
   identity8004RegistryNamespace: string | null;
   identityEnsIri: string | null;
   didEns: string | null;
+  identityHolIri: string | null;
+  identityHolProtocolIdentifier: string | null;
+  identityHolUaidHOL: string | null;
   identityOwnerAccountIri: string | null;
   identityWalletAccountIri: string | null;
   identityOperatorAccountIri: string | null;
@@ -217,8 +220,16 @@ export async function kbAgentsQuery(args: {
     );
   }
   if (uaidFilter) {
-    const escaped = uaidFilter.replace(/"/g, '\\"');
-    filters.push(`?uaid = "${escaped}"`);
+    // Allow "base UAID" (no routing params) to match stored UAIDs that include ";k=v" suffixes.
+    // Examples:
+    // - input: uaid:aid:XYZ
+    // - stored: uaid:aid:XYZ;uid=...;registry=...;proto=...
+    const escaped = uaidFilter.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    if (uaidFilter.includes(';')) {
+      filters.push(`?uaid = "${escaped}"`);
+    } else {
+      filters.push(`(BOUND(?uaid) && (?uaid = "${escaped}" || STRSTARTS(STR(?uaid), "${escaped};")))`);
+    }
   }
   if (uaidIn && uaidIn.length) {
     const values = uaidIn.map((u) => `"${u.replace(/"/g, '\\"')}"`).join(' ');
@@ -296,9 +307,10 @@ export async function kbAgentsQuery(args: {
     pageOptional.push('    }');
   }
 
-  // Fast path: when ordering by agentId8004, use the materialized numeric literal on the agent node
-  // (avoids joining identity + expensive STR/REPLACE parsing).
-  const pageRequireAgentId = orderBy === 'agentId8004';
+  // Fast path: when ordering by agentId8004, use the materialized numeric literal on the agent node.
+  // IMPORTANT: do not require agentId8004 when the caller is filtering by UAID/identifier (HOL agents
+  // will not have erc8004:agentId8004, and requiring it causes "count>0 but page=0").
+  const pageRequireAgentId = orderBy === 'agentId8004' && !uaidFilter && !(uaidIn && uaidIn.length) && !agentIdentifierMatch;
   const pageAgentIdPattern = pageRequireAgentId
     ? ['    ?agent erc8004:agentId8004 ?agentId8004 .']
     : ['    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }'];
@@ -317,7 +329,7 @@ export async function kbAgentsQuery(args: {
     ? [
         '    OPTIONAL {',
         '      ?agent core:hasIdentity ?identityEns .',
-        '      ?identityEns a ens:EnsIdentity ; core:hasIdentifier ?ensIdent .',
+        '      ?identityEns a ens:AgentIdentityEns ; core:hasIdentifier ?ensIdent .',
         '      ?ensIdent core:protocolIdentifier ?didEns .',
         '    }',
       ]
@@ -398,6 +410,7 @@ export async function kbAgentsQuery(args: {
           'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
           'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
           'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
+          'PREFIX hol: <https://agentictrust.io/ontology/hol#>',
           'PREFIX dcterms: <http://purl.org/dc/terms/>',
           'PREFIX schema: <http://schema.org/>',
           '',
@@ -420,6 +433,9 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?agentId8004) AS ?agentId8004)',
           '  (SAMPLE(?identityEns) AS ?identityEns)',
           '  (SAMPLE(?didEns) AS ?didEns)',
+          '  (SAMPLE(?identityHol) AS ?identityHol)',
+          '  (SAMPLE(?holProtocolIdentifier) AS ?holProtocolIdentifier)',
+          '  (SAMPLE(?uaidHOL) AS ?uaidHOL)',
           '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
           '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
           '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
@@ -529,9 +545,17 @@ export async function kbAgentsQuery(args: {
           '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount . }',
           '    OPTIONAL {',
           '      ?agent core:hasIdentity ?identityEns .',
-          '      ?identityEns a ens:EnsIdentity ;',
+          '      ?identityEns a ens:AgentIdentityEns ;',
           '                  core:hasIdentifier ?ensIdent .',
           '      ?ensIdent core:protocolIdentifier ?didEns .',
+          '    }',
+          '    OPTIONAL {',
+          '      ?agent core:hasIdentity ?identityHol .',
+          '      ?identityHol a hol:AgentIdentityHOL ;',
+          '                   core:hasIdentifier ?holIdent ;',
+          '                   core:identityRegistry ?holRegistry .',
+          '      OPTIONAL { ?identityHol hol:uaidHOL ?uaidHOL . }',
+          '      ?holIdent core:protocolIdentifier ?holProtocolIdentifier .',
           '    }',
           '  }',
           '}',
@@ -546,17 +570,30 @@ export async function kbAgentsQuery(args: {
   const countSparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     '',
     'SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {',
     `  ${graphClause}`,
     '    ?agent a core:AIAgent .',
+    // UAID is required for UAID filters (incl. HOL UAIDs like uaid:aid:*;...).
+    ...(needsUaid ? ['    OPTIONAL { ?agent core:uaid ?uaid . }'] : []),
     '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identity8004 .',
     '      ?identity8004 a erc8004:AgentIdentity8004 ;',
     '                    core:hasIdentifier ?ident8004 .',
     '      ?ident8004 core:protocolIdentifier ?did8004 .',
     '    }',
+    // If agentIdentifierMatch is used, didEns can be part of the match expression, so bind it.
+    ...(agentIdentifierMatch
+      ? [
+          '    OPTIONAL {',
+          '      ?agent core:hasIdentity ?identityEns .',
+          '      ?identityEns a ens:AgentIdentityEns ; core:hasIdentifier ?ensIdent .',
+          '      ?ensIdent core:protocolIdentifier ?didEns .',
+          '    }',
+        ]
+      : []),
     ...pagePreFilter,
     filters.length ? `    FILTER(${filters.join(' && ')})` : '',
     `  ${graphClose}`,
@@ -603,6 +640,9 @@ export async function kbAgentsQuery(args: {
       identity8004RegistryNamespace: asString(b?.registryNamespace),
       identityEnsIri: asString(b?.identityEns),
       didEns: asString(b?.didEns),
+      identityHolIri: asString(b?.identityHol),
+      identityHolProtocolIdentifier: asString(b?.holProtocolIdentifier),
+      identityHolUaidHOL: asString(b?.uaidHOL),
       identityOwnerAccountIri: asString(b?.identityOwnerAccount),
       identityWalletAccountIri: asString(b?.identityWalletAccount),
       identityOperatorAccountIri: asString(b?.identityOperatorAccount),
@@ -702,6 +742,9 @@ export async function kbOwnedAgentsQuery(args: {
     '  (SAMPLE(?agentId8004) AS ?agentId8004)',
     '  (SAMPLE(?identityEns) AS ?identityEns)',
     '  (SAMPLE(?didEns) AS ?didEns)',
+    '  (SAMPLE(?identityHol) AS ?identityHol)',
+    '  (SAMPLE(?holProtocolIdentifier) AS ?holProtocolIdentifier)',
+    '  (SAMPLE(?uaidHOL) AS ?uaidHOL)',
     '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
     '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
     '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
@@ -810,7 +853,7 @@ export async function kbOwnedAgentsQuery(args: {
     '',
     '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identityEns .',
-    '      ?identityEns a ens:EnsIdentity ;',
+    '      ?identityEns a ens:AgentIdentityEns ;',
     '                  core:hasIdentifier ?ensIdent .',
     '      ?ensIdent core:protocolIdentifier ?didEns .',
     '    }',
@@ -845,6 +888,9 @@ export async function kbOwnedAgentsQuery(args: {
     agentId8004: asNumber(b?.agentId8004),
     identityEnsIri: asString(b?.identityEns),
     didEns: asString(b?.didEns),
+    identityHolIri: asString(b?.identityHol),
+    identityHolProtocolIdentifier: asString(b?.holProtocolIdentifier),
+    identityHolUaidHOL: asString(b?.uaidHOL),
     identityOwnerAccountIri: asString(b?.identityOwnerAccount),
     identityWalletAccountIri: asString(b?.identityWalletAccount),
     identityOperatorAccountIri: asString(b?.identityOperatorAccount),
@@ -1075,6 +1121,9 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     agentId8004: asNumber(b?.agentId8004),
     identityEnsIri: null, // Not fetched in simplified query
     didEns: null, // Not fetched in simplified query
+    identityHolIri: null, // Not fetched in simplified query
+    identityHolProtocolIdentifier: null, // Not fetched in simplified query
+    identityHolUaidHOL: null, // Not fetched in simplified query
     identityOwnerAccountIri: null, // Not fetched in simplified query
     identityWalletAccountIri: null, // Not fetched in simplified query
     identityOperatorAccountIri: null, // Not fetched in simplified query

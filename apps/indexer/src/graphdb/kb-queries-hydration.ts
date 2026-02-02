@@ -50,6 +50,11 @@ export type KbAgentHydratedRow = {
   mcpSkills: string[];
   identityEnsIri: string | null;
   didEns: string | null;
+  // HOL identity is not fetched in this hydration query (8004-only hydrate),
+  // but keep fields for schema consistency with kbAgentsQuery.
+  identityHolIri: string | null;
+  identityHolProtocolIdentifier: string | null;
+  identityHolUaidHOL: string | null;
   identityOwnerAccountIri: string | null;
   identityWalletAccountIri: string | null;
   identityOperatorAccountIri: string | null;
@@ -145,7 +150,7 @@ export async function kbHydrateAgentsByDid8004(
     '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount }',
     '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identityEns .',
-    '      ?identityEns a ens:EnsIdentity ; core:hasIdentifier ?ensIdent .',
+    '      ?identityEns a ens:AgentIdentityEns ; core:hasIdentifier ?ensIdent .',
     '      ?ensIdent core:protocolIdentifier ?didEns .',
     '    }',
     '  }',
@@ -182,6 +187,9 @@ export async function kbHydrateAgentsByDid8004(
         mcpSkills: splitConcat(asString(b?.mcpSkills)),
         identityEnsIri: asString(b?.identityEns),
         didEns: asString(b?.didEns),
+        identityHolIri: null,
+        identityHolProtocolIdentifier: null,
+        identityHolUaidHOL: null,
         identityOwnerAccountIri: asString(b?.identityOwnerAccount),
         identityWalletAccountIri: asString(b?.identityWalletAccount),
         identityOperatorAccountIri: asString(b?.identityOperatorAccount),
@@ -190,8 +198,8 @@ export async function kbHydrateAgentsByDid8004(
         agentWalletAccountIri: asString(b?.agentWalletAccount),
         agentOwnerEOAAccountIri: asString(b?.agentOwnerEOAAccount),
         agentAccountIri: asString(b?.agentAccount),
-      } satisfies KbAgentHydratedRow;
+      } as KbAgentHydratedRow;
     })
-    .filter((x): x is KbAgentHydratedRow => Boolean(x));
+    .filter((x): x is KbAgentHydratedRow => x != null);
 }
 

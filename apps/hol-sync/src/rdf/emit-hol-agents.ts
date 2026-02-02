@@ -202,6 +202,8 @@ export function emitHolAgentsTurtle(items: HolAgentData[]): string {
     // Attach the identity to its registry (core identity module)
     lines.push(`  core:identityRegistry ${registryIri} ;`);
     lines.push(`  hol:hasAgentProfileHOL ${profileIri} ;`);
+    // Required: persist the original UAID string on the HOL identity node.
+    lines.push(`  hol:uaidHOL "${escapeTurtleString(uaid)}" ;`);
     lines.push(`  .`);
     lines.push('');
 

@@ -425,7 +425,7 @@ export function emitAgentsTurtle(
       lines.push(`${agentNodeIri} core:hasIdentity ${ensIdIri} .`);
       lines.push('');
 
-      lines.push(`${ensIdIri} a ens:EnsIdentity, core:AgentIdentity, prov:Entity ;`);
+      lines.push(`${ensIdIri} a ens:AgentIdentityEns, core:AgentIdentity, prov:Entity ;`);
       lines.push(`  core:identityOf ${agentNodeIri} ;`);
       lines.push(`  core:hasIdentifier ${didEnsIri} ;`);
       lines.push(`  core:hasDescriptor ${ensDescriptorIri} ;`);

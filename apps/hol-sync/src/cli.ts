@@ -6,6 +6,7 @@ import { ingestHolTurtleToGraphdb } from './graphdb/ingest.js';
 type SyncCommand = 'agents' | 'all';
 
 async function syncHolAgents() {
+  const resetContext = process.argv.includes('--reset') || process.env.HOL_SYNC_RESET === '1';
   console.info('[hol-sync] fetching HOL agents from D1 database');
   const agents = await readHolAgentsFromD1();
   console.info(`[hol-sync] fetched ${agents.length} HOL agents from D1`);
@@ -21,7 +22,7 @@ async function syncHolAgents() {
   console.info(`[hol-sync] generated ${turtleBytes} bytes of RDF Turtle`);
 
   console.info('[hol-sync] ingesting to GraphDB');
-  await ingestHolTurtleToGraphdb(turtle);
+  await ingestHolTurtleToGraphdb(turtle, { resetContext });
   console.info('[hol-sync] HOL agents sync complete', { agentsCount: agents.length });
 }
 

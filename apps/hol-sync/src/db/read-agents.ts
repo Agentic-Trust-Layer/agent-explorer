@@ -56,5 +56,31 @@ export async function readHolAgentsFromD1(): Promise<HolAgentRow[]> {
     ORDER BY createdAtTime ASC, agentId ASC`,
     chainIds,
   );
-  return rows;
+
+  // Hard rule: never emit duplicate agentAddress (UAID). Prefer the most recently updated row.
+  // This protects GraphDB/GraphQL consumers from duplicate UAIDs even if D1 contains duplicates.
+  const byAddress = new Map<string, HolAgentRow>();
+  for (const r of rows) {
+    const addr = typeof (r as any)?.agentAddress === 'string' ? String((r as any).agentAddress).trim() : '';
+    if (!addr) continue;
+    const prev = byAddress.get(addr);
+    if (!prev) {
+      byAddress.set(addr, r);
+      continue;
+    }
+    const prevUpdated = prev.updatedAtTime != null ? Number(prev.updatedAtTime) : -1;
+    const nextUpdated = r.updatedAtTime != null ? Number(r.updatedAtTime) : -1;
+    if (nextUpdated > prevUpdated) {
+      byAddress.set(addr, r);
+      continue;
+    }
+    if (nextUpdated < prevUpdated) continue;
+    const prevCreated = prev.createdAtTime != null ? Number(prev.createdAtTime) : -1;
+    const nextCreated = r.createdAtTime != null ? Number(r.createdAtTime) : -1;
+    if (nextCreated > prevCreated) {
+      byAddress.set(addr, r);
+    }
+  }
+
+  return Array.from(byAddress.values());
 }

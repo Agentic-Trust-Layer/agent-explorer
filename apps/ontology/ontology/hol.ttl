@@ -85,6 +85,12 @@
   rdfs:domain :AgentProfileHOL ;
   rdfs:range xsd:string .
 
+:uaidHOL a owl:DatatypeProperty ;
+  rdfs:label "uaidHOL" ;
+  rdfs:comment "Original UAID string ingested from HOL sources (including any routing params after ';')." ;
+  rdfs:domain :AgentIdentityHOL ;
+  rdfs:range xsd:string .
+
 :originalId a owl:DatatypeProperty ;
   rdfs:label "originalId" ;
   rdfs:domain :AgentProfileHOL ;

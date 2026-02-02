@@ -112,6 +112,7 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String! # 8004 | ens | hol | nanda | other
     did: String!
+    uaidHOL: String
     descriptor: KbIdentityDescriptor
   }
 
@@ -144,6 +145,7 @@ export const graphQLSchemaStringKb = `
     # Convenience: primary identity (prefer identity8004, else identityEns)
     identity: KbIdentity
     identity8004: KbIdentity
+    identityHol: KbIdentity
     identityEns: KbIdentity
 
     # Counts are always available; items are only fetched when you request a specific agent.

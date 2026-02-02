@@ -146,6 +146,16 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
           }
         : null,
     identityEns: r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null,
+    identityHol:
+      r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
+        ? {
+            iri: r.identityHolIri,
+            kind: 'hol',
+            did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
+            uaidHOL: r.identityHolUaidHOL,
+            descriptor: null,
+          }
+        : null,
     identity:
       (r.identity8004Iri && r.did8004
         ? {
@@ -199,7 +209,17 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                   }
                 : null,
           }
-        : null) ?? (r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null),
+        : null) ??
+      (r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
+        ? {
+            iri: r.identityHolIri,
+            kind: 'hol',
+            did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
+            uaidHOL: r.identityHolUaidHOL,
+            descriptor: null,
+          }
+        : null) ??
+      (r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null),
     identityOwnerAccount: r.identityOwnerAccountIri ? { iri: r.identityOwnerAccountIri } : null,
     identityWalletAccount: r.identityWalletAccountIri ? { iri: r.identityWalletAccountIri } : null,
     identityOperatorAccount: r.identityOperatorAccountIri ? { iri: r.identityOperatorAccountIri } : null,
@@ -676,8 +696,19 @@ LIMIT 1
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const uaid = assertUaidInput(args?.uaid, 'uaid');
       if (!uaid) return null;
-      const res = await kbAgentsQuery({ where: { uaid_in: [uaid] }, first: 1, skip: 0 }, graphdbCtx);
-      if (!res.rows.length) return null;
+      // Use uaid (not uaid_in) so the query layer can apply base-UAID prefix matching (for HOL UAIDs).
+      const res = await kbAgentsQuery({ where: { uaid }, first: 1, skip: 0 }, graphdbCtx);
+      if (!res.rows.length) {
+        // For HOL-style UAIDs (uaid:aid:*), we want a hard failure with enough context for clients to debug
+        // what exact UAID we attempted to resolve.
+        if (uaid.startsWith('uaid:aid:')) {
+          throw new Error(
+            `Agent not found for uaid=${uaid}. ` +
+              `If this is a HOL agent, ensure you query the HOL KB graph (chainId=295) via kbAgents(where:{chainId:295, uaid:"${uaid}"}).`,
+          );
+        }
+        return null;
+      }
       const agent = res.rows[0]!;
       return mapRowToKbAgent(agent);
     },
@@ -774,6 +805,16 @@ LIMIT 1
                   }
                 : null,
             identityEns: r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null,
+            identityHol:
+              r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
+                ? {
+                    iri: r.identityHolIri,
+                    kind: 'hol',
+                    did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
+                    uaidHOL: r.identityHolUaidHOL,
+                    descriptor: null,
+                  }
+                : null,
             identityOwnerAccount: r.identityOwnerAccountIri ? { iri: r.identityOwnerAccountIri } : null,
             identityWalletAccount: r.identityWalletAccountIri ? { iri: r.identityWalletAccountIri } : null,
             identityOperatorAccount: r.identityOperatorAccountIri ? { iri: r.identityOperatorAccountIri } : null,

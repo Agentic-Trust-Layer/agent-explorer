@@ -19,8 +19,8 @@
   rdfs:comment "ENS registry/namespace anchoring ENS identities." ;
   rdfs:subClassOf core:AgentRegistry, prov:Entity .
 
-:EnsIdentity a owl:Class ;
-  rdfs:label "EnsIdentity" ;
+:AgentIdentityEns a owl:Class ;
+  rdfs:label "AgentIdentityEns" ;
   rdfs:comment "ENS identity as a protocol-specific realization of core:AgentIdentity." ;
   rdfs:subClassOf core:AgentIdentity, prov:Entity .
 
