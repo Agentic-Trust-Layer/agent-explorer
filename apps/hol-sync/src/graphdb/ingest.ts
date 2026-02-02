@@ -1,5 +1,5 @@
 // GraphDB ingestion for HOL
-import { getGraphdbConfigFromEnv, uploadTurtleToRepository } from './graphdb-http.js';
+import { clearStatements, getGraphdbConfigFromEnv, uploadTurtleToRepository } from './graphdb-http.js';
 
 const HOL_CONTEXT = `https://www.agentictrust.io/graph/data/subgraph/hol`;
 const GRAPHDB_UPLOAD_CHUNK_BYTES = 2_500_000;
@@ -50,8 +50,12 @@ function splitTurtleIntoChunks(turtle: string, maxBytes: number): string[] {
   return out;
 }
 
-export async function ingestHolTurtleToGraphdb(turtle: string): Promise<void> {
+export async function ingestHolTurtleToGraphdb(turtle: string, opts?: { resetContext?: boolean }): Promise<void> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  if (opts?.resetContext) {
+    console.info('[hol-sync] clearing HOL context before ingest', { context: HOL_CONTEXT });
+    await clearStatements(baseUrl, repository, auth, { context: HOL_CONTEXT });
+  }
   const chunks = splitTurtleIntoChunks(turtle, GRAPHDB_UPLOAD_CHUNK_BYTES);
   let totalBytes = 0;
 
