@@ -74,6 +74,22 @@ importers:
         specifier: ^5.4.8
         version: 5.4.21(@types/node@25.0.1)
 
+  apps/hol-sync:
+    dependencies:
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.1
+        version: 25.0.1
+      tsx:
+        specifier: ^4.15.7
+        version: 4.20.6
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
+
   apps/indexer:
     dependencies:
       '@agentic-trust/8004-ext-sdk':

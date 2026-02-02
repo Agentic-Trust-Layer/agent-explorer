@@ -13,6 +13,9 @@ function iriEncodeSegment(value: string): string {
 }
 
 export function chainContext(chainId: number): string {
+  // Special-case HOL: stored under a non-numeric subgraph context.
+  // This allows GraphQL callers to use chainId=295 for HOL.
+  if (Math.trunc(chainId) === 295) return 'https://www.agentictrust.io/graph/data/subgraph/hol';
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
 }
 

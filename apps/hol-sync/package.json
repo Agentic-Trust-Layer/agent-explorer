@@ -1,0 +1,20 @@
+{
+  "name": "hol-sync",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "sync:agents": "tsx src/cli.ts agents",
+    "sync:all": "tsx src/cli.ts all"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.1",
+    "tsx": "^4.15.7",
+    "typescript": "^5.6.2"
+  }
+}

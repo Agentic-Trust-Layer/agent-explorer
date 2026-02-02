@@ -414,8 +414,8 @@ async function syncAssociationRevocations(endpoint: { url: string; chainId: numb
 }
 
 async function runSync(command: SyncCommand, resetContext: boolean = false) {
-  // Filter endpoints by chainId if specified (default to chainId=1 for mainnet)
-  const chainIdFilterRaw = process.env.SYNC_CHAIN_ID || '1';
+  // Filter endpoints by chainId if specified (default to chainId=1,11155111 for mainnet and sepolia)
+  const chainIdFilterRaw = process.env.SYNC_CHAIN_ID || '1,11155111';
   const chainIdFilters = chainIdFilterRaw
     .split(',')
     .map((s) => s.trim())
@@ -427,7 +427,7 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     .filter((n): n is number => n !== null);
 
   if (!process.env.SYNC_CHAIN_ID) {
-    console.info(`[sync] defaulting to chainId=1 (mainnet). Set SYNC_CHAIN_ID to override.`);
+    console.info(`[sync] defaulting to chainId=1,11155111 (mainnet and sepolia). Set SYNC_CHAIN_ID to override.`);
   }
 
   const endpoints = SUBGRAPH_ENDPOINTS.filter((ep) => chainIdFilters.includes(ep.chainId));

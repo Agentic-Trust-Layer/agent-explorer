@@ -61,6 +61,9 @@ export type KbAgentRow = {
 };
 
 function chainContext(chainId: number): string {
+  // Special-case HOL: stored under a non-numeric subgraph context.
+  // This allows GraphQL callers to use chainId=295 for HOL.
+  if (Math.trunc(chainId) === 295) return 'https://www.agentictrust.io/graph/data/subgraph/hol';
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
 }
 
@@ -162,8 +165,9 @@ export async function kbAgentsQuery(args: {
   const first = clampInt(args.first, 1, 500, 20);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
 
+  // chainId=295 is reserved for HOL (maps to GRAPH <https://www.agentictrust.io/graph/data/subgraph/hol>)
   const chainId = where.chainId != null ? clampInt(where.chainId, 1, 1_000_000_000, 0) : null;
-  const ctxIri = chainId ? chainContext(chainId) : null;
+  const ctxIri = chainId != null ? chainContext(chainId) : null;
   const graphs = ctxIri ? [`<${ctxIri}>`] : null;
 
   // Filtering: agentIdentifierMatch does a suffix match on identifiers (did8004, didEns, uaid)
@@ -631,7 +635,10 @@ export async function kbAgentsQuery(args: {
   });
 
   const byIri = new Map(rows.map((r) => [r.iri, r]));
-  const ordered = trimmedPairs.map((p) => byIri.get(p.agent)).filter((x): x is KbAgentRow => Boolean(x));
+  // When ctxIri is set, use trimmedAgents; otherwise use trimmedPairs
+  const ordered = ctxIri
+    ? trimmedAgents.map((iri) => byIri.get(iri)).filter((x): x is KbAgentRow => Boolean(x))
+    : trimmedPairs.map((p) => byIri.get(p.agent)).filter((x): x is KbAgentRow => Boolean(x));
 
   return { rows: ordered, total: Number.isFinite(total) ? total : 0, hasMore };
 }
