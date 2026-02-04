@@ -116,6 +116,96 @@ export const graphQLSchemaStringKb = `
     descriptor: KbIdentityDescriptor
   }
 
+  # ERC-8004 identity with attached account info
+  type KbIdentity8004 {
+    iri: ID!
+    kind: String! # always "8004"
+    did: String!
+    descriptor: KbIdentityDescriptor
+
+    # Accounts attached to the ERC-8004 identity
+    ownerAccount: KbAccount
+    operatorAccount: KbAccount
+    walletAccount: KbAccount
+    ownerEOAAccount: KbAccount
+  }
+
+  type KbHolAgentProfile {
+    uaid: String!
+    displayName: String
+    alias: String
+    bio: String
+    profileImage: String
+    profileJson: String
+  }
+
+  type KbHolCapability {
+    iri: ID!
+    key: String!
+    label: String
+    json: String
+  }
+
+  type KbHolSyncResult {
+    success: Boolean!
+    count: Int!
+    message: String
+  }
+
+  type KbHolRegistryCount {
+    registry: String!
+    agentCount: Int!
+  }
+
+  type KbHolCapabilityCount {
+    capability: String!
+    agentCount: Int!
+  }
+
+  type KbHolStats {
+    totalAgents: Int!
+    lastUpdate: String
+    status: String
+    registries: [KbHolRegistryCount!]!
+    capabilities: [KbHolCapabilityCount!]!
+  }
+
+  type KbHolRegistrySearchHit {
+    uaid: String
+    id: String
+    registry: String
+    name: String
+    description: String
+    originalId: String
+    protocols: [String!]
+    json: String
+  }
+
+  type KbHolRegistrySearchResult {
+    total: Int!
+    page: Int
+    limit: Int
+    hits: [KbHolRegistrySearchHit!]!
+  }
+
+  input KbHolVectorSearchFilterInput {
+    registry: String
+    capabilities: [String!]
+  }
+
+  input KbHolVectorSearchInput {
+    query: String!
+    limit: Int
+    filter: KbHolVectorSearchFilterInput
+  }
+
+  input KbHolResolveIncludeInput {
+    capabilities: Boolean
+    endpoints: Boolean
+    relationships: Boolean
+    validations: Boolean
+  }
+
   type KbAgentDescriptor {
     iri: ID!
     name: String
@@ -144,7 +234,7 @@ export const graphQLSchemaStringKb = `
 
     # Convenience: primary identity (prefer identity8004, else identityEns)
     identity: KbIdentity
-    identity8004: KbIdentity
+    identity8004: KbIdentity8004
     identityHol: KbIdentity
     identityEns: KbIdentity
 
@@ -152,17 +242,6 @@ export const graphQLSchemaStringKb = `
     assertions: KbAgentAssertions
     reviewAssertions(first: Int, skip: Int): KbReviewResponseConnection
     validationAssertions(first: Int, skip: Int): KbValidationResponseConnection
-
-    # Accounts attached to the ERC-8004 identity (identity-scoped)
-    identityOwnerAccount: KbAccount
-    identityOperatorAccount: KbAccount
-    identityWalletAccount: KbAccount
-
-    # Accounts attached to the agent (agent-scoped)
-    agentOwnerAccount: KbAccount
-    agentOperatorAccount: KbAccount
-    agentWalletAccount: KbAccount
-    agentOwnerEOAAccount: KbAccount
 
     # SmartAgent -> ERC-8004 agent-controlled account (AgentAccount)
     agentAccount: KbAccount
@@ -372,6 +451,13 @@ export const graphQLSchemaStringKb = `
     kbIsOwner(uaid: String!, walletAddress: String!): Boolean!
 
     kbAgentByUaid(uaid: String!): KbAgent
+    kbHolAgentProfileByUaid(uaid: String!, include: KbHolResolveIncludeInput): KbHolAgentProfile
+    kbHolCapabilities(first: Int, skip: Int): [KbHolCapability!]!
+    kbHolRegistries: [String!]!
+    kbHolRegistriesForProtocol(protocol: String!): [String!]!
+    kbHolStats: KbHolStats!
+    kbHolRegistrySearch(registry: String!, q: String, originalId: String): KbHolRegistrySearchResult!
+    kbHolVectorSearch(input: KbHolVectorSearchInput!): KbHolRegistrySearchResult!
 
     kbSemanticAgentSearch(input: SemanticAgentSearchInput!): KbSemanticAgentSearchResult!
 
@@ -383,6 +469,10 @@ export const graphQLSchemaStringKb = `
     # ATI / trust ledger (GraphDB-backed in v2)
     kbAgentTrustIndex(chainId: Int!, agentId: String!): AgentTrustIndex
     kbTrustLedgerBadgeDefinitions(program: String, active: Boolean): [TrustLedgerBadgeDefinition!]!
+  }
+
+  type Mutation {
+    kbHolSyncCapabilities: KbHolSyncResult!
   }
 `;
 

@@ -1,0 +1,53 @@
+{
+  "name": "@agentictrust/hcs-core",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./rdf/common": {
+      "types": "./dist/rdf/common.d.ts",
+      "default": "./dist/rdf/common.js"
+    },
+    "./rdf/common.js": {
+      "types": "./dist/rdf/common.d.ts",
+      "default": "./dist/rdf/common.js"
+    },
+    "./hol/uaid": {
+      "types": "./dist/hol/uaid.d.ts",
+      "default": "./dist/hol/uaid.js"
+    },
+    "./hol/uaid.js": {
+      "types": "./dist/hol/uaid.d.ts",
+      "default": "./dist/hol/uaid.js"
+    },
+    "./hol/iris": {
+      "types": "./dist/hol/iris.d.ts",
+      "default": "./dist/hol/iris.js"
+    },
+    "./hol/iris.js": {
+      "types": "./dist/hol/iris.d.ts",
+      "default": "./dist/hol/iris.js"
+    },
+    "./hol/upsert": {
+      "types": "./dist/hol/upsert.d.ts",
+      "default": "./dist/hol/upsert.js"
+    },
+    "./hol/upsert.js": {
+      "types": "./dist/hol/upsert.d.ts",
+      "default": "./dist/hol/upsert.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "../../apps/indexer/node_modules/.bin/tsc -p tsconfig.json"
+  }
+}
+

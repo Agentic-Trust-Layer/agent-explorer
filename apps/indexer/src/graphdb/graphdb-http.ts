@@ -393,12 +393,29 @@ export async function queryGraphdbWithContext(
   ctx?: GraphdbQueryContext | null,
 ): Promise<any> {
   const globalHit = globalCacheGet(sparql);
-  if (globalHit) return await globalHit;
+  if (globalHit) {
+    const t0 = performance.now();
+    const json: any = await globalHit;
+    const ms = performance.now() - t0;
+    const label = ctx?.label ?? 'graphdb';
+    const bindings = Array.isArray(json?.results?.bindings) ? json.results.bindings.length : null;
+    // Record cache-hit wait time so request-level timing logs stay accurate.
+    if (ctx?.timings) ctx.timings.push({ label: `${label}:cache`, ms, resultBindings: bindings });
+    return json;
+  }
 
   const cache = ctx?.requestCache ?? null;
   if (cache) {
     const hit = cache.get(sparql);
-    if (hit) return await hit;
+    if (hit) {
+      const t0 = performance.now();
+      const json: any = await hit;
+      const ms = performance.now() - t0;
+      const label = ctx?.label ?? 'graphdb';
+      const bindings = Array.isArray(json?.results?.bindings) ? json.results.bindings.length : null;
+      if (ctx?.timings) ctx.timings.push({ label: `${label}:reqcache`, ms, resultBindings: bindings });
+      return json;
+    }
   }
 
   const t0 = performance.now();

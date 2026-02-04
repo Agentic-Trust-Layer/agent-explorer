@@ -33,6 +33,11 @@ export type KbAgentRow = {
   identityHolIri: string | null;
   identityHolProtocolIdentifier: string | null;
   identityHolUaidHOL: string | null;
+  identityHolDescriptorIri: string | null;
+  identityHolDescriptorName: string | null;
+  identityHolDescriptorDescription: string | null;
+  identityHolDescriptorImage: string | null;
+  identityHolDescriptorJson: string | null;
   identityOwnerAccountIri: string | null;
   identityWalletAccountIri: string | null;
   identityOperatorAccountIri: string | null;
@@ -436,6 +441,11 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?identityHol) AS ?identityHol)',
           '  (SAMPLE(?holProtocolIdentifier) AS ?holProtocolIdentifier)',
           '  (SAMPLE(?uaidHOL) AS ?uaidHOL)',
+          '  (SAMPLE(?identityHolDescriptor) AS ?identityHolDescriptor)',
+          '  (SAMPLE(?identityHolDescriptorName) AS ?identityHolDescriptorName)',
+          '  (SAMPLE(?identityHolDescriptorDescription) AS ?identityHolDescriptorDescription)',
+          '  (SAMPLE(?identityHolDescriptorImage) AS ?identityHolDescriptorImage)',
+          '  (SAMPLE(?identityHolDescriptorJson) AS ?identityHolDescriptorJson)',
           '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
           '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
           '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
@@ -556,6 +566,14 @@ export async function kbAgentsQuery(args: {
           '                   core:identityRegistry ?holRegistry .',
           '      OPTIONAL { ?identityHol hol:uaidHOL ?uaidHOL . }',
           '      ?holIdent core:protocolIdentifier ?holProtocolIdentifier .',
+          '      OPTIONAL {',
+          '        ?identityHol core:hasDescriptor ?holDesc .',
+          '        BIND(?holDesc AS ?identityHolDescriptor)',
+          '        OPTIONAL { ?holDesc dcterms:title ?identityHolDescriptorName . }',
+          '        OPTIONAL { ?holDesc dcterms:description ?identityHolDescriptorDescription . }',
+          '        OPTIONAL { ?holDesc schema:image ?identityHolDescriptorImage . }',
+          '        OPTIONAL { ?holDesc core:json ?identityHolDescriptorJson . }',
+          '      }',
           '    }',
           '  }',
           '}',
@@ -643,6 +661,11 @@ export async function kbAgentsQuery(args: {
       identityHolIri: asString(b?.identityHol),
       identityHolProtocolIdentifier: asString(b?.holProtocolIdentifier),
       identityHolUaidHOL: asString(b?.uaidHOL),
+      identityHolDescriptorIri: asString(b?.identityHolDescriptor),
+      identityHolDescriptorName: asString(b?.identityHolDescriptorName),
+      identityHolDescriptorDescription: asString(b?.identityHolDescriptorDescription),
+      identityHolDescriptorImage: asString(b?.identityHolDescriptorImage),
+      identityHolDescriptorJson: asString(b?.identityHolDescriptorJson),
       identityOwnerAccountIri: asString(b?.identityOwnerAccount),
       identityWalletAccountIri: asString(b?.identityWalletAccount),
       identityOperatorAccountIri: asString(b?.identityOperatorAccount),
@@ -891,6 +914,11 @@ export async function kbOwnedAgentsQuery(args: {
     identityHolIri: asString(b?.identityHol),
     identityHolProtocolIdentifier: asString(b?.holProtocolIdentifier),
     identityHolUaidHOL: asString(b?.uaidHOL),
+    identityHolDescriptorIri: null, // Not fetched in this query
+    identityHolDescriptorName: null, // Not fetched in this query
+    identityHolDescriptorDescription: null, // Not fetched in this query
+    identityHolDescriptorImage: null, // Not fetched in this query
+    identityHolDescriptorJson: null, // Not fetched in this query
     identityOwnerAccountIri: asString(b?.identityOwnerAccount),
     identityWalletAccountIri: asString(b?.identityWalletAccount),
     identityOperatorAccountIri: asString(b?.identityOperatorAccount),
@@ -1124,6 +1152,11 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     identityHolIri: null, // Not fetched in simplified query
     identityHolProtocolIdentifier: null, // Not fetched in simplified query
     identityHolUaidHOL: null, // Not fetched in simplified query
+    identityHolDescriptorIri: null, // Not fetched in simplified query
+    identityHolDescriptorName: null, // Not fetched in simplified query
+    identityHolDescriptorDescription: null, // Not fetched in simplified query
+    identityHolDescriptorImage: null, // Not fetched in simplified query
+    identityHolDescriptorJson: null, // Not fetched in simplified query
     identityOwnerAccountIri: null, // Not fetched in simplified query
     identityWalletAccountIri: null, // Not fetched in simplified query
     identityOperatorAccountIri: null, // Not fetched in simplified query

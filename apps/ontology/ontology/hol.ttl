@@ -96,6 +96,36 @@
   rdfs:domain :AgentProfileHOL ;
   rdfs:range xsd:string .
 
+:oasfSkillUid a owl:DatatypeProperty ;
+  rdfs:label "oasfSkillUid" ;
+  rdfs:comment "OASF skill UID (integer) extracted from HOL payloads (e.g. metadata.oasfSkills, profile.properties.oasfSkills)." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:integer .
+
+:capabilityLabel a owl:DatatypeProperty ;
+  rdfs:label "capabilityLabel" ;
+  rdfs:comment "Capability label tokens extracted from HOL payloads (e.g. metadata.capabilityLabels)." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:capabilityToken a owl:DatatypeProperty ;
+  rdfs:label "capabilityToken" ;
+  rdfs:comment "Capability tokens extracted from HOL payloads (e.g. capabilityTokens array)." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:protocol a owl:DatatypeProperty ;
+  rdfs:label "protocol" ;
+  rdfs:comment "Protocol identifiers extracted from HOL payloads (e.g. protocols array)." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
+:trustScoresJson a owl:DatatypeProperty ;
+  rdfs:label "trustScoresJson" ;
+  rdfs:comment "Raw trustScores object JSON extracted from HOL payloads." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range xsd:string .
+
 :registry a owl:DatatypeProperty ;
   rdfs:label "registry" ;
   rdfs:domain :AgentProfileHOL ;
@@ -150,3 +180,40 @@
   rdfs:label "lastSeen" ;
   rdfs:domain :AgentProfileHOL ;
   rdfs:range xsd:dateTime .
+
+########
+# HOL capability / endpoint / relationship / validation (resolved payload)
+########
+
+:CapabilityHOL a owl:Class ;
+  rdfs:label "CapabilityHOL" ;
+  rdfs:comment "Capability entry as returned by HOL registry resolve/search payloads. Stored as a first-class node so we can normalize and query." ;
+  rdfs:subClassOf prov:Entity .
+
+:hasCapabilityHOL a owl:ObjectProperty ;
+  rdfs:label "hasCapabilityHOL" ;
+  rdfs:comment "Links an HOL agent profile to capability nodes retrieved from HOL registry resolve/search payloads." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range :CapabilityHOL .
+
+:RelationshipHOL a owl:Class ;
+  rdfs:label "RelationshipHOL" ;
+  rdfs:comment "Relationship entry as returned by HOL registry resolve payloads. Stored as an opaque node (core:json) until normalized with core relationship models." ;
+  rdfs:subClassOf prov:Entity .
+
+:hasRelationshipHOL a owl:ObjectProperty ;
+  rdfs:label "hasRelationshipHOL" ;
+  rdfs:comment "Links an HOL agent profile to relationship nodes retrieved from HOL registry resolve payloads." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range :RelationshipHOL .
+
+:ValidationHOL a owl:Class ;
+  rdfs:label "ValidationHOL" ;
+  rdfs:comment "Validation entry as returned by HOL registry resolve payloads. Stored as an opaque node (core:json) until normalized with core verification/validation models." ;
+  rdfs:subClassOf prov:Entity .
+
+:hasValidationHOL a owl:ObjectProperty ;
+  rdfs:label "hasValidationHOL" ;
+  rdfs:comment "Links an HOL agent profile to validation nodes retrieved from HOL registry resolve payloads." ;
+  rdfs:domain :AgentProfileHOL ;
+  rdfs:range :ValidationHOL .

@@ -10,6 +10,10 @@ import {
 import { kbHydrateAgentsByDid8004 } from './graphdb/kb-queries-hydration.js';
 import { getGraphdbConfigFromEnv, queryGraphdbWithContext, type GraphdbQueryContext } from './graphdb/graphdb-http.js';
 import { getAccountOwner } from './account-owner.js';
+import { RegistryBrokerClient } from '@hashgraphonline/standards-sdk';
+import { upsertHolResolvedAgentToGraphdb } from './graphdb/hol-upsert.js';
+import { fetchHolCapabilities } from './hol/hol-api.js';
+import { kbHolCapabilitiesQuery, upsertHolCapabilityCatalogToGraphdb } from './graphdb/hol-capabilities.js';
 
 async function runGraphdbQueryBindings(sparql: string, graphdbCtx?: GraphdbQueryContext | null, label?: string): Promise<any[]> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
@@ -35,6 +39,83 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
   const OASF_SKILL_BASE = 'https://agentictrust.io/ontology/oasf#skill/';
   const OASF_DOMAIN_BASE = 'https://agentictrust.io/ontology/oasf#domain/';
   const GRAPHDB_ONTOLOGY_CONTEXT = 'https://www.agentictrust.io/graph/ontology/core';
+
+  // Hashgraph Online Registry/Broker client (UAID → resolved agent + profile)
+  // Defaults to https://hol.org/registry/api/v1 in the SDK; we hard-code to make it explicit and stable.
+  const holRegistryBroker = new RegistryBrokerClient({ baseUrl: 'https://hol.org/registry/api/v1' });
+
+  function parseAccountFromIri(iri: string): { chainId: number | null; address: string | null } {
+    const s = String(iri || '').trim();
+    if (!s) return { chainId: null, address: null };
+    const m = s.match(/^https:\/\/www\.agentictrust\.io\/id\/account\/(\d+)\/([^/?#]+)$/);
+    if (!m) return { chainId: null, address: null };
+    const chainIdRaw = Number(m[1]);
+    const chainId = Number.isFinite(chainIdRaw) ? Math.trunc(chainIdRaw) : null;
+    const address = (() => {
+      try {
+        return decodeURIComponent(m[2]).toLowerCase();
+      } catch {
+        return String(m[2]).toLowerCase();
+      }
+    })();
+    return { chainId, address: address || null };
+  }
+
+  function kbAccountFromIri(iri: string) {
+    const { chainId, address } = parseAccountFromIri(iri);
+    return {
+      iri,
+      chainId,
+      address,
+      accountType: null,
+      didEthr: chainId != null && address ? `did:ethr:${chainId}:${address}` : null,
+    };
+  }
+
+  async function resolveHolAgentProfileByUaid(uaid: string, include?: any): Promise<any> {
+    const includeDefault =
+      include && typeof include === 'object'
+        ? include
+        : { capabilities: true, endpoints: true, relationships: true, validations: true };
+
+    // Use the SDK's configured baseUrl + request pipeline so headers/fetch impl stay consistent.
+    const resolved = await (holRegistryBroker as any).requestJson(buildHolResolvePath(uaid, includeDefault), { method: 'GET' });
+    // eslint-disable-next-line no-console
+    console.log('[hol] resolveUaid response', uaid, JSON.stringify(resolved, null, 2));
+
+    // Best-effort: persist all resolved HOL data into the HOL KB subgraph.
+    try {
+      await upsertHolResolvedAgentToGraphdb({ uaid, resolved });
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.warn('[hol] failed to upsert resolved agent into GraphDB', { uaid, error: String(e?.message || e || '') });
+    }
+
+    const agent = (resolved as any)?.agent ?? null;
+    const profile = agent?.profile ?? null;
+    return {
+      uaid: typeof agent?.uaid === 'string' && agent.uaid.trim() ? agent.uaid.trim() : uaid,
+      displayName: typeof profile?.display_name === 'string' ? profile.display_name : null,
+      alias: typeof profile?.alias === 'string' ? profile.alias : null,
+      bio: typeof profile?.bio === 'string' ? profile.bio : null,
+      profileImage: typeof profile?.profileImage === 'string' ? profile.profileImage : null,
+      profileJson: profile ? JSON.stringify(profile) : null,
+    };
+  }
+
+  function buildHolResolvePath(uaid: string, include?: any): string {
+    // SDK method `resolveUaid` doesn't expose include flags, but the request is a plain GET.
+    // We implement include as query params for forward compatibility with the broker API.
+    const u = new URL(`https://x/resolve/${encodeURIComponent(uaid)}`);
+    const inc = include && typeof include === 'object' ? include : null;
+    if (inc) {
+      for (const k of ['capabilities', 'endpoints', 'relationships', 'validations'] as const) {
+        const v = (inc as any)[k];
+        if (typeof v === 'boolean') u.searchParams.set(`include.${k}`, v ? '1' : '0');
+      }
+    }
+    return u.pathname + u.search;
+  }
 
   const decodeKey = (value: string): string => {
     try {
@@ -70,6 +151,210 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     return v;
   };
 
+  const normalizeUaidString = (input: unknown): string | null => {
+    const s = typeof input === 'string' ? input.trim() : '';
+    if (!s) return null;
+    return s.startsWith('uaid:') ? s : `uaid:${s}`;
+  };
+
+  const holRegistryForDid8004 = (chainId: number): string | null => {
+    // Known HOL registry labels (best-effort). If unknown, omit registry filter.
+    if (Math.trunc(chainId) === 1) return 'erc-8004 mainnet';
+    if (Math.trunc(chainId) === 11155111) return 'erc-8004 sepolia';
+    return null;
+  };
+
+  const deepGet = (obj: any, path: string[]): any => {
+    let cur: any = obj;
+    for (const k of path) {
+      if (!cur || typeof cur !== 'object') return undefined;
+      cur = cur[k];
+    }
+    return cur;
+  };
+
+  const stringish = (v: any): string | null => {
+    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'number' && Number.isFinite(v)) return String(Math.trunc(v));
+    return null;
+  };
+
+  const extractErc8004AgentIdFromSearchHit = (hit: any): string | null => {
+    // Best-effort across possible payload shapes.
+    const candidates = [
+      deepGet(hit, ['erc8004', 'agentId']),
+      deepGet(hit, ['extensions', 'erc8004', 'agentId']),
+      deepGet(hit, ['metadata', 'erc8004', 'agentId']),
+      deepGet(hit, ['metadata', 'extensions', 'erc8004', 'agentId']),
+      deepGet(hit, ['profile', 'erc8004', 'agentId']),
+      deepGet(hit, ['profile', 'extensions', 'erc8004', 'agentId']),
+      deepGet(hit, ['profile', 'aiAgent', 'erc8004', 'agentId']),
+      deepGet(hit, ['profile', 'aiAgent', 'extensions', 'erc8004', 'agentId']),
+    ];
+    for (const c of candidates) {
+      const s = stringish(c);
+      if (s) return s;
+    }
+    return null;
+  };
+
+  const extractErc8004ChainIdFromSearchHit = (hit: any): number | null => {
+    const candidates = [
+      deepGet(hit, ['erc8004', 'chainId']),
+      deepGet(hit, ['extensions', 'erc8004', 'chainId']),
+      deepGet(hit, ['metadata', 'erc8004', 'chainId']),
+      deepGet(hit, ['metadata', 'extensions', 'erc8004', 'chainId']),
+    ];
+    for (const c of candidates) {
+      const raw = typeof c === 'number' ? c : typeof c === 'string' ? Number(c) : NaN;
+      if (Number.isFinite(raw)) return Math.trunc(raw);
+    }
+    return null;
+  };
+
+  async function tryResolveByUaidCandidate(uaidCandidate: string, include?: any): Promise<any | null> {
+    try {
+      console.info('[hol][did-search] try resolve candidate', { uaidCandidate });
+      return await resolveHolAgentProfileByUaid(uaidCandidate, include);
+    } catch (e: any) {
+      console.info('[hol][did-search] resolve candidate failed', { uaidCandidate, error: String(e?.message || e || '') });
+      return null;
+    }
+  }
+
+  async function searchByProtocolsForAgentId(args: {
+    did: string;
+    chainId: number;
+    agentId: string;
+    registry?: string | null;
+    include?: any;
+  }): Promise<string | null> {
+    const { did, chainId, agentId, registry } = args;
+
+    // Cache discovered registries per protocol key (avoid scanning registries on every request).
+    const registryScanCache = new Map<string, { atMs: number; registries: string[] }>();
+    const REGISTRY_SCAN_TTL_MS = 30 * 60_000;
+
+    const discoverRegistriesForProtocol = async (proto: string): Promise<string[]> => {
+      const now = Date.now();
+      const hit = registryScanCache.get(proto);
+      if (hit && now - hit.atMs < REGISTRY_SCAN_TTL_MS) return hit.registries;
+
+      let regsList: string[] = [];
+      try {
+        const regs = await holRegistryBroker.registries();
+        regsList = Array.isArray((regs as any)?.registries) ? (regs as any).registries : [];
+        console.info('[hol][did-search] registries()', { count: regsList.length });
+      } catch (e: any) {
+        console.info('[hol][did-search] registries() failed', { error: String(e?.message || e || '') });
+        registryScanCache.set(proto, { atMs: now, registries: [] });
+        return [];
+      }
+
+      const out: string[] = [];
+      // Scan registries to find those that actually have hits for this protocol.
+      for (const reg of regsList) {
+        if (typeof reg !== 'string' || !reg.trim()) continue;
+        try {
+          const r = await holRegistryBroker.search({ page: 1, limit: 1, registry: reg, protocols: [proto] });
+          const hits = Array.isArray((r as any)?.hits) ? (r as any).hits : [];
+          if (hits.length > 0) out.push(reg);
+        } catch {
+          // ignore per-registry failures
+        }
+      }
+      console.info('[hol][did-search] discovered registries for protocol', { proto, count: out.length });
+      registryScanCache.set(proto, { atMs: now, registries: out });
+      return out;
+    };
+
+    // Log canonical protocol keys so we can match what the broker expects.
+    try {
+      const protos = await holRegistryBroker.listProtocols();
+      console.info('[hol][did-search] available protocols', { protocols: (protos as any)?.protocols ?? protos });
+    } catch (e: any) {
+      console.info('[hol][did-search] failed to list protocols', { error: String(e?.message || e || '') });
+    }
+
+    const protocolCandidates = ['erc-8004', 'erc8004', 'ERC-8004', 'erc_8004'];
+    for (const proto of protocolCandidates) {
+      for (const [label, reg] of [
+        ['no-registry', null],
+        ['with-registry', registry ?? null],
+      ] as const) {
+        // Page through a bit; protocol searches can be large.
+        for (let page = 1; page <= 10; page++) {
+          console.info('[hol][did-search] sdk search', { mode: 'protocol', proto, page, limit: 100, registry: reg, label });
+          const r = await holRegistryBroker.search({
+            page,
+            limit: 100,
+            protocols: [proto],
+            registry: reg ?? undefined,
+          });
+          const hits = Array.isArray((r as any)?.hits) ? (r as any).hits : [];
+          console.info('[hol][did-search] sdk search results', { mode: 'protocol', proto, page, hitCount: hits.length, label });
+          if (!hits.length) break; // no more pages
+
+          const match =
+            hits.find((h: any) => extractErc8004AgentIdFromSearchHit(h) === String(agentId)) ??
+            hits.find((h: any) => {
+              const cid = extractErc8004ChainIdFromSearchHit(h);
+              return cid != null && cid === Math.trunc(chainId) && extractErc8004AgentIdFromSearchHit(h) === String(agentId);
+            }) ??
+            null;
+          const uaid = normalizeUaidString(match?.uaid);
+          console.info('[hol][did-search] sdk filter result', {
+            mode: 'protocol',
+            did,
+            proto,
+            label,
+            matched: Boolean(match),
+            matchedUaid: uaid,
+            matchedHitId: match?.id ?? null,
+            matchedOriginalId: match?.originalId ?? null,
+          });
+          if (uaid) return uaid;
+        }
+      }
+
+      // If global protocol search yields no match, discover which registries actually host this protocol,
+      // then search within those registries (this helps when protocol hits exist but are partitioned by registry).
+      const discovered = await discoverRegistriesForProtocol(proto);
+      if (discovered.length) {
+        for (const reg of discovered) {
+          for (let page = 1; page <= 10; page++) {
+            console.info('[hol][did-search] sdk search', { mode: 'protocol', proto, page, limit: 100, registry: reg, label: 'discovered-registry' });
+            const r = await holRegistryBroker.search({ page, limit: 100, registry: reg, protocols: [proto] });
+            const hits = Array.isArray((r as any)?.hits) ? (r as any).hits : [];
+            console.info('[hol][did-search] sdk search results', { mode: 'protocol', proto, page, hitCount: hits.length, label: 'discovered-registry', registry: reg });
+            if (!hits.length) break;
+            const match =
+              hits.find((h: any) => extractErc8004AgentIdFromSearchHit(h) === String(agentId)) ??
+              hits.find((h: any) => {
+                const cid = extractErc8004ChainIdFromSearchHit(h);
+                return cid != null && cid === Math.trunc(chainId) && extractErc8004AgentIdFromSearchHit(h) === String(agentId);
+              }) ??
+              null;
+            const uaid = normalizeUaidString(match?.uaid);
+            console.info('[hol][did-search] sdk filter result', {
+              mode: 'protocol',
+              did,
+              proto,
+              label: 'discovered-registry',
+              registry: reg,
+              matched: Boolean(match),
+              matchedUaid: uaid,
+              matchedHitId: match?.id ?? null,
+              matchedOriginalId: match?.originalId ?? null,
+            });
+            if (uaid) return uaid;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   const mapRowToKbAgent = (r: any) => ({
     iri: r.iri,
     uaid: r.uaid,
@@ -97,6 +382,10 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             iri: r.identity8004Iri,
             kind: '8004',
             did: r.did8004,
+            ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
+            operatorAccount: r.identityOperatorAccountIri ? kbAccountFromIri(r.identityOperatorAccountIri) : null,
+            walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
+            ownerEOAAccount: r.agentOwnerEOAAccountIri ? kbAccountFromIri(r.agentOwnerEOAAccountIri) : null,
             descriptor:
               r.identity8004DescriptorIri
                 ? {
@@ -153,7 +442,22 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             kind: 'hol',
             did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
             uaidHOL: r.identityHolUaidHOL,
-            descriptor: null,
+            descriptor: r.identityHolDescriptorIri
+              ? {
+                  iri: r.identityHolDescriptorIri,
+                  kind: 'hol',
+                  name: r.identityHolDescriptorName,
+                  description: r.identityHolDescriptorDescription,
+                  image: r.identityHolDescriptorImage,
+                  json: r.identityHolDescriptorJson,
+                  onchainMetadataJson: null,
+                  registeredBy: null,
+                  registryNamespace: null,
+                  skills: [],
+                  domains: [],
+                  protocolDescriptors: [],
+                }
+              : null,
           }
         : null,
     identity:
@@ -216,20 +520,27 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             kind: 'hol',
             did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
             uaidHOL: r.identityHolUaidHOL,
-            descriptor: null,
+            descriptor: r.identityHolDescriptorIri
+              ? {
+                  iri: r.identityHolDescriptorIri,
+                  kind: 'hol',
+                  name: r.identityHolDescriptorName,
+                  description: r.identityHolDescriptorDescription,
+                  image: r.identityHolDescriptorImage,
+                  json: r.identityHolDescriptorJson,
+                  onchainMetadataJson: null,
+                  registeredBy: null,
+                  registryNamespace: null,
+                  skills: [],
+                  domains: [],
+                  protocolDescriptors: [],
+                }
+              : null,
           }
         : null) ??
       (r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null),
-    identityOwnerAccount: r.identityOwnerAccountIri ? { iri: r.identityOwnerAccountIri } : null,
-    identityWalletAccount: r.identityWalletAccountIri ? { iri: r.identityWalletAccountIri } : null,
-    identityOperatorAccount: r.identityOperatorAccountIri ? { iri: r.identityOperatorAccountIri } : null,
 
-    agentOwnerAccount: r.agentOwnerAccountIri ? { iri: r.agentOwnerAccountIri } : null,
-    agentOperatorAccount: r.agentOperatorAccountIri ? { iri: r.agentOperatorAccountIri } : null,
-    agentWalletAccount: r.agentWalletAccountIri ? { iri: r.agentWalletAccountIri } : null,
-    agentOwnerEOAAccount: r.agentOwnerEOAAccountIri ? { iri: r.agentOwnerEOAAccountIri } : null,
-
-    agentAccount: r.agentAccountIri ? { iri: r.agentAccountIri } : null,
+    agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
 
     // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
     reviewAssertions: async (args: any, ctx: any) => {
@@ -308,6 +619,102 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     }
     return null;
   };
+
+  const extractHolNativeIdFromUaid = (uaid: string): string | null => {
+    const u = String(uaid || '').trim();
+    if (!u) return null;
+    // Prefer explicit params when present (HOL UAIDs often include these).
+    for (const k of ['nativeId', 'uid'] as const) {
+      const m = u.match(new RegExp(`[;?]${k}=([^;]+)`));
+      if (m?.[1]) {
+        try {
+          const v = decodeURIComponent(m[1]).trim();
+          if (/^\d+:\d+$/.test(v)) return v;
+        } catch {
+          const v = String(m[1]).trim();
+          if (/^\d+:\d+$/.test(v)) return v;
+        }
+      }
+    }
+    // UAID may be a wrapped did:8004:<chainId>:<agentId>
+    const did = u.startsWith('uaid:') ? u.slice('uaid:'.length) : u;
+    const head = did.split(';')[0]?.trim() ?? '';
+    const m8004 = head.match(/^did:8004:(\d+):(\d+)$/);
+    if (m8004?.[1] && m8004?.[2]) return `${m8004[1]}:${m8004[2]}`;
+    return null;
+  };
+
+  async function lookupHolUaidInKbByOriginalId(originalId: string, graphdbCtx?: GraphdbQueryContext | null): Promise<string | null> {
+    const v = String(originalId || '').trim();
+    if (!v) return null;
+    const escaped = v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const ctx = 'https://www.agentictrust.io/graph/data/subgraph/hol';
+    const sparql = `
+PREFIX hol: <https://agentictrust.io/ontology/hol#>
+SELECT (SAMPLE(?uaid) AS ?uaidOut) WHERE {
+  GRAPH <${ctx}> {
+    ?identity a hol:AgentIdentityHOL ;
+             hol:uaidHOL ?uaid ;
+             hol:hasAgentProfileHOL ?profile .
+    ?profile hol:originalId "${escaped}" .
+  }
+}
+LIMIT 1
+`;
+    const rows = await runGraphdbQueryBindings(sparql, graphdbCtx, 'hol.lookupUaidByOriginalId');
+    const uaid = typeof (rows?.[0] as any)?.uaidOut?.value === 'string' ? String((rows[0] as any).uaidOut.value).trim() : '';
+    return uaid && uaid.startsWith('uaid:') ? uaid : null;
+  }
+
+  async function fetchHolRegistryHitByNativeId(nativeId: string): Promise<any | null> {
+    const v = String(nativeId || '').trim();
+    if (!v) return null;
+    // Use the exact endpoint form you provided (meta.nativeId).
+    const path = `/search?registries=erc-8004&meta.nativeId=${encodeURIComponent(v)}`;
+    // eslint-disable-next-line no-console
+    console.info('[hol][registry-nativeId-search] request', { nativeId: v, path });
+    const res = await (holRegistryBroker as any).requestJson(path, { method: 'GET' });
+    const hits = Array.isArray((res as any)?.hits) ? (res as any).hits : [];
+    // eslint-disable-next-line no-console
+    console.info('[hol][registry-nativeId-search] response', {
+      nativeId: v,
+      hitCount: hits.length,
+      firstUaid: typeof hits?.[0]?.uaid === 'string' ? hits[0].uaid : null,
+    });
+    return hits.length ? hits[0] : null;
+  }
+
+  async function ensureHolHitInKnowledgeGraph(args: { nativeId: string }): Promise<string | null> {
+    // If it's already in GraphDB, don't hit the website endpoint.
+    const existing = await lookupHolUaidInKbByOriginalId(args.nativeId);
+    if (existing) {
+      // eslint-disable-next-line no-console
+      console.info('[hol][registry-nativeId-search] cache-hit (kb)', { nativeId: args.nativeId, holUaid: existing });
+      return existing;
+    }
+    const hit = await fetchHolRegistryHitByNativeId(args.nativeId);
+    const holUaid = normalizeUaidString(hit?.uaid);
+    // eslint-disable-next-line no-console
+    console.info('[hol][registry-nativeId-search] selected', {
+      nativeId: args.nativeId,
+      selected: Boolean(holUaid),
+      holUaid,
+      originalId: hit?.originalId ?? null,
+      registry: hit?.registry ?? null,
+      name: hit?.name ?? null,
+    });
+    if (!holUaid) return null;
+    try {
+      await upsertHolResolvedAgentToGraphdb({ uaid: holUaid, resolved: { agent: hit } });
+    } catch (e: any) {
+      console.warn('[hol] failed to upsert HOL registry search hit into GraphDB', {
+        uaid: holUaid,
+        nativeId: args.nativeId,
+        error: String(e?.message || e || ''),
+      });
+    }
+    return holUaid;
+  }
 
   const resolveAgentOwnerEoaAddressByUaid = async (uaid: string, graphdbCtx?: GraphdbQueryContext | null): Promise<string | null> => {
     const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
@@ -696,8 +1103,40 @@ LIMIT 1
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const uaid = assertUaidInput(args?.uaid, 'uaid');
       if (!uaid) return null;
+      // eslint-disable-next-line no-console
+      console.info('[kb][kbAgentByUaid] start', {
+        uaid,
+        isDid8004: uaid.startsWith('uaid:did:8004:'),
+        extractedNativeId: extractHolNativeIdFromUaid(uaid),
+      });
+
+      const run = async (uaidToQuery: string) => await kbAgentsQuery({ where: { uaid: uaidToQuery }, first: 1, skip: 0 }, graphdbCtx);
+
       // Use uaid (not uaid_in) so the query layer can apply base-UAID prefix matching (for HOL UAIDs).
-      const res = await kbAgentsQuery({ where: { uaid }, first: 1, skip: 0 }, graphdbCtx);
+      let res = await run(uaid);
+      // eslint-disable-next-line no-console
+      console.info('[kb][kbAgentByUaid] initial kbAgentsQuery result', { uaid, rows: res.rows.length });
+
+      // If caller passed uaid:did:8004:* (common for "find HOL json for a DID"),
+      // translate it via HOL registry search on meta.nativeId and then return the matching HOL agent (uaid:aid:*).
+      //
+      // IMPORTANT: we do this even when we *did* find an on-chain 8004 agent row, because callers want the HOL JSON
+      // attached under identityHol/descriptor for that did:8004 nativeId.
+      if (uaid.startsWith('uaid:did:8004:')) {
+        const nativeId = extractHolNativeIdFromUaid(uaid);
+        if (nativeId) {
+          // eslint-disable-next-line no-console
+          console.info('[hol][registry-nativeId-search] ensure (from did uaid)', { uaid, nativeId, hadKbRow: res.rows.length > 0 });
+          const holUaid = await ensureHolHitInKnowledgeGraph({ nativeId });
+          if (holUaid) res = await run(holUaid);
+          // eslint-disable-next-line no-console
+          console.info('[kb][kbAgentByUaid] after ensureHolHitInKnowledgeGraph', { uaid, nativeId, holUaid, rows: res.rows.length });
+        } else {
+          // eslint-disable-next-line no-console
+          console.info('[hol][registry-nativeId-search] skipped (no nativeId extracted)', { uaid });
+        }
+      }
+
       if (!res.rows.length) {
         // For HOL-style UAIDs (uaid:aid:*), we want a hard failure with enough context for clients to debug
         // what exact UAID we attempted to resolve.
@@ -709,8 +1148,224 @@ LIMIT 1
         }
         return null;
       }
-      const agent = res.rows[0]!;
+
+      let agent = res.rows[0]!;
+
+      // If we found a HOL agent but we don't have its HOL descriptor yet, backfill from HOL registry search.
+      const needsHolDescriptor =
+        Boolean(agent.identityHolIri) && !agent.identityHolDescriptorIri && !agent.identityHolDescriptorJson;
+      if (needsHolDescriptor) {
+        const nativeId = extractHolNativeIdFromUaid(agent.uaid ?? uaid);
+        if (nativeId) {
+          const holUaid = await ensureHolHitInKnowledgeGraph({ nativeId });
+          if (holUaid) {
+            const refreshed = await run(holUaid);
+            if (refreshed.rows.length) agent = refreshed.rows[0]!;
+          }
+        }
+      }
+
       return mapRowToKbAgent(agent);
+    },
+
+    kbHolAgentProfileByUaid: async (args: any) => {
+      const uaid = assertUaidInput(args?.uaid, 'uaid');
+      if (!uaid) return null;
+      return await resolveHolAgentProfileByUaid(uaid, args?.include);
+    },
+
+    // NOTE: DID lookup flow intentionally disabled for now. Use kbHolRegistries to inspect registry labels.
+
+    kbHolCapabilities: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
+      const first = typeof args?.first === 'number' ? args.first : null;
+      const skip = typeof args?.skip === 'number' ? args.skip : null;
+      const rows = await kbHolCapabilitiesQuery({ first, skip }, graphdbCtx);
+      return rows.map((r) => ({ iri: r.iri, key: r.key, label: r.label, json: r.json }));
+    },
+
+    kbHolRegistries: async () => {
+      const regs = await holRegistryBroker.registries();
+      const list = Array.isArray((regs as any)?.registries) ? (regs as any).registries : Array.isArray(regs) ? regs : [];
+      // eslint-disable-next-line no-console
+      console.info('[hol] registries', { count: list.length });
+      return list;
+    },
+
+    kbHolRegistriesForProtocol: async (args: any) => {
+      const protocol = typeof args?.protocol === 'string' ? args.protocol.trim() : '';
+      if (!protocol) throw new Error('protocol is required');
+
+      const regs = await holRegistryBroker.registries();
+      const list = Array.isArray((regs as any)?.registries) ? (regs as any).registries : Array.isArray(regs) ? regs : [];
+      const out: string[] = [];
+
+      for (const reg of list) {
+        if (typeof reg !== 'string' || !reg.trim()) continue;
+        try {
+          const r = await holRegistryBroker.search({ page: 1, limit: 1, registry: reg, protocols: [protocol] });
+          const hits = Array.isArray((r as any)?.hits) ? (r as any).hits : [];
+          if (hits.length > 0) out.push(reg);
+        } catch {
+          // ignore per-registry failures
+        }
+      }
+
+      // eslint-disable-next-line no-console
+      console.info('[hol] registriesForProtocol', { protocol, registryCount: out.length });
+      return out;
+    },
+
+    kbHolStats: async () => {
+      const stats = await holRegistryBroker.stats();
+      const registriesRec = (stats as any)?.registries && typeof (stats as any).registries === 'object' ? (stats as any).registries : {};
+      const capsRec = (stats as any)?.capabilities && typeof (stats as any).capabilities === 'object' ? (stats as any).capabilities : {};
+
+      const registries = Object.entries(registriesRec).map(([registry, n]) => ({
+        registry,
+        agentCount: Number.isFinite(Number(n)) ? Math.trunc(Number(n)) : 0,
+      }));
+      const capabilities = Object.entries(capsRec).map(([capability, n]) => ({
+        capability,
+        agentCount: Number.isFinite(Number(n)) ? Math.trunc(Number(n)) : 0,
+      }));
+
+      return {
+        totalAgents: Number.isFinite(Number((stats as any)?.totalAgents)) ? Math.trunc(Number((stats as any).totalAgents)) : 0,
+        lastUpdate: typeof (stats as any)?.lastUpdate === 'string' ? (stats as any).lastUpdate : null,
+        status: typeof (stats as any)?.status === 'string' ? (stats as any).status : null,
+        registries,
+        capabilities,
+      };
+    },
+
+    kbHolRegistrySearch: async (args: any) => {
+      const registry = typeof args?.registry === 'string' ? args.registry.trim() : '';
+      if (!registry) throw new Error('registry is required');
+      const q = typeof args?.q === 'string' && args.q.trim() ? args.q.trim() : undefined;
+      const originalIdArg = typeof args?.originalId === 'string' && args.originalId.trim() ? args.originalId.trim() : undefined;
+      const qLooksLikeOriginalId = Boolean(q && /^\d+:\d+$/.test(q));
+      // If q is of the form "<chainId>:<agentId>" (e.g. "1:9402"), treat it as an originalId exact match.
+      // This avoids returning a bunch of unrelated hits when the namespace search isn't exact.
+      const originalId = originalIdArg ?? (qLooksLikeOriginalId ? q : undefined);
+      if (!q && !originalId) throw new Error('q or originalId is required');
+
+      // Prefer metadata filter when provided (more precise than q).
+      let res: any = null;
+      if (originalId) {
+        console.info('>>>>>>>>>>>>>>> [hol][registry-search] originalId', { registry, originalId });
+        res = await holRegistryBroker.search({
+          registry,
+          page: 1,
+          limit: 50,
+          metadata: { originalId: [originalId] },
+        });
+      }
+
+      // Fallback: registry-scoped query search endpoint
+      if (!res) {
+        console.info('***************** [hol][registry-search] fallback to registry-scoped query search endpoint', { registry, q });
+        res = await holRegistryBroker.registrySearchByNamespace(registry, q);
+      }
+
+      let hits = Array.isArray((res as any)?.hits) ? (res as any).hits : [];
+      let narrowed = false;
+
+      // Secondary narrowing: when q is of the form "<chainId>:<agentId>" (e.g. "1:9402"),
+      // prefer the exact match on hit.originalId from the namespace query results.
+      if (q && /^\d+:\d+$/.test(q) && hits.length > 0) {
+        const exact = hits.find((h: any) => typeof h?.originalId === 'string' && h.originalId.trim() === q) ?? null;
+        if (exact) {
+          // eslint-disable-next-line no-console
+          console.info('[hol][registry-search] exact originalId match', { registry, q, uaid: exact?.uaid ?? null, id: exact?.id ?? null });
+          hits = [exact];
+          narrowed = true;
+          // keep res for total/page/limit fields, but override total below via hits.length fallback
+        } else {
+          // eslint-disable-next-line no-console
+          console.info('[hol][registry-search] no exact originalId match', { registry, q, hitCount: hits.length });
+        }
+      }
+
+
+
+
+      return {
+        total: narrowed ? hits.length : Number.isFinite(Number((res as any)?.total)) ? Math.trunc(Number((res as any).total)) : hits.length,
+        page: Number.isFinite(Number((res as any)?.page)) ? Math.trunc(Number((res as any).page)) : null,
+        limit: Number.isFinite(Number((res as any)?.limit)) ? Math.trunc(Number((res as any).limit)) : null,
+        hits: hits.map((h: any) => ({
+          uaid: typeof h?.uaid === 'string' ? h.uaid : null,
+          id: typeof h?.id === 'string' ? h.id : null,
+          registry: typeof h?.registry === 'string' ? h.registry : null,
+          name: typeof h?.name === 'string' ? h.name : null,
+          description: typeof h?.description === 'string' ? h.description : null,
+          originalId: typeof h?.originalId === 'string' ? h.originalId : null,
+          protocols: Array.isArray(h?.protocols) ? h.protocols.map((p: any) => String(p)) : [],
+          json: (() => {
+            try {
+              return JSON.stringify(h);
+            } catch {
+              return null;
+            }
+          })(),
+        })),
+      };
+    },
+
+    kbHolVectorSearch: async (args: any) => {
+      const input = args?.input ?? {};
+      const query = typeof input?.query === 'string' ? input.query.trim() : '';
+      if (!query) throw new Error('input.query is required');
+      const limit = Number.isFinite(Number(input?.limit)) ? Math.max(1, Math.trunc(Number(input.limit))) : 3;
+      const filter = input?.filter && typeof input.filter === 'object' ? input.filter : null;
+      const registry = typeof filter?.registry === 'string' && filter.registry.trim() ? filter.registry.trim() : undefined;
+      const capabilities = Array.isArray(filter?.capabilities)
+        ? filter.capabilities.map((c: any) => String(c)).filter((c: string) => c.trim())
+        : undefined;
+
+      const vectorSearch = (holRegistryBroker as any)?.vectorSearch;
+      if (typeof vectorSearch !== 'function') {
+        throw new Error('HOL SDK client does not support vectorSearch() in this build.');
+      }
+
+      const res = await vectorSearch.call(holRegistryBroker, {
+        query,
+        limit,
+        filter: {
+          ...(registry ? { registry } : {}),
+          ...(capabilities && capabilities.length ? { capabilities } : {}),
+        },
+      });
+      const hits = Array.isArray((res as any)?.hits) ? (res as any).hits : Array.isArray(res) ? res : [];
+
+      return {
+        total: Number.isFinite(Number((res as any)?.total)) ? Math.trunc(Number((res as any).total)) : hits.length,
+        page: Number.isFinite(Number((res as any)?.page)) ? Math.trunc(Number((res as any).page)) : null,
+        limit: Number.isFinite(Number((res as any)?.limit)) ? Math.trunc(Number((res as any).limit)) : limit,
+        hits: hits.map((h: any) => ({
+          uaid: typeof h?.uaid === 'string' ? h.uaid : null,
+          id: typeof h?.id === 'string' ? h.id : null,
+          registry: typeof h?.registry === 'string' ? h.registry : null,
+          name: typeof h?.name === 'string' ? h.name : null,
+          description: typeof h?.description === 'string' ? h.description : null,
+          originalId: typeof h?.originalId === 'string' ? h.originalId : null,
+          protocols: Array.isArray(h?.protocols) ? h.protocols.map((p: any) => String(p)) : [],
+          json: (() => {
+            try {
+              return JSON.stringify(h);
+            } catch {
+              return null;
+            }
+          })(),
+        })),
+      };
+    },
+
+    kbHolSyncCapabilities: async () => {
+      const caps = await fetchHolCapabilities();
+      const res = await upsertHolCapabilityCatalogToGraphdb({ capabilities: caps });
+      return { success: true, count: res.count, message: `Upserted ${res.count} HOL capabilities into KB.` };
     },
 
     kbSemanticAgentSearch: async (args: any, ctx: any) => {
@@ -757,6 +1412,10 @@ LIMIT 1
                     iri: r.identity8004Iri,
                     kind: '8004',
                     did: r.did8004,
+                    ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
+                    operatorAccount: r.identityOperatorAccountIri ? kbAccountFromIri(r.identityOperatorAccountIri) : null,
+                    walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
+                    ownerEOAAccount: r.agentOwnerEOAAccountIri ? kbAccountFromIri(r.agentOwnerEOAAccountIri) : null,
                     descriptor: r.identity8004DescriptorIri
                       ? {
                           iri: r.identity8004DescriptorIri,
@@ -815,16 +1474,7 @@ LIMIT 1
                     descriptor: null,
                   }
                 : null,
-            identityOwnerAccount: r.identityOwnerAccountIri ? { iri: r.identityOwnerAccountIri } : null,
-            identityWalletAccount: r.identityWalletAccountIri ? { iri: r.identityWalletAccountIri } : null,
-            identityOperatorAccount: r.identityOperatorAccountIri ? { iri: r.identityOperatorAccountIri } : null,
-
-            agentOwnerAccount: r.agentOwnerAccountIri ? { iri: r.agentOwnerAccountIri } : null,
-            agentOperatorAccount: r.agentOperatorAccountIri ? { iri: r.agentOperatorAccountIri } : null,
-            agentWalletAccount: r.agentWalletAccountIri ? { iri: r.agentWalletAccountIri } : null,
-            agentOwnerEOAAccount: r.agentOwnerEOAAccountIri ? { iri: r.agentOwnerEOAAccountIri } : null,
-
-            agentAccount: r.agentAccountIri ? { iri: r.agentAccountIri } : null,
+            agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
           });
         }
       }

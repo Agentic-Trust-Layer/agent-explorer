@@ -5,6 +5,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "tsx src/cli.ts",
+    "prebuild": "pnpm -w -s --filter @agentictrust/hcs-core build",
     "build": "tsc -p tsconfig.json",
     "sync:agents": "tsx src/cli.ts agents",
     "sync:feedbacks": "tsx src/cli.ts feedbacks",
@@ -16,6 +17,7 @@
     "sync:watch": "tsx src/cli.ts watch all"
   },
   "dependencies": {
+    "@agentictrust/hcs-core": "workspace:*",
     "@metamask/smart-accounts-kit": "^0.3.0",
     "dotenv": "^16.4.5",
     "graphql": "^16.8.1",

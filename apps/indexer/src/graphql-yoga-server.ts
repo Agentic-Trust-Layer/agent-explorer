@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { createServer } from 'http';
 import { createYoga, createSchema } from 'graphql-yoga';
 import { graphQLSchemaString } from './graphql-schema';
@@ -17,6 +18,40 @@ import { createIndexAgentResolver } from './index-agent';
 
 async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL_SERVER_PORT ?? 4000)) {
   await ensureSchemaInitialized();
+
+  const makeRequestTimingPlugin = (graphqlEndpoint: string) => ({
+    onExecute({ args }: any) {
+      const t0 = performance.now();
+      const requestId = (args?.contextValue as any)?.graphdb?.requestId ?? null;
+      const timings = ((args?.contextValue as any)?.graphdb?.timings ?? []) as Array<{ label: string; ms: number; resultBindings?: number | null }>;
+      const operationName = args?.operationName ?? null;
+      return {
+        onExecuteDone({ result }: any) {
+          const ms = performance.now() - t0;
+          const gqlErrors = Array.isArray(result?.errors) ? result.errors : [];
+          const graphdbTotalMs = Array.isArray(timings)
+            ? timings.reduce((a, t) => a + (Number.isFinite(t.ms) ? t.ms : 0), 0)
+            : 0;
+          const top = Array.isArray(timings)
+            ? [...timings].sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0)).slice(0, 5)
+            : [];
+          // eslint-disable-next-line no-console
+          console.info('[graphql-yoga] request', {
+            requestId,
+            endpoint: graphqlEndpoint,
+            operationName,
+            ms: Number.isFinite(ms) ? Number(ms.toFixed(1)) : null,
+            graphdb: {
+              queries: Array.isArray(timings) ? timings.length : 0,
+              ms: Number.isFinite(graphdbTotalMs) ? Number(graphdbTotalMs.toFixed(1)) : null,
+              top,
+            },
+            errors: gqlErrors.length ? gqlErrors.map((e: any) => e?.message || String(e)).slice(0, 3) : [],
+          });
+        },
+      };
+    },
+  });
 
   const localIndexAgentResolver = await createIndexAgentResolver({
     db,
@@ -82,12 +117,22 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
         kbOwnedAgentsAllChains: (_p: unknown, args: any, ctx: any) => sharedKb.kbOwnedAgentsAllChains(args, ctx),
         kbIsOwner: (_p: unknown, args: any, ctx: any) => sharedKb.kbIsOwner(args, ctx),
         kbAgentByUaid: (_p: unknown, args: any, ctx: any) => sharedKb.kbAgentByUaid(args, ctx),
+        kbHolAgentProfileByUaid: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolAgentProfileByUaid(args, ctx),
+        kbHolCapabilities: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolCapabilities(args, ctx),
+        kbHolRegistries: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolRegistries(args, ctx),
+        kbHolRegistriesForProtocol: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolRegistriesForProtocol(args, ctx),
+        kbHolStats: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolStats(args, ctx),
+        kbHolRegistrySearch: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolRegistrySearch(args, ctx),
+        kbHolVectorSearch: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolVectorSearch(args, ctx),
         kbSemanticAgentSearch: (_p: unknown, args: any, ctx: any) => sharedKb.kbSemanticAgentSearch(args, ctx),
         kbReviews: (_p: unknown, args: any, ctx: any) => sharedKb.kbReviews(args, ctx),
         kbValidations: (_p: unknown, args: any, ctx: any) => sharedKb.kbValidations(args, ctx),
         kbAssociations: (_p: unknown, args: any, ctx: any) => sharedKb.kbAssociations(args, ctx),
         kbAgentTrustIndex: (_p: unknown, args: any, ctx: any) => sharedKb.kbAgentTrustIndex(args, ctx),
         kbTrustLedgerBadgeDefinitions: (_p: unknown, args: any, ctx: any) => sharedKb.kbTrustLedgerBadgeDefinitions(args, ctx),
+      },
+      Mutation: {
+        kbHolSyncCapabilities: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolSyncCapabilities(args, ctx),
       },
     },
   });
@@ -97,6 +142,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
       schema,
       graphqlEndpoint,
       maskedErrors: false,
+      plugins: [makeRequestTimingPlugin(graphqlEndpoint)],
       // Auth in Yoga context (mirrors Express middleware behavior)
       context: async ({ request }) => {
         const requestId = request.headers.get('x-request-id') || randomUUID();

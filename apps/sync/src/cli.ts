@@ -160,8 +160,9 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
   });
 
   // Attach on-chain metadata KV rows if the subgraph exposes them (optional).
-  // Default: skip for performance + to avoid subgraph pagination limits. Agents still sync fine without it.
-  const skipMetadata = true;
+  // This is required for SmartAgent detection via "AGENT ACCOUNT"/agentAccount metadata.
+  // Always-on (best effort): if the subgraph doesn't expose agentMetadata_collection, we just skip quietly.
+  const skipMetadata = false;
   const inferAgentIdFromMetadataId = (id: unknown): string => {
     const s = String(id ?? '').trim();
     if (!s) return '';
@@ -216,13 +217,21 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
       console.info(`[sync] attached ${metasToUse.length} agentMetadatas rows to agents`);
     }
   } else {
-    console.info('[sync] skipping agentMetadata_collection attachment (default)');
+    console.info('[sync] skipping agentMetadata_collection attachment');
   }
 
   // If we used id-cursor pagination, the subgraph already returned only new ids.
   // In that case, avoid mintedAt checkpoint filtering (it can drop valid rows when mintedAt is missing/0).
   const effectiveLastCursor = cursorModeUsed ? -1n : lastCursor;
   const { turtle, maxCursor } = emitAgentsTurtle(endpoint.chainId, items, 'mintedAt', effectiveLastCursor);
+  try {
+    const withMeta = items.filter((it: any) => Array.isArray((it as any)?.agentMetadatas) && (it as any).agentMetadatas.length > 0).length;
+    console.info('[sync] agent metadata attachment summary', {
+      chainId: endpoint.chainId,
+      agents: items.length,
+      agentsWithAgentMetadatas: withMeta,
+    });
+  } catch {}
   if (turtle.trim()) {
     console.info('[sync] ingest starting', { chainId: endpoint.chainId, turtleBytes: turtle.length });
     await ingestSubgraphTurtleToGraphdb({

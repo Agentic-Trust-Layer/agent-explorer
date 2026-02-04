@@ -573,7 +573,7 @@ export async function createHolDbFromEnv(): Promise<AnyDb> {
 }
 
 export async function importHolAgentsIntoD1(db: AnyDb, opts?: HolImportOptions): Promise<{ processed: number }> {
-  console.log('[hol-import] starting', { baseUrl: opts?.holBaseUrl || process.env.HOL_BASE_URL || 'https://hol.org' });
+  console.log('[hol-import] starting', { baseUrl: 'https://hol.org' });
   await ensureHolSchema(db);
 
   const chainId = typeof opts?.chainId === 'number' ? Math.trunc(opts.chainId) : 0;
@@ -643,7 +643,7 @@ export async function importHolAgentsIntoD1(db: AnyDb, opts?: HolImportOptions):
         attempt += 1;
         try {
           resp = await fetchHolSearchPage({
-            baseUrl: opts?.holBaseUrl,
+            baseUrl: 'https://hol.org',
             page,
             limit: pageSize,
             registry,

@@ -1,5 +1,6 @@
 import { graphql, GraphQLSchema } from 'graphql';
 import { randomUUID } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { buildGraphQLSchemaKb } from './graphql-schema-kb';
 import express from 'express';
 import { createGraphQLResolversKb } from './graphql-resolvers-kb';
@@ -198,6 +199,7 @@ export function createGraphQLServer(port: number = 4000) {
   // Handle POST requests for GraphQL queries (KB-only).
   // We run graphql() directly so we can log GraphQL execution errors (otherwise they only reach the client).
   const handleGraphqlKbPost = async (req: express.Request, res: express.Response) => {
+    const httpT0 = performance.now();
     try {
       const requestId = (req.header('x-request-id') || '').trim() || randomUUID();
       const timings: Array<{ label: string; ms: number; resultBindings?: number | null }> = [];
@@ -281,6 +283,29 @@ export function createGraphQLServer(port: number = 4000) {
         contextValue,
       });
 
+      // Always-on per-request timing log (concise).
+      try {
+        const totalMs = performance.now() - httpT0;
+        const gqlErrors = Array.isArray((result as any)?.errors) ? (result as any).errors : [];
+        const graphdbTotalMs = timings.reduce((a, t) => a + (Number.isFinite(t.ms) ? t.ms : 0), 0);
+        const top = [...timings].sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0)).slice(0, 5);
+        // eslint-disable-next-line no-console
+        console.info('[graphql] request', {
+          requestId,
+          path: req.path,
+          operationName: request.operationName ?? null,
+          ms: Number.isFinite(totalMs) ? Number(totalMs.toFixed(1)) : null,
+          graphdb: {
+            queries: timings.length,
+            ms: Number.isFinite(graphdbTotalMs) ? Number(graphdbTotalMs.toFixed(1)) : null,
+            top,
+          },
+          errors: gqlErrors.length ? gqlErrors.map((e: any) => e?.message || String(e)).slice(0, 3) : [],
+        });
+      } catch {
+        // ignore logging failures
+      }
+
       if (Array.isArray((result as any)?.errors) && (result as any).errors.length) {
         console.warn(
           `⚠️  GraphQL errors (${req.path})`,
@@ -299,6 +324,17 @@ export function createGraphQLServer(port: number = 4000) {
       Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v as any));
       res.status(200).send(JSON.stringify(result));
     } catch (e: any) {
+      try {
+        const totalMs = performance.now() - httpT0;
+        // eslint-disable-next-line no-console
+        console.info('[graphql] request failed', {
+          path: req.path,
+          ms: Number.isFinite(totalMs) ? Number(totalMs.toFixed(1)) : null,
+          error: String(e?.message || e || ''),
+        });
+      } catch {
+        // ignore
+      }
       console.error(`💥 GraphQL handler threw (${req.path})`, e?.stack || e);
       res.setHeader('Content-Type', 'application/json');
       Object.entries(corsHeaders).forEach(([k, v]) => res.setHeader(k, v as any));
