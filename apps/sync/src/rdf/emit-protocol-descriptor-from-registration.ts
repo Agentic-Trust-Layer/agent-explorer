@@ -1,12 +1,13 @@
 import {
+  agentDomainIri,
   agentSkillIri,
   escapeTurtleString,
+  oasfDomainIri,
   oasfSkillIri,
-  protocolDescriptorIriA2a,
-  protocolDescriptorIriMcp,
   protocolIriA2a,
   protocolIriMcp,
   rdfPrefixes,
+  serviceEndpointIri,
   turtleIriOrLiteral,
   turtleJsonLiteral,
 } from './common.js';
@@ -18,54 +19,38 @@ export function emitProtocolDescriptorFromRegistration(opts: {
   protocolVersion?: string | null;
   endpointJson?: any | null;
   skills: { oasf: string[]; other: string[] };
-  assembledFromDescriptorIri?: string | null;
+  domains?: { oasf: string[]; other: string[] } | null;
+  agentIri?: string | null;
+  identityIri?: string | null;
 }): string {
   const didAccount = opts.didAccount;
-  const pdIri = opts.protocol === 'a2a' ? protocolDescriptorIriA2a(didAccount) : protocolDescriptorIriMcp(didAccount);
+  const seIri = serviceEndpointIri(didAccount, opts.protocol);
   const pIri = opts.protocol === 'a2a' ? protocolIriA2a(didAccount) : protocolIriMcp(didAccount);
-  const pdClass = opts.protocol === 'a2a' ? 'core:A2AProtocolDescriptor' : 'core:MCPProtocolDescriptor';
+  const pClass = opts.protocol === 'a2a' ? 'core:A2AProtocol' : 'core:MCPProtocol';
+  const seDescIri = seIri.replace('/id/service-endpoint/', '/id/descriptor/service-endpoint/');
+  const pDescIri = pIri.replace('/id/protocol/', '/id/descriptor/protocol/');
 
   const lines: string[] = [rdfPrefixes()];
 
-  lines.push(`${pIri} a core:Protocol, prov:Entity ;`);
-  lines.push(`  core:hasProtocolDescriptor ${pdIri} .`);
+  // Attach endpoint to both the agent and its identity.
+  if (opts.agentIri) lines.push(`${opts.agentIri} core:hasServiceEndpoint ${seIri} .`);
+  if (opts.identityIri) lines.push(`${opts.identityIri} core:hasServiceEndpoint ${seIri} .`);
+  if (opts.agentIri || opts.identityIri) lines.push('');
+
+  // Service endpoint node (name + protocol link + descriptor)
+  lines.push(`${seIri} a core:ServiceEndpoint, core:Endpoint, prov:Entity ;`);
+  lines.push(`  core:endpointName "${escapeTurtleString(opts.protocol)}" ;`);
+  lines.push(`  core:hasDescriptor ${seDescIri} ;`);
+  lines.push(`  core:hasProtocol ${pIri} .`);
   lines.push('');
 
-  if (opts.assembledFromDescriptorIri) {
-    lines.push(`${opts.assembledFromDescriptorIri} core:assembledFromMetadata ${pdIri} .`);
-    lines.push('');
-  }
-
-  const desc: string[] = [];
-  desc.push(`${pdIri} a ${pdClass}, core:ProtocolDescriptor, core:Descriptor, prov:Entity ;`);
-
+  const proto: string[] = [];
+  proto.push(`${pIri} a ${pClass}, core:Protocol, prov:Entity ;`);
+  proto.push(`  core:hasDescriptor ${pDescIri} ;`);
+  // serviceUrl lives on Protocol (not ServiceEndpoint)
   const serviceTok = turtleIriOrLiteral(opts.serviceUrl);
-  if (serviceTok) desc.push(`  core:serviceUrl ${serviceTok} ;`);
-  if (opts.protocolVersion && opts.protocolVersion.trim()) {
-    desc.push(`  core:protocolVersion "${escapeTurtleString(opts.protocolVersion.trim())}" ;`);
-  }
-
-  if (opts.endpointJson != null) {
-    try {
-      const json = JSON.stringify(opts.endpointJson);
-      desc.push(`  core:json ${turtleJsonLiteral(json)} ;`);
-    } catch {}
-  }
-
-  // Best-effort: mirror UX fields from descriptor JSON onto explicit properties
-  const name = typeof (opts.endpointJson as any)?.name === 'string' ? String((opts.endpointJson as any).name).trim() : '';
-  if (name) {
-    desc.push(`  dcterms:title "${escapeTurtleString(name)}" ;`);
-    desc.push(`  rdfs:label "${escapeTurtleString(name)}" ;`);
-  }
-  const description =
-    typeof (opts.endpointJson as any)?.description === 'string' ? String((opts.endpointJson as any).description).trim() : '';
-  if (description) desc.push(`  dcterms:description "${escapeTurtleString(description)}" ;`);
-  const image = typeof (opts.endpointJson as any)?.image === 'string' ? String((opts.endpointJson as any).image).trim() : '';
-  if (image) {
-    const imgTok = turtleIriOrLiteral(image);
-    if (imgTok) desc.push(`  schema:image ${imgTok} ;`);
-  }
+  if (serviceTok) proto.push(`  core:serviceUrl ${serviceTok} ;`);
+  if (opts.protocolVersion && opts.protocolVersion.trim()) proto.push(`  core:protocolVersion "${escapeTurtleString(opts.protocolVersion.trim())}" ;`);
 
   const extra: string[] = [];
   for (const sk of opts.skills.oasf) {
@@ -74,19 +59,52 @@ export function emitProtocolDescriptorFromRegistration(opts: {
       : sk;
     const skillNode = agentSkillIri(didAccount, skKey);
     const classification = oasfSkillIri(skKey);
-    desc.push(`  core:hasSkill ${skillNode} ;`);
+    proto.push(`  core:hasSkill ${skillNode} ;`);
     extra.push(`${skillNode} a core:AgentSkill, prov:Entity ; core:hasSkillClassification ${classification} .`);
     extra.push(`${classification} a oasf:Skill, prov:Entity ; oasf:key "${escapeTurtleString(skKey)}" .`);
   }
   for (const sk of opts.skills.other) {
     const skillNode = agentSkillIri(didAccount, sk);
-    desc.push(`  core:hasSkill ${skillNode} ;`);
+    proto.push(`  core:hasSkill ${skillNode} ;`);
     extra.push(`${skillNode} a core:AgentSkill, prov:Entity ; core:skillId "${escapeTurtleString(sk)}" ; rdfs:label "${escapeTurtleString(sk)}" .`);
   }
 
-  desc[desc.length - 1] = desc[desc.length - 1].replace(/ ;$/, ' .');
-  lines.push(desc.join('\n'));
+  // Domains (best-effort). Represent as core:AgentDomain nodes.
+  const domains = opts.domains ?? null;
+  if (domains) {
+    for (const d of domains.oasf) {
+      const key = d.startsWith('https://agentictrust.io/ontology/oasf#domain/')
+        ? d.slice('https://agentictrust.io/ontology/oasf#domain/'.length)
+        : d;
+      const domainNode = agentDomainIri(didAccount, key);
+      const classification = oasfDomainIri(key);
+      proto.push(`  core:hasDomain ${domainNode} ;`);
+      extra.push(`${domainNode} a core:AgentDomain, prov:Entity ; core:hasDomainClassification ${classification} .`);
+      extra.push(`${classification} a oasf:Domain, prov:Entity ; oasf:key "${escapeTurtleString(key)}" .`);
+    }
+    for (const d of domains.other) {
+      const domainNode = agentDomainIri(didAccount, d);
+      proto.push(`  core:hasDomain ${domainNode} ;`);
+      extra.push(`${domainNode} a core:AgentDomain, prov:Entity ; rdfs:label "${escapeTurtleString(d)}" .`);
+    }
+  }
+
+  proto[proto.length - 1] = proto[proto.length - 1].replace(/ ;$/, ' .');
+  lines.push(proto.join('\n'));
   lines.push('');
+
+  // Endpoint descriptor (minimal metadata)
+  lines.push(`${seDescIri} a core:Descriptor, prov:Entity ;`);
+  lines.push(`  dcterms:title "${escapeTurtleString(opts.protocol)}" ;`);
+  lines.push(`  rdfs:label "${escapeTurtleString(opts.protocol)}" .`);
+  lines.push('');
+
+  // Protocol descriptor (placeholder; agent-cards sync will populate core:json + UX fields)
+  lines.push(`${pDescIri} a core:Descriptor, prov:Entity ;`);
+  lines.push(`  dcterms:title "${escapeTurtleString(opts.protocol)}" ;`);
+  lines.push(`  rdfs:label "${escapeTurtleString(opts.protocol)}" .`);
+  lines.push('');
+
   for (const n of extra) lines.push(n + '\n');
   lines.push('');
 

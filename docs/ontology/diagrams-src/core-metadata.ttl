@@ -20,6 +20,12 @@ core:EndpointType a owl:Class ;
 core:Endpoint a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
+core:ServiceEndpoint a owl:Class ;
+  rdfs:subClassOf core:Endpoint .
+
+core:Protocol a owl:Class ;
+  rdfs:subClassOf prov:Entity .
+
 core:AgentSkill a owl:Class ;
   rdfs:subClassOf prov:Entity .
 
@@ -30,9 +36,17 @@ core:hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:domain core:AIAgent ;
   rdfs:range core:AgentDescriptor .
 
-core:assembledFromMetadata a owl:ObjectProperty ;
-  rdfs:domain core:AgentDescriptor ;
-  rdfs:range core:AgentDescriptor .
+core:hasServiceEndpoint a owl:ObjectProperty ;
+  rdfs:domain prov:Entity ;
+  rdfs:range core:ServiceEndpoint .
+
+core:hasProtocol a owl:ObjectProperty ;
+  rdfs:domain core:ServiceEndpoint ;
+  rdfs:range core:Protocol .
+
+core:serviceUrl a owl:ObjectProperty ;
+  rdfs:domain core:ServiceEndpoint ;
+  rdfs:range owl:Thing .
 
 core:hasEndpoint a owl:ObjectProperty ;
   rdfs:domain core:AgentDescriptor ;

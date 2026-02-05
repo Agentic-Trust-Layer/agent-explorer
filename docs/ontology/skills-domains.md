@@ -159,13 +159,15 @@ WHERE {
 
   # Skills can appear on:
   # - the ERC-8004 identity descriptor
-  # - assembled protocol descriptors (A2A/MCP)
+  # - protocol nodes reachable via service endpoints (A2A/MCP/etc.)
   {
     BIND(?identityDescriptor AS ?descriptor)
   } UNION {
-    ?identityDescriptor core:assembledFromMetadata ?descriptor .
-    ?descriptor a core:ProtocolDescriptor .
-    OPTIONAL { ?descriptor core:serviceUrl ?serviceUrl . }
+    ?identity8004 core:hasServiceEndpoint ?serviceEndpoint .
+    ?serviceEndpoint a core:ServiceEndpoint ;
+                     core:serviceUrl ?serviceUrl ;
+                     core:hasProtocol ?descriptor .
+    ?descriptor a core:Protocol .
   }
 
   ?descriptor core:hasSkill ?skill .
@@ -249,9 +251,11 @@ WHERE {
   {
     BIND(?identityDescriptor AS ?descriptor)
   } UNION {
-    ?identityDescriptor core:assembledFromMetadata ?descriptor .
-    ?descriptor a core:ProtocolDescriptor .
-    OPTIONAL { ?descriptor core:serviceUrl ?serviceUrl . }
+    ?identity8004 core:hasServiceEndpoint ?serviceEndpoint .
+    ?serviceEndpoint a core:ServiceEndpoint ;
+                     core:serviceUrl ?serviceUrl ;
+                     core:hasProtocol ?descriptor .
+    ?descriptor a core:Protocol .
   }
 
   ?descriptor core:hasDomain ?domain .

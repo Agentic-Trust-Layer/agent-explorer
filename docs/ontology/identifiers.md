@@ -71,7 +71,7 @@ WHERE {
   # Prefer SmartAgent smart account DID, else wallet account DID
   OPTIONAL {
     ?agent a erc8004:SmartAgent ;
-           erc8004:hasSmartAccount ?smartAccount .
+           erc8004:hasAgentAccount ?smartAccount .
     ?smartAccount eth:hasAccountIdentifier ?saIdent .
     ?saIdent core:protocolIdentifier ?didAccount .
   }

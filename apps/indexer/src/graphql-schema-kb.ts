@@ -80,17 +80,30 @@ export const graphQLSchemaStringKb = `
     didEthr: String
   }
 
-  type KbProtocolDescriptor {
+  # Generic descriptor for core entities (protocols, endpoints, etc.)
+  type KbDescriptor {
     iri: ID!
-    protocol: String! # a2a | mcp
-    serviceUrl: String!
     name: String
     description: String
     image: String
-    protocolVersion: String
     json: String
+  }
+
+  type KbProtocol {
+    iri: ID!
+    protocol: String! # a2a | mcp | other
+    protocolVersion: String
+    serviceUrl: String
+    descriptor: KbDescriptor
     skills: [String!]!
     domains: [String!]!
+  }
+
+  type KbServiceEndpoint {
+    iri: ID!
+    name: String! # a2a | mcp | other
+    descriptor: KbDescriptor
+    protocol: KbProtocol!
   }
 
   type KbIdentityDescriptor {
@@ -105,7 +118,6 @@ export const graphQLSchemaStringKb = `
     registryNamespace: String
     skills: [String!]!
     domains: [String!]!
-    protocolDescriptors: [KbProtocolDescriptor!]!
   }
 
   type KbIdentity {
@@ -114,6 +126,7 @@ export const graphQLSchemaStringKb = `
     did: String!
     uaidHOL: String
     descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
   }
 
   # ERC-8004 identity with attached account info
@@ -121,13 +134,21 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String! # always "8004"
     did: String!
+    # Convenience fields (previously on KbAgent)
+    did8004: String!
+    agentId8004: Int
+    isSmartAgent: Boolean!
     descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
 
     # Accounts attached to the ERC-8004 identity
     ownerAccount: KbAccount
     operatorAccount: KbAccount
     walletAccount: KbAccount
     ownerEOAAccount: KbAccount
+
+    # SmartAgent -> ERC-8004 agent-controlled account (AgentAccount)
+    agentAccount: KbAccount
   }
 
   type KbHolAgentProfile {
@@ -227,24 +248,19 @@ export const graphQLSchemaStringKb = `
     createdAtTime: Int
     updatedAtTime: Int
 
-    did8004: String
-    agentId8004: Int
-
-    isSmartAgent: Boolean!
-
     # Convenience: primary identity (prefer identity8004, else identityEns)
     identity: KbIdentity
     identity8004: KbIdentity8004
     identityHol: KbIdentity
     identityEns: KbIdentity
 
+    serviceEndpoints: [KbServiceEndpoint!]!
+
     # Counts are always available; items are only fetched when you request a specific agent.
     assertions: KbAgentAssertions
     reviewAssertions(first: Int, skip: Int): KbReviewResponseConnection
     validationAssertions(first: Int, skip: Int): KbValidationResponseConnection
 
-    # SmartAgent -> ERC-8004 agent-controlled account (AgentAccount)
-    agentAccount: KbAccount
   }
 
   type KbAgentSearchResult {

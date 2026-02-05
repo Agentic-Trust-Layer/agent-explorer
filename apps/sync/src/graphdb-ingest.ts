@@ -309,7 +309,7 @@ export async function ingestSubgraphTurtleToGraphdb(opts: {
     });
   }
 
-  // Precompute assertion counts on agents (materialized fields for fast kbAgents queries).
+  // Precompute assertion summaries (materialized aggregates for fast kbAgents queries).
   // We recompute after assertion ingests so queries don't need COUNT() over assertions.
   if (opts.section === 'feedbacks' || opts.section === 'validation-responses') {
     const update = (() => {
@@ -321,9 +321,23 @@ WITH <${context}>
 DELETE { ?agent erc8004:feedbackAssertionCount8004 ?o }
 WHERE  { ?agent erc8004:feedbackAssertionCount8004 ?o } ;
 WITH <${context}>
-INSERT { ?agent erc8004:feedbackAssertionCount8004 ?cnt }
+DELETE { ?summary core:feedbackAssertionCount ?oCnt }
 WHERE  {
-  SELECT ?agent (COUNT(?fb) AS ?cnt) WHERE {
+  ?agent core:hasFeedbackAssertionSummary ?summary .
+  ?summary core:feedbackAssertionCount ?oCnt .
+} ;
+WITH <${context}>
+INSERT {
+  ?agent core:hasFeedbackAssertionSummary ?summary .
+  ?summary a core:FeedbackAssertionSummary ;
+           core:feedbackAssertionCount ?cnt .
+}
+WHERE  {
+  SELECT
+    ?agent
+    (IRI(CONCAT(STR(?agent), "/feedback-assertion-summary")) AS ?summary)
+    (COUNT(?fb) AS ?cnt)
+  WHERE {
     ?agent a core:AIAgent ; core:hasReputationAssertion ?fb .
   }
   GROUP BY ?agent
@@ -338,9 +352,23 @@ WITH <${context}>
 DELETE { ?agent erc8004:validationAssertionCount8004 ?o }
 WHERE  { ?agent erc8004:validationAssertionCount8004 ?o } ;
 WITH <${context}>
-INSERT { ?agent erc8004:validationAssertionCount8004 ?cnt }
+DELETE { ?summary core:validationAssertionCount ?oCnt }
 WHERE  {
-  SELECT ?agent (COUNT(?vr) AS ?cnt) WHERE {
+  ?agent core:hasValidationAssertionSummary ?summary .
+  ?summary core:validationAssertionCount ?oCnt .
+} ;
+WITH <${context}>
+INSERT {
+  ?agent core:hasValidationAssertionSummary ?summary .
+  ?summary a core:ValidationAssertionSummary ;
+           core:validationAssertionCount ?cnt .
+}
+WHERE  {
+  SELECT
+    ?agent
+    (IRI(CONCAT(STR(?agent), "/validation-assertion-summary")) AS ?summary)
+    (COUNT(?vr) AS ?cnt)
+  WHERE {
     ?agent a core:AIAgent ; core:hasVerificationAssertion ?vr .
   }
   GROUP BY ?agent
@@ -435,8 +463,10 @@ WHERE {
     await updateGraphdb(baseUrl, repository, auth, normalizeUpdate);
     console.info('[sync] uaid normalize complete', { chainId: opts.chainId, context });
 
-    // Materialize numeric agentId8004 for fast ORDER BY / filters.
-    console.info('[sync] agentId8004 materialization starting', { chainId: opts.chainId, context });
+    // Materialize numeric agentId for fast ORDER BY / filters.
+    // - Agent node: erc8004:agentId8004 (legacy + paging/sorting convenience)
+    // - Identity node: erc8004:agentId (explicit identity-level token id)
+    console.info('[sync] agentId materialization starting', { chainId: opts.chainId, context });
     const agentIdUpdate = `
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
@@ -456,8 +486,20 @@ WHERE {
 
   BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
 }
+;
+WITH <${context}>
+INSERT {
+  ?identity8004 erc8004:agentId ?agentId8004 .
+}
+WHERE {
+  ?identity8004 a erc8004:AgentIdentity8004 ;
+                core:hasIdentifier ?ident8004 .
+  FILTER(!EXISTS { ?identity8004 erc8004:agentId ?_existing })
+  ?ident8004 core:protocolIdentifier ?did8004 .
+  BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
+}
 `;
     await updateGraphdb(baseUrl, repository, auth, agentIdUpdate);
-    console.info('[sync] agentId8004 materialization complete', { chainId: opts.chainId, context });
+    console.info('[sync] agentId materialization complete', { chainId: opts.chainId, context });
   }
 }

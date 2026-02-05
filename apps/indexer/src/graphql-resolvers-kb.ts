@@ -355,250 +355,235 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     return null;
   }
 
-  const mapRowToKbAgent = (r: any) => ({
-    iri: r.iri,
-    uaid: r.uaid,
-    agentName: r.agentDescriptorName,
-    agentDescription: r.agentDescriptorDescription,
-    agentImage: r.agentDescriptorImage,
-    agentDescriptor: r.agentDescriptorIri
-      ? {
-          iri: r.agentDescriptorIri,
-          name: r.agentDescriptorName,
-          description: r.agentDescriptorDescription,
-          image: r.agentDescriptorImage,
-        }
-      : null,
-    agentTypes: r.agentTypes,
-    createdAtBlock: r.createdAtBlock == null ? null : Math.trunc(r.createdAtBlock),
-    createdAtTime: r.createdAtTime == null ? null : Math.trunc(r.createdAtTime),
-    updatedAtTime: r.updatedAtTime == null ? null : Math.trunc(r.updatedAtTime),
-    did8004: r.did8004,
-    agentId8004: r.agentId8004 == null ? null : Math.trunc(r.agentId8004),
-    isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
-    identity8004:
+  // IMPORTANT: KB endpoint should only return data materialized in GraphDB.
+  // Do not parse identity registration JSON at query-time.
+
+  const mapRowToKbAgent = (r: any) => {
+    const serviceEndpoints = [
+      r.a2aServiceEndpointIri && r.a2aProtocolIri
+        ? {
+            iri: r.a2aServiceEndpointIri,
+            name: 'a2a',
+            descriptor: r.a2aServiceEndpointDescriptorIri
+              ? {
+                  iri: r.a2aServiceEndpointDescriptorIri,
+                  name: r.a2aServiceEndpointDescriptorName,
+                  description: r.a2aServiceEndpointDescriptorDescription,
+                  image: r.a2aServiceEndpointDescriptorImage,
+                  json: null,
+                }
+              : null,
+            protocol: {
+              iri: r.a2aProtocolIri,
+              protocol: 'a2a',
+              protocolVersion: r.a2aProtocolVersion,
+              serviceUrl: r.a2aServiceUrl,
+              descriptor: r.a2aProtocolDescriptorIri
+                ? {
+                    iri: r.a2aProtocolDescriptorIri,
+                    name: r.a2aDescriptorName,
+                    description: r.a2aDescriptorDescription,
+                    image: r.a2aDescriptorImage,
+                    json: r.a2aJson,
+                  }
+                : null,
+              skills: r.a2aSkills,
+              domains: r.a2aDomains,
+            },
+          }
+        : null,
+      r.mcpServiceEndpointIri && r.mcpProtocolIri
+        ? {
+            iri: r.mcpServiceEndpointIri,
+            name: 'mcp',
+            descriptor: r.mcpServiceEndpointDescriptorIri
+              ? {
+                  iri: r.mcpServiceEndpointDescriptorIri,
+                  name: r.mcpServiceEndpointDescriptorName,
+                  description: r.mcpServiceEndpointDescriptorDescription,
+                  image: r.mcpServiceEndpointDescriptorImage,
+                  json: null,
+                }
+              : null,
+            protocol: {
+              iri: r.mcpProtocolIri,
+              protocol: 'mcp',
+              protocolVersion: r.mcpProtocolVersion,
+              serviceUrl: r.mcpServiceUrl,
+              descriptor: r.mcpProtocolDescriptorIri
+                ? {
+                    iri: r.mcpProtocolDescriptorIri,
+                    name: r.mcpDescriptorName,
+                    description: r.mcpDescriptorDescription,
+                    image: r.mcpDescriptorImage,
+                    json: r.mcpJson,
+                  }
+                : null,
+              skills: r.mcpSkills,
+              domains: r.mcpDomains,
+            },
+          }
+        : null,
+    ].filter(Boolean);
+
+    const identity8004Descriptor =
+      r.identity8004DescriptorIri
+        ? {
+            iri: r.identity8004DescriptorIri,
+            kind: '8004',
+            name: r.identity8004DescriptorName,
+            description: r.identity8004DescriptorDescription,
+            image: r.identity8004DescriptorImage,
+            json: r.identity8004RegistrationJson,
+            onchainMetadataJson: r.identity8004OnchainMetadataJson,
+            registeredBy: r.identity8004RegisteredBy,
+            registryNamespace: r.identity8004RegistryNamespace,
+            // IMPORTANT: identity descriptor skills/domains come ONLY from agentURI registration JSON materialized on the descriptor.
+            // Do not derive from protocol metadata (agent-card.json) here.
+            skills: Array.isArray(r.identity8004DescriptorSkills) ? r.identity8004DescriptorSkills : [],
+            domains: Array.isArray(r.identity8004DescriptorDomains) ? r.identity8004DescriptorDomains : [],
+          }
+        : null;
+
+    const identityHolDescriptor =
+      r.identityHolDescriptorIri
+        ? {
+            iri: r.identityHolDescriptorIri,
+            kind: 'hol',
+            name: r.identityHolDescriptorName,
+            description: r.identityHolDescriptorDescription,
+            image: r.identityHolDescriptorImage,
+            json: r.identityHolDescriptorJson,
+            onchainMetadataJson: null,
+            registeredBy: null,
+            registryNamespace: null,
+            skills: [],
+            domains: [],
+          }
+        : null;
+
+    const identity8004 =
       r.identity8004Iri && r.did8004
         ? {
             iri: r.identity8004Iri,
             kind: '8004',
             did: r.did8004,
+            did8004: r.did8004,
+            agentId8004: r.agentId8004 == null ? null : Math.trunc(r.agentId8004),
+            isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
+            descriptor: identity8004Descriptor,
+            serviceEndpoints,
             ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
             operatorAccount: r.identityOperatorAccountIri ? kbAccountFromIri(r.identityOperatorAccountIri) : null,
             walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
-            ownerEOAAccount: r.agentOwnerEOAAccountIri ? kbAccountFromIri(r.agentOwnerEOAAccountIri) : null,
-            descriptor:
-              r.identity8004DescriptorIri
-                ? {
-                    iri: r.identity8004DescriptorIri,
-                    kind: '8004',
-                    name: r.identity8004DescriptorName,
-                    description: r.identity8004DescriptorDescription,
-                    image: r.identity8004DescriptorImage,
-                    json: r.identity8004RegistrationJson,
-                    onchainMetadataJson: r.identity8004OnchainMetadataJson,
-                    registeredBy: r.identity8004RegisteredBy,
-                    registryNamespace: r.identity8004RegistryNamespace,
-                    skills: [],
-                    domains: [],
-                    protocolDescriptors: [
-                      r.a2aProtocolDescriptorIri && r.a2aServiceUrl
-                        ? {
-                            iri: r.a2aProtocolDescriptorIri,
-                            protocol: 'a2a',
-                            serviceUrl: r.a2aServiceUrl,
-                            name: r.a2aDescriptorName,
-                            description: r.a2aDescriptorDescription,
-                            image: r.a2aDescriptorImage,
-                            protocolVersion: r.a2aProtocolVersion,
-                            json: r.a2aJson,
-                            skills: r.a2aSkills,
-                            domains: [],
-                          }
-                        : null,
-                      r.mcpProtocolDescriptorIri && r.mcpServiceUrl
-                        ? {
-                            iri: r.mcpProtocolDescriptorIri,
-                            protocol: 'mcp',
-                            serviceUrl: r.mcpServiceUrl,
-                            name: r.mcpDescriptorName,
-                            description: r.mcpDescriptorDescription,
-                            image: r.mcpDescriptorImage,
-                            protocolVersion: r.mcpProtocolVersion,
-                            json: r.mcpJson,
-                            skills: r.mcpSkills,
-                            domains: [],
-                          }
-                        : null,
-                    ].filter(Boolean),
-                  }
-                : null,
+            ownerEOAAccount: r.identityOwnerEOAAccountIri ? kbAccountFromIri(r.identityOwnerEOAAccountIri) : null,
+            agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
           }
-        : null,
-    identityEns: r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null,
-    identityHol:
+        : null;
+
+    const identityEns = r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns, descriptor: null, serviceEndpoints: [] } : null;
+
+    const identityHol =
       r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
         ? {
             iri: r.identityHolIri,
             kind: 'hol',
             did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
             uaidHOL: r.identityHolUaidHOL,
-            descriptor: r.identityHolDescriptorIri
-              ? {
-                  iri: r.identityHolDescriptorIri,
-                  kind: 'hol',
-                  name: r.identityHolDescriptorName,
-                  description: r.identityHolDescriptorDescription,
-                  image: r.identityHolDescriptorImage,
-                  json: r.identityHolDescriptorJson,
-                  onchainMetadataJson: null,
-                  registeredBy: null,
-                  registryNamespace: null,
-                  skills: [],
-                  domains: [],
-                  protocolDescriptors: [],
-                }
-              : null,
+            descriptor: identityHolDescriptor,
+            serviceEndpoints: [],
+          }
+        : null;
+
+    const identity =
+      (r.identity8004Iri && r.did8004
+        ? { iri: r.identity8004Iri, kind: '8004', did: r.did8004, descriptor: identity8004Descriptor, serviceEndpoints }
+        : null) ??
+      (identityHol ? { ...identityHol } : null) ??
+      identityEns;
+
+    return {
+      iri: r.iri,
+      uaid: r.uaid,
+      agentName: r.agentDescriptorName,
+      agentDescription: r.agentDescriptorDescription,
+      agentImage: r.agentDescriptorImage,
+      agentDescriptor: r.agentDescriptorIri
+        ? {
+            iri: r.agentDescriptorIri,
+            name: r.agentDescriptorName,
+            description: r.agentDescriptorDescription,
+            image: r.agentDescriptorImage,
           }
         : null,
-    identity:
-      (r.identity8004Iri && r.did8004
-        ? {
-            iri: r.identity8004Iri,
-            kind: '8004',
-            did: r.did8004,
-            descriptor:
-              r.identity8004DescriptorIri
-                ? {
-                    iri: r.identity8004DescriptorIri,
-                    kind: '8004',
-                    name: r.identity8004DescriptorName,
-                    description: r.identity8004DescriptorDescription,
-                    image: r.identity8004DescriptorImage,
-                    json: r.identity8004RegistrationJson,
-                    onchainMetadataJson: r.identity8004OnchainMetadataJson,
-                    registeredBy: r.identity8004RegisteredBy,
-                    registryNamespace: r.identity8004RegistryNamespace,
-                    skills: [],
-                    domains: [],
-                    protocolDescriptors: [
-                      r.a2aProtocolDescriptorIri && r.a2aServiceUrl
-                        ? {
-                            iri: r.a2aProtocolDescriptorIri,
-                            protocol: 'a2a',
-                            serviceUrl: r.a2aServiceUrl,
-                            name: r.a2aDescriptorName,
-                            description: r.a2aDescriptorDescription,
-                            image: r.a2aDescriptorImage,
-                            protocolVersion: r.a2aProtocolVersion,
-                            json: r.a2aJson,
-                            skills: r.a2aSkills,
-                            domains: [],
-                          }
-                        : null,
-                      r.mcpProtocolDescriptorIri && r.mcpServiceUrl
-                        ? {
-                            iri: r.mcpProtocolDescriptorIri,
-                            protocol: 'mcp',
-                            serviceUrl: r.mcpServiceUrl,
-                            name: r.mcpDescriptorName,
-                            description: r.mcpDescriptorDescription,
-                            image: r.mcpDescriptorImage,
-                            protocolVersion: r.mcpProtocolVersion,
-                            json: r.mcpJson,
-                            skills: r.mcpSkills,
-                            domains: [],
-                          }
-                        : null,
-                    ].filter(Boolean),
-                  }
-                : null,
-          }
-        : null) ??
-      (r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
-        ? {
-            iri: r.identityHolIri,
-            kind: 'hol',
-            did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
-            uaidHOL: r.identityHolUaidHOL,
-            descriptor: r.identityHolDescriptorIri
-              ? {
-                  iri: r.identityHolDescriptorIri,
-                  kind: 'hol',
-                  name: r.identityHolDescriptorName,
-                  description: r.identityHolDescriptorDescription,
-                  image: r.identityHolDescriptorImage,
-                  json: r.identityHolDescriptorJson,
-                  onchainMetadataJson: null,
-                  registeredBy: null,
-                  registryNamespace: null,
-                  skills: [],
-                  domains: [],
-                  protocolDescriptors: [],
-                }
-              : null,
-          }
-        : null) ??
-      (r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null),
+      agentTypes: r.agentTypes,
+      createdAtBlock: r.createdAtBlock == null ? null : Math.trunc(r.createdAtBlock),
+      createdAtTime: r.createdAtTime == null ? null : Math.trunc(r.createdAtTime),
+      updatedAtTime: r.updatedAtTime == null ? null : Math.trunc(r.updatedAtTime),
+      serviceEndpoints,
+      identity8004,
+      identityEns,
+      identityHol,
+      identity,
 
-    agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
+      // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
+      reviewAssertions: async (args: any, ctx: any) => {
+        const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
+        const total = Number.isFinite(r.feedbackAssertionCount) ? Math.max(0, Math.trunc(r.feedbackAssertionCount)) : 0;
+        const first = args?.first ?? null;
+        const skip = args?.skip ?? null;
+        return {
+          total,
+          items: async (_args: any, ctx2: any) => {
+            const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
+            const uaid = typeof (r as any).uaid === 'string' ? String((r as any).uaid).trim() : '';
+            if (!uaid) return [];
+            const items = await kbReviewItemsForAgentQuery(
+              {
+                uaid,
+                first,
+                skip,
+              },
+              gctx,
+            );
+            return items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
+          },
+        };
+      },
 
-    // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
-    reviewAssertions: async (args: any, ctx: any) => {
-      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
-      const total = Number.isFinite(r.feedbackAssertionCount8004) ? Math.max(0, Math.trunc(r.feedbackAssertionCount8004)) : 0;
-      const first = args?.first ?? null;
-      const skip = args?.skip ?? null;
-      return {
-        total,
-        items: async (_args: any, ctx2: any) => {
-          const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
-          const uaid = typeof (r as any).uaid === 'string' ? String((r as any).uaid).trim() : '';
-          if (!uaid) return [];
-          const items = await kbReviewItemsForAgentQuery(
-            {
-              uaid,
-              first,
-              skip,
-            },
-            gctx,
-          );
-          return items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
-        },
-      };
-    },
+      validationAssertions: async (args: any, ctx: any) => {
+        const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
+        const total = Number.isFinite(r.validationAssertionCount) ? Math.max(0, Math.trunc(r.validationAssertionCount)) : 0;
+        const first = args?.first ?? null;
+        const skip = args?.skip ?? null;
+        return {
+          total,
+          items: async (_args: any, ctx2: any) => {
+            const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
+            const res = await kbValidationResponsesForAgentQuery(
+              {
+                uaid: typeof (r as any).uaid === 'string' ? String((r as any).uaid).trim() : '',
+                first,
+                skip,
+              },
+              gctx,
+            );
+            return res.items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
+          },
+        };
+      },
 
-    validationAssertions: async (args: any, ctx: any) => {
-      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
-      const total = Number.isFinite(r.validationAssertionCount8004) ? Math.max(0, Math.trunc(r.validationAssertionCount8004)) : 0;
-      const first = args?.first ?? null;
-      const skip = args?.skip ?? null;
-      return {
-        total,
-        items: async (_args: any, ctx2: any) => {
-          const gctx = (ctx2 && typeof ctx2 === 'object' ? (ctx2 as any).graphdb : graphdbCtx) as GraphdbQueryContext | null;
-          const res = await kbValidationResponsesForAgentQuery(
-            {
-              uaid: typeof (r as any).uaid === 'string' ? String((r as any).uaid).trim() : '',
-              first,
-              skip,
-            },
-            gctx,
-          );
-          return res.items.map((row) => ({ iri: row.iri, agentDid8004: row.agentDid8004, json: row.json, record: row.record }));
-        },
-      };
-    },
-
-    assertions: async () => {
-      const fbTotal = Number.isFinite(r.feedbackAssertionCount8004) ? Math.max(0, Math.trunc(r.feedbackAssertionCount8004)) : 0;
-      const vrTotal = Number.isFinite(r.validationAssertionCount8004) ? Math.max(0, Math.trunc(r.validationAssertionCount8004)) : 0;
-      return {
-        total: fbTotal + vrTotal,
-        reviewResponses: { total: fbTotal, items: [] },
-        validationResponses: { total: vrTotal, items: [] },
-      };
-    },
-  });
+      assertions: async () => {
+        const fbTotal = Number.isFinite(r.feedbackAssertionCount) ? Math.max(0, Math.trunc(r.feedbackAssertionCount)) : 0;
+        const vrTotal = Number.isFinite(r.validationAssertionCount) ? Math.max(0, Math.trunc(r.validationAssertionCount)) : 0;
+        return {
+          total: fbTotal + vrTotal,
+          reviewResponses: { total: fbTotal, items: [] },
+          validationResponses: { total: vrTotal, items: [] },
+        };
+      },
+    };
+  };
 
   const normalizeHexAddr = (addr: string): string | null => {
     const a = String(addr || '').trim().toLowerCase();
@@ -729,7 +714,9 @@ SELECT (SAMPLE(?addr) AS ?addrOut) WHERE {
     ?agent a core:AIAgent ;
            core:uaid "${u}" .
     OPTIONAL {
-      ?agent erc8004:agentOwnerEOAAccount ?acct .
+      ?agent core:hasIdentity ?identity8004 .
+      ?identity8004 a erc8004:AgentIdentity8004 ;
+                    erc8004:hasOwnerEOAAccount ?acct .
       ?acct eth:accountAddress ?addr .
     }
   }
@@ -1403,19 +1390,152 @@ LIMIT 1
             agentImage: null,
             agentDescriptor: null,
             agentTypes: r.agentTypes,
-            did8004: r.did8004,
-            agentId8004: Number.isFinite(Number(r.did8004.split(':').pop())) ? Number(r.did8004.split(':').pop()) : null,
-            isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
+            serviceEndpoints: [
+              r.a2aServiceEndpointIri && r.a2aProtocolIri
+                ? {
+                    iri: r.a2aServiceEndpointIri,
+                    name: 'a2a',
+                    descriptor: r.a2aServiceEndpointIri
+                      ? {
+                          iri: String(r.a2aServiceEndpointIri).replace('/id/service-endpoint/', '/id/descriptor/service-endpoint/'),
+                          name: null,
+                          description: null,
+                          image: null,
+                          json: null,
+                        }
+                      : null,
+                    protocol: {
+                      iri: r.a2aProtocolIri,
+                      protocol: 'a2a',
+                      protocolVersion: r.a2aProtocolVersion,
+                      serviceUrl: r.a2aServiceUrl,
+                      descriptor: r.a2aProtocolIri
+                        ? {
+                            iri: String(r.a2aProtocolIri).replace('/id/protocol/', '/id/descriptor/protocol/'),
+                            name: null,
+                            description: null,
+                            image: null,
+                            json: r.a2aJson,
+                          }
+                        : null,
+                      skills: r.a2aSkills,
+                      domains: [],
+                    },
+                  }
+                : null,
+              r.mcpServiceEndpointIri && r.mcpProtocolIri
+                ? {
+                    iri: r.mcpServiceEndpointIri,
+                    name: 'mcp',
+                    descriptor: r.mcpServiceEndpointIri
+                      ? {
+                          iri: String(r.mcpServiceEndpointIri).replace('/id/service-endpoint/', '/id/descriptor/service-endpoint/'),
+                          name: null,
+                          description: null,
+                          image: null,
+                          json: null,
+                        }
+                      : null,
+                    protocol: {
+                      iri: r.mcpProtocolIri,
+                      protocol: 'mcp',
+                      protocolVersion: r.mcpProtocolVersion,
+                      serviceUrl: r.mcpServiceUrl,
+                      descriptor: r.mcpProtocolIri
+                        ? {
+                            iri: String(r.mcpProtocolIri).replace('/id/protocol/', '/id/descriptor/protocol/'),
+                            name: null,
+                            description: null,
+                            image: null,
+                            json: r.mcpJson,
+                          }
+                        : null,
+                      skills: r.mcpSkills,
+                      domains: [],
+                    },
+                  }
+                : null,
+            ].filter(Boolean),
             identity8004:
               r.identity8004Iri
                 ? {
                     iri: r.identity8004Iri,
                     kind: '8004',
                     did: r.did8004,
+                    did8004: r.did8004,
+                    agentId8004: Number.isFinite(Number(r.did8004.split(':').pop())) ? Number(r.did8004.split(':').pop()) : null,
+                    isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
+                    serviceEndpoints: [
+                      r.a2aServiceEndpointIri && r.a2aProtocolIri
+                        ? {
+                            iri: r.a2aServiceEndpointIri,
+                            name: 'a2a',
+                            descriptor: r.a2aServiceEndpointIri
+                              ? {
+                                  iri: String(r.a2aServiceEndpointIri).replace('/id/service-endpoint/', '/id/descriptor/service-endpoint/'),
+                                  name: null,
+                                  description: null,
+                                  image: null,
+                                  json: null,
+                                }
+                              : null,
+                            protocol: {
+                              iri: r.a2aProtocolIri,
+                              protocol: 'a2a',
+                              protocolVersion: r.a2aProtocolVersion,
+                              serviceUrl: r.a2aServiceUrl,
+                              descriptor: r.a2aProtocolIri
+                                ? {
+                                    iri: String(r.a2aProtocolIri).replace('/id/protocol/', '/id/descriptor/protocol/'),
+                                    name: null,
+                                    description: null,
+                                    image: null,
+                                    json: r.a2aJson,
+                                  }
+                                : null,
+                              skills: r.a2aSkills,
+                              domains: [],
+                            },
+                          }
+                        : null,
+                      r.mcpServiceEndpointIri && r.mcpProtocolIri
+                        ? {
+                            iri: r.mcpServiceEndpointIri,
+                            name: 'mcp',
+                            descriptor: r.mcpServiceEndpointIri
+                              ? {
+                                  iri: String(r.mcpServiceEndpointIri).replace('/id/service-endpoint/', '/id/descriptor/service-endpoint/'),
+                                  name: null,
+                                  description: null,
+                                  image: null,
+                                  json: null,
+                                }
+                              : null,
+                            protocol: {
+                              iri: r.mcpProtocolIri,
+                              protocol: 'mcp',
+                              protocolVersion: r.mcpProtocolVersion,
+                              serviceUrl: r.mcpServiceUrl,
+                              descriptor: r.mcpProtocolIri
+                                ? {
+                                    iri: String(r.mcpProtocolIri).replace('/id/protocol/', '/id/descriptor/protocol/'),
+                                    name: null,
+                                    description: null,
+                                    image: null,
+                                    json: r.mcpJson,
+                                  }
+                                : null,
+                              skills: r.mcpSkills,
+                              domains: [],
+                            },
+                          }
+                        : null,
+                    ].filter(Boolean),
                     ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
                     operatorAccount: r.identityOperatorAccountIri ? kbAccountFromIri(r.identityOperatorAccountIri) : null,
                     walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
-                    ownerEOAAccount: r.agentOwnerEOAAccountIri ? kbAccountFromIri(r.agentOwnerEOAAccountIri) : null,
+                    ownerEOAAccount: r.identityOwnerEOAAccountIri ? kbAccountFromIri(r.identityOwnerEOAAccountIri) : null,
+                    agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
                     descriptor: r.identity8004DescriptorIri
                       ? {
                           iri: r.identity8004DescriptorIri,
@@ -1429,41 +1549,11 @@ LIMIT 1
                           registryNamespace: null,
                           skills: [],
                           domains: [],
-                          protocolDescriptors: [
-                            r.a2aProtocolDescriptorIri && r.a2aServiceUrl
-                              ? {
-                                  iri: r.a2aProtocolDescriptorIri,
-                                  protocol: 'a2a',
-                                  serviceUrl: r.a2aServiceUrl,
-                                  name: null,
-                                  description: null,
-                                  image: null,
-                                  protocolVersion: r.a2aProtocolVersion,
-                                  json: r.a2aJson,
-                                  skills: r.a2aSkills,
-                                  domains: [],
-                                }
-                              : null,
-                            r.mcpProtocolDescriptorIri && r.mcpServiceUrl
-                              ? {
-                                  iri: r.mcpProtocolDescriptorIri,
-                                  protocol: 'mcp',
-                                  serviceUrl: r.mcpServiceUrl,
-                                  name: null,
-                                  description: null,
-                                  image: null,
-                                  protocolVersion: r.mcpProtocolVersion,
-                                  json: r.mcpJson,
-                                  skills: r.mcpSkills,
-                                  domains: [],
-                                }
-                              : null,
-                          ].filter(Boolean),
                         }
                       : null,
                   }
                 : null,
-            identityEns: r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns } : null,
+            identityEns: r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns, descriptor: null, serviceEndpoints: [] } : null,
             identityHol:
               r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
                 ? {
@@ -1472,9 +1562,9 @@ LIMIT 1
                     did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
                     uaidHOL: r.identityHolUaidHOL,
                     descriptor: null,
+                    serviceEndpoints: [],
                   }
                 : null,
-            agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
           });
         }
       }

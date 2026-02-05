@@ -167,8 +167,11 @@ export const graphiqlHTML = `<!DOCTYPE html>
     agents {
       uaid
       agentName
-      agentId8004
-      isSmartAgent
+      identity8004 {
+        did8004
+        agentId8004
+        isSmartAgent
+      }
     }
   }
 }\`;

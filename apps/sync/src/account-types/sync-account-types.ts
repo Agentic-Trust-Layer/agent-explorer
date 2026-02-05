@@ -316,23 +316,6 @@ WHERE {
     console.info(`[sync] [account-types] updated eth:hasEOAOwner for ${chunk.length} smart accounts (chunk ${i / chunkPairs + 1})`);
   }
 
-  // Populate agentOwnerEOAAccount for SmartAgent from its agentAccount's eth:hasEOAOwner.
-  const updateAgentOwnerEoa = `
-PREFIX eth: <https://agentictrust.io/ontology/eth#>
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-WITH <${ctx}>
-DELETE { ?agent erc8004:agentOwnerEOAAccount ?old . }
-INSERT { ?agent erc8004:agentOwnerEOAAccount ?eoa . }
-WHERE {
-  ?agent a erc8004:SmartAgent ;
-         erc8004:hasAgentAccount ?acct .
-  ?acct eth:hasEOAOwner ?eoa .
-  OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?old . }
-}
-`;
-  await updateGraphdb(baseUrl, repository, auth, updateAgentOwnerEoa);
-  console.info('[sync] [account-types] updated SmartAgent agentOwnerEOAAccount from eth:hasEOAOwner');
-
   // Populate hasOwnerEOAAccount on AgentIdentity8004:
   // - if identity ownerAccount is an EOA => ownerEOA = ownerAccount
   // - if identity ownerAccount has eth:hasEOAOwner => ownerEOA = that EOA

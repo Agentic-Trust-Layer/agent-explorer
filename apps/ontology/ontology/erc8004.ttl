@@ -27,6 +27,12 @@
   rdfs:subClassOf core:AgentRegistry ;
   rdfs:subClassOf prov:Entity .
 
+::agentId a owl:DatatypeProperty ;
+  rdfs:label "agentId" ;
+  rdfs:comment "ERC-8004 agent token id as integer. Equivalent to the last segment of did:8004:<chainId>:<agentId> and materialized here for fast query/sort without string parsing." ;
+  rdfs:domain :AgentIdentity8004 ;
+  rdfs:range xsd:integer .
+
 :AgentIdentity8004 a owl:Class ;
   rdfs:label "AgentIdentity8004" ;
   rdfs:comment "ERC-8004 agent identity." ;
@@ -49,30 +55,6 @@
   rdfs:comment "Associates a SmartAgent with its AgentAccount node (an ERC-8004 agent-controlled account, typically a smart account)." ;
   rdfs:domain :SmartAgent ;
   rdfs:range :AgentAccount .
-
-:agentOwnerAccount a owl:ObjectProperty ;
-  rdfs:label "agentOwnerAccount" ;
-  rdfs:comment "Agent-scoped owner account (copied from the ERC-8004 identity owner account for AIAgent8004)." ;
-  rdfs:domain :AIAgent8004 ;
-  rdfs:range eth:Account .
-
-:agentOperatorAccount a owl:ObjectProperty ;
-  rdfs:label "agentOperatorAccount" ;
-  rdfs:comment "Agent-scoped operator account (copied from the ERC-8004 identity operator account for AIAgent8004, when known)." ;
-  rdfs:domain :AIAgent8004 ;
-  rdfs:range eth:Account .
-
-:agentOwnerEOAAccount a owl:ObjectProperty ;
-  rdfs:label "agentOwnerEOAAccount" ;
-  rdfs:comment "Effective EOA owner of the agent. For SmartAgent this is resolved from the AgentAccount; for AIAgent8004 this is taken from the identity owner account." ;
-  rdfs:domain :AIAgent8004 ;
-  rdfs:range eth:Account .
-
-:agentWalletAccount a owl:ObjectProperty ;
-  rdfs:label "agentWalletAccount" ;
-  rdfs:comment "Agent-scoped wallet account (copied from the ERC-8004 identity wallet account)." ;
-  rdfs:domain :AIAgent8004 ;
-  rdfs:range eth:Account .
 
 :hasOwnerAccount a owl:ObjectProperty ;
   rdfs:label "hasOwnerAccount" ;
@@ -227,20 +209,8 @@
   rdfs:label "checkpointUpdatedAt" ;
   rdfs:domain :SubgraphIngestCheckpoint ;
   rdfs:range xsd:integer .
-::feedbackAssertionCount8004 a owl:DatatypeProperty ;
-  rdfs:label "feedbackAssertionCount8004" ;
-  rdfs:comment "Precomputed count of ERC-8004 feedback assertions (core:hasReputationAssertion) for an agent within a chain subgraph graph." ;
-  rdfs:domain core:AIAgent ;
-  rdfs:range xsd:integer .
-
-::validationAssertionCount8004 a owl:DatatypeProperty ;
-  rdfs:label "validationAssertionCount8004" ;
-  rdfs:comment "Precomputed count of ERC-8004 validation assertions (core:hasVerificationAssertion) for an agent within a chain subgraph graph." ;
-  rdfs:domain core:AIAgent ;
-  rdfs:range xsd:integer .
-
 ::agentId8004 a owl:DatatypeProperty ;
   rdfs:label "agentId8004" ;
   rdfs:comment "Materialized ERC-8004 agent id (token id) as integer, for fast ordering/filtering without string parsing of did:8004." ;
-  rdfs:domain core:AIAgent ;
+  rdfs:domain :AgentIdentity8004 ;
   rdfs:range xsd:integer .

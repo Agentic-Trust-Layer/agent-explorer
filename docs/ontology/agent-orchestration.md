@@ -29,7 +29,7 @@ The ontology already has the right backbone for this:
 - **Discovery inputs**
   - `core:AgentRegistry` (registry context)
   - `core:AgentIdentity` + Descriptor pattern (`core:hasDescriptor`)
-  - protocol-derived tool catalogs (`core:ProtocolDescriptor`, especially `core:MCPProtocolDescriptor`)
+  - protocol-derived tool catalogs (`core:Protocol`, especially `core:MCPProtocol`)
   - skills/tools as `core:AgentSkillClassification` with `core:JsonSchema`
 - **Intent and task mapping**
   - `core:IntentType` (why)
@@ -122,11 +122,11 @@ AgenticTrust contribution: make each layer **explicit and queryable** (descripti
 
 ## Registries “out there”: turning registry discovery into a tool universe
 
-In an open agent web, the “tool universe” is assembled from registries and protocol descriptors:
+In an open agent web, the “tool universe” is assembled from registries and protocol metadata:
 
 - registry entries → `AgentIdentity` + Descriptor
-- descriptors → protocol descriptors (MCP/A2A), endpoints, schemas
-- protocol descriptors → a concrete tool catalog (skills/tools)
+- identities → service endpoints (`core:hasServiceEndpoint`) → protocols (`core:hasProtocol`) → schemas/skills/domains
+- protocol metadata → a concrete tool catalog (skills/tools)
 
 The orchestration question becomes:
 
@@ -186,7 +186,7 @@ This section does **not** introduce new AgenticTrust classes. It sharpens the se
 **Existing mapping (keep sacred)**:
 
 - `AgentIdentity` is an Entity (registry-scoped representation), not execution
-- `Descriptor` / `ProtocolDescriptor` are Entities, not invocations
+- `Descriptor` / `Protocol` are Entities, not invocations
 - `AgentSkillClassification` is an Entity (“affordance”), not a call
 - execution is `TaskExecution` / `SkillInvocation` (Activities)
 
@@ -209,7 +209,7 @@ This section does **not** introduce new AgenticTrust classes. It sharpens the se
 
 **Existing placement**:
 
-- retrieval operates over Entities (`Descriptor`, `ProtocolDescriptor`, `AgentSkillClassification`, registry context)
+- retrieval operates over Entities (`Descriptor`, `Protocol`, `AgentSkillClassification`, registry context)
 - execution remains provenance (`TaskExecution` / `SkillInvocation`)
 
 ### 4) TaskType is the pivot concept (not tool, not intent)

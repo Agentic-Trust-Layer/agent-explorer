@@ -12,8 +12,8 @@ export type KbAgentRow = {
   agentDescriptorDescription: string | null;
   agentDescriptorImage: string | null;
   agentTypes: string[];
-  feedbackAssertionCount8004: number | null;
-  validationAssertionCount8004: number | null;
+  feedbackAssertionCount: number | null;
+  validationAssertionCount: number | null;
   createdAtBlock: number | null;
   createdAtTime: number | null;
   updatedAtTime: number | null;
@@ -28,6 +28,9 @@ export type KbAgentRow = {
   identity8004OnchainMetadataJson: string | null;
   identity8004RegisteredBy: string | null;
   identity8004RegistryNamespace: string | null;
+  // Skills/domains explicitly materialized on the identity descriptor (from agentURI registration JSON only)
+  identity8004DescriptorSkills: string[];
+  identity8004DescriptorDomains: string[];
   identityEnsIri: string | null;
   didEns: string | null;
   identityHolIri: string | null;
@@ -41,31 +44,41 @@ export type KbAgentRow = {
   identityOwnerAccountIri: string | null;
   identityWalletAccountIri: string | null;
   identityOperatorAccountIri: string | null;
-
-  agentOwnerAccountIri: string | null;
-  agentOperatorAccountIri: string | null;
-  agentWalletAccountIri: string | null;
-  agentOwnerEOAAccountIri: string | null;
+  identityOwnerEOAAccountIri: string | null;
 
   agentAccountIri: string | null;
 
-  a2aProtocolDescriptorIri: string | null;
+  a2aServiceEndpointIri: string | null;
   a2aServiceUrl: string | null;
+  a2aProtocolIri: string | null;
+  a2aServiceEndpointDescriptorIri: string | null;
+  a2aServiceEndpointDescriptorName: string | null;
+  a2aServiceEndpointDescriptorDescription: string | null;
+  a2aServiceEndpointDescriptorImage: string | null;
+  a2aProtocolDescriptorIri: string | null;
   a2aDescriptorName: string | null;
   a2aDescriptorDescription: string | null;
   a2aDescriptorImage: string | null;
   a2aProtocolVersion: string | null;
   a2aJson: string | null;
   a2aSkills: string[];
+  a2aDomains: string[];
 
-  mcpProtocolDescriptorIri: string | null;
+  mcpServiceEndpointIri: string | null;
   mcpServiceUrl: string | null;
+  mcpProtocolIri: string | null;
+  mcpServiceEndpointDescriptorIri: string | null;
+  mcpServiceEndpointDescriptorName: string | null;
+  mcpServiceEndpointDescriptorDescription: string | null;
+  mcpServiceEndpointDescriptorImage: string | null;
+  mcpProtocolDescriptorIri: string | null;
   mcpDescriptorName: string | null;
   mcpDescriptorDescription: string | null;
   mcpDescriptorImage: string | null;
   mcpProtocolVersion: string | null;
   mcpJson: string | null;
   mcpSkills: string[];
+  mcpDomains: string[];
 };
 
 function chainContext(chainId: number): string {
@@ -116,7 +129,12 @@ async function runGraphdbQuery(sparql: string, ctx?: GraphdbQueryContext | null,
   const debug = Boolean(process.env.DEBUG_GRAPHDB_SPARQL);
   if (debug) {
     // eslint-disable-next-line no-console
-    console.log('[graphdb] sparql (first 30 lines):\n' + sparql.split('\n').slice(0, 30).join('\n'));
+    // IMPORTANT: default to printing FULL runnable SPARQL for copy/paste into GraphDB UI.
+    // Set DEBUG_GRAPHDB_SPARQL_FULL=0 to print only a short preview.
+    const full = process.env.DEBUG_GRAPHDB_SPARQL_FULL !== '0';
+    const body = full ? sparql : sparql.split('\n').slice(0, 30).join('\n') + '\n# ... TRUNCATED ...\n';
+    const lbl = label ?? ctx?.label ?? 'graphdbQuery';
+    console.log(`\n[graphdb] sparql begin (${lbl})\n\n${body}\n\n[graphdb] sparql end (${lbl})\n`);
   }
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
   const result = await queryGraphdbWithContext(baseUrl, repository, auth, sparql, ctx ? { ...ctx, label: label ?? ctx.label } : ctx);
@@ -252,12 +270,12 @@ export async function kbAgentsQuery(args: {
   }
   if (where.hasA2a === true) {
     filters.push(
-      `EXISTS { ?agent core:hasIdentity ?_id . ?_id core:hasDescriptor ?_d . ?_d core:assembledFromMetadata ?_pd . ?_pd a core:A2AProtocolDescriptor . }`,
+      `EXISTS { ?agent core:hasIdentity ?_id . ?_id core:hasServiceEndpoint ?_se . ?_se core:hasProtocol ?_p . ?_p a core:A2AProtocol . }`,
     );
   }
   if (where.hasA2a === false) {
     filters.push(
-      `NOT EXISTS { ?agent core:hasIdentity ?_id . ?_id core:hasDescriptor ?_d . ?_d core:assembledFromMetadata ?_pd . ?_pd a core:A2AProtocolDescriptor . }`,
+      `NOT EXISTS { ?agent core:hasIdentity ?_id . ?_id core:hasServiceEndpoint ?_se . ?_se core:hasProtocol ?_p . ?_p a core:A2AProtocol . }`,
     );
   }
 
@@ -289,13 +307,19 @@ export async function kbAgentsQuery(args: {
   // Min-count filters use precomputed count properties (materialized during sync ingest).
   const pagePreFilter: string[] = [];
   if (minReview != null) {
-    pagePreFilter.push('    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }');
-    pagePreFilter.push('    BIND(IF(BOUND(?feedbackAssertionCount8004), xsd:integer(?feedbackAssertionCount8004), 0) AS ?fbCntFilter)');
+    pagePreFilter.push('    OPTIONAL {');
+    pagePreFilter.push('      ?agent core:hasFeedbackAssertionSummary ?_fbSummaryFilter .');
+    pagePreFilter.push('      ?_fbSummaryFilter core:feedbackAssertionCount ?feedbackAssertionCount .');
+    pagePreFilter.push('    }');
+    pagePreFilter.push('    BIND(IF(BOUND(?feedbackAssertionCount), xsd:integer(?feedbackAssertionCount), 0) AS ?fbCntFilter)');
     filters.push(`?fbCntFilter >= ${minReview}`);
   }
   if (minValidation != null) {
-    pagePreFilter.push('    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }');
-    pagePreFilter.push('    BIND(IF(BOUND(?validationAssertionCount8004), xsd:integer(?validationAssertionCount8004), 0) AS ?vrCntFilter)');
+    pagePreFilter.push('    OPTIONAL {');
+    pagePreFilter.push('      ?agent core:hasValidationAssertionSummary ?_vrSummaryFilter .');
+    pagePreFilter.push('      ?_vrSummaryFilter core:validationAssertionCount ?validationAssertionCount .');
+    pagePreFilter.push('    }');
+    pagePreFilter.push('    BIND(IF(BOUND(?validationAssertionCount), xsd:integer(?validationAssertionCount), 0) AS ?vrCntFilter)');
     filters.push(`?vrCntFilter >= ${minValidation}`);
   }
 
@@ -416,6 +440,7 @@ export async function kbAgentsQuery(args: {
           'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
           'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
           'PREFIX hol: <https://agentictrust.io/ontology/hol#>',
+          'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
           'PREFIX dcterms: <http://purl.org/dc/terms/>',
           'PREFIX schema: <http://schema.org/>',
           '',
@@ -428,8 +453,8 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?agentDescTitle) AS ?agentDescTitle)',
           '  (SAMPLE(?agentDescDescription) AS ?agentDescDescription)',
           '  (SAMPLE(?agentDescImage) AS ?agentDescImage)',
-          '  (SAMPLE(?feedbackAssertionCount8004) AS ?feedbackAssertionCount8004)',
-          '  (SAMPLE(?validationAssertionCount8004) AS ?validationAssertionCount8004)',
+          '  (SAMPLE(?feedbackAssertionCount) AS ?feedbackAssertionCount)',
+          '  (SAMPLE(?validationAssertionCount) AS ?validationAssertionCount)',
           '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
           '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
           '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -449,10 +474,7 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
           '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
           '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
-          '  (SAMPLE(?agentOwnerAccount) AS ?agentOwnerAccount)',
-          '  (SAMPLE(?agentOperatorAccount) AS ?agentOperatorAccount)',
-          '  (SAMPLE(?agentWalletAccount) AS ?agentWalletAccount)',
-          '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
+          '  (SAMPLE(?identityOwnerEOAAccount) AS ?identityOwnerEOAAccount)',
           '  (SAMPLE(?agentAccount) AS ?agentAccount)',
           '  (SAMPLE(?identity8004Descriptor) AS ?identity8004Descriptor)',
           '  (SAMPLE(?identity8004DescriptorName) AS ?identity8004DescriptorName)',
@@ -462,22 +484,38 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
           '  (SAMPLE(?registeredBy) AS ?registeredBy)',
           '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
-          '  (SAMPLE(?pdA2a) AS ?pdA2a)',
+          '  (GROUP_CONCAT(DISTINCT STR(?idSkillOut); separator=" ") AS ?identity8004DescriptorSkills)',
+          '  (GROUP_CONCAT(DISTINCT STR(?idDomainOut); separator=" ") AS ?identity8004DescriptorDomains)',
+          '  (SAMPLE(?seA2a) AS ?seA2a)',
           '  (SAMPLE(?a2aServiceUrl) AS ?a2aServiceUrl)',
+          '  (SAMPLE(?pA2a) AS ?pA2a)',
+          '  (SAMPLE(?seA2aDesc) AS ?seA2aDesc)',
+          '  (SAMPLE(?a2aServiceEndpointDescriptorName) AS ?a2aServiceEndpointDescriptorName)',
+          '  (SAMPLE(?a2aServiceEndpointDescriptorDescription) AS ?a2aServiceEndpointDescriptorDescription)',
+          '  (SAMPLE(?a2aServiceEndpointDescriptorImage) AS ?a2aServiceEndpointDescriptorImage)',
+          '  (SAMPLE(?pA2aDesc) AS ?pA2aDesc)',
           '  (SAMPLE(?a2aDescriptorName) AS ?a2aDescriptorName)',
           '  (SAMPLE(?a2aDescriptorDescription) AS ?a2aDescriptorDescription)',
           '  (SAMPLE(?a2aDescriptorImage) AS ?a2aDescriptorImage)',
           '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
           '  (SAMPLE(?a2aJson) AS ?a2aJson)',
-          '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
-          '  (SAMPLE(?pdMcp) AS ?pdMcp)',
+          '  (GROUP_CONCAT(DISTINCT STR(?a2aSkillOut); separator=" ") AS ?a2aSkills)',
+          '  (GROUP_CONCAT(DISTINCT STR(?a2aDomainOut); separator=" ") AS ?a2aDomains)',
+          '  (SAMPLE(?seMcp) AS ?seMcp)',
           '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
+          '  (SAMPLE(?pMcp) AS ?pMcp)',
+          '  (SAMPLE(?seMcpDesc) AS ?seMcpDesc)',
+          '  (SAMPLE(?mcpServiceEndpointDescriptorName) AS ?mcpServiceEndpointDescriptorName)',
+          '  (SAMPLE(?mcpServiceEndpointDescriptorDescription) AS ?mcpServiceEndpointDescriptorDescription)',
+          '  (SAMPLE(?mcpServiceEndpointDescriptorImage) AS ?mcpServiceEndpointDescriptorImage)',
+          '  (SAMPLE(?pMcpDesc) AS ?pMcpDesc)',
           '  (SAMPLE(?mcpDescriptorName) AS ?mcpDescriptorName)',
           '  (SAMPLE(?mcpDescriptorDescription) AS ?mcpDescriptorDescription)',
           '  (SAMPLE(?mcpDescriptorImage) AS ?mcpDescriptorImage)',
           '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
           '  (SAMPLE(?mcpJson) AS ?mcpJson)',
-          '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
+          '  (GROUP_CONCAT(DISTINCT STR(?mcpSkillOut); separator=" ") AS ?mcpSkills)',
+          '  (GROUP_CONCAT(DISTINCT STR(?mcpDomainOut); separator=" ") AS ?mcpDomains)',
           '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
           'WHERE {',
           ctxIri ? `  VALUES ?agent { ${valuesAgents} }` : `  VALUES (?g ?agent) { ${valuesPairs} }`,
@@ -493,8 +531,14 @@ export async function kbAgentsQuery(args: {
           '    BIND(?agentDescTitle AS ?agentName)',
           '    BIND(?agentDescImage AS ?agentImage)',
           '    OPTIONAL { ?agent a ?agentType . }',
-            '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
-            '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
+            '    OPTIONAL {',
+            '      ?agent core:hasFeedbackAssertionSummary ?fbSummary .',
+            '      ?fbSummary core:feedbackAssertionCount ?feedbackAssertionCount .',
+            '    }',
+            '    OPTIONAL {',
+            '      ?agent core:hasValidationAssertionSummary ?vrSummary .',
+            '      ?vrSummary core:validationAssertionCount ?validationAssertionCount .',
+            '    }',
           '    OPTIONAL {',
           '      ?record a erc8004:SubgraphIngestRecord ;',
           '              erc8004:recordsEntity ?agent ;',
@@ -510,7 +554,8 @@ export async function kbAgentsQuery(args: {
           '                    core:hasIdentifier ?ident8004 ;',
           '                    core:hasDescriptor ?desc8004 .',
           '      ?ident8004 core:protocolIdentifier ?did8004 .',
-          '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
+          '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
+          '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
           '      BIND(?desc8004 AS ?identity8004Descriptor)',
           '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
           '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
@@ -520,39 +565,89 @@ export async function kbAgentsQuery(args: {
           '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
           '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
           '      OPTIONAL {',
-          '        ?desc8004 core:assembledFromMetadata ?pdA2a .',
-          '        ?pdA2a a core:A2AProtocolDescriptor ;',
-          '               core:serviceUrl ?a2aServiceUrl .',
-          '        OPTIONAL { ?pdA2a dcterms:title ?a2aDescriptorName . }',
-          '        OPTIONAL { ?pdA2a dcterms:description ?a2aDescriptorDescription . }',
-          '        OPTIONAL { ?pdA2a schema:image ?a2aDescriptorImage . }',
-          '        OPTIONAL { ?pdA2a core:protocolVersion ?a2aProtocolVersion . }',
-          '        OPTIONAL { ?pdA2a core:json ?a2aJson . }',
-          '        OPTIONAL { ?pdA2a core:hasSkill ?a2aSkill . }',
+          '        ?desc8004 core:hasSkill ?idSkill .',
+          '        OPTIONAL { ?idSkill core:hasSkillClassification ?idSkillClass . OPTIONAL { ?idSkillClass oasf:key ?idSkillKey . } }',
+          '        OPTIONAL { ?idSkill core:skillId ?idSkillId . }',
+          '        BIND(COALESCE(?idSkillKey, ?idSkillId, STR(?idSkill)) AS ?idSkillOut)',
           '      }',
           '      OPTIONAL {',
-          '        ?desc8004 core:assembledFromMetadata ?pdMcp .',
-          '        ?pdMcp a core:MCPProtocolDescriptor ;',
-          '              core:serviceUrl ?mcpServiceUrl .',
-          '        OPTIONAL { ?pdMcp dcterms:title ?mcpDescriptorName . }',
-          '        OPTIONAL { ?pdMcp dcterms:description ?mcpDescriptorDescription . }',
-          '        OPTIONAL { ?pdMcp schema:image ?mcpDescriptorImage . }',
-          '        OPTIONAL { ?pdMcp core:protocolVersion ?mcpProtocolVersion . }',
-          '        OPTIONAL { ?pdMcp core:json ?mcpJson . }',
-          '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill . }',
+          '        ?desc8004 core:hasDomain ?idDomain .',
+          '        OPTIONAL { ?idDomain core:hasDomainClassification ?idDomainClass . OPTIONAL { ?idDomainClass oasf:key ?idDomainKey . } }',
+          '        BIND(COALESCE(?idDomainKey, STR(?idDomain)) AS ?idDomainOut)',
+          '      }',
+          '      OPTIONAL {',
+          '        ?identity8004 core:hasServiceEndpoint ?seA2a .',
+          '        ?seA2a a core:ServiceEndpoint ;',
+          '              core:hasProtocol ?pA2a .',
+          '        ?pA2a a core:A2AProtocol .',
+          '        OPTIONAL {',
+          '          ?seA2a core:hasDescriptor ?seA2aDesc .',
+          '          OPTIONAL { ?seA2aDesc dcterms:title ?a2aServiceEndpointDescriptorName . }',
+          '          OPTIONAL { ?seA2aDesc dcterms:description ?a2aServiceEndpointDescriptorDescription . }',
+          '          OPTIONAL { ?seA2aDesc schema:image ?a2aServiceEndpointDescriptorImage . }',
+          '        }',
+          '        OPTIONAL { ?pA2a core:serviceUrl ?a2aServiceUrl . }',
+          '        OPTIONAL { ?pA2a core:protocolVersion ?a2aProtocolVersion . }',
+          '        OPTIONAL {',
+          '          ?pA2a core:hasDescriptor ?pA2aDesc .',
+          '          OPTIONAL { ?pA2aDesc dcterms:title ?a2aDescriptorName . }',
+          '          OPTIONAL { ?pA2aDesc dcterms:description ?a2aDescriptorDescription . }',
+          '          OPTIONAL { ?pA2aDesc schema:image ?a2aDescriptorImage . }',
+          '          OPTIONAL { ?pA2aDesc core:json ?a2aJson . }',
+          '        }',
+          '        OPTIONAL {',
+          '          ?pA2a core:hasSkill ?a2aSkill .',
+          '          OPTIONAL { ?a2aSkill core:hasSkillClassification ?a2aSkillClass . OPTIONAL { ?a2aSkillClass oasf:key ?a2aSkillKey . } }',
+          '          OPTIONAL { ?a2aSkill core:skillId ?a2aSkillId . }',
+          '          BIND(COALESCE(?a2aSkillKey, ?a2aSkillId, STR(?a2aSkill)) AS ?a2aSkillOut)',
+          '        }',
+          '        OPTIONAL {',
+          '          ?pA2a core:hasDomain ?a2aDomain .',
+          '          OPTIONAL { ?a2aDomain core:hasDomainClassification ?a2aDomainClass . OPTIONAL { ?a2aDomainClass oasf:key ?a2aDomainKey . } }',
+          '          BIND(COALESCE(?a2aDomainKey, STR(?a2aDomain)) AS ?a2aDomainOut)',
+          '        }',
+          '      }',
+          '      OPTIONAL {',
+          '        ?identity8004 core:hasServiceEndpoint ?seMcp .',
+          '        ?seMcp a core:ServiceEndpoint ;',
+          '              core:hasProtocol ?pMcp .',
+          '        ?pMcp a core:MCPProtocol .',
+          '        OPTIONAL {',
+          '          ?seMcp core:hasDescriptor ?seMcpDesc .',
+          '          OPTIONAL { ?seMcpDesc dcterms:title ?mcpServiceEndpointDescriptorName . }',
+          '          OPTIONAL { ?seMcpDesc dcterms:description ?mcpServiceEndpointDescriptorDescription . }',
+          '          OPTIONAL { ?seMcpDesc schema:image ?mcpServiceEndpointDescriptorImage . }',
+          '        }',
+          '        OPTIONAL { ?pMcp core:serviceUrl ?mcpServiceUrl . }',
+          '        OPTIONAL { ?pMcp core:protocolVersion ?mcpProtocolVersion . }',
+          '        OPTIONAL {',
+          '          ?pMcp core:hasDescriptor ?pMcpDesc .',
+          '          OPTIONAL { ?pMcpDesc dcterms:title ?mcpDescriptorName . }',
+          '          OPTIONAL { ?pMcpDesc dcterms:description ?mcpDescriptorDescription . }',
+          '          OPTIONAL { ?pMcpDesc schema:image ?mcpDescriptorImage . }',
+          '          OPTIONAL { ?pMcpDesc core:json ?mcpJson . }',
+          '        }',
+          '        OPTIONAL {',
+          '          ?pMcp core:hasSkill ?mcpSkill .',
+          '          OPTIONAL { ?mcpSkill core:hasSkillClassification ?mcpSkillClass . OPTIONAL { ?mcpSkillClass oasf:key ?mcpSkillKey . } }',
+          '          OPTIONAL { ?mcpSkill core:skillId ?mcpSkillId . }',
+          '          BIND(COALESCE(?mcpSkillKey, ?mcpSkillId, STR(?mcpSkill)) AS ?mcpSkillOut)',
+          '        }',
+          '        OPTIONAL {',
+          '          ?pMcp core:hasDomain ?mcpDomain .',
+          '          OPTIONAL { ?mcpDomain core:hasDomainClassification ?mcpDomainClass . OPTIONAL { ?mcpDomainClass oasf:key ?mcpDomainKey . } }',
+          '          BIND(COALESCE(?mcpDomainKey, STR(?mcpDomain)) AS ?mcpDomainOut)',
+          '        }',
           '      }',
           '      OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?identityOwnerAccount . }',
           '      OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount . }',
           '      OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount . }',
+          '      OPTIONAL { ?identity8004 erc8004:hasOwnerEOAAccount ?identityOwnerEOAAccount . }',
           '    }',
           '    OPTIONAL {',
           '      ?agent a erc8004:SmartAgent ;',
           '             erc8004:hasAgentAccount ?agentAccount .',
           '    }',
-          '    OPTIONAL { ?agent erc8004:agentOwnerAccount ?agentOwnerAccount . }',
-          '    OPTIONAL { ?agent erc8004:agentOperatorAccount ?agentOperatorAccount . }',
-          '    OPTIONAL { ?agent erc8004:agentWalletAccount ?agentWalletAccount . }',
-          '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount . }',
           '    OPTIONAL {',
           '      ?agent core:hasIdentity ?identityEns .',
           '      ?identityEns a ens:AgentIdentityEns ;',
@@ -640,8 +735,8 @@ export async function kbAgentsQuery(args: {
       agentDescriptorDescription: asString(b?.agentDescDescription),
       agentDescriptorImage: asString(b?.agentDescImage),
       agentTypes: pickAgentTypesFromRow(typeIris),
-      feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
-      validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
+      feedbackAssertionCount: asNumber(b?.feedbackAssertionCount),
+      validationAssertionCount: asNumber(b?.validationAssertionCount),
       createdAtBlock: asNumber(b?.createdAtBlock),
       createdAtTime: asNumber(b?.createdAtTime),
       updatedAtTime: asNumber(b?.updatedAtTime),
@@ -656,6 +751,8 @@ export async function kbAgentsQuery(args: {
       identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
       identity8004RegisteredBy: asString(b?.registeredBy),
       identity8004RegistryNamespace: asString(b?.registryNamespace),
+      identity8004DescriptorSkills: splitConcat(asString(b?.identity8004DescriptorSkills)),
+      identity8004DescriptorDomains: splitConcat(asString(b?.identity8004DescriptorDomains)),
       identityEnsIri: asString(b?.identityEns),
       didEns: asString(b?.didEns),
       identityHolIri: asString(b?.identityHol),
@@ -669,31 +766,41 @@ export async function kbAgentsQuery(args: {
       identityOwnerAccountIri: asString(b?.identityOwnerAccount),
       identityWalletAccountIri: asString(b?.identityWalletAccount),
       identityOperatorAccountIri: asString(b?.identityOperatorAccount),
-
-      agentOwnerAccountIri: asString(b?.agentOwnerAccount),
-      agentOperatorAccountIri: asString(b?.agentOperatorAccount),
-      agentWalletAccountIri: asString(b?.agentWalletAccount),
-      agentOwnerEOAAccountIri: asString(b?.agentOwnerEOAAccount),
+      identityOwnerEOAAccountIri: asString(b?.identityOwnerEOAAccount),
 
       agentAccountIri: asString(b?.agentAccount),
 
-      a2aProtocolDescriptorIri: asString(b?.pdA2a),
+      a2aServiceEndpointIri: asString(b?.seA2a),
       a2aServiceUrl: asString(b?.a2aServiceUrl),
+      a2aProtocolIri: asString(b?.pA2a),
+      a2aServiceEndpointDescriptorIri: asString(b?.seA2aDesc),
+      a2aServiceEndpointDescriptorName: asString(b?.a2aServiceEndpointDescriptorName),
+      a2aServiceEndpointDescriptorDescription: asString(b?.a2aServiceEndpointDescriptorDescription),
+      a2aServiceEndpointDescriptorImage: asString(b?.a2aServiceEndpointDescriptorImage),
+      a2aProtocolDescriptorIri: asString(b?.pA2aDesc),
       a2aDescriptorName: asString(b?.a2aDescriptorName),
       a2aDescriptorDescription: asString(b?.a2aDescriptorDescription),
       a2aDescriptorImage: asString(b?.a2aDescriptorImage),
       a2aProtocolVersion: asString(b?.a2aProtocolVersion),
       a2aJson: asString(b?.a2aJson),
       a2aSkills: splitConcat(asString(b?.a2aSkills)),
+      a2aDomains: splitConcat(asString(b?.a2aDomains)),
 
-      mcpProtocolDescriptorIri: asString(b?.pdMcp),
+      mcpServiceEndpointIri: asString(b?.seMcp),
       mcpServiceUrl: asString(b?.mcpServiceUrl),
+      mcpProtocolIri: asString(b?.pMcp),
+      mcpServiceEndpointDescriptorIri: asString(b?.seMcpDesc),
+      mcpServiceEndpointDescriptorName: asString(b?.mcpServiceEndpointDescriptorName),
+      mcpServiceEndpointDescriptorDescription: asString(b?.mcpServiceEndpointDescriptorDescription),
+      mcpServiceEndpointDescriptorImage: asString(b?.mcpServiceEndpointDescriptorImage),
+      mcpProtocolDescriptorIri: asString(b?.pMcpDesc),
       mcpDescriptorName: asString(b?.mcpDescriptorName),
       mcpDescriptorDescription: asString(b?.mcpDescriptorDescription),
       mcpDescriptorImage: asString(b?.mcpDescriptorImage),
       mcpProtocolVersion: asString(b?.mcpProtocolVersion),
       mcpJson: asString(b?.mcpJson),
       mcpSkills: splitConcat(asString(b?.mcpSkills)),
+      mcpDomains: splitConcat(asString(b?.mcpDomains)),
     };
   });
 
@@ -755,8 +862,8 @@ export async function kbOwnedAgentsQuery(args: {
     '  ?agent',
     '  (SAMPLE(?uaid) AS ?uaid)',
     '  (SAMPLE(?agentName) AS ?agentName)',
-    '  (SAMPLE(?feedbackAssertionCount8004) AS ?feedbackAssertionCount8004)',
-    '  (SAMPLE(?validationAssertionCount8004) AS ?validationAssertionCount8004)',
+    '  (SAMPLE(?feedbackAssertionCount) AS ?feedbackAssertionCount)',
+    '  (SAMPLE(?validationAssertionCount) AS ?validationAssertionCount)',
     '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
     '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
     '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
@@ -771,10 +878,7 @@ export async function kbOwnedAgentsQuery(args: {
     '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
     '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
     '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
-    '  (SAMPLE(?agentOwnerAccount) AS ?agentOwnerAccount)',
-    '  (SAMPLE(?agentOperatorAccount) AS ?agentOperatorAccount)',
-    '  (SAMPLE(?agentWalletAccount) AS ?agentWalletAccount)',
-    '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
+    '  (SAMPLE(?identityOwnerEOAAccount) AS ?identityOwnerEOAAccount)',
     '  (SAMPLE(?agentAccount) AS ?agentAccount)',
     '  (SAMPLE(?identity8004Descriptor) AS ?identity8004Descriptor)',
     '  (SAMPLE(?identity8004DescriptorName) AS ?identity8004DescriptorName)',
@@ -784,16 +888,28 @@ export async function kbOwnedAgentsQuery(args: {
     '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
     '  (SAMPLE(?registeredBy) AS ?registeredBy)',
     '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
-    '  (SAMPLE(?pdA2a) AS ?pdA2a)',
+    '  (SAMPLE(?seA2a) AS ?seA2a)',
     '  (SAMPLE(?a2aServiceUrl) AS ?a2aServiceUrl)',
+    '  (SAMPLE(?pA2a) AS ?pA2a)',
+    '  (SAMPLE(?seA2aDesc) AS ?seA2aDesc)',
+    '  (SAMPLE(?a2aServiceEndpointDescriptorName) AS ?a2aServiceEndpointDescriptorName)',
+    '  (SAMPLE(?a2aServiceEndpointDescriptorDescription) AS ?a2aServiceEndpointDescriptorDescription)',
+    '  (SAMPLE(?a2aServiceEndpointDescriptorImage) AS ?a2aServiceEndpointDescriptorImage)',
+    '  (SAMPLE(?pA2aDesc) AS ?pA2aDesc)',
     '  (SAMPLE(?a2aDescriptorName) AS ?a2aDescriptorName)',
     '  (SAMPLE(?a2aDescriptorDescription) AS ?a2aDescriptorDescription)',
     '  (SAMPLE(?a2aDescriptorImage) AS ?a2aDescriptorImage)',
     '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
     '  (SAMPLE(?a2aJson) AS ?a2aJson)',
     '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
-    '  (SAMPLE(?pdMcp) AS ?pdMcp)',
+    '  (SAMPLE(?seMcp) AS ?seMcp)',
     '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
+    '  (SAMPLE(?pMcp) AS ?pMcp)',
+    '  (SAMPLE(?seMcpDesc) AS ?seMcpDesc)',
+    '  (SAMPLE(?mcpServiceEndpointDescriptorName) AS ?mcpServiceEndpointDescriptorName)',
+    '  (SAMPLE(?mcpServiceEndpointDescriptorDescription) AS ?mcpServiceEndpointDescriptorDescription)',
+    '  (SAMPLE(?mcpServiceEndpointDescriptorImage) AS ?mcpServiceEndpointDescriptorImage)',
+    '  (SAMPLE(?pMcpDesc) AS ?pMcpDesc)',
     '  (SAMPLE(?mcpDescriptorName) AS ?mcpDescriptorName)',
     '  (SAMPLE(?mcpDescriptorDescription) AS ?mcpDescriptorDescription)',
     '  (SAMPLE(?mcpDescriptorImage) AS ?mcpDescriptorImage)',
@@ -810,8 +926,14 @@ export async function kbOwnedAgentsQuery(args: {
     '      OPTIONAL { ?agentDesc dcterms:title ?agentName . }',
     '    }',
     '    OPTIONAL { ?agent a ?agentType . }',
-    '    OPTIONAL { ?agent erc8004:feedbackAssertionCount8004 ?feedbackAssertionCount8004 . }',
-    '    OPTIONAL { ?agent erc8004:validationAssertionCount8004 ?validationAssertionCount8004 . }',
+    '    OPTIONAL {',
+    '      ?agent core:hasFeedbackAssertionSummary ?fbSummary .',
+    '      ?fbSummary core:feedbackAssertionCount ?feedbackAssertionCount .',
+    '    }',
+    '    OPTIONAL {',
+    '      ?agent core:hasValidationAssertionSummary ?vrSummary .',
+    '      ?vrSummary core:validationAssertionCount ?validationAssertionCount .',
+    '    }',
     '    OPTIONAL {',
     '      ?record a erc8004:SubgraphIngestRecord ;',
     '              erc8004:recordsEntity ?agent ;',
@@ -828,7 +950,8 @@ export async function kbOwnedAgentsQuery(args: {
     '                    core:hasIdentifier ?ident8004 ;',
     '                    core:hasDescriptor ?desc8004 .',
     '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
+    '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
+    '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
     '      BIND(?desc8004 AS ?identity8004Descriptor)',
     '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
     '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
@@ -838,41 +961,59 @@ export async function kbOwnedAgentsQuery(args: {
     '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
     '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
     '      OPTIONAL {',
-    '        ?desc8004 core:assembledFromMetadata ?pdA2a .',
-    '        ?pdA2a a core:A2AProtocolDescriptor ;',
-    '               core:serviceUrl ?a2aServiceUrl .',
-    '        OPTIONAL { ?pdA2a dcterms:title ?a2aDescriptorName . }',
-    '        OPTIONAL { ?pdA2a dcterms:description ?a2aDescriptorDescription . }',
-    '        OPTIONAL { ?pdA2a schema:image ?a2aDescriptorImage . }',
-    '        OPTIONAL { ?pdA2a core:protocolVersion ?a2aProtocolVersion . }',
-    '        OPTIONAL { ?pdA2a core:json ?a2aJson . }',
-    '        OPTIONAL { ?pdA2a core:hasSkill ?a2aSkill . }',
+    '        ?identity8004 core:hasServiceEndpoint ?seA2a .',
+    '        ?seA2a a core:ServiceEndpoint ;',
+    '              core:hasProtocol ?pA2a .',
+    '        ?pA2a a core:A2AProtocol .',
+    '        OPTIONAL {',
+    '          ?seA2a core:hasDescriptor ?seA2aDesc .',
+    '          OPTIONAL { ?seA2aDesc dcterms:title ?a2aServiceEndpointDescriptorName . }',
+    '          OPTIONAL { ?seA2aDesc dcterms:description ?a2aServiceEndpointDescriptorDescription . }',
+    '          OPTIONAL { ?seA2aDesc schema:image ?a2aServiceEndpointDescriptorImage . }',
+    '        }',
+    '        OPTIONAL { ?pA2a core:serviceUrl ?a2aServiceUrl . }',
+    '        OPTIONAL { ?pA2a core:protocolVersion ?a2aProtocolVersion . }',
+    '        OPTIONAL {',
+    '          ?pA2a core:hasDescriptor ?pA2aDesc .',
+    '          OPTIONAL { ?pA2aDesc dcterms:title ?a2aDescriptorName . }',
+    '          OPTIONAL { ?pA2aDesc dcterms:description ?a2aDescriptorDescription . }',
+    '          OPTIONAL { ?pA2aDesc schema:image ?a2aDescriptorImage . }',
+    '          OPTIONAL { ?pA2aDesc core:json ?a2aJson . }',
+    '        }',
+    '        OPTIONAL { ?pA2a core:hasSkill ?a2aSkill . }',
     '      }',
     '      OPTIONAL {',
-    '        ?desc8004 core:assembledFromMetadata ?pdMcp .',
-    '        ?pdMcp a core:MCPProtocolDescriptor ;',
-    '              core:serviceUrl ?mcpServiceUrl .',
-    '        OPTIONAL { ?pdMcp dcterms:title ?mcpDescriptorName . }',
-    '        OPTIONAL { ?pdMcp dcterms:description ?mcpDescriptorDescription . }',
-    '        OPTIONAL { ?pdMcp schema:image ?mcpDescriptorImage . }',
-    '        OPTIONAL { ?pdMcp core:protocolVersion ?mcpProtocolVersion . }',
-    '        OPTIONAL { ?pdMcp core:json ?mcpJson . }',
-    '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill . }',
+    '        ?identity8004 core:hasServiceEndpoint ?seMcp .',
+    '        ?seMcp a core:ServiceEndpoint ;',
+    '              core:hasProtocol ?pMcp .',
+    '        ?pMcp a core:MCPProtocol .',
+    '        OPTIONAL {',
+    '          ?seMcp core:hasDescriptor ?seMcpDesc .',
+    '          OPTIONAL { ?seMcpDesc dcterms:title ?mcpServiceEndpointDescriptorName . }',
+    '          OPTIONAL { ?seMcpDesc dcterms:description ?mcpServiceEndpointDescriptorDescription . }',
+    '          OPTIONAL { ?seMcpDesc schema:image ?mcpServiceEndpointDescriptorImage . }',
+    '        }',
+    '        OPTIONAL { ?pMcp core:serviceUrl ?mcpServiceUrl . }',
+    '        OPTIONAL { ?pMcp core:protocolVersion ?mcpProtocolVersion . }',
+    '        OPTIONAL {',
+    '          ?pMcp core:hasDescriptor ?pMcpDesc .',
+    '          OPTIONAL { ?pMcpDesc dcterms:title ?mcpDescriptorName . }',
+    '          OPTIONAL { ?pMcpDesc dcterms:description ?mcpDescriptorDescription . }',
+    '          OPTIONAL { ?pMcpDesc schema:image ?mcpDescriptorImage . }',
+    '          OPTIONAL { ?pMcpDesc core:json ?mcpJson . }',
+    '        }',
+    '        OPTIONAL { ?pMcp core:hasSkill ?mcpSkill . }',
     '      }',
     '      OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?identityOwnerAccount . }',
     '      OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount . }',
     '      OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount . }',
+    '      OPTIONAL { ?identity8004 erc8004:hasOwnerEOAAccount ?identityOwnerEOAAccount . }',
     '    }',
     '',
     '    OPTIONAL {',
     '      ?agent a erc8004:SmartAgent ;',
     '             erc8004:hasAgentAccount ?agentAccount .',
     '    }',
-    '',
-    '    OPTIONAL { ?agent erc8004:agentOwnerAccount ?agentOwnerAccount . }',
-    '    OPTIONAL { ?agent erc8004:agentOperatorAccount ?agentOperatorAccount . }',
-    '    OPTIONAL { ?agent erc8004:agentWalletAccount ?agentWalletAccount . }',
-    '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount . }',
     '',
     '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identityEns .',
@@ -901,8 +1042,8 @@ export async function kbOwnedAgentsQuery(args: {
     agentDescriptorName: null, // Not fetched in this query
     agentDescriptorDescription: null, // Not fetched in this query
     agentDescriptorImage: null, // Not fetched in this query
-    feedbackAssertionCount8004: asNumber(b?.feedbackAssertionCount8004),
-    validationAssertionCount8004: asNumber(b?.validationAssertionCount8004),
+    feedbackAssertionCount: asNumber(b?.feedbackAssertionCount),
+    validationAssertionCount: asNumber(b?.validationAssertionCount),
     createdAtBlock: asNumber(b?.createdAtBlock),
     createdAtTime: asNumber(b?.createdAtTime),
     updatedAtTime: asNumber(b?.updatedAtTime),
@@ -922,11 +1063,7 @@ export async function kbOwnedAgentsQuery(args: {
     identityOwnerAccountIri: asString(b?.identityOwnerAccount),
     identityWalletAccountIri: asString(b?.identityWalletAccount),
     identityOperatorAccountIri: asString(b?.identityOperatorAccount),
-
-    agentOwnerAccountIri: asString(b?.agentOwnerAccount),
-    agentOperatorAccountIri: asString(b?.agentOperatorAccount),
-    agentWalletAccountIri: asString(b?.agentWalletAccount),
-    agentOwnerEOAAccountIri: asString(b?.agentOwnerEOAAccount),
+    identityOwnerEOAAccountIri: asString(b?.identityOwnerEOAAccount),
 
     agentAccountIri: asString(b?.agentAccount),
 
@@ -938,24 +1075,40 @@ export async function kbOwnedAgentsQuery(args: {
     identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
     identity8004RegisteredBy: asString(b?.registeredBy),
     identity8004RegistryNamespace: asString(b?.registryNamespace),
+    identity8004DescriptorSkills: [], // Not fetched in this query
+    identity8004DescriptorDomains: [], // Not fetched in this query
 
-    a2aProtocolDescriptorIri: asString(b?.pdA2a),
+    a2aServiceEndpointIri: asString(b?.seA2a),
     a2aServiceUrl: asString(b?.a2aServiceUrl),
+    a2aProtocolIri: asString(b?.pA2a),
+    a2aServiceEndpointDescriptorIri: asString(b?.seA2aDesc),
+    a2aServiceEndpointDescriptorName: asString(b?.a2aServiceEndpointDescriptorName),
+    a2aServiceEndpointDescriptorDescription: asString(b?.a2aServiceEndpointDescriptorDescription),
+    a2aServiceEndpointDescriptorImage: asString(b?.a2aServiceEndpointDescriptorImage),
+    a2aProtocolDescriptorIri: asString(b?.pA2aDesc),
     a2aDescriptorName: asString(b?.a2aDescriptorName),
     a2aDescriptorDescription: asString(b?.a2aDescriptorDescription),
     a2aDescriptorImage: asString(b?.a2aDescriptorImage),
     a2aProtocolVersion: asString(b?.a2aProtocolVersion),
     a2aJson: asString(b?.a2aJson),
     a2aSkills: splitConcat(asString(b?.a2aSkills)),
+    a2aDomains: [], // Not fetched in this query
 
-    mcpProtocolDescriptorIri: asString(b?.pdMcp),
+    mcpServiceEndpointIri: asString(b?.seMcp),
     mcpServiceUrl: asString(b?.mcpServiceUrl),
+    mcpProtocolIri: asString(b?.pMcp),
+    mcpServiceEndpointDescriptorIri: asString(b?.seMcpDesc),
+    mcpServiceEndpointDescriptorName: asString(b?.mcpServiceEndpointDescriptorName),
+    mcpServiceEndpointDescriptorDescription: asString(b?.mcpServiceEndpointDescriptorDescription),
+    mcpServiceEndpointDescriptorImage: asString(b?.mcpServiceEndpointDescriptorImage),
+    mcpProtocolDescriptorIri: asString(b?.pMcpDesc),
     mcpDescriptorName: asString(b?.mcpDescriptorName),
     mcpDescriptorDescription: asString(b?.mcpDescriptorDescription),
     mcpDescriptorImage: asString(b?.mcpDescriptorImage),
     mcpProtocolVersion: asString(b?.mcpProtocolVersion),
     mcpJson: asString(b?.mcpJson),
     mcpSkills: splitConcat(asString(b?.mcpSkills)),
+    mcpDomains: [], // Not fetched in this query
 
     agentTypes: splitConcat(asString(b?.agentTypes)),
   }));
@@ -1036,12 +1189,14 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '',
     `SELECT DISTINCT ${pageSelectVars} WHERE {`,
     '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
-    '    # Fast path: single-hop effective EOA ownership (materialized during sync)',
+    '    # Identity-scoped effective EOA ownership (materialized during sync:account-types)',
     `    VALUES ?ownerEOA { <${ownerIri}> }`,
-    '    { ?agent erc8004:agentOwnerEOAAccount ?ownerEOA . }',
+    '    ?agent core:hasIdentity ?identity8004 .',
+    '    ?identity8004 a erc8004:AgentIdentity8004 .',
+    '    { ?identity8004 erc8004:hasOwnerEOAAccount ?ownerEOA . }',
     '    UNION',
-    '    # Fallback: direct owner account is already an EOA (covers older/missing agentOwnerEOAAccount)',
-    '    { ?agent erc8004:agentOwnerAccount ?ownerEOA . }',
+    '    # Fallback: ownerAccount is already an EOA (covers older/missing hasOwnerEOAAccount)',
+    '    { ?identity8004 erc8004:hasOwnerAccount ?ownerEOA . }',
     ...pageRequiredOrderBinds,
     ...pageOptionalOrderBinds,
     '  }',
@@ -1107,8 +1262,9 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
         '      ?agent core:hasIdentity ?identity8004 .',
         '      ?identity8004 a erc8004:AgentIdentity8004 ;',
         '                    core:hasIdentifier ?ident8004 .',
-        '      ?ident8004 core:protocolIdentifier ?did8004 .',
-        '      BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)',
+    '      ?ident8004 core:protocolIdentifier ?did8004 .',
+    '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
+    '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
         '    }',
         '  }',
         '}',
@@ -1139,8 +1295,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     agentDescriptorName: null, // Not fetched in simplified query
     agentDescriptorDescription: null, // Not fetched in simplified query
     agentDescriptorImage: null, // Not fetched in simplified query
-    feedbackAssertionCount8004: null, // Not fetched in simplified query
-    validationAssertionCount8004: null, // Not fetched in simplified query
+    feedbackAssertionCount: null, // Not fetched in simplified query
+    validationAssertionCount: null, // Not fetched in simplified query
     createdAtBlock: asNumber(b?.createdAtBlock),
     createdAtTime: asNumber(b?.createdAtTime),
     updatedAtTime: asNumber(b?.updatedAtTime),
@@ -1160,10 +1316,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     identityOwnerAccountIri: null, // Not fetched in simplified query
     identityWalletAccountIri: null, // Not fetched in simplified query
     identityOperatorAccountIri: null, // Not fetched in simplified query
-    agentOwnerAccountIri: null, // Not fetched in simplified query
-    agentOperatorAccountIri: null, // Not fetched in simplified query
-    agentWalletAccountIri: null, // Not fetched in simplified query
-    agentOwnerEOAAccountIri: null, // Not fetched in simplified query
+    identityOwnerEOAAccountIri: null, // Not fetched in simplified query
     agentAccountIri: null, // Not fetched in simplified query
 
     identity8004DescriptorIri: null, // Not fetched in simplified query
@@ -1174,24 +1327,40 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     identity8004OnchainMetadataJson: null, // Not fetched in simplified query
     identity8004RegisteredBy: null, // Not fetched in simplified query
     identity8004RegistryNamespace: null, // Not fetched in simplified query
+    identity8004DescriptorSkills: [], // Not fetched in simplified query
+    identity8004DescriptorDomains: [], // Not fetched in simplified query
 
-    a2aProtocolDescriptorIri: null, // Not fetched in simplified query
+    a2aServiceEndpointIri: null, // Not fetched in simplified query
     a2aServiceUrl: null, // Not fetched in simplified query
+    a2aProtocolIri: null, // Not fetched in simplified query
+    a2aServiceEndpointDescriptorIri: null, // Not fetched in simplified query
+    a2aServiceEndpointDescriptorName: null, // Not fetched in simplified query
+    a2aServiceEndpointDescriptorDescription: null, // Not fetched in simplified query
+    a2aServiceEndpointDescriptorImage: null, // Not fetched in simplified query
+    a2aProtocolDescriptorIri: null, // Not fetched in simplified query
     a2aDescriptorName: null, // Not fetched in simplified query
     a2aDescriptorDescription: null, // Not fetched in simplified query
     a2aDescriptorImage: null, // Not fetched in simplified query
     a2aProtocolVersion: null, // Not fetched in simplified query
     a2aJson: null, // Not fetched in simplified query
     a2aSkills: [], // Not fetched in simplified query
+    a2aDomains: [], // Not fetched in simplified query
 
-    mcpProtocolDescriptorIri: null, // Not fetched in simplified query
+    mcpServiceEndpointIri: null, // Not fetched in simplified query
     mcpServiceUrl: null, // Not fetched in simplified query
+    mcpProtocolIri: null, // Not fetched in simplified query
+    mcpServiceEndpointDescriptorIri: null, // Not fetched in simplified query
+    mcpServiceEndpointDescriptorName: null, // Not fetched in simplified query
+    mcpServiceEndpointDescriptorDescription: null, // Not fetched in simplified query
+    mcpServiceEndpointDescriptorImage: null, // Not fetched in simplified query
+    mcpProtocolDescriptorIri: null, // Not fetched in simplified query
     mcpDescriptorName: null, // Not fetched in simplified query
     mcpDescriptorDescription: null, // Not fetched in simplified query
     mcpDescriptorImage: null, // Not fetched in simplified query
     mcpProtocolVersion: null, // Not fetched in simplified query
     mcpJson: null, // Not fetched in simplified query
     mcpSkills: [], // Not fetched in simplified query
+    mcpDomains: [], // Not fetched in simplified query
 
     agentTypes: splitConcat(asString(b?.agentTypes)),
   }));
@@ -1204,11 +1373,13 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     '',
     'SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {',
     '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
-    '    # Match the same ownership logic as page query (fast, single-hop)',
+    '    # Match the same ownership logic as page query (identity-scoped)',
     `    VALUES ?ownerEOA { <${ownerIri}> }`,
-    '    { ?agent a core:AIAgent ; erc8004:agentOwnerEOAAccount ?ownerEOA . }',
+    '    ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
+    '    ?identity8004 a erc8004:AgentIdentity8004 .',
+    '    { ?identity8004 erc8004:hasOwnerEOAAccount ?ownerEOA . }',
     '    UNION',
-    '    { ?agent a core:AIAgent ; erc8004:agentOwnerAccount ?ownerEOA . }',
+    '    { ?identity8004 erc8004:hasOwnerAccount ?ownerEOA . }',
     '  }',
     '}',
     '',

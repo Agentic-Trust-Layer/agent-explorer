@@ -251,6 +251,44 @@
   rdfs:domain :TrustAssertion ;
   rdfs:range xsd:decimal .
 
+########
+# Assertion summaries (materialized aggregates for fast query)
+########
+
+:FeedbackAssertionSummary a owl:Class ;
+  rdfs:label "FeedbackAssertionSummary" ;
+  rdfs:comment "Materialized summary of feedback/reputation assertions for an agent (e.g. count and other rollups)." ;
+  rdfs:subClassOf prov:Entity .
+
+:ValidationAssertionSummary a owl:Class ;
+  rdfs:label "ValidationAssertionSummary" ;
+  rdfs:comment "Materialized summary of validation/verification assertions for an agent (e.g. count and other rollups)." ;
+  rdfs:subClassOf prov:Entity .
+
+:hasFeedbackAssertionSummary a owl:ObjectProperty ;
+  rdfs:label "has feedback assertion summary" ;
+  rdfs:comment "Links an agent to its feedback assertion summary entity." ;
+  rdfs:domain :AIAgent ;
+  rdfs:range :FeedbackAssertionSummary .
+
+:hasValidationAssertionSummary a owl:ObjectProperty ;
+  rdfs:label "has validation assertion summary" ;
+  rdfs:comment "Links an agent to its validation assertion summary entity." ;
+  rdfs:domain :AIAgent ;
+  rdfs:range :ValidationAssertionSummary .
+
+:feedbackAssertionCount a owl:DatatypeProperty ;
+  rdfs:label "feedbackAssertionCount" ;
+  rdfs:comment "Precomputed count of feedback/reputation assertions for an agent (materialized on a summary entity)." ;
+  rdfs:domain :FeedbackAssertionSummary ;
+  rdfs:range xsd:integer .
+
+:validationAssertionCount a owl:DatatypeProperty ;
+  rdfs:label "validationAssertionCount" ;
+  rdfs:comment "Precomputed count of validation/verification assertions for an agent (materialized on a summary entity)." ;
+  rdfs:domain :ValidationAssertionSummary ;
+  rdfs:range xsd:integer .
+
 :assertedBy a owl:ObjectProperty ;
   rdfs:label "asserted by" ;
   rdfs:subPropertyOf prov:wasAssociatedWith ;

@@ -38,13 +38,15 @@ export type KbAgentHydratedRow = {
   identity8004Iri: string | null;
   identity8004DescriptorIri: string | null;
   registrationJson: string | null;
-  a2aProtocolDescriptorIri: string | null;
+  a2aServiceEndpointIri: string | null;
   a2aServiceUrl: string | null;
+  a2aProtocolIri: string | null;
   a2aProtocolVersion: string | null;
   a2aJson: string | null;
   a2aSkills: string[];
-  mcpProtocolDescriptorIri: string | null;
+  mcpServiceEndpointIri: string | null;
   mcpServiceUrl: string | null;
+  mcpProtocolIri: string | null;
   mcpProtocolVersion: string | null;
   mcpJson: string | null;
   mcpSkills: string[];
@@ -58,10 +60,7 @@ export type KbAgentHydratedRow = {
   identityOwnerAccountIri: string | null;
   identityWalletAccountIri: string | null;
   identityOperatorAccountIri: string | null;
-  agentOwnerAccountIri: string | null;
-  agentOperatorAccountIri: string | null;
-  agentWalletAccountIri: string | null;
-  agentOwnerEOAAccountIri: string | null;
+  identityOwnerEOAAccountIri: string | null;
   agentAccountIri: string | null;
 };
 
@@ -91,13 +90,15 @@ export async function kbHydrateAgentsByDid8004(
     '  (SAMPLE(?identity8004) AS ?identity8004)',
     '  (SAMPLE(?desc8004) AS ?desc8004)',
     '  (SAMPLE(?registrationJson) AS ?registrationJson)',
-    '  (SAMPLE(?pdA2a) AS ?pdA2a)',
+    '  (SAMPLE(?seA2a) AS ?seA2a)',
     '  (SAMPLE(?a2aServiceUrl) AS ?a2aServiceUrl)',
+    '  (SAMPLE(?pA2a) AS ?pA2a)',
     '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
     '  (SAMPLE(?a2aJson) AS ?a2aJson)',
     '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
-    '  (SAMPLE(?pdMcp) AS ?pdMcp)',
+    '  (SAMPLE(?seMcp) AS ?seMcp)',
     '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
+    '  (SAMPLE(?pMcp) AS ?pMcp)',
     '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
     '  (SAMPLE(?mcpJson) AS ?mcpJson)',
     '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
@@ -106,10 +107,7 @@ export async function kbHydrateAgentsByDid8004(
     '  (SAMPLE(?identityOwnerAccount) AS ?identityOwnerAccount)',
     '  (SAMPLE(?identityWalletAccount) AS ?identityWalletAccount)',
     '  (SAMPLE(?identityOperatorAccount) AS ?identityOperatorAccount)',
-    '  (SAMPLE(?agentOwnerAccount) AS ?agentOwnerAccount)',
-    '  (SAMPLE(?agentOperatorAccount) AS ?agentOperatorAccount)',
-    '  (SAMPLE(?agentWalletAccount) AS ?agentWalletAccount)',
-    '  (SAMPLE(?agentOwnerEOAAccount) AS ?agentOwnerEOAAccount)',
+    '  (SAMPLE(?identityOwnerEOAAccount) AS ?identityOwnerEOAAccount)',
     '  (SAMPLE(?agentAccount) AS ?agentAccount)',
     'WHERE {',
     `  GRAPH <${ctx}> {`,
@@ -126,28 +124,29 @@ export async function kbHydrateAgentsByDid8004(
     '      ?identity8004 core:hasDescriptor ?desc8004 .',
     '      OPTIONAL { ?desc8004 core:json ?registrationJson }',
     '      OPTIONAL {',
-    '        ?desc8004 core:assembledFromMetadata ?pdA2a .',
-    '        ?pdA2a a core:A2AProtocolDescriptor ; core:serviceUrl ?a2aServiceUrl .',
-    '        OPTIONAL { ?pdA2a core:protocolVersion ?a2aProtocolVersion }',
-    '        OPTIONAL { ?pdA2a core:json ?a2aJson }',
-    '        OPTIONAL { ?pdA2a core:hasSkill ?a2aSkill }',
+    '        ?identity8004 core:hasServiceEndpoint ?seA2a .',
+    '        ?seA2a a core:ServiceEndpoint ; core:hasProtocol ?pA2a .',
+    '        ?pA2a a core:A2AProtocol .',
+    '        OPTIONAL { ?pA2a core:serviceUrl ?a2aServiceUrl }',
+    '        OPTIONAL { ?pA2a core:protocolVersion ?a2aProtocolVersion }',
+    '        OPTIONAL { ?pA2a core:hasDescriptor ?pA2aDesc . OPTIONAL { ?pA2aDesc core:json ?a2aJson } }',
+    '        OPTIONAL { ?pA2a core:hasSkill ?a2aSkill }',
     '      }',
     '      OPTIONAL {',
-    '        ?desc8004 core:assembledFromMetadata ?pdMcp .',
-    '        ?pdMcp a core:MCPProtocolDescriptor ; core:serviceUrl ?mcpServiceUrl .',
-    '        OPTIONAL { ?pdMcp core:protocolVersion ?mcpProtocolVersion }',
-    '        OPTIONAL { ?pdMcp core:json ?mcpJson }',
-    '        OPTIONAL { ?pdMcp core:hasSkill ?mcpSkill }',
+    '        ?identity8004 core:hasServiceEndpoint ?seMcp .',
+    '        ?seMcp a core:ServiceEndpoint ; core:hasProtocol ?pMcp .',
+    '        ?pMcp a core:MCPProtocol .',
+    '        OPTIONAL { ?pMcp core:serviceUrl ?mcpServiceUrl }',
+    '        OPTIONAL { ?pMcp core:protocolVersion ?mcpProtocolVersion }',
+    '        OPTIONAL { ?pMcp core:hasDescriptor ?pMcpDesc . OPTIONAL { ?pMcpDesc core:json ?mcpJson } }',
+    '        OPTIONAL { ?pMcp core:hasSkill ?mcpSkill }',
     '      }',
     '    }',
     '    OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?identityOwnerAccount }',
     '    OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount }',
     '    OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount }',
+    '    OPTIONAL { ?identity8004 erc8004:hasOwnerEOAAccount ?identityOwnerEOAAccount }',
     '    OPTIONAL { ?agent a erc8004:SmartAgent ; erc8004:hasAgentAccount ?agentAccount }',
-    '    OPTIONAL { ?agent erc8004:agentOwnerAccount ?agentOwnerAccount }',
-    '    OPTIONAL { ?agent erc8004:agentOperatorAccount ?agentOperatorAccount }',
-    '    OPTIONAL { ?agent erc8004:agentWalletAccount ?agentWalletAccount }',
-    '    OPTIONAL { ?agent erc8004:agentOwnerEOAAccount ?agentOwnerEOAAccount }',
     '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identityEns .',
     '      ?identityEns a ens:AgentIdentityEns ; core:hasIdentifier ?ensIdent .',
@@ -175,13 +174,15 @@ export async function kbHydrateAgentsByDid8004(
         identity8004Iri: asString(b?.identity8004),
         identity8004DescriptorIri: asString(b?.desc8004),
         registrationJson: asString(b?.registrationJson),
-        a2aProtocolDescriptorIri: asString(b?.pdA2a),
+        a2aServiceEndpointIri: asString(b?.seA2a),
         a2aServiceUrl: asString(b?.a2aServiceUrl),
+        a2aProtocolIri: asString(b?.pA2a),
         a2aProtocolVersion: asString(b?.a2aProtocolVersion),
         a2aJson: asString(b?.a2aJson),
         a2aSkills: splitConcat(asString(b?.a2aSkills)),
-        mcpProtocolDescriptorIri: asString(b?.pdMcp),
+        mcpServiceEndpointIri: asString(b?.seMcp),
         mcpServiceUrl: asString(b?.mcpServiceUrl),
+        mcpProtocolIri: asString(b?.pMcp),
         mcpProtocolVersion: asString(b?.mcpProtocolVersion),
         mcpJson: asString(b?.mcpJson),
         mcpSkills: splitConcat(asString(b?.mcpSkills)),
@@ -193,10 +194,7 @@ export async function kbHydrateAgentsByDid8004(
         identityOwnerAccountIri: asString(b?.identityOwnerAccount),
         identityWalletAccountIri: asString(b?.identityWalletAccount),
         identityOperatorAccountIri: asString(b?.identityOperatorAccount),
-        agentOwnerAccountIri: asString(b?.agentOwnerAccount),
-        agentOperatorAccountIri: asString(b?.agentOperatorAccount),
-        agentWalletAccountIri: asString(b?.agentWalletAccount),
-        agentOwnerEOAAccountIri: asString(b?.agentOwnerEOAAccount),
+        identityOwnerEOAAccountIri: asString(b?.identityOwnerEOAAccount),
         agentAccountIri: asString(b?.agentAccount),
       } as KbAgentHydratedRow;
     })

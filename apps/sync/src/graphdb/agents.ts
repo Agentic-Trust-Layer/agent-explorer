@@ -49,8 +49,9 @@ PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
 SELECT (MAX(xsd:integer(?id)) AS ?maxId) WHERE {
   GRAPH <${ctx}> {
-    ?agent a core:AIAgent ;
-           erc8004:agentId8004 ?id .
+    ?agent core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  erc8004:agentId ?id .
   }
 }
 `;
@@ -108,10 +109,12 @@ SELECT ?agent ?didIdentity ?didAccount ?a2aEndpoint ?agentUriJson WHERE {
     # Registration JSON lives on the ERC-8004 identity descriptor
     OPTIONAL { ?desc8004 core:json ?agentUriJson . }
 
-    # A2A endpoint comes from the A2A protocol descriptor assembled from the identity descriptor
-    ?desc8004 core:assembledFromMetadata ?pdA2a .
-    ?pdA2a a core:A2AProtocolDescriptor ;
-           core:serviceUrl ?a2aEndpoint .
+    # A2A endpoint comes from identity -> serviceEndpoint -> protocol -> serviceUrl
+    ?identity8004 core:hasServiceEndpoint ?se .
+    ?se a core:ServiceEndpoint ;
+        core:hasProtocol ?p .
+    ?p a core:A2AProtocol .
+    OPTIONAL { ?p core:serviceUrl ?a2aEndpoint . }
 
     OPTIONAL {
       # no-op: didIdentity already bound above

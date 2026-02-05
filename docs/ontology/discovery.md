@@ -23,7 +23,7 @@ Source: `apps/ontology/ontology/core.ttl`
 
 3. **Descriptors Hold Discovery Information**
    - `core:AgentDescriptor` - Resolved metadata about an AI Agent (skills, endpoints, capabilities)
-   - `core:ProtocolDescriptor` - Resolved metadata about a Protocol (A2A, MCP configurations)
+   - `core:Protocol` - Protocol metadata about interaction surfaces (A2A, MCP, etc.). In the current model, Protocols are also treated as `core:Descriptor` so they can carry `dcterms:title/description`, `schema:image`, `core:protocolVersion`, `core:json`, and skills/domains.
    - `core:IdentifierDescriptor` - Resolved metadata about an Identifier (bindings, verification methods)
    - `core:IdentityDescriptor` - Resolved metadata about an Identity (core, not protocol-specific)
    - `core:NameDescriptor` - Resolved metadata about a Name (core, not protocol-specific)
@@ -39,7 +39,7 @@ Source: `apps/ontology/ontology/core.ttl`
 ```
 Entity (AIAgent, Account, Protocol, Identifier)
     ↓ (resolved by resolver)
-Descriptor (AgentDescriptor, ProtocolDescriptor, IdentifierDescriptor)
+Descriptor (AgentDescriptor, Protocol, IdentifierDescriptor)
     ↓ (contains)
 Discovery Metadata (Skills, Domains, Tags, Endpoints, Schemas)
 ```
@@ -63,7 +63,7 @@ class DNSName["DNSName"]
 
 class AgentDescriptor["core:AgentDescriptor"]
 class AccountDescriptor["eth:AccountDescriptor"]
-class ProtocolDescriptor["core:ProtocolDescriptor"]
+class ProtocolAsDescriptor["core:Protocol"]  %% Protocol is also treated as a Descriptor
 class IdentifierDescriptor["core:IdentifierDescriptor"]
 class IdentityDescriptor["core:IdentityDescriptor"]
 class NameDescriptor["core:NameDescriptor"]
@@ -81,7 +81,7 @@ class Endpoint["core:Endpoint"]
 
 AIAgent --> AgentDescriptor : hasDescriptor
 Account --> AccountDescriptor : hasDescriptor
-Protocol --> ProtocolDescriptor : hasDescriptor
+Protocol --> ProtocolAsDescriptor : hasDescriptor
 Identifier --> IdentifierDescriptor : hasDescriptor
 Identity --> IdentityDescriptor : hasDescriptor
 Name --> NameDescriptor : hasDescriptor

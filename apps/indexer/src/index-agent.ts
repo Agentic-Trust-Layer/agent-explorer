@@ -276,9 +276,7 @@ async function syncSingleAgentToGraphdb(chainId: number, agentId: string): Promi
   lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
   const ownerAcct = accountIri(chainId, owner);
   const walletAcct = accountIri(chainId, wallet);
-  lines.push(`  erc8004:agentOwnerAccount ${ownerAcct} ;`);
-  lines.push(`  erc8004:agentWalletAccount ${walletAcct} ;`);
-  if (!didAccountSmart) lines.push(`  erc8004:agentOwnerEOAAccount ${ownerAcct} ;`);
+  // Account relationships live on the ERC-8004 identity (AgentIdentity8004), not on the agent node.
   if (didAccountSmart) lines.push(`  erc8004:hasAgentAccount ${accountIri(chainId, metaAgentAccount!)} ;`);
   if (name) {
     const agentIriInner = agentNodeIri.replace(/^<|>$/g, '');
@@ -301,12 +299,18 @@ async function syncSingleAgentToGraphdb(chainId: number, agentId: string): Promi
   lines.push('');
   lines.push(`${ident8004} a erc8004:AgentIdentity8004, core:AgentIdentity, prov:Entity ;`);
   lines.push(`  core:identityOf ${agentNodeIri} ;`);
+  // Materialize numeric agentId on the identity for fast query/sort without DID parsing.
+  const agentIdNum = Number(agentId);
+  if (Number.isFinite(agentIdNum) && agentIdNum > 0) lines.push(`  erc8004:agentId ${Math.trunc(agentIdNum)} ;`);
   lines.push(`  core:hasIdentifier ${did8004Iri} ;`);
   lines.push(`  core:hasDescriptor ${ident8004Desc} ;`);
   lines.push(`  core:identityRegistry <https://www.agentictrust.io/id/8004-identity-registry/${chainId}> ;`);
   // identity-scoped accounts (EOA forms; smart-account resolution is handled elsewhere)
   lines.push(`  erc8004:hasOwnerAccount ${ownerAcct} ;`);
-  lines.push(`  erc8004:hasWalletAccount ${walletAcct} .`);
+  lines.push(`  erc8004:hasWalletAccount ${walletAcct} ;`);
+  // If this agent isn't smart-account scoped, treat the owner as the owner EOA (best-effort).
+  if (!didAccountSmart) lines.push(`  erc8004:hasOwnerEOAAccount ${ownerAcct} ;`);
+  lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
   lines.push('');
   lines.push(`${did8004Iri} a erc8004:IdentityIdentifier8004, core:UniversalIdentifier, core:Identifier, core:DID, prov:Entity ;`);
   lines.push(`  core:protocolIdentifier "${escapeTurtleString(didIdentity)}" ;`);
@@ -421,7 +425,7 @@ async function syncSingleAgentToGraphdb(chainId: number, agentId: string): Promi
   const context = chainContext(chainId);
   const { bytes } = await uploadTurtleToRepository(baseUrl, repository, auth, { turtle, context });
 
-  // Materialize counts for this agent only (fast path).
+  // Materialize assertion summaries for this agent only (fast path).
   const countUpdate = `
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
@@ -429,14 +433,34 @@ WITH <${context}>
 DELETE { ${agentNodeIri} erc8004:feedbackAssertionCount8004 ?oFb }
 WHERE  { OPTIONAL { ${agentNodeIri} erc8004:feedbackAssertionCount8004 ?oFb } } ;
 WITH <${context}>
-INSERT { ${agentNodeIri} erc8004:feedbackAssertionCount8004 ?fbCnt }
-WHERE  { SELECT (COUNT(?fb) AS ?fbCnt) WHERE { OPTIONAL { ${agentNodeIri} core:hasReputationAssertion ?fb . } } } ;
+DELETE { ?fbSummary core:feedbackAssertionCount ?oFbCnt }
+WHERE  { OPTIONAL { ${agentNodeIri} core:hasFeedbackAssertionSummary ?fbSummary . ?fbSummary core:feedbackAssertionCount ?oFbCnt } } ;
+WITH <${context}>
+INSERT {
+  ${agentNodeIri} core:hasFeedbackAssertionSummary ?fbSummary .
+  ?fbSummary a core:FeedbackAssertionSummary ;
+             core:feedbackAssertionCount ?fbCnt .
+}
+WHERE  {
+  BIND(IRI(CONCAT(STR(${agentNodeIri}), "/feedback-assertion-summary")) AS ?fbSummary)
+  { SELECT (COUNT(?fb) AS ?fbCnt) WHERE { OPTIONAL { ${agentNodeIri} core:hasReputationAssertion ?fb . } } }
+} ;
 WITH <${context}>
 DELETE { ${agentNodeIri} erc8004:validationAssertionCount8004 ?oVr }
 WHERE  { OPTIONAL { ${agentNodeIri} erc8004:validationAssertionCount8004 ?oVr } } ;
 WITH <${context}>
-INSERT { ${agentNodeIri} erc8004:validationAssertionCount8004 ?vrCnt }
-WHERE  { SELECT (COUNT(?vr) AS ?vrCnt) WHERE { OPTIONAL { ${agentNodeIri} core:hasVerificationAssertion ?vr . } } } ;
+DELETE { ?vrSummary core:validationAssertionCount ?oVrCnt }
+WHERE  { OPTIONAL { ${agentNodeIri} core:hasValidationAssertionSummary ?vrSummary . ?vrSummary core:validationAssertionCount ?oVrCnt } } ;
+WITH <${context}>
+INSERT {
+  ${agentNodeIri} core:hasValidationAssertionSummary ?vrSummary .
+  ?vrSummary a core:ValidationAssertionSummary ;
+             core:validationAssertionCount ?vrCnt .
+}
+WHERE  {
+  BIND(IRI(CONCAT(STR(${agentNodeIri}), "/validation-assertion-summary")) AS ?vrSummary)
+  { SELECT (COUNT(?vr) AS ?vrCnt) WHERE { OPTIONAL { ${agentNodeIri} core:hasVerificationAssertion ?vr . } } }
+} ;
 `;
   await updateGraphdb(baseUrl, repository, auth, countUpdate);
 

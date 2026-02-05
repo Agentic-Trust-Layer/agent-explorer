@@ -123,6 +123,11 @@ export function protocolIriMcp(didAccountValue: string): string {
   return `<https://www.agentictrust.io/id/protocol/mcp/${iriEncodeSegment(didAccountValue)}>`;
 }
 
+export function serviceEndpointIri(didAccountValue: string, endpointName: string): string {
+  const name = String(endpointName || '').trim().toLowerCase() || 'endpoint';
+  return `<https://www.agentictrust.io/id/service-endpoint/${iriEncodeSegment(name)}/${iriEncodeSegment(didAccountValue)}>`;
+}
+
 export function oasfSkillIri(skillId: string): string {
   return `<https://www.agentictrust.io/id/oasf/skill/${iriEncodePath(skillId)}>`;
 }

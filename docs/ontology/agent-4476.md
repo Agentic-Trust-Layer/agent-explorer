@@ -45,7 +45,7 @@ WHERE {
 
   OPTIONAL {
     ?agent a erc8004:SmartAgent ;
-           erc8004:hasSmartAccount ?smartAccount .
+           erc8004:hasAgentAccount ?smartAccount .
   }
 
   OPTIONAL {
@@ -85,10 +85,12 @@ WHERE {
   }
 
   OPTIONAL {
-    ?identityDescriptor core:assembledFromMetadata ?pdA2a .
-    ?pdA2a a core:A2AProtocolDescriptor ;
-           core:serviceUrl ?a2aEndpoint .
-    OPTIONAL { ?pdA2a core:json ?agentCardJson . }
+    ?identity8004 core:hasServiceEndpoint ?seA2a .
+    ?seA2a a core:ServiceEndpoint ;
+           core:serviceUrl ?a2aEndpoint ;
+           core:hasProtocol ?pA2a .
+    ?pA2a a core:A2AProtocol .
+    OPTIONAL { ?pA2a core:json ?agentCardJson . }
   }
 }
 LIMIT 50

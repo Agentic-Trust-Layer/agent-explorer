@@ -26,7 +26,7 @@ graph TB
   Agent["Agent (discoverable)\nprov:SoftwareAgent"]
   Identity["AgentIdentity (registry-scoped)\nprov:Entity"]
   Name["ENS Identity (name-derived)\nens:EnsIdentity\nprov:Entity"]
-  Desc["Descriptors (AgentDescriptor / ProtocolDescriptor)\nprov:Entity"]
+  Desc["Descriptors (AgentDescriptor / Protocol)\nprov:Entity"]
   Sit["TrustSituation\nprov:Entity"]
   Attested["AttestedAssertion\nprov:Entity"]
 
@@ -92,17 +92,17 @@ Deployment versioning (distinct from model release when needed):
 
 - `core:deploymentVersion` (AgentDeployment)
 
-## Protocol endpoint references the application
+## Service endpoints reference the application
 
-The application deployment is **reachable** via protocol endpoints (e.g., A2A, MCP). In AgenticTrust:
+The application deployment is **reachable** via service endpoints (e.g., A2A, MCP). In AgenticTrust:
 
-- Protocol configuration lives on **ProtocolDescriptor** (`core:A2AProtocolDescriptor`, `core:MCPProtocolDescriptor`)
-- Network addresses are modeled as **Endpoint** (`core:Endpoint`) linked from descriptors
+- Network addresses are modeled as **ServiceEndpoint** (`core:ServiceEndpoint`) attached to both the Agent and its Identity (`core:hasServiceEndpoint`)
+- Protocol configuration and semantics live on the **Protocol** node (`core:A2AProtocol`, `core:MCPProtocol`) linked from the service endpoint (`core:hasProtocol`)
 
 The **A2A agent card** (agent-card.json / agent.json) is presented by the deployed application at an A2A endpoint. AgenticTrust represents:
 
-- the endpoint URL on an Endpoint node (e.g., `core:endpointUrl`)
-- the fetched A2A card JSON as `core:json` on a protocol descriptor (or a resolver-produced descriptor entity)
+- the endpoint URL on the ServiceEndpoint node (`core:serviceUrl`)
+- the fetched A2A card JSON as `core:json` on the protocol node (`core:A2AProtocol`)
 
 ## Verification principles for Agent Applications (deployments)
 
@@ -137,7 +137,7 @@ HCS-11 is commonly referenced as a **profile/document** pattern for describing/v
 
 This maps cleanly to AgenticTrust:
 
-- treat an HCS-11-style “profile” as a **Descriptor artifact** (a `ProtocolDescriptor` / `Descriptor` node)
+- treat an HCS-11-style “profile” as a **Descriptor artifact** (often a `core:Protocol` node, which is treated as a `core:Descriptor`)
 - treat any publication/update as a provenance-bearing Activity (registration/fetch)
 - treat verification outputs as AttestedAssertions about the Deployment and/or the AgentIdentity
 

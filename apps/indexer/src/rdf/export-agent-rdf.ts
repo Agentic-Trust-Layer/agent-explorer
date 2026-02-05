@@ -570,7 +570,6 @@ function renderAgentSection(
         : null;
 
   if (didIdentityValue) {
-    lines.push(`  core:didIdentity "${escapeTurtleString(didIdentityValue)}" ;`);
     const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(didIdentityValue)}>`;
     
     // Create Identity8004 instance
@@ -1033,11 +1032,19 @@ function renderAgentSection(
     accountChunks.push(descriptorLines.join('\n'));
   }
   
-  // A2A Protocol Descriptor (from agentCardJson)
-  // Extract all protocol descriptor fields from agentCardJson
+  // A2A ServiceEndpoint + Protocol (+ descriptors) from agentCardJson
+  // IMPORTANT:
+  // - ServiceEndpoint has its own Descriptor (UI metadata for the endpoint)
+  // - Protocol has its own Descriptor (UI metadata + agent-card.json capture)
+  // - serviceUrl is attached to Protocol (not ServiceEndpoint)
+  // - agent-card.json is captured in core:json on the Protocol's Descriptor (not on Protocol directly)
   const hasProtocolProps = 
     (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim()) ||
     (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim()) ||
+    // Some agent cards use serviceUri/serviceUrl instead of url.
+    (typeof agentCard?.serviceUri === 'string' && agentCard.serviceUri.trim()) ||
+    (typeof agentCard?.serviceURL === 'string' && agentCard.serviceURL.trim()) ||
+    (typeof agentCard?.serviceUrl === 'string' && agentCard.serviceUrl.trim()) ||
     (typeof agentCard?.url === 'string' && agentCard.url.trim()) ||
     (typeof agentCard?.name === 'string' && agentCard.name.trim()) ||
     (typeof agentCard?.description === 'string' && agentCard.description.trim()) ||
@@ -1048,32 +1055,87 @@ function renderAgentSection(
     Array.isArray(agentCard?.defaultOutputModes);
   
   if (hasProtocolProps && agentCard && typeof agentCard === 'object') {
-    // Use DID for protocol descriptor IRI (protocol-agnostic, no chainId needed)
+    // Use DID for service endpoint/protocol IRIs (protocol-agnostic, no chainId needed)
     const didForProtocol = iriEncodeSegment(didAccountValue);
-    const protocolDescriptorIri = `<https://www.agentictrust.io/id/protocol-descriptor/a2a/${didForProtocol}>`;
+    const serviceEndpointIri = `<https://www.agentictrust.io/id/service-endpoint/a2a/${didForProtocol}>`;
     const protocolIri = `<https://www.agentictrust.io/id/protocol/a2a/${didForProtocol}>`;
+    const serviceEndpointDescriptorIri = `<https://www.agentictrust.io/id/descriptor/service-endpoint/a2a/${didForProtocol}>`;
+    const protocolDescriptorIri = `<https://www.agentictrust.io/id/descriptor/protocol/a2a/${didForProtocol}>`;
 
-    // Protocol instance + descriptor link (so Protocol → ProtocolDescriptor is queryable)
-    afterAgent.push(`${protocolIri} a core:Protocol, prov:Entity .\n`);
-    afterAgent.push(`${protocolIri} core:hasProtocolDescriptor ${protocolDescriptorIri} .\n`);
+    // Agent exposes service endpoints
+    afterAgent.push(`${agentIri} core:hasServiceEndpoint ${serviceEndpointIri} .\n`);
 
-    // AgentDescriptor assembled from this protocol descriptor component
-    afterAgent.push(`${adIri} core:assembledFromMetadata ${protocolDescriptorIri} .\n`);
-
+    // Service endpoint node (descriptor + protocol link)
     const protocolDescriptorLines: string[] = [];
-    protocolDescriptorLines.push(`${protocolDescriptorIri} a core:A2AProtocolDescriptor, core:ProtocolDescriptor, core:Descriptor, prov:Entity ;`);
+    protocolDescriptorLines.push(`${serviceEndpointIri} a core:ServiceEndpoint, core:Endpoint, prov:Entity ;`);
+    protocolDescriptorLines.push(`  core:endpointName "a2a" ;`);
+    protocolDescriptorLines.push(`  core:hasDescriptor ${serviceEndpointDescriptorIri} ;`);
+    protocolDescriptorLines.push(`  core:hasProtocol ${protocolIri} .`);
+    protocolDescriptorLines.push('');
+
+    // Service endpoint descriptor (minimal UI metadata)
+    protocolDescriptorLines.push(`${serviceEndpointDescriptorIri} a core:Descriptor, prov:Entity ;`);
+    protocolDescriptorLines.push(`  dcterms:title "a2a" ;`);
+    protocolDescriptorLines.push(`  rdfs:label "a2a" .`);
+    protocolDescriptorLines.push('');
+
+    // Protocol instance
+    protocolDescriptorLines.push(`${protocolIri} a core:A2AProtocol, core:Protocol, prov:Entity ;`);
+    protocolDescriptorLines.push(`  core:hasDescriptor ${protocolDescriptorIri} ;`);
+
+    // serviceUrl lives on Protocol (not ServiceEndpoint)
+    // Prefer agent-card's top-level `url`, else fall back to ERC-8004 registration endpoint URL.
+    const agentCardUrl =
+      (typeof agentCard?.serviceUri === 'string' ? agentCard.serviceUri.trim() : '') ||
+      (typeof agentCard?.serviceURL === 'string' ? agentCard.serviceURL.trim() : '') ||
+      (typeof agentCard?.serviceUrl === 'string' ? agentCard.serviceUrl.trim() : '') ||
+      (typeof agentCard?.url === 'string' ? agentCard.url.trim() : '');
+    let registrationA2aUrl = '';
+    try {
+      const eps: any[] = Array.isArray(tokenUriData?.endpoints) ? tokenUriData.endpoints : [];
+      const match =
+        eps.find((e) => typeof e?.name === 'string' && e.name.trim().toLowerCase() === 'a2a') ??
+        eps.find((e) => typeof e?.name === 'string' && e.name.trim().toLowerCase() === 'agent') ??
+        null;
+      registrationA2aUrl = typeof match?.endpoint === 'string' ? match.endpoint.trim() : '';
+    } catch {
+      registrationA2aUrl = '';
+    }
+    const serviceUrlOut = agentCardUrl || registrationA2aUrl;
+    if (serviceUrlOut) {
+      const tok = turtleIriOrLiteral(serviceUrlOut);
+      if (tok) protocolDescriptorLines.push(`  core:serviceUrl ${tok} ;`);
+    }
     
     // Core protocol fields
     if (typeof agentCard?.protocolVersion === 'string' && agentCard.protocolVersion.trim())
       protocolDescriptorLines.push(`  core:protocolVersion "${escapeTurtleString(agentCard.protocolVersion.trim())}" ;`);
     if (typeof agentCard?.preferredTransport === 'string' && agentCard.preferredTransport.trim())
       protocolDescriptorLines.push(`  core:preferredTransport "${escapeTurtleString(agentCard.preferredTransport.trim())}" ;`);
-    if (typeof agentCard?.url === 'string' && agentCard.url.trim()) {
-      const tok = turtleIriOrLiteral(agentCard.url.trim());
-      if (tok) protocolDescriptorLines.push(`  core:serviceUrl ${tok} ;`);
-    }
     
-    // Descriptor fields (name, description, image) - ProtocolDescriptor inherits from Descriptor
+    // Version field (use version if protocolVersion not already set)
+    if (typeof agentCard?.version === 'string' && agentCard.version.trim()) {
+      const hasProtocolVersion = protocolDescriptorLines.some(l => l.includes('protocolVersion'));
+      if (!hasProtocolVersion) {
+        protocolDescriptorLines.push(`  core:protocolVersion "${escapeTurtleString(agentCard.version.trim())}" ;`);
+      }
+    }
+
+    // Close protocol instance before starting the descriptor node
+    if (protocolDescriptorLines.length) {
+      const last = protocolDescriptorLines[protocolDescriptorLines.length - 1];
+      protocolDescriptorLines[protocolDescriptorLines.length - 1] = last.replace(/ ;$/, ' .');
+    }
+    protocolDescriptorLines.push('');
+
+    // Protocol descriptor (UI metadata + agent-card.json capture)
+    protocolDescriptorLines.push(`${protocolDescriptorIri} a core:Descriptor, prov:Entity ;`);
+    try {
+      // Lossless capture of agent-card JSON for this protocol (if present)
+      if (typeof agentCardJsonText === 'string' && agentCardJsonText.trim()) {
+        protocolDescriptorLines.push(`  core:json ${turtleJsonLiteral(agentCardJsonText)} ;`);
+      }
+    } catch {}
     if (typeof agentCard?.name === 'string' && agentCard.name.trim()) {
       protocolDescriptorLines.push(`  dcterms:title "${escapeTurtleString(agentCard.name.trim())}" ;`);
       protocolDescriptorLines.push(`  rdfs:label "${escapeTurtleString(agentCard.name.trim())}" ;`);
@@ -1085,14 +1147,6 @@ function renderAgentSection(
       if (imgUrl) {
         const imgIri = turtleIriOrLiteral(imgUrl);
         if (imgIri) protocolDescriptorLines.push(`  schema:image ${imgIri} ;`);
-      }
-    }
-    
-    // Version field (use version if protocolVersion not already set)
-    if (typeof agentCard?.version === 'string' && agentCard.version.trim()) {
-      const hasProtocolVersion = protocolDescriptorLines.some(l => l.includes('protocolVersion'));
-      if (!hasProtocolVersion) {
-        protocolDescriptorLines.push(`  core:protocolVersion "${escapeTurtleString(agentCard.version.trim())}" ;`);
       }
     }
     
@@ -1258,7 +1312,6 @@ function renderAgentNodeWithoutCard(row: any, accountChunks: string[]): string {
   
   // Identity8004 and IdentityIdentifier8004 for didIdentity
   if (row?.didIdentity) {
-    lines.push(`  core:didIdentity "${escapeTurtleString(String(row.didIdentity))}" ;`);
     const didIdentityIri = `<https://www.agentictrust.io/id/did/${iriEncodeSegment(String(row.didIdentity))}>`;
     
     // Create Identity8004 instance

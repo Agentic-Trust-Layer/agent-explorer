@@ -43,7 +43,7 @@ WHERE {
 
   OPTIONAL {
     ?agent a erc8004:SmartAgent ;
-           erc8004:hasSmartAccount ?smartAccount .
+           erc8004:hasAgentAccount ?smartAccount .
   }
 }
 GROUP BY ?agent
@@ -69,10 +69,12 @@ WHERE {
 
   OPTIONAL { ?identityDescriptor core:json ?registrationJson . }
   OPTIONAL {
-    ?identityDescriptor core:assembledFromMetadata ?pdA2a .
-    ?pdA2a a core:A2AProtocolDescriptor ;
-           core:serviceUrl ?a2aEndpoint .
-    OPTIONAL { ?pdA2a core:json ?agentCardJson . }
+    ?identity8004 core:hasServiceEndpoint ?seA2a .
+    ?seA2a a core:ServiceEndpoint ;
+           core:serviceUrl ?a2aEndpoint ;
+           core:hasProtocol ?pA2a .
+    ?pA2a a core:A2AProtocol .
+    OPTIONAL { ?pA2a core:json ?agentCardJson . }
   }
 }
 LIMIT 50
@@ -84,7 +86,7 @@ LIMIT 50
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
-SELECT ?protocolDescriptor ?serviceUrl ?skill
+SELECT ?protocol ?serviceUrl ?skill
 WHERE {
   VALUES ?did8004 { "did:8004:11155111:7415" }
 
@@ -95,10 +97,12 @@ WHERE {
                 core:hasDescriptor ?desc8004 .
   ?ident8004 core:protocolIdentifier ?did8004 .
 
-  ?desc8004 core:assembledFromMetadata ?protocolDescriptor .
-  ?protocolDescriptor a core:ProtocolDescriptor ;
-                      core:serviceUrl ?serviceUrl ;
-                      core:hasSkill ?skill .
+  ?identity8004 core:hasServiceEndpoint ?serviceEndpoint .
+  ?serviceEndpoint a core:ServiceEndpoint ;
+                   core:serviceUrl ?serviceUrl ;
+                   core:hasProtocol ?protocol .
+  ?protocol a core:Protocol ;
+            core:hasSkill ?skill .
 }
 ORDER BY ?serviceUrl ?skill
 LIMIT 500

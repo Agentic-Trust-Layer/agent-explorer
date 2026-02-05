@@ -64,7 +64,7 @@ Agents communicate via:
 
 Ontology mapping:
 
-- Protocol ≈ `core:Protocol` / `core:ProtocolDescriptor`
+- Protocol metadata ≈ `core:Protocol` (often attached via `core:ServiceEndpoint core:hasProtocol core:Protocol`)
 - Message ≈ `prov:Entity` (information artifact)
 - Handler/behavior ≈ `p-plan:Step` (plan step) with executions as `prov:Activity`
 

@@ -67,6 +67,59 @@
   rdfs:label "MCPProtocolDescriptor" ;
   rdfs:subClassOf :ProtocolDescriptor .
 
+########
+# Service endpoints (preferred)
+########
+
+# Preferred model:
+# AgentIdentityDescriptor -> hasServiceEndpoint -> ServiceEndpoint -> hasProtocol -> Protocol
+#
+# Protocol and ServiceEndpoint instances each have their own Descriptor via core:hasDescriptor.
+# This keeps Protocol/ServiceEndpoint as "things" and Descriptor as "metadata", and allows lossless
+# capture of protocol JSON (e.g. agent-card.json) on the protocol's descriptor.
+
+:ServiceEndpoint a owl:Class ;
+  rdfs:label "ServiceEndpoint" ;
+  rdfs:comment "A concrete service endpoint for an agent identity descriptor (e.g. A2A, MCP, or another endpoint type)." ;
+  rdfs:subClassOf :Endpoint ;
+  rdfs:subClassOf prov:Entity .
+
+:A2AProtocol a owl:Class ;
+  rdfs:label "A2AProtocol" ;
+  rdfs:comment "A2A protocol instance describing an A2A service endpoint." ;
+  rdfs:subClassOf :Protocol ;
+  rdfs:subClassOf prov:Entity .
+
+:MCPProtocol a owl:Class ;
+  rdfs:label "MCPProtocol" ;
+  rdfs:comment "MCP protocol instance describing an MCP service endpoint." ;
+  rdfs:subClassOf :Protocol ;
+  rdfs:subClassOf prov:Entity .
+
+:hasServiceEndpoint a owl:ObjectProperty ;
+  rdfs:label "hasServiceEndpoint" ;
+  rdfs:comment "Links an agent or identity to a service endpoint it exposes." ;
+  rdfs:domain prov:Entity ;
+  rdfs:range :ServiceEndpoint .
+
+:hasProtocol a owl:ObjectProperty ;
+  rdfs:label "hasProtocol" ;
+  rdfs:comment "Links a ServiceEndpoint to its Protocol instance (A2AProtocol, MCPProtocol, etc.)." ;
+  rdfs:domain :ServiceEndpoint ;
+  rdfs:range :Protocol .
+
+:serviceUrl a owl:ObjectProperty ;
+  rdfs:label "serviceUrl" ;
+  rdfs:comment "Service URL for a Protocol instance (string or IRI literal)." ;
+  rdfs:domain :Protocol ;
+  rdfs:range owl:Thing .
+
+:protocolVersion a owl:DatatypeProperty ;
+  rdfs:label "protocolVersion" ;
+  rdfs:comment "Protocol version identifier for a Protocol instance." ;
+  rdfs:domain :Protocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
 :EndpointType a owl:Class ;
   rdfs:label "EndpointType" ;
   rdfs:subClassOf prov:Entity .

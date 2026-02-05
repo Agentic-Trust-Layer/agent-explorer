@@ -51,7 +51,7 @@ This returns each `core:AIAgent` along with (when present) its:
 - **ERC-8004 DID** (`did:8004:<chainId>:<id>`) stored as `core:protocolIdentifier` on the ERC-8004 identity identifier
 - **ERC-8004 identity** (`core:hasIdentity` → `erc8004:AgentIdentity8004`)
 - **ENS identity** (`core:hasIdentity` → `ens:EnsIdentity`) and its DID (`did:ens:<name>`)
-- **Smart account** (only for `erc8004:SmartAgent`): `erc8004:hasSmartAccount` → `eth:Account` (typed later as `eth:SmartAccount` vs `eth:EOAAccount`)
+- **Agent-controlled account** (only for `erc8004:SmartAgent`): `erc8004:hasAgentAccount` → `erc8004:AgentAccount` (also an `eth:Account`)
 
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
@@ -89,7 +89,7 @@ WHERE {
 
   OPTIONAL {
     ?agent a erc8004:SmartAgent ;
-           erc8004:hasSmartAccount ?smartAccount .
+           erc8004:hasAgentAccount ?smartAccount .
   }
 
   # didAccount: prefer SmartAgent smartAccount DID, else wallet account DID
@@ -134,7 +134,7 @@ classDiagram
     AIAgent <|-- AIAgentHOL
     AIAgent <|-- AIAgentNanda
 
-    SmartAgent --> SmartAccount : hasSmartAccount
+    SmartAgent --> SmartAccount : hasAgentAccount
     
     note for provAgent "Base class for all agents\nInherits hasIdentifier property"
     note for provPerson "Human person agent"
@@ -144,25 +144,29 @@ classDiagram
     note for SmartAgent "ERC-8004 agent with SmartAccount association"
 ```
 
-## Agent → Identity → Descriptor relationships (current sync model)
+## Key relationships (current KG model)
 
-`apps/sync` emits a **standards-aligned** shape:
+The current model follows these principles:
 
 - **Agent → Identity**: `core:AIAgent core:hasIdentity core:AgentIdentity`
   - ERC‑8004 identity: `erc8004:AgentIdentity8004`
   - ENS identity: `ens:EnsIdentity`
-- **Identity → Identifier**: `core:hasIdentifier core:UniversalIdentifier` with `core:protocolIdentifier` (literal DID string)
-  - `did:8004:<chainId>:<id>`
-  - `did:ens:<name>`
-  - `did:ethr:<chainId>:<address>`
-- **Identity → Descriptor**: `core:hasDescriptor core:Descriptor`
-  - ERC‑8004 identity descriptor: `erc8004:IdentityDescriptor8004` (stores registration JSON as `core:json`)
-  - ENS identity descriptor: `ens:EnsIdentityDescriptor`
-- **Descriptor → ProtocolDescriptor**: `core:assembledFromMetadata`
-  - A2A/MCP endpoints live on protocol descriptors (`core:serviceUrl`) and may store JSON (`core:json`)
-- **Smart agent → smart account**: `erc8004:SmartAgent erc8004:hasSmartAccount eth:Account` (typed later as `eth:SmartAccount` vs `eth:EOAAccount`)
-- **Owner/wallet/operator accounts** live on the **ERC‑8004 identity**:
-  - `erc8004:hasOwnerAccount`, `erc8004:hasWalletAccount`, `erc8004:hasOperatorAccount`
+- **Agent → Descriptor**: `core:AIAgent core:hasDescriptor core:AgentDescriptor`
+- **Identity → Descriptor**: `core:AgentIdentity core:hasDescriptor core:Descriptor`
+  - ERC‑8004 identity descriptor: `erc8004:IdentityDescriptor8004` (registration JSON in `core:json`)
+- **Agent → ServiceEndpoint** and **Identity → ServiceEndpoint**:
+  - `core:hasServiceEndpoint core:ServiceEndpoint`
+  - The agent’s `serviceEndpoints` is the union of the endpoints discovered for its identities.
+- **ServiceEndpoint → Protocol**: `core:ServiceEndpoint core:hasProtocol core:Protocol`
+  - A2A: `core:A2AProtocol`
+  - MCP: `core:MCPProtocol`
+- **Protocol → Descriptor**: `core:Protocol` is also treated as a `core:Descriptor`
+  - protocol UX fields: `dcterms:title`, `dcterms:description`, `schema:image`
+  - protocol metadata: `core:protocolVersion`, `core:json`
+  - protocol discovery metadata: `core:hasSkill`, `core:hasDomain`
+- **Smart agent → agent-controlled account**: `erc8004:SmartAgent erc8004:hasAgentAccount erc8004:AgentAccount`
+- **Owner/wallet/operator/ownerEOA accounts** live on the **ERC‑8004 identity**:
+  - `erc8004:hasOwnerAccount`, `erc8004:hasWalletAccount`, `erc8004:hasOperatorAccount`, `erc8004:hasOwnerEOAAccount`
 
 ```mermaid
 classDiagram
@@ -173,28 +177,32 @@ classDiagram
     class IdentifierEns["ens:EnsIdentifier"]
     class IdentityDesc8004["erc8004:IdentityDescriptor8004"]
     class IdentityDescEns["ens:EnsIdentityDescriptor"]
-    class ProtocolDesc["core:ProtocolDescriptor"]
-    class A2AProtocolDesc["core:A2AProtocolDescriptor"]
+    class ServiceEndpoint["core:ServiceEndpoint"]
+    class Protocol["core:Protocol"]
+    class A2AProtocol["core:A2AProtocol"]
     class Account["eth:Account"]
     class SmartAgent["erc8004:SmartAgent"]
 
     AIAgent --> Identity8004 : hasIdentity
     AIAgent --> IdentityEns : hasIdentity
+    AIAgent --> IdentityDesc8004 : hasDescriptor
+    AIAgent --> ServiceEndpoint : hasServiceEndpoint
 
     Identity8004 --> Identifier8004 : hasIdentifier
     IdentityEns --> IdentifierEns : hasIdentifier
 
     Identity8004 --> IdentityDesc8004 : hasDescriptor
     IdentityEns --> IdentityDescEns : hasDescriptor
+    Identity8004 --> ServiceEndpoint : hasServiceEndpoint
 
-    IdentityDesc8004 --> ProtocolDesc : assembledFromMetadata
-    ProtocolDesc <|-- A2AProtocolDesc
+    ServiceEndpoint --> Protocol : hasProtocol
+    Protocol <|-- A2AProtocol
 
     Identity8004 --> Account : hasOwnerAccount
     Identity8004 --> Account : hasWalletAccount
     Identity8004 --> Account : hasOperatorAccount
 
-    SmartAgent --> Account : hasSmartAccount
+    SmartAgent --> Account : hasAgentAccount
 ```
 
 ## SPARQL Queries
@@ -255,10 +263,10 @@ WHERE {
     OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?walletAccount . }
   }
 
-  # SmartAgent smart account
+  # SmartAgent agent-controlled account
   OPTIONAL {
     ?agent a erc8004:SmartAgent ;
-           erc8004:hasSmartAccount ?smartAccount .
+           erc8004:hasAgentAccount ?smartAccount .
     ?smartAccount eth:hasAccountIdentifier ?saIdent .
     ?saIdent core:protocolIdentifier ?didAccount .
   }
@@ -296,7 +304,7 @@ SELECT ?agent
        (SAMPLE(?identityDescriptor) AS ?identityDescriptor)
        (SAMPLE(?registrationJson) AS ?registrationJson)
        (SAMPLE(?ensDescriptor) AS ?ensDescriptor)
-       (SAMPLE(?protocolDescriptor) AS ?protocolDescriptor)
+       (SAMPLE(?serviceEndpoint) AS ?serviceEndpoint)
        (SAMPLE(?serviceUrl) AS ?serviceUrl)
        (SAMPLE(?protocolJson) AS ?protocolJson)
 WHERE {
@@ -310,12 +318,13 @@ WHERE {
     ?ident8004 core:protocolIdentifier ?did8004 .
     OPTIONAL { ?identityDescriptor core:json ?registrationJson . }
 
-    # Protocol descriptors (A2A/MCP) assembled from identity descriptor
+    # Service endpoints (A2A/MCP/etc.) exposed by the identity
     OPTIONAL {
-      ?identityDescriptor core:assembledFromMetadata ?protocolDescriptor .
-      ?protocolDescriptor a core:ProtocolDescriptor ;
-                          core:serviceUrl ?serviceUrl .
-      OPTIONAL { ?protocolDescriptor core:json ?protocolJson . }
+      ?identity8004 core:hasServiceEndpoint ?serviceEndpoint .
+      ?serviceEndpoint a core:ServiceEndpoint ;
+                       core:serviceUrl ?serviceUrl ;
+                       core:hasProtocol ?protocol .
+      OPTIONAL { ?protocol core:json ?protocolJson . }
     }
   }
 
@@ -423,7 +432,7 @@ SELECT ?agent
        (SAMPLE(?identityEns) AS ?identityEns)
        (SAMPLE(?ensDescriptor) AS ?ensDescriptor)
        (SAMPLE(?a2aEndpoint) AS ?a2aEndpoint)
-       (SAMPLE(?a2aDescriptor) AS ?a2aDescriptor)
+       (SAMPLE(?a2aServiceEndpoint) AS ?a2aServiceEndpoint)
        (SAMPLE(?agentCardJson) AS ?agentCardJson)
 WHERE {
   ?agent a core:AIAgent .
@@ -438,10 +447,12 @@ WHERE {
   OPTIONAL { ?identityDescriptor core:json ?registrationJson . }
 
   OPTIONAL {
-    ?identityDescriptor core:assembledFromMetadata ?a2aDescriptor .
-    ?a2aDescriptor a core:A2AProtocolDescriptor ;
-                   core:serviceUrl ?a2aEndpoint .
-    OPTIONAL { ?a2aDescriptor core:json ?agentCardJson . }
+    ?identity8004 core:hasServiceEndpoint ?a2aServiceEndpoint .
+    ?a2aServiceEndpoint a core:ServiceEndpoint ;
+                        core:serviceUrl ?a2aEndpoint ;
+                        core:hasProtocol ?a2aProtocol .
+    ?a2aProtocol a core:A2AProtocol .
+    OPTIONAL { ?a2aProtocol core:json ?agentCardJson . }
   }
 
   OPTIONAL {
@@ -460,7 +471,7 @@ LIMIT 100
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 
-SELECT ?agent ?did8004 ?protocolDescriptor ?serviceUrl ?skill
+SELECT ?agent ?did8004 ?serviceEndpoint ?serviceUrl ?skill
 WHERE {
   ?agent a core:AIAgent ;
          core:hasIdentity ?identity8004 .
@@ -469,10 +480,12 @@ WHERE {
                 core:hasDescriptor ?desc8004 .
   ?ident8004 core:protocolIdentifier ?did8004 .
 
-  ?desc8004 core:assembledFromMetadata ?protocolDescriptor .
-  ?protocolDescriptor a core:ProtocolDescriptor ;
-                      core:serviceUrl ?serviceUrl ;
-                      core:hasSkill ?skill .
+  ?identity8004 core:hasServiceEndpoint ?serviceEndpoint .
+  ?serviceEndpoint a core:ServiceEndpoint ;
+                   core:serviceUrl ?serviceUrl ;
+                   core:hasProtocol ?protocol .
+  ?protocol a core:Protocol ;
+            core:hasSkill ?skill .
 }
 ORDER BY ?agent ?serviceUrl ?skill
 LIMIT 200
@@ -486,7 +499,7 @@ The current sync model is identity-centric:
 2. **Identities**: `core:hasIdentity` → `erc8004:AgentIdentity8004` and optionally `ens:EnsIdentity`
 3. **Identifiers**: identity `core:hasIdentifier` → `core:UniversalIdentifier` with `core:protocolIdentifier` (DID strings)
 4. **Descriptors**: identity `core:hasDescriptor` → identity descriptor (registration JSON on `core:json`)
-5. **Protocols**: identity descriptor `core:assembledFromMetadata` → protocol descriptor(s) (A2A/MCP endpoints via `core:serviceUrl`, skills via `core:hasSkill`)
+5. **Service endpoints + protocols**: agent and identity `core:hasServiceEndpoint` → `core:ServiceEndpoint` (URL via `core:serviceUrl`) → `core:hasProtocol` → protocol (`core:A2AProtocol`, `core:MCPProtocol`, etc.) carrying `core:json`, `core:protocolVersion`, skills/domains, etc.
 
 ## UAID (HCS-14): canonical identity + routing/bindings
 

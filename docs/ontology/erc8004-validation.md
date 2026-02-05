@@ -96,15 +96,16 @@ Replace:
 - `{chainId}` with your chain id (e.g. `11155111`)
 - `{agentId}` with the ERC-8004 agent id (e.g. `277`)
 
-### Precomputed validation count on the agent node (fast)
+### Precomputed validation count (fast)
 
 ```sparql
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 
 SELECT ?count WHERE {
   GRAPH <https://www.agentictrust.io/graph/data/subgraph/{chainId}> {
     <https://www.agentictrust.io/id/agent/{chainId}/{agentId}>
-      erc8004:validationAssertionCount8004 ?count .
+      core:hasValidationAssertionSummary ?summary .
+    ?summary core:validationAssertionCount ?count .
   }
 }
 ```
@@ -175,8 +176,9 @@ SELECT (COUNT(DISTINCT ?validation) AS ?count) WHERE {
 - **Agent → validation assertion**:
   - **`core:hasVerificationAssertion`** (range: `core:VerificationTrustAssertion`)
     - Used in the KB to link agents to `erc8004:ValidationResponse`.
-- **Materialized count (agent literal)**:
-  - **`erc8004:validationAssertionCount8004`** (domain: `core:AIAgent`, range: `xsd:integer`)
+- **Materialized summary (agent → summary entity)**:
+  - **`core:hasValidationAssertionSummary`** (domain: `core:AIAgent`, range: `core:ValidationAssertionSummary`)
+  - **`core:validationAssertionCount`** (domain: `core:ValidationAssertionSummary`, range: `xsd:integer`)
 - **Raw/provenance record links**:
   - **`erc8004:recordsEntity`** (SubgraphIngestRecord → the typed entity it represents)
   - **`erc8004:subgraphRawJson`**, **`erc8004:subgraphTxHash`**, **`erc8004:subgraphBlockNumber`**, **`erc8004:subgraphTimestamp`**

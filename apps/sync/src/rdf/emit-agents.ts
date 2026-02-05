@@ -16,9 +16,9 @@ import {
   turtleJsonLiteral,
 } from './common.js';
 import { emitRawSubgraphRecord } from './emit-raw-record.js';
-// SKIPPED: Protocol descriptor and skills extraction removed for performance (agentUri JSON parsing)
-// import { emitProtocolDescriptorFromRegistration } from './emit-protocol-descriptor-from-registration.js';
-// import { emitIdentityDescriptorSkillsDomains } from './emit-identity-descriptor-skills-domains.js';
+// Protocol descriptor + skills/domains extraction from ERC-8004 registration JSON (core:json)
+import { emitProtocolDescriptorFromRegistration } from './emit-protocol-descriptor-from-registration.js';
+import { emitIdentityDescriptorSkillsDomains } from './emit-identity-descriptor-skills-domains.js';
 // import { extractProtocolDataFromAgentUriJson, isOasfSkillId } from '../a2a/skill-extraction.js';
 
 function normalizeHex(value: unknown): string | null {
@@ -161,6 +161,48 @@ function findLabeledValue(obj: any, label: string): string {
   return walk(obj);
 }
 
+function parseRegistrationEndpoints(jsonText: string): any[] {
+  const raw = typeof jsonText === 'string' ? jsonText.trim() : '';
+  if (!raw) return [];
+  if (!(raw.startsWith('{') || raw.startsWith('['))) return [];
+  try {
+    const obj: any = JSON.parse(raw);
+    const endpoints = Array.isArray(obj?.endpoints) ? obj.endpoints : [];
+    return Array.isArray(endpoints) ? endpoints : [];
+  } catch {
+    return [];
+  }
+}
+
+function splitSkillsDomains(ep: any): { skills: string[]; domains: string[] } {
+  const skills = Array.isArray(ep?.a2aSkills)
+    ? ep.a2aSkills
+    : Array.isArray(ep?.skills)
+      ? ep.skills
+      : [];
+  const domains = Array.isArray(ep?.a2aDomains)
+    ? ep.a2aDomains
+    : Array.isArray(ep?.domains)
+      ? ep.domains
+      : [];
+  const sOut = skills.map((x: any) => (typeof x === 'string' ? x.trim() : '')).filter(Boolean);
+  const dOut = domains.map((x: any) => (typeof x === 'string' ? x.trim() : '')).filter(Boolean);
+  return { skills: sOut, domains: dOut };
+}
+
+function partitionOasfKeys(values: string[]): { oasf: string[]; other: string[] } {
+  const oasf: string[] = [];
+  const other: string[] = [];
+  for (const v of values) {
+    const s = String(v || '').trim();
+    if (!s) continue;
+    // treat slash-separated keys as OASF-like; else keep as other
+    if (/^[a-z0-9_]+(\/[a-z0-9_]+)+/i.test(s)) oasf.push(s);
+    else other.push(s);
+  }
+  return { oasf, other };
+}
+
 export function emitAgentsTurtle(
   chainId: number,
   items: any[],
@@ -261,27 +303,24 @@ export function emitAgentsTurtle(
 
     const name = (typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '') || metaAgentName;
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
-    // Materialize numeric agentId for fast sorting/filtering (avoid runtime STR/REPLACE parsing).
+    // NOTE: Do not materialize did:8004/agentId on the agent node.
+    // The ERC-8004 agent id belongs on the ERC-8004 identity (erc8004:agentId).
     const agentIdNum = Number(agentId);
-    if (Number.isFinite(agentIdNum) && agentIdNum > 0) lines.push(`  erc8004:agentId8004 ${Math.trunc(agentIdNum)} ;`);
 
     // AgentDescriptor: normalize UX fields onto a descriptor node (Agent -> core:hasDescriptor -> core:AgentDescriptor)
     const agentDescriptorIri = agentDescriptorIriFromAgentIri(agentNodeIri);
     lines.push(`  core:hasDescriptor ${agentDescriptorIri} ;`);
 
-    // Agent-scoped account relationships (distinct from identity-scoped accounts).
-    // For AIAgent8004 these are copied from the identity accounts; for SmartAgent,
-    // agentOwnerEOAAccount is resolved later via sync:account-types from the agentAccount.
+    // Agent-scoped account relationships:
+    // - Keep ONLY SmartAgent -> hasAgentAccount at the agent level (this is not duplicated from identity).
+    // - Do NOT copy owner/operator/wallet/ownerEOA accounts onto the agent. Those live on the ERC-8004 identity:
+    //   erc8004:hasOwnerAccount / hasOperatorAccount / hasWalletAccount / hasOwnerEOAAccount.
     const ownerAcctIri = accountIri(chainId, ownerAddress);
     const operatorAcctIri = operatorAddress ? accountIri(chainId, operatorAddress) : null;
     const walletAcctIri = accountIri(chainId, agentWallet);
-    lines.push(`  erc8004:agentOwnerAccount ${ownerAcctIri} ;`);
-    lines.push(`  erc8004:agentWalletAccount ${walletAcctIri} ;`);
-    if (operatorAcctIri) lines.push(`  erc8004:agentOperatorAccount ${operatorAcctIri} ;`);
-    if (!metaAgentAccount) {
-      // AIAgent8004: agentOwnerEOAAccount is the identity owner account (no indirection).
-      lines.push(`  erc8004:agentOwnerEOAAccount ${ownerAcctIri} ;`);
-    }
+    void ownerAcctIri;
+    void operatorAcctIri;
+    void walletAcctIri;
 
     if (metaAgentAccount) {
       // SmartAgent should be the only thing that links to its agentAccount
@@ -303,7 +342,7 @@ export function emitAgentsTurtle(
     // NOTE:
     // - We do NOT store agentURI/a2aEndpoint directly on core:AIAgent anymore (legacy).
     // - We store ERC-8004 registration JSON on the ERC-8004 identity descriptor (core:json).
-    // - A2A endpoints are represented via core:A2AProtocolDescriptor + core:serviceUrl.
+    // - A2A/MCP endpoints are represented via core:ServiceEndpoint + core:hasProtocol -> core:A2AProtocol/core:MCPProtocol.
     // Identity node + registration descriptor link (minimal, but standard-aligned)
     const identityIri = identity8004Iri(didIdentity);
     const identityIdentifierIri = identityIdentifier8004Iri(didIdentity);
@@ -339,6 +378,8 @@ export function emitAgentsTurtle(
 
     lines.push(`${identityIri} a erc8004:AgentIdentity8004, core:AgentIdentity, prov:Entity ;`);
     lines.push(`  core:identityOf ${agentNodeIri} ;`);
+    // Materialize numeric agentId on the identity for fast query/sort without DID parsing.
+    if (Number.isFinite(agentIdNum) && agentIdNum > 0) lines.push(`  erc8004:agentId ${Math.trunc(agentIdNum)} ;`);
     // ERC-8004 identity owns owner/operator/wallet → Account relationships (account subtype resolved later via RPC)
     lines.push(`  erc8004:hasOwnerAccount ${ownerAcctIri} ;`);
     lines.push(`  erc8004:hasWalletAccount ${walletAcctIri} ;`);
@@ -399,9 +440,7 @@ export function emitAgentsTurtle(
     }
     // AgentURI / registration JSON: ALWAYS store on identity descriptor.
     if (registrationJsonText) lines.push(`  core:json ${turtleJsonLiteral(registrationJsonText)} ;`);
-    // NOTE: We still skip agentUri JSON expansion (protocol descriptors / skills extraction) for performance.
-    // - Protocol descriptor extraction removed (A2A/MCP skills/endpoints from registration JSON)
-    // - Skills/domains extraction from registration JSON removed
+    // Parse registration JSON once during sync and materialize skills/domains/protocolDescriptors into KB triples.
     // SKIPPED: onchainMetadataJson removed for performance (was 1-3KB per agent, stored as escaped JSON literal)
     // Essential fields (registeredBy, registryNamespace) are still stored as individual triples
     if (metaRegisteredBy) lines.push(`  erc8004:registeredBy "${escapeTurtleString(metaRegisteredBy)}" ;`);
@@ -409,6 +448,56 @@ export function emitAgentsTurtle(
     // terminate descriptor
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
+
+    if (registrationJsonText) {
+      const endpoints = parseRegistrationEndpoints(registrationJsonText);
+      const allSkills: string[] = [];
+      const allDomains: string[] = [];
+      for (const ep of endpoints) {
+        if (!ep || typeof ep !== 'object') continue;
+        const epName = typeof ep?.name === 'string' ? ep.name.trim().toLowerCase() : '';
+        const serviceUrl = typeof ep?.endpoint === 'string' ? ep.endpoint.trim() : '';
+        if (!serviceUrl) continue;
+        const { skills, domains } = splitSkillsDomains(ep);
+        allSkills.push(...skills);
+        allDomains.push(...domains);
+
+        const protocol: 'a2a' | 'mcp' | null =
+          epName.includes('a2a') ? 'a2a' : epName.includes('mcp') ? 'mcp' : skills.length || domains.length ? 'a2a' : null;
+        if (!protocol) continue;
+
+        lines.push(
+          emitProtocolDescriptorFromRegistration({
+            didAccount: didAccountForProtocols,
+            protocol,
+            serviceUrl,
+            protocolVersion: typeof ep?.version === 'string' ? ep.version : null,
+            endpointJson: ep,
+            skills: partitionOasfKeys(skills),
+            domains: partitionOasfKeys(domains),
+            agentIri: agentNodeIri,
+            identityIri: identityIri,
+          }),
+        );
+        lines.push('');
+      }
+
+      // Also attach aggregated skills/domains directly to the identity descriptor for easy query/mapping.
+      const uniq = (arr: string[]) => Array.from(new Set(arr.map((s) => String(s || '').trim()).filter(Boolean)));
+      const aggSkills = uniq(allSkills);
+      const aggDomains = uniq(allDomains);
+      if (aggSkills.length || aggDomains.length) {
+        lines.push(
+          emitIdentityDescriptorSkillsDomains({
+            descriptorIri,
+            subjectKey: didIdentity,
+            skills: aggSkills,
+            domains: aggDomains,
+          }),
+        );
+        lines.push('');
+      }
+    }
 
     // ENS Identity (optional): accept subgraph ensName OR on-chain metadata AGENT NAME if it looks like an ENS name
     // SKIPPED: registration JSON parsing for ENS name extraction (performance)

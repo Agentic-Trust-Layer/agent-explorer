@@ -1,13 +1,18 @@
 # Protocol endpoints (A2A, MCP) and protocol-derived discovery metadata
 
-This page documents how we model **protocol endpoints** and how protocol metadata (especially **skills** and **domains**) flows into an `core:AgentDescriptor`.
+This page documents how we model **service endpoints** and **protocol metadata** (especially **skills** and **domains**) for discovery and interaction.
 
-## Abstract model: Endpoint vs ProtocolDescriptor
+## Abstract model: ServiceEndpoint vs Protocol
 
 There are two related layers:
 
-- **Endpoint (`core:Endpoint`)**: a concrete network/service address you can call (URL/URI).
-- **ProtocolDescriptor (`core:ProtocolDescriptor`)**: protocol-specific configuration and metadata that explains how to talk to an endpoint and what to expect.
+- **ServiceEndpoint (`core:ServiceEndpoint`)**: a concrete network/service address you can call (URL/URI). It has:
+  - `core:serviceUrl`
+  - `core:endpointName` (e.g. `"a2a"`, `"mcp"`, or other)
+  - `core:hasProtocol` → the protocol metadata node
+- **Protocol (`core:Protocol`)**: protocol-specific configuration and metadata that explains how to talk to a service endpoint and what to expect.
+  - A2A: `core:A2AProtocol`
+  - MCP: `core:MCPProtocol`
 
 Key point: **Skills and domains are primarily protocol-defined**. The most reliable place to learn what an agent “can do” is its protocol metadata (e.g., A2A agent card, MCP tool list), not ad-hoc strings on an agent row.
 
@@ -21,17 +26,17 @@ Examples of endpoint “kinds” you’ll see in practice:
 - **MCP endpoint**: an MCP server URL (e.g., HTTP+SSE) or other transport.
 - **Web/API endpoint**: generic REST/GraphQL endpoint (protocol-agnostic).
 
-## Protocol descriptors
+## Protocol metadata (skills/domains are protocol-defined)
 
-Protocol descriptors are **not** the same as endpoints:
+Protocols are **not** the same as endpoints:
 
-- A protocol descriptor can exist even if we haven’t normalized/validated the endpoint yet.
-- A protocol descriptor carries **protocol semantics** (versions, transport, declared skills/domains/tools).
+- A protocol node can exist even if we haven’t validated the service URL.
+- A protocol node carries **protocol semantics** (versions, transport, declared skills/domains/tools).
 
-In the ontology, protocol descriptors are modeled as subclasses:
+In the ontology, the protocol layer is modeled as subclasses:
 
-- `core:A2AProtocolDescriptor` (A2A agent card metadata)
-- `core:MCPProtocolDescriptor` (MCP server/tool metadata)
+- `core:A2AProtocol` (A2A agent card metadata; `core:json` stores the agent card JSON)
+- `core:MCPProtocol` (MCP server/tool metadata; `core:json` stores the server/tool metadata when available)
 
 ## A2A protocol (agent cards)
 
@@ -47,8 +52,9 @@ Typical fields we care about (names vary by implementation):
 
 **Modeling rule**:
 
-- The A2A agent card populates an `core:A2AProtocolDescriptor`.
-- The `AgentDescriptor` is then assembled from protocol descriptors; it may “restate” skills/domains for discovery, but the canonical source remains the protocol descriptor.
+- The A2A agent card populates a `core:A2AProtocol` node (treated as a `core:Descriptor`).
+- Skills/domains are attached to the protocol node (`core:hasSkill`, `core:hasDomain`).
+- The agent/identity links to the concrete endpoint via `core:hasServiceEndpoint`.
 
 ## MCP protocol (Model Context Protocol)
 
@@ -58,8 +64,8 @@ MCP is especially useful for discovery because it defines **tools** and (sometim
 
 **Modeling rule**:
 
-- MCP metadata populates an `core:MCPProtocolDescriptor`.
-- Any derived skills/domains in `AgentDescriptor` should be treated as **protocol-derived** (from MCP tools/capabilities), not free-form labels.
+- MCP metadata populates a `core:MCPProtocol` node (treated as a `core:Descriptor`).
+- Any derived skills/domains should be treated as **protocol-derived** (from MCP tools/capabilities), not free-form labels.
 
 ## Descriptor assembly (why protocol-first matters)
 
@@ -70,7 +76,7 @@ When multiple registries/protocols mention an agent, you can see conflicts:
 
 For this reason, the intended precedence is:
 
-1. **Protocol descriptors** (A2A card, MCP capabilities/tools, etc.) when available
+1. **Protocol metadata** (A2A card, MCP capabilities/tools, etc.) when available
 2. Registry-provided summaries (e.g., ERC-8004 registration JSON `endpoints[].skills/domains`)
 3. Free-form tags (lowest-confidence)
 

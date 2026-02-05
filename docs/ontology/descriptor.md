@@ -8,7 +8,7 @@ This page is about **Descriptors**: resolver-produced Entities that aggregate an
 
 In practice, an agent’s **skills** and **domains** are most reliably defined at the **protocol layer** (e.g., an A2A agent card, MCP server/tool metadata).
 
-The `core:AgentDescriptor` may contain skills/domains for discovery queries, but those values should be treated as **assembled from protocol descriptors** (and other sources) rather than invented independently.
+The `core:AgentDescriptor` may contain skills/domains for discovery queries, but those values should be treated as **derived from protocol metadata** (and other sources) rather than invented independently.
 
 See: [`protocols-endpoints.md`](./protocols-endpoints.md).
 
@@ -24,17 +24,17 @@ class Descriptor["core:Descriptor"]
 class IdentifierDescriptor["core:IdentifierDescriptor"]
 class IdentityDescriptor["core:IdentityDescriptor"]
 class AgentNameDescriptor["core:AgentNameDescriptor"]
-class ProtocolDescriptor["core:ProtocolDescriptor"]
-class A2AProtocolDescriptor["core:A2AProtocolDescriptor"]
-class MCPProtocolDescriptor["core:MCPProtocolDescriptor"]
+class Protocol["core:Protocol"]
+class A2AProtocol["core:A2AProtocol"]
+class MCPProtocol["core:MCPProtocol"]
 
 Descriptor --|> provEntity
 IdentifierDescriptor --|> Descriptor
 IdentityDescriptor --|> Descriptor
 AgentNameDescriptor --|> Descriptor
-ProtocolDescriptor --|> Descriptor
-A2AProtocolDescriptor --|> ProtocolDescriptor
-MCPProtocolDescriptor --|> ProtocolDescriptor
+Protocol --|> Descriptor
+A2AProtocol --|> Protocol
+MCPProtocol --|> Protocol
 ```
 
 **SPARQL: list Descriptor subclasses**
@@ -140,34 +140,35 @@ WHERE {
 LIMIT 200
 ```
 
-### Protocol (A2A) → ProtocolDescriptor
+### ServiceEndpoint → Protocol (A2A)
 
 ```mermaid
 classDiagram
 direction LR
 
 class Protocol["core:Protocol"]
-class A2AProtocolDescriptor["core:A2AProtocolDescriptor"]
+class A2AProtocol["core:A2AProtocol"]
+class ServiceEndpoint["core:ServiceEndpoint"]
 class Descriptor["core:Descriptor"]
 
-Protocol --> A2AProtocolDescriptor : hasProtocolDescriptor
-A2AProtocolDescriptor --|> Descriptor
-Descriptor --> A2AProtocolDescriptor : assembledFromMetadata
+ServiceEndpoint --> Protocol : hasProtocol
+Protocol --|> Descriptor
+Protocol <|-- A2AProtocol
 ```
 
-**SPARQL: A2A protocol descriptors**
+**SPARQL: A2A protocols + their endpoints**
 
 ```sparql
 PREFIX core: <https://agentictrust.io/ontology/core#>
 
-SELECT ?protocol ?descriptor ?serviceUrl ?protocolVersion ?preferredTransport
+SELECT ?protocol ?serviceEndpoint ?serviceUrl ?protocolVersion ?preferredTransport
 WHERE {
-  ?protocol a core:Protocol ;
-    core:hasProtocolDescriptor ?descriptor .
-  ?descriptor a core:A2AProtocolDescriptor .
-  OPTIONAL { ?descriptor core:serviceUrl ?serviceUrl . }
-  OPTIONAL { ?descriptor core:protocolVersion ?protocolVersion . }
-  OPTIONAL { ?descriptor core:preferredTransport ?preferredTransport . }
+  ?serviceEndpoint a core:ServiceEndpoint ;
+    core:serviceUrl ?serviceUrl ;
+    core:hasProtocol ?protocol .
+  ?protocol a core:A2AProtocol .
+  OPTIONAL { ?protocol core:protocolVersion ?protocolVersion . }
+  OPTIONAL { ?protocol core:preferredTransport ?preferredTransport . }
 }
 LIMIT 200
 ```

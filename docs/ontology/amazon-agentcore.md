@@ -24,7 +24,7 @@ From the AgentCore overview page, the core services include Runtime, Memory, Gat
 |---|---|---|---|
 | Runtime | secure runtime for agents/tools, sessions, isolation | `core:AgentDeployment` + PROV Activities (`TaskExecution`, `SkillInvocation`) | session identity can be captured as Activity ids/fields; not modeled as a new Agent identity by default |
 | Memory | short/long-term memory, shared stores | Model as `prov:Entity` “MemoryStore/MemorySnapshot” + Activities that `prov:used`/`prov:generated` | not a first-class class today; treat as Artifact/Descriptor-like entities if needed |
-| Gateway | convert APIs/services to MCP-compatible tools, connect to MCP servers | `core:MCPProtocolDescriptor` + `AgentSkillClassification` + `JsonSchema` + `Endpoint` | Gateway creates “tool catalog” semantics; AgenticTrust represents tools as skills + schemas and keeps protocol descriptors as canonical sources |
+| Gateway | convert APIs/services to MCP-compatible tools, connect to MCP servers | `core:ServiceEndpoint` + `core:MCPProtocol` + `AgentSkillClassification` + `JsonSchema` | Gateway creates “tool catalog” semantics; AgenticTrust represents tools as skills + schemas derived from protocol metadata |
 | Identity | agent identity/access/authN management compatible w/ IdPs | `core:AgentRegistry` + `core:AgentIdentity` + `core:IdentifierDescriptor` | AgenticTrust is registry-plural and graph-native; AgentCore is service-centric |
 | Observability | tracing/debug/monitoring agent workflows | PROV traces: `TaskExecution`, `SkillInvocation`, `AgentDescriptorFetch` (+ `prov:generatedAtTime`, etc.) | AgenticTrust can represent “why/what happened” as provenance graph |
 | Evaluations | automated evaluation over sessions/traces | model eval results as `core:AttestedAssertion` about executions/deployments | evaluation-as-attestation is a clean fit; “quality score” is an asserted artifact |
@@ -56,7 +56,7 @@ AgenticTrust splits “semantic tool selection” into 3 explicit graph layers:
 
 1. **Tool inventory** (what tools exist, how to call them)
    - protocol-derived from A2A cards / MCP tool lists
-   - represented via `ProtocolDescriptor` + `Endpoint` + `AgentSkillClassification` + `JsonSchema`
+   - represented via `ServiceEndpoint` + `Protocol` + `AgentSkillClassification` + `JsonSchema`
 2. **Intent mapping** (why a tool/skill should be invoked)
    - `IntentType` + `targetsSkill` (intent → skill)
 3. **Contextual execution trace** (what was invoked, under what situation/policy)
@@ -154,7 +154,7 @@ Those layers sit above the Gateway in AgenticTrust (Agent/Identity/Registry, Int
 
 AgenticTrust can represent the same pattern with explicit graph nodes:
 
-- **Tool catalog**: `AgentSkillClassification` (+ `JsonSchema`) derived from `MCPProtocolDescriptor`
+- **Tool catalog**: `AgentSkillClassification` (+ `JsonSchema`) derived from `MCPProtocol` metadata
 - **Semantic retrieval**: an *index/query method* over tool metadata (not a new ontology class)
   - store tool metadata as Descriptor fields/labels; use vector/full-text indexing as an implementation detail
 - **Candidate tool set**: the shortlist returned by retrieval is a set of candidate `AgentSkillClassification` nodes
@@ -228,7 +228,7 @@ graph TB
 
 Based on AgentCore language, AgenticTrust is already well-positioned if we keep the following discipline:
 
-- treat protocol tool catalogs (MCP/A2A) as **canonical sources** via `ProtocolDescriptor`
+- treat protocol tool catalogs (MCP/A2A) as **canonical sources** via `Protocol` metadata
 - represent selection and permissioning outcomes as **prov traces + attested assertions**
 - keep identity registry pluralism (`AgentRegistry`) so enterprise/market registries can coexist with onchain/DNS/HCS patterns
 
@@ -261,7 +261,7 @@ AgentCore Gateway semantic selection relies on embedding/indexing natural-langua
 In AgenticTrust, this corresponds to:
 
 - `AgentSkillClassification` + `JsonSchema`
-- derived from `ProtocolDescriptor` metadata (MCP tool list / A2A skills → tool mapping)
+- derived from `Protocol` metadata (MCP tool list / A2A skills → tool mapping)
 
 ### 3) Stable endpoints + versioning
 
