@@ -184,7 +184,7 @@ export async function kbAgentsQuery(args: {
   } | null;
   first?: number | null;
   skip?: number | null;
-  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | null;
+  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | 'createdAtTime' | 'updatedAtTime' | null;
   orderDirection?: 'ASC' | 'DESC' | null;
 }, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const where = args.where ?? {};
@@ -223,8 +223,13 @@ export async function kbAgentsQuery(args: {
       ? 'LCASE(STR(?agentName))'
       : orderBy === 'uaid'
         ? 'LCASE(STR(?uaid))'
+        : orderBy === 'createdAtTime'
+          ? 'IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)'
+          : orderBy === 'updatedAtTime'
+            ? 'IF(BOUND(?updatedAtTime), xsd:integer(?updatedAtTime), 0)'
         : '?agentId8004';
-  const orderExpr = orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`;
+  const orderExpr =
+    (orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`) + ` ASC(STR(?agent))`;
 
   const graphClause = graphs
     ? `VALUES ?g { ${graphs.join(' ')} }\n  GRAPH ?g {`
@@ -326,6 +331,7 @@ export async function kbAgentsQuery(args: {
   const needsUaid = Boolean(uaidFilter || (uaidIn && uaidIn.length) || orderBy === 'uaid' || agentIdentifierMatch);
   const needsAgentName = Boolean(agentNameContains || orderBy === 'agentName');
   const needsDid8004 = Boolean(did8004Filter || agentIdentifierMatch);
+  const needsAgentTimes = orderBy === 'createdAtTime' || orderBy === 'updatedAtTime';
 
   const pageOptional: string[] = [];
   if (needsUaid) pageOptional.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
@@ -334,6 +340,11 @@ export async function kbAgentsQuery(args: {
     pageOptional.push('      ?agent core:hasDescriptor ?agentDesc .');
     pageOptional.push('      OPTIONAL { ?agentDesc dcterms:title ?agentName . }');
     pageOptional.push('    }');
+  }
+  if (needsAgentTimes) {
+    // createdAtTime/updatedAtTime must be directly sortable on the agent node (materialized during sync).
+    pageOptional.push('    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }');
+    pageOptional.push('    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }');
   }
 
   // Fast path: when ordering by agentId8004, use the materialized numeric literal on the agent node.
@@ -366,7 +377,15 @@ export async function kbAgentsQuery(args: {
 
   // Phase 1: page query (agent ids + graph context only).
   const pageSelectVars =
-    orderBy === 'uaid' ? '?agent ?uaid' : orderBy === 'agentName' ? '?agent ?agentName' : '?agent ?agentId8004';
+    orderBy === 'uaid'
+      ? '?agent ?uaid'
+      : orderBy === 'agentName'
+        ? '?agent ?agentName'
+        : orderBy === 'createdAtTime'
+          ? '?agent ?createdAtTime'
+          : orderBy === 'updatedAtTime'
+            ? '?agent ?updatedAtTime'
+            : '?agent ?agentId8004';
 
   const pageGraphClause = ctxIri
     ? `GRAPH <${ctxIri}> {`
@@ -521,6 +540,8 @@ export async function kbAgentsQuery(args: {
           ctxIri ? `  VALUES ?agent { ${valuesAgents} }` : `  VALUES (?g ?agent) { ${valuesPairs} }`,
           ctxIri ? `  GRAPH <${ctxIri}> {` : '  GRAPH ?g {',
           '    ?agent a core:AIAgent .',
+          '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
+          '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
           '    OPTIONAL { ?agent core:uaid ?uaid . }',
           '    OPTIONAL {',
           '      ?agent core:hasDescriptor ?agentDesc .',
@@ -540,22 +561,12 @@ export async function kbAgentsQuery(args: {
             '      ?vrSummary core:validationAssertionCount ?validationAssertionCount .',
             '    }',
           '    OPTIONAL {',
-          '      ?record a erc8004:SubgraphIngestRecord ;',
-          '              erc8004:recordsEntity ?agent ;',
-          '              erc8004:subgraphEntityKind "agents" .',
-          '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?createdAtBlock . }',
-          '      OPTIONAL { ?record erc8004:subgraphTimestamp ?updatedAtTime . }',
-          '      OPTIONAL { ?record erc8004:subgraphCursorValue ?cursorRaw . }',
-          '      BIND(xsd:integer(?cursorRaw) AS ?createdAtTime)',
-          '    }',
-          '    OPTIONAL {',
           '      ?agent core:hasIdentity ?identity8004 .',
           '      ?identity8004 a erc8004:AgentIdentity8004 ;',
           '                    core:hasIdentifier ?ident8004 ;',
           '                    core:hasDescriptor ?desc8004 .',
           '      ?ident8004 core:protocolIdentifier ?did8004 .',
-          '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
-          '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
+          '      OPTIONAL { ?identity8004 erc8004:agentId ?agentId8004 . }',
           '      BIND(?desc8004 AS ?identity8004Descriptor)',
           '      OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }',
           '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
@@ -818,7 +829,7 @@ export async function kbOwnedAgentsQuery(args: {
   ownerAddress: string;
   first?: number | null;
   skip?: number | null;
-  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | null;
+  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | 'createdAtTime' | 'updatedAtTime' | null;
   orderDirection?: 'ASC' | 'DESC' | null;
 }, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
@@ -835,8 +846,13 @@ export async function kbOwnedAgentsQuery(args: {
       ? 'LCASE(STR(?agentName))'
       : orderBy === 'uaid'
         ? 'LCASE(STR(?uaid))'
+        : orderBy === 'createdAtTime'
+          ? 'IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)'
+          : orderBy === 'updatedAtTime'
+            ? 'IF(BOUND(?updatedAtTime), xsd:integer(?updatedAtTime), 0)'
         : '?agentId8004';
-  const orderExpr = orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`;
+  const orderExpr =
+    (orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`) + ` ASC(STR(?agent))`;
 
   const graphs = [`<${chainContext(chainId)}>`];
   const graphClause = `VALUES ?g { ${graphs.join(' ')} }\n  GRAPH ?g {`;
@@ -920,6 +936,8 @@ export async function kbOwnedAgentsQuery(args: {
     'WHERE {',
     `  ${graphClause}`,
     '    ?agent a core:AIAgent .',
+    '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
+    '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
     '    OPTIONAL { ?agent core:uaid ?uaid . }',
     '    OPTIONAL {',
     '      ?agent core:hasDescriptor ?agentDesc .',
@@ -935,23 +953,12 @@ export async function kbOwnedAgentsQuery(args: {
     '      ?vrSummary core:validationAssertionCount ?validationAssertionCount .',
     '    }',
     '    OPTIONAL {',
-    '      ?record a erc8004:SubgraphIngestRecord ;',
-    '              erc8004:recordsEntity ?agent ;',
-    '              erc8004:subgraphEntityKind "agents" .',
-    '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?createdAtBlock . }',
-    '      OPTIONAL { ?record erc8004:subgraphTimestamp ?updatedAtTime . }',
-    '      OPTIONAL { ?record erc8004:subgraphCursorValue ?cursorRaw . }',
-    '      BIND(xsd:integer(?cursorRaw) AS ?createdAtTime)',
-    '    }',
-    '',
-    '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identity8004 .',
     '      ?identity8004 a erc8004:AgentIdentity8004 ;',
     '                    core:hasIdentifier ?ident8004 ;',
     '                    core:hasDescriptor ?desc8004 .',
     '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
-    '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
+    '      OPTIONAL { ?identity8004 erc8004:agentId ?agentId8004 . }',
     '      BIND(?desc8004 AS ?identity8004Descriptor)',
     '      OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }',
     '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
@@ -1142,7 +1149,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   ownerAddress: string;
   first?: number | null;
   skip?: number | null;
-  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | null;
+  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | 'createdAtTime' | 'updatedAtTime' | null;
   orderDirection?: 'ASC' | 'DESC' | null;
 }, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const ownerAddress = typeof args.ownerAddress === 'string' ? args.ownerAddress.trim().toLowerCase() : '';
@@ -1162,19 +1169,36 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
       ? 'LCASE(STR(?agentName))'
       : orderBy === 'uaid'
         ? 'LCASE(STR(?uaid))'
+        : orderBy === 'createdAtTime'
+          ? 'IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)'
+          : orderBy === 'updatedAtTime'
+            ? 'IF(BOUND(?updatedAtTime), xsd:integer(?updatedAtTime), 0)'
         : '?agentId8004';
-  const orderExpr = orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`;
+  const orderExpr =
+    (orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`) + ` ASC(STR(?agent))`;
 
   // Phase 1: Get agent IRIs only (minimal query for pagination)
   const pageOptionalOrderBinds: string[] = [];
   const pageRequiredOrderBinds: string[] = [];
   const pageSelectVars =
-    orderBy === 'uaid' ? '?agent ?uaid' : orderBy === 'agentName' ? '?agent ?agentName' : '?agent ?agentId8004';
+    orderBy === 'uaid'
+      ? '?agent ?uaid'
+      : orderBy === 'agentName'
+        ? '?agent ?agentName'
+        : orderBy === 'createdAtTime'
+          ? '?agent ?createdAtTime'
+          : orderBy === 'updatedAtTime'
+            ? '?agent ?updatedAtTime'
+            : '?agent ?agentId8004';
 
   if (orderBy === 'uaid') {
     pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
   } else if (orderBy === 'agentName') {
     pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:hasDescriptor ?agentDescOrder . OPTIONAL { ?agentDescOrder dcterms:title ?agentName . } }');
+  } else if (orderBy === 'createdAtTime' || orderBy === 'updatedAtTime') {
+    // Provenance timestamps are materialized on identity nodes by sync.
+    pageOptionalOrderBinds.push('    OPTIONAL { ?identity8004 core:createdAtTime ?createdAtTime . }');
+    pageOptionalOrderBinds.push('    OPTIONAL { ?identity8004 core:updatedAtTime ?updatedAtTime . }');
   } else {
     // agentId8004: make it required so GraphDB can sort on an indexed numeric literal without unbound values.
     pageRequiredOrderBinds.push('    ?agent erc8004:agentId8004 ?agentId8004 .');
@@ -1243,6 +1267,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
         `  VALUES ?agent { ${valuesAgents} }`,
         '  GRAPH <https://www.agentictrust.io/graph/data/subgraph/1> {',
         '    ?agent a core:AIAgent .',
+        '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
+        '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
         '    OPTIONAL { ?agent core:uaid ?uaid . }',
         '    OPTIONAL { ?agent core:hasDescriptor ?agentDesc . OPTIONAL { ?agentDesc dcterms:title ?agentName . } }',
         '    OPTIONAL {',
@@ -1250,21 +1276,11 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
         '      FILTER(STRSTARTS(STR(?agentType), "https://agentictrust.io/ontology/"))',
         '    }',
         '    OPTIONAL {',
-        '      ?record a erc8004:SubgraphIngestRecord ;',
-        '              erc8004:recordsEntity ?agent ;',
-        '              erc8004:subgraphEntityKind "agents" .',
-        '      OPTIONAL { ?record erc8004:subgraphBlockNumber ?createdAtBlock . }',
-        '      OPTIONAL { ?record erc8004:subgraphTimestamp ?updatedAtTime . }',
-        '      OPTIONAL { ?record erc8004:subgraphCursorValue ?cursorRaw . }',
-        '      BIND(xsd:integer(?cursorRaw) AS ?createdAtTime)',
-        '    }',
-        '    OPTIONAL {',
         '      ?agent core:hasIdentity ?identity8004 .',
         '      ?identity8004 a erc8004:AgentIdentity8004 ;',
         '                    core:hasIdentifier ?ident8004 .',
     '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
-    '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
+        '      OPTIONAL { ?identity8004 erc8004:agentId ?agentId8004 . }',
         '    }',
         '  }',
         '}',

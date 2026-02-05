@@ -124,6 +124,20 @@ async function graphdbFetch(
     const accessHeaders = cfAccessHeaders();
     if (accessHeaders['CF-Access-Client-Id']) headers.set('CF-Access-Client-Id', accessHeaders['CF-Access-Client-Id']);
     if (accessHeaders['CF-Access-Client-Secret']) headers.set('CF-Access-Client-Secret', accessHeaders['CF-Access-Client-Secret']);
+
+    if (envString('DEBUG_GRAPHDB')) {
+      const raw = Object.fromEntries(headers.entries());
+      const redacted: Record<string, string> = {};
+      for (const [k, v] of Object.entries(raw)) {
+        const key = k.toLowerCase();
+        if (key === 'authorization') redacted[k] = v ? '***' : '';
+        else if (key === 'cf-access-client-id') redacted[k] = v ? '***' : '';
+        else if (key === 'cf-access-client-secret') redacted[k] = v ? '***' : '';
+        else redacted[k] = v;
+      }
+      // eslint-disable-next-line no-console
+      console.log('[graphdb] request headers', redacted);
+    }
     const retriesRaw = envString('GRAPHDB_HTTP_RETRIES');
     const retries = Number.isFinite(Number(retriesRaw)) && Number(retriesRaw) >= 0 ? Math.trunc(Number(retriesRaw)) : 3;
     return await fetchWithRetry(

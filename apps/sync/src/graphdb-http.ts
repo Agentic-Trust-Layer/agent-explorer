@@ -119,6 +119,7 @@ async function graphdbFetch(
       if (accessHeaders['CF-Access-Client-Id']) headers.set('CF-Access-Client-Id', accessHeaders['CF-Access-Client-Id']);
       if (accessHeaders['CF-Access-Client-Secret']) headers.set('CF-Access-Client-Secret', accessHeaders['CF-Access-Client-Secret']);
 
+
       const res = await fetch(url, { ...init, headers, signal: controller.signal });
       if (retryOnStatuses.has(res.status) && attempt < retries) {
         try {

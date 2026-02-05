@@ -481,10 +481,7 @@ WHERE {
 
   ?agent core:hasIdentity ?identity8004 .
   ?identity8004 a erc8004:AgentIdentity8004 ;
-                core:hasIdentifier ?ident8004 .
-  ?ident8004 core:protocolIdentifier ?did8004 .
-
-  BIND(xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", "")) AS ?agentId8004)
+                erc8004:agentId ?agentId8004 .
 }
 ;
 WITH <${context}>
@@ -501,5 +498,50 @@ WHERE {
 `;
     await updateGraphdb(baseUrl, repository, auth, agentIdUpdate);
     console.info('[sync] agentId materialization complete', { chainId: opts.chainId, context });
+
+    // Materialize provenance timestamps on the agent node for fast ORDER BY in paging queries.
+    // New ingests emit these directly in Turtle, but legacy graphs may be missing them.
+    console.info('[sync] agent time materialization starting', { chainId: opts.chainId, context });
+    const timeUpdate = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+WITH <${context}>
+INSERT {
+  ?agent core:createdAtTime ?createdAtTime .
+  ?agent core:updatedAtTime ?updatedAtTime .
+}
+WHERE {
+  ?agent a core:AIAgent .
+  FILTER(!EXISTS { ?agent core:createdAtTime ?_c } || !EXISTS { ?agent core:updatedAtTime ?_u })
+
+  OPTIONAL {
+    ?agent core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 .
+    OPTIONAL { ?identity8004 core:createdAtTime ?idCreated . }
+    OPTIONAL { ?identity8004 core:updatedAtTime ?idUpdated . }
+  }
+
+  OPTIONAL {
+    ?record a erc8004:SubgraphIngestRecord ;
+            erc8004:subgraphEntityKind "agents" ;
+            erc8004:recordsEntity ?agent ;
+            erc8004:subgraphCursorValue ?cursorRaw .
+  }
+  OPTIONAL {
+    ?record2 a erc8004:SubgraphIngestRecord ;
+             erc8004:subgraphEntityKind "agents" ;
+             erc8004:recordsEntity ?identity8004 ;
+             erc8004:subgraphCursorValue ?cursorRaw2 .
+  }
+
+  BIND(COALESCE(?idCreated, xsd:integer(?cursorRaw), xsd:integer(?cursorRaw2)) AS ?createdAtTime)
+  BIND(COALESCE(?idUpdated, ?createdAtTime) AS ?updatedAtTime)
+  FILTER(BOUND(?createdAtTime))
+  FILTER(BOUND(?updatedAtTime))
+}
+`;
+    await updateGraphdb(baseUrl, repository, auth, timeUpdate);
+    console.info('[sync] agent time materialization complete', { chainId: opts.chainId, context });
   }
 }

@@ -228,6 +228,25 @@ export function emitAgentsTurtle(
     if (mintedAt <= minCursorExclusive) continue;
     if (mintedAt > maxCursor) maxCursor = mintedAt;
 
+    const mintedAtStr = mintedAt > 0n ? mintedAt.toString() : '';
+    const parseBigintTime = (v: any): bigint | null => {
+      const s = typeof v === 'string' ? v.trim() : typeof v === 'number' ? String(Math.trunc(v)) : '';
+      return s && /^\d+$/.test(s) ? BigInt(s) : null;
+    };
+    let updatedAt = mintedAt > 0n ? mintedAt : 0n;
+    // Subgraph registration updatedAt (when available)
+    const regUpdated = parseBigintTime(item?.registration?.updatedAt);
+    if (regUpdated != null && regUpdated > updatedAt) updatedAt = regUpdated;
+    // On-chain metadata KV rows (AgentMetadata entity) - use the latest setAt/timestamp
+    const metas = Array.isArray((item as any)?.agentMetadatas) ? ((item as any).agentMetadatas as any[]) : [];
+    for (const m of metas) {
+      const t1 = parseBigintTime(m?.setAt);
+      if (t1 != null && t1 > updatedAt) updatedAt = t1;
+      const t2 = parseBigintTime(m?.timestamp);
+      if (t2 != null && t2 > updatedAt) updatedAt = t2;
+    }
+    const updatedAtStr = updatedAt > 0n ? updatedAt.toString() : '';
+
     const owner = normalizeHex(item?.owner?.id ?? item?.owner) ?? '0x0000000000000000000000000000000000000000';
 
     // On-chain metadata is arbitrary and comes from AgentMetadata KV rows (NOT from agent.metadataJson).
@@ -303,9 +322,14 @@ export function emitAgentsTurtle(
 
     const name = (typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '') || metaAgentName;
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
+    // Provenance timestamps must be directly sortable on the agent node.
+    if (mintedAtStr) lines.push(`  core:createdAtTime ${mintedAtStr} ;`);
+    if (updatedAtStr) lines.push(`  core:updatedAtTime ${updatedAtStr} ;`);
     // NOTE: Do not materialize did:8004/agentId on the agent node.
     // The ERC-8004 agent id belongs on the ERC-8004 identity (erc8004:agentId).
     const agentIdNum = Number(agentId);
+    // Legacy + paging/sorting convenience: materialize the numeric agentId on the agent node.
+    if (Number.isFinite(agentIdNum) && agentIdNum > 0) lines.push(`  erc8004:agentId8004 ${Math.trunc(agentIdNum)} ;`);
 
     // AgentDescriptor: normalize UX fields onto a descriptor node (Agent -> core:hasDescriptor -> core:AgentDescriptor)
     const agentDescriptorIri = agentDescriptorIriFromAgentIri(agentNodeIri);
@@ -380,6 +404,9 @@ export function emitAgentsTurtle(
     lines.push(`  core:identityOf ${agentNodeIri} ;`);
     // Materialize numeric agentId on the identity for fast query/sort without DID parsing.
     if (Number.isFinite(agentIdNum) && agentIdNum > 0) lines.push(`  erc8004:agentId ${Math.trunc(agentIdNum)} ;`);
+    // Provenance timestamps live on the identity too (agent mirrors these values).
+    if (mintedAtStr) lines.push(`  core:createdAtTime ${mintedAtStr} ;`);
+    if (updatedAtStr) lines.push(`  core:updatedAtTime ${updatedAtStr} ;`);
     // ERC-8004 identity owns owner/operator/wallet → Account relationships (account subtype resolved later via RPC)
     lines.push(`  erc8004:hasOwnerAccount ${ownerAcctIri} ;`);
     lines.push(`  erc8004:hasWalletAccount ${walletAcctIri} ;`);
@@ -555,7 +582,7 @@ export function emitAgentsTurtle(
         txHash: null,
         blockNumber: null,
         timestamp: null,
-        recordsEntityIri: agentNodeIri,
+        recordsEntityIri: identityIri,
       }),
     );
     lines.push('');

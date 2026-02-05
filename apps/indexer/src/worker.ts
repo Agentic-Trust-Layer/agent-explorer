@@ -21,6 +21,30 @@ import {
 import { graphiqlHTML } from './graphiql-template.js';
 import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
 
+function shouldBridgeEnvKeyToProcessEnv(key: string): boolean {
+  return key === 'NODE_ENV' || key.startsWith('GRAPHDB_') || key.startsWith('DEBUG_GRAPHDB');
+}
+
+/**
+ * In Workers, bindings arrive via the `env` parameter.
+ * Much of this codebase (GraphDB, KB queries) reads from `process.env` (Node-style).
+ * Bridge selected Worker bindings into `process.env` so production uses the same config
+ * as local Node runs.
+ */
+function bridgeEnvToProcessEnv(env: Record<string, unknown> | undefined): void {
+  try {
+    const p = (globalThis as any).process as { env?: Record<string, string | undefined> } | undefined;
+    if (!p?.env || !env) return;
+    for (const [k, v] of Object.entries(env)) {
+      if (!shouldBridgeEnvKeyToProcessEnv(k)) continue;
+      if (typeof v === 'string') p.env[k] = v;
+      else if (typeof v === 'number' || typeof v === 'boolean') p.env[k] = String(v);
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 /**
  * Workers-specific indexAgent resolver factory
  */
@@ -64,6 +88,8 @@ interface Env {
   ETH_SEPOLIA_IDENTITY_REGISTRY?: string;
   BASE_SEPOLIA_IDENTITY_REGISTRY?: string;
   OP_SEPOLIA_IDENTITY_REGISTRY?: string;
+  // Additional bindings are present (GraphDB, debug flags, etc.)
+  [key: string]: any;
 }
 
 export default {
@@ -72,6 +98,7 @@ export default {
     env: Env,
     ctx: { waitUntil?: (promise: Promise<any>) => void }
   ): Promise<Response> {
+    bridgeEnvToProcessEnv(env as any);
     const url = new URL(request.url);
 
     // Handle CORS preflight early
