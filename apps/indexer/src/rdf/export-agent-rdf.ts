@@ -1133,7 +1133,7 @@ function renderAgentSection(
     try {
       // Lossless capture of agent-card JSON for this protocol (if present)
       if (typeof agentCardJsonText === 'string' && agentCardJsonText.trim()) {
-        protocolDescriptorLines.push(`  core:json ${turtleJsonLiteral(agentCardJsonText)} ;`);
+        protocolDescriptorLines.push(`  core:agentCardJson ${turtleJsonLiteral(agentCardJsonText)} ;`);
       }
     } catch {}
     if (typeof agentCard?.name === 'string' && agentCard.name.trim()) {

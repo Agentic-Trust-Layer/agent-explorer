@@ -370,7 +370,6 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                   name: r.a2aServiceEndpointDescriptorName,
                   description: r.a2aServiceEndpointDescriptorDescription,
                   image: r.a2aServiceEndpointDescriptorImage,
-                  json: null,
                 }
               : null,
             protocol: {
@@ -384,7 +383,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                     name: r.a2aDescriptorName,
                     description: r.a2aDescriptorDescription,
                     image: r.a2aDescriptorImage,
-                    json: r.a2aJson,
+                    agentCardJson: r.a2aAgentCardJson,
                   }
                 : null,
               skills: r.a2aSkills,
@@ -402,7 +401,6 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                   name: r.mcpServiceEndpointDescriptorName,
                   description: r.mcpServiceEndpointDescriptorDescription,
                   image: r.mcpServiceEndpointDescriptorImage,
-                  json: null,
                 }
               : null,
             protocol: {
@@ -416,7 +414,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
                     name: r.mcpDescriptorName,
                     description: r.mcpDescriptorDescription,
                     image: r.mcpDescriptorImage,
-                    json: r.mcpJson,
+                    agentCardJson: r.mcpAgentCardJson,
                   }
                 : null,
               skills: r.mcpSkills,
@@ -434,8 +432,8 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             name: r.identity8004DescriptorName,
             description: r.identity8004DescriptorDescription,
             image: r.identity8004DescriptorImage,
-            json: r.identity8004RegistrationJson,
-            onchainMetadataJson: r.identity8004OnchainMetadataJson,
+            registrationJson: r.identity8004RegistrationJson,
+            nftMetadataJson: r.identity8004NftMetadataJson,
             registeredBy: r.identity8004RegisteredBy,
             registryNamespace: r.identity8004RegistryNamespace,
             // IMPORTANT: identity descriptor skills/domains come ONLY from agentURI registration JSON materialized on the descriptor.
@@ -453,8 +451,8 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             name: r.identityHolDescriptorName,
             description: r.identityHolDescriptorDescription,
             image: r.identityHolDescriptorImage,
-            json: r.identityHolDescriptorJson,
-            onchainMetadataJson: null,
+            registrationJson: r.identityHolDescriptorJson,
+            nftMetadataJson: null,
             registeredBy: null,
             registryNamespace: null,
             skills: [],
@@ -1401,7 +1399,6 @@ LIMIT 1
                           name: null,
                           description: null,
                           image: null,
-                          json: null,
                         }
                       : null,
                     protocol: {
@@ -1415,7 +1412,7 @@ LIMIT 1
                             name: null,
                             description: null,
                             image: null,
-                            json: r.a2aJson,
+                            agentCardJson: r.a2aJson,
                           }
                         : null,
                       skills: r.a2aSkills,
@@ -1433,7 +1430,6 @@ LIMIT 1
                           name: null,
                           description: null,
                           image: null,
-                          json: null,
                         }
                       : null,
                     protocol: {
@@ -1447,7 +1443,7 @@ LIMIT 1
                             name: null,
                             description: null,
                             image: null,
-                            json: r.mcpJson,
+                            agentCardJson: r.mcpJson,
                           }
                         : null,
                       skills: r.mcpSkills,
@@ -1476,7 +1472,6 @@ LIMIT 1
                                   name: null,
                                   description: null,
                                   image: null,
-                                  json: null,
                                 }
                               : null,
                             protocol: {
@@ -1490,7 +1485,7 @@ LIMIT 1
                                     name: null,
                                     description: null,
                                     image: null,
-                                    json: r.a2aJson,
+                                    agentCardJson: r.a2aJson,
                                   }
                                 : null,
                               skills: r.a2aSkills,
@@ -1508,7 +1503,6 @@ LIMIT 1
                                   name: null,
                                   description: null,
                                   image: null,
-                                  json: null,
                                 }
                               : null,
                             protocol: {
@@ -1522,7 +1516,7 @@ LIMIT 1
                                     name: null,
                                     description: null,
                                     image: null,
-                                    json: r.mcpJson,
+                                    agentCardJson: r.mcpJson,
                                   }
                                 : null,
                               skills: r.mcpSkills,
@@ -1543,8 +1537,8 @@ LIMIT 1
                           name: null,
                           description: null,
                           image: null,
-                          json: r.registrationJson,
-                          onchainMetadataJson: null,
+                          registrationJson: r.registrationJson,
+                          nftMetadataJson: null,
                           registeredBy: null,
                           registryNamespace: null,
                           skills: [],

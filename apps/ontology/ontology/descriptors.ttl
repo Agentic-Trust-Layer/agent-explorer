@@ -192,6 +192,18 @@
   rdfs:domain owl:Thing ;
   rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
 
+# Protocol-specific descriptor payloads
+:DescriptorA2AProtocol a owl:Class ;
+  rdfs:label "DescriptorA2AProtocol" ;
+  rdfs:comment "Descriptor payload for an A2A protocol instance, including lossless agent-card JSON capture." ;
+  rdfs:subClassOf :Descriptor .
+
+:agentCardJson a owl:DatatypeProperty ;
+  rdfs:label "agentCardJson" ;
+  rdfs:comment "Lossless agent-card.json payload stored on the A2A protocol descriptor." ;
+  rdfs:domain :DescriptorA2AProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
 :hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:label "hasAgentDescriptor" ;
   rdfs:domain :AIAgent ;

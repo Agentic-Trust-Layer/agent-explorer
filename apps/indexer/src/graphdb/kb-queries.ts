@@ -25,7 +25,7 @@ export type KbAgentRow = {
   identity8004DescriptorDescription: string | null;
   identity8004DescriptorImage: string | null;
   identity8004RegistrationJson: string | null;
-  identity8004OnchainMetadataJson: string | null;
+  identity8004NftMetadataJson: string | null;
   identity8004RegisteredBy: string | null;
   identity8004RegistryNamespace: string | null;
   // Skills/domains explicitly materialized on the identity descriptor (from agentURI registration JSON only)
@@ -60,7 +60,7 @@ export type KbAgentRow = {
   a2aDescriptorDescription: string | null;
   a2aDescriptorImage: string | null;
   a2aProtocolVersion: string | null;
-  a2aJson: string | null;
+  a2aAgentCardJson: string | null;
   a2aSkills: string[];
   a2aDomains: string[];
 
@@ -76,7 +76,7 @@ export type KbAgentRow = {
   mcpDescriptorDescription: string | null;
   mcpDescriptorImage: string | null;
   mcpProtocolVersion: string | null;
-  mcpJson: string | null;
+  mcpAgentCardJson: string | null;
   mcpSkills: string[];
   mcpDomains: string[];
 };
@@ -481,7 +481,7 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?identity8004DescriptorDescription) AS ?identity8004DescriptorDescription)',
           '  (SAMPLE(?identity8004DescriptorImage) AS ?identity8004DescriptorImage)',
           '  (SAMPLE(?registrationJson) AS ?registrationJson)',
-          '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
+          '  (SAMPLE(?nftMetadataJson) AS ?nftMetadataJson)',
           '  (SAMPLE(?registeredBy) AS ?registeredBy)',
           '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
           '  (GROUP_CONCAT(DISTINCT STR(?idSkillOut); separator=" ") AS ?identity8004DescriptorSkills)',
@@ -498,7 +498,7 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?a2aDescriptorDescription) AS ?a2aDescriptorDescription)',
           '  (SAMPLE(?a2aDescriptorImage) AS ?a2aDescriptorImage)',
           '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
-          '  (SAMPLE(?a2aJson) AS ?a2aJson)',
+          '  (SAMPLE(?a2aAgentCardJson) AS ?a2aAgentCardJson)',
           '  (GROUP_CONCAT(DISTINCT STR(?a2aSkillOut); separator=" ") AS ?a2aSkills)',
           '  (GROUP_CONCAT(DISTINCT STR(?a2aDomainOut); separator=" ") AS ?a2aDomains)',
           '  (SAMPLE(?seMcp) AS ?seMcp)',
@@ -513,7 +513,7 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?mcpDescriptorDescription) AS ?mcpDescriptorDescription)',
           '  (SAMPLE(?mcpDescriptorImage) AS ?mcpDescriptorImage)',
           '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
-          '  (SAMPLE(?mcpJson) AS ?mcpJson)',
+          '  (SAMPLE(?mcpAgentCardJson) AS ?mcpAgentCardJson)',
           '  (GROUP_CONCAT(DISTINCT STR(?mcpSkillOut); separator=" ") AS ?mcpSkills)',
           '  (GROUP_CONCAT(DISTINCT STR(?mcpDomainOut); separator=" ") AS ?mcpDomains)',
           '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
@@ -557,11 +557,11 @@ export async function kbAgentsQuery(args: {
           '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
           '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
           '      BIND(?desc8004 AS ?identity8004Descriptor)',
-          '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
+          '      OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }',
           '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
           '      OPTIONAL { ?desc8004 dcterms:description ?identity8004DescriptorDescription . }',
           '      OPTIONAL { ?desc8004 schema:image ?identity8004DescriptorImage . }',
-          '      OPTIONAL { ?desc8004 erc8004:onchainMetadataJson ?onchainMetadataJson . }',
+          '      OPTIONAL { ?desc8004 erc8004:nftMetadataJson ?nftMetadataJson . }',
           '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
           '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
           '      OPTIONAL {',
@@ -593,7 +593,7 @@ export async function kbAgentsQuery(args: {
           '          OPTIONAL { ?pA2aDesc dcterms:title ?a2aDescriptorName . }',
           '          OPTIONAL { ?pA2aDesc dcterms:description ?a2aDescriptorDescription . }',
           '          OPTIONAL { ?pA2aDesc schema:image ?a2aDescriptorImage . }',
-          '          OPTIONAL { ?pA2aDesc core:json ?a2aJson . }',
+          '          OPTIONAL { ?pA2aDesc core:agentCardJson ?a2aAgentCardJson . }',
           '        }',
           '        OPTIONAL {',
           '          ?pA2a core:hasSkill ?a2aSkill .',
@@ -625,7 +625,7 @@ export async function kbAgentsQuery(args: {
           '          OPTIONAL { ?pMcpDesc dcterms:title ?mcpDescriptorName . }',
           '          OPTIONAL { ?pMcpDesc dcterms:description ?mcpDescriptorDescription . }',
           '          OPTIONAL { ?pMcpDesc schema:image ?mcpDescriptorImage . }',
-          '          OPTIONAL { ?pMcpDesc core:json ?mcpJson . }',
+          '          OPTIONAL { ?pMcpDesc core:agentCardJson ?mcpAgentCardJson . }',
           '        }',
           '        OPTIONAL {',
           '          ?pMcp core:hasSkill ?mcpSkill .',
@@ -748,7 +748,7 @@ export async function kbAgentsQuery(args: {
       identity8004DescriptorDescription: asString(b?.identity8004DescriptorDescription),
       identity8004DescriptorImage: asString(b?.identity8004DescriptorImage),
       identity8004RegistrationJson: asString(b?.registrationJson),
-      identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
+      identity8004NftMetadataJson: asString(b?.nftMetadataJson),
       identity8004RegisteredBy: asString(b?.registeredBy),
       identity8004RegistryNamespace: asString(b?.registryNamespace),
       identity8004DescriptorSkills: splitConcat(asString(b?.identity8004DescriptorSkills)),
@@ -782,7 +782,7 @@ export async function kbAgentsQuery(args: {
       a2aDescriptorDescription: asString(b?.a2aDescriptorDescription),
       a2aDescriptorImage: asString(b?.a2aDescriptorImage),
       a2aProtocolVersion: asString(b?.a2aProtocolVersion),
-      a2aJson: asString(b?.a2aJson),
+      a2aAgentCardJson: asString(b?.a2aAgentCardJson),
       a2aSkills: splitConcat(asString(b?.a2aSkills)),
       a2aDomains: splitConcat(asString(b?.a2aDomains)),
 
@@ -798,7 +798,7 @@ export async function kbAgentsQuery(args: {
       mcpDescriptorDescription: asString(b?.mcpDescriptorDescription),
       mcpDescriptorImage: asString(b?.mcpDescriptorImage),
       mcpProtocolVersion: asString(b?.mcpProtocolVersion),
-      mcpJson: asString(b?.mcpJson),
+      mcpAgentCardJson: asString(b?.mcpAgentCardJson),
       mcpSkills: splitConcat(asString(b?.mcpSkills)),
       mcpDomains: splitConcat(asString(b?.mcpDomains)),
     };
@@ -885,7 +885,7 @@ export async function kbOwnedAgentsQuery(args: {
     '  (SAMPLE(?identity8004DescriptorDescription) AS ?identity8004DescriptorDescription)',
     '  (SAMPLE(?identity8004DescriptorImage) AS ?identity8004DescriptorImage)',
     '  (SAMPLE(?registrationJson) AS ?registrationJson)',
-    '  (SAMPLE(?onchainMetadataJson) AS ?onchainMetadataJson)',
+    '  (SAMPLE(?nftMetadataJson) AS ?nftMetadataJson)',
     '  (SAMPLE(?registeredBy) AS ?registeredBy)',
     '  (SAMPLE(?registryNamespace) AS ?registryNamespace)',
     '  (SAMPLE(?seA2a) AS ?seA2a)',
@@ -900,7 +900,7 @@ export async function kbOwnedAgentsQuery(args: {
     '  (SAMPLE(?a2aDescriptorDescription) AS ?a2aDescriptorDescription)',
     '  (SAMPLE(?a2aDescriptorImage) AS ?a2aDescriptorImage)',
     '  (SAMPLE(?a2aProtocolVersion) AS ?a2aProtocolVersion)',
-    '  (SAMPLE(?a2aJson) AS ?a2aJson)',
+    '  (SAMPLE(?a2aAgentCardJson) AS ?a2aAgentCardJson)',
     '  (GROUP_CONCAT(DISTINCT STR(?a2aSkill); separator=" ") AS ?a2aSkills)',
     '  (SAMPLE(?seMcp) AS ?seMcp)',
     '  (SAMPLE(?mcpServiceUrl) AS ?mcpServiceUrl)',
@@ -914,7 +914,7 @@ export async function kbOwnedAgentsQuery(args: {
     '  (SAMPLE(?mcpDescriptorDescription) AS ?mcpDescriptorDescription)',
     '  (SAMPLE(?mcpDescriptorImage) AS ?mcpDescriptorImage)',
     '  (SAMPLE(?mcpProtocolVersion) AS ?mcpProtocolVersion)',
-    '  (SAMPLE(?mcpJson) AS ?mcpJson)',
+    '  (SAMPLE(?mcpAgentCardJson) AS ?mcpAgentCardJson)',
     '  (GROUP_CONCAT(DISTINCT STR(?mcpSkill); separator=" ") AS ?mcpSkills)',
     '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
     'WHERE {',
@@ -953,11 +953,11 @@ export async function kbOwnedAgentsQuery(args: {
     '      OPTIONAL { ?identity8004 erc8004:agentId ?agentIdFromIdentity . }',
     '      BIND(COALESCE(xsd:integer(?agentIdFromIdentity), xsd:integer(REPLACE(STR(?did8004), "^did:8004:[0-9]+:", ""))) AS ?agentId8004)',
     '      BIND(?desc8004 AS ?identity8004Descriptor)',
-    '      OPTIONAL { ?desc8004 core:json ?registrationJson . }',
+    '      OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }',
     '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
     '      OPTIONAL { ?desc8004 dcterms:description ?identity8004DescriptorDescription . }',
     '      OPTIONAL { ?desc8004 schema:image ?identity8004DescriptorImage . }',
-    '      OPTIONAL { ?desc8004 erc8004:onchainMetadataJson ?onchainMetadataJson . }',
+    '      OPTIONAL { ?desc8004 erc8004:nftMetadataJson ?nftMetadataJson . }',
     '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
     '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
     '      OPTIONAL {',
@@ -978,7 +978,7 @@ export async function kbOwnedAgentsQuery(args: {
     '          OPTIONAL { ?pA2aDesc dcterms:title ?a2aDescriptorName . }',
     '          OPTIONAL { ?pA2aDesc dcterms:description ?a2aDescriptorDescription . }',
     '          OPTIONAL { ?pA2aDesc schema:image ?a2aDescriptorImage . }',
-    '          OPTIONAL { ?pA2aDesc core:json ?a2aJson . }',
+    '          OPTIONAL { ?pA2aDesc core:agentCardJson ?a2aAgentCardJson . }',
     '        }',
     '        OPTIONAL { ?pA2a core:hasSkill ?a2aSkill . }',
     '      }',
@@ -1000,7 +1000,7 @@ export async function kbOwnedAgentsQuery(args: {
     '          OPTIONAL { ?pMcpDesc dcterms:title ?mcpDescriptorName . }',
     '          OPTIONAL { ?pMcpDesc dcterms:description ?mcpDescriptorDescription . }',
     '          OPTIONAL { ?pMcpDesc schema:image ?mcpDescriptorImage . }',
-    '          OPTIONAL { ?pMcpDesc core:json ?mcpJson . }',
+    '          OPTIONAL { ?pMcpDesc core:agentCardJson ?mcpAgentCardJson . }',
     '        }',
     '        OPTIONAL { ?pMcp core:hasSkill ?mcpSkill . }',
     '      }',
@@ -1072,7 +1072,7 @@ export async function kbOwnedAgentsQuery(args: {
     identity8004DescriptorDescription: asString(b?.identity8004DescriptorDescription),
     identity8004DescriptorImage: asString(b?.identity8004DescriptorImage),
     identity8004RegistrationJson: asString(b?.registrationJson),
-    identity8004OnchainMetadataJson: asString(b?.onchainMetadataJson),
+    identity8004NftMetadataJson: asString(b?.nftMetadataJson),
     identity8004RegisteredBy: asString(b?.registeredBy),
     identity8004RegistryNamespace: asString(b?.registryNamespace),
     identity8004DescriptorSkills: [], // Not fetched in this query
@@ -1090,7 +1090,7 @@ export async function kbOwnedAgentsQuery(args: {
     a2aDescriptorDescription: asString(b?.a2aDescriptorDescription),
     a2aDescriptorImage: asString(b?.a2aDescriptorImage),
     a2aProtocolVersion: asString(b?.a2aProtocolVersion),
-    a2aJson: asString(b?.a2aJson),
+    a2aAgentCardJson: asString(b?.a2aAgentCardJson),
     a2aSkills: splitConcat(asString(b?.a2aSkills)),
     a2aDomains: [], // Not fetched in this query
 
@@ -1106,7 +1106,7 @@ export async function kbOwnedAgentsQuery(args: {
     mcpDescriptorDescription: asString(b?.mcpDescriptorDescription),
     mcpDescriptorImage: asString(b?.mcpDescriptorImage),
     mcpProtocolVersion: asString(b?.mcpProtocolVersion),
-    mcpJson: asString(b?.mcpJson),
+    mcpAgentCardJson: asString(b?.mcpAgentCardJson),
     mcpSkills: splitConcat(asString(b?.mcpSkills)),
     mcpDomains: [], // Not fetched in this query
 
@@ -1324,7 +1324,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     identity8004DescriptorDescription: null, // Not fetched in simplified query
     identity8004DescriptorImage: null, // Not fetched in simplified query
     identity8004RegistrationJson: null, // Not fetched in simplified query
-    identity8004OnchainMetadataJson: null, // Not fetched in simplified query
+    identity8004NftMetadataJson: null, // Not fetched in simplified query
     identity8004RegisteredBy: null, // Not fetched in simplified query
     identity8004RegistryNamespace: null, // Not fetched in simplified query
     identity8004DescriptorSkills: [], // Not fetched in simplified query
@@ -1342,7 +1342,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     a2aDescriptorDescription: null, // Not fetched in simplified query
     a2aDescriptorImage: null, // Not fetched in simplified query
     a2aProtocolVersion: null, // Not fetched in simplified query
-    a2aJson: null, // Not fetched in simplified query
+    a2aAgentCardJson: null, // Not fetched in simplified query
     a2aSkills: [], // Not fetched in simplified query
     a2aDomains: [], // Not fetched in simplified query
 
@@ -1358,7 +1358,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     mcpDescriptorDescription: null, // Not fetched in simplified query
     mcpDescriptorImage: null, // Not fetched in simplified query
     mcpProtocolVersion: null, // Not fetched in simplified query
-    mcpJson: null, // Not fetched in simplified query
+    mcpAgentCardJson: null, // Not fetched in simplified query
     mcpSkills: [], // Not fetched in simplified query
     mcpDomains: [], // Not fetched in simplified query
 

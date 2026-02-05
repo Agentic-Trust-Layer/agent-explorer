@@ -92,7 +92,7 @@ export function emitA2AProtocolDescriptorTurtle(opts: {
 
   // Protocol descriptor (UI metadata + agent-card.json capture)
   const pDescLines: string[] = [];
-  pDescLines.push(`${pDescIri} a core:Descriptor, prov:Entity ;`);
+  pDescLines.push(`${pDescIri} a core:DescriptorA2AProtocol, core:Descriptor, prov:Entity ;`);
   if (typeof opts.agentCard?.name === 'string' && opts.agentCard.name.trim()) {
     pDescLines.push(`  dcterms:title "${escapeTurtleString(opts.agentCard.name.trim())}" ;`);
     pDescLines.push(`  rdfs:label "${escapeTurtleString(opts.agentCard.name.trim())}" ;`);
@@ -109,7 +109,7 @@ export function emitA2AProtocolDescriptorTurtle(opts: {
   }
   try {
     const json = JSON.stringify(opts.agentCard ?? null);
-    pDescLines.push(`  core:json ${turtleJsonLiteral(json)} ;`);
+    pDescLines.push(`  core:agentCardJson ${turtleJsonLiteral(json)} ;`);
   } catch {}
   pDescLines[pDescLines.length - 1] = pDescLines[pDescLines.length - 1].replace(/ ;$/, ' .');
   lines.push(pDescLines.join('\n'));

@@ -5,7 +5,7 @@ export type AgentA2AEndpointRow = {
   didIdentity: string | null; // derived from 8004 identity identifier
   didAccount: string | null; // derived from smartAccount OR wallet account identifier
   a2aEndpoint: string;
-  agentUriJson: string | null;
+  registrationJson: string | null;
 };
 
 export async function listAgentIriByDidIdentity(chainId: number, limit: number = 50000): Promise<Map<string, string>> {
@@ -97,7 +97,7 @@ export async function listAgentsWithA2AEndpoint(chainId: number, limit: number =
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-SELECT ?agent ?didIdentity ?didAccount ?a2aEndpoint ?agentUriJson WHERE {
+SELECT ?agent ?didIdentity ?didAccount ?a2aEndpoint ?registrationJson WHERE {
   GRAPH <${ctx}> {
     ?agent a core:AIAgent .
     ?agent core:hasIdentity ?identity8004 .
@@ -107,7 +107,7 @@ SELECT ?agent ?didIdentity ?didAccount ?a2aEndpoint ?agentUriJson WHERE {
     ?ident8004 core:protocolIdentifier ?didIdentity .
 
     # Registration JSON lives on the ERC-8004 identity descriptor
-    OPTIONAL { ?desc8004 core:json ?agentUriJson . }
+    OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }
 
     # A2A endpoint comes from identity -> serviceEndpoint -> protocol -> serviceUrl
     ?identity8004 core:hasServiceEndpoint ?se .
@@ -147,7 +147,7 @@ LIMIT ${Math.max(1, Math.min(50000, limit))}
     didIdentity: typeof b?.didIdentity?.value === 'string' ? b.didIdentity.value : null,
     didAccount: typeof b?.didAccount?.value === 'string' ? b.didAccount.value : null,
     a2aEndpoint: String(b?.a2aEndpoint?.value || ''),
-    agentUriJson: typeof b?.agentUriJson?.value === 'string' ? b.agentUriJson.value : null,
+    registrationJson: typeof b?.registrationJson?.value === 'string' ? b.registrationJson.value : null,
   }));
 }
 

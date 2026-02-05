@@ -91,22 +91,34 @@
   rdfs:comment "Descriptor for an ERC-8004 identity." ;
   rdfs:subClassOf core:AgentIdentityDescriptor .
 
-:onchainMetadataJson a owl:DatatypeProperty ;
-  rdfs:label "onchainMetadataJson" ;
+:Descriptor8004Identity a owl:Class ;
+  rdfs:label "Descriptor8004Identity" ;
+  rdfs:comment "Descriptor for an ERC-8004 identity. Stores registration JSON and NFT metadata JSON explicitly." ;
+  rdfs:subClassOf :IdentityDescriptor8004 ;
+  rdfs:subClassOf core:Descriptor .
+
+:nftMetadataJson a owl:DatatypeProperty ;
+  rdfs:label "nftMetadataJson" ;
   rdfs:comment "Raw on-chain NFT metadata payload for the ERC-8004 identity. This may be arbitrary JSON." ;
-  rdfs:domain :IdentityDescriptor8004 ;
+  rdfs:domain :Descriptor8004Identity ;
+  rdfs:range xsd:string .
+
+:registrationJson a owl:DatatypeProperty ;
+  rdfs:label "registrationJson" ;
+  rdfs:comment "Raw ERC-8004 registration JSON (agentURI payload) stored losslessly on the 8004 identity descriptor." ;
+  rdfs:domain :Descriptor8004Identity ;
   rdfs:range xsd:string .
 
 :registeredBy a owl:DatatypeProperty ;
   rdfs:label "registeredBy" ;
   rdfs:comment "Human-readable registration issuer/brand extracted from on-chain metadata (best-effort)." ;
-  rdfs:domain :IdentityDescriptor8004 ;
+  rdfs:domain :Descriptor8004Identity ;
   rdfs:range xsd:string .
 
 :registryNamespace a owl:DatatypeProperty ;
   rdfs:label "registryNamespace" ;
   rdfs:comment "Registry namespace extracted from on-chain metadata (best-effort), e.g. erc-8004." ;
-  rdfs:domain :IdentityDescriptor8004 ;
+  rdfs:domain :Descriptor8004Identity ;
   rdfs:range xsd:string .
 
 :ValidationRequestSituation a owl:Class ;

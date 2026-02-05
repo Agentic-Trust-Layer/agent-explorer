@@ -99,7 +99,7 @@ export function emitProtocolDescriptorFromRegistration(opts: {
   lines.push(`  rdfs:label "${escapeTurtleString(opts.protocol)}" .`);
   lines.push('');
 
-  // Protocol descriptor (placeholder; agent-cards sync will populate core:json + UX fields)
+  // Protocol descriptor (placeholder; agent-cards sync will populate core:agentCardJson + UX fields)
   lines.push(`${pDescIri} a core:Descriptor, prov:Entity ;`);
   lines.push(`  dcterms:title "${escapeTurtleString(opts.protocol)}" ;`);
   lines.push(`  rdfs:label "${escapeTurtleString(opts.protocol)}" .`);

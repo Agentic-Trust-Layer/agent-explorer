@@ -16,7 +16,7 @@ import {
   turtleJsonLiteral,
 } from './common.js';
 import { emitRawSubgraphRecord } from './emit-raw-record.js';
-// Protocol descriptor + skills/domains extraction from ERC-8004 registration JSON (core:json)
+// Protocol descriptor + skills/domains extraction from ERC-8004 registration JSON (erc8004:registrationJson)
 import { emitProtocolDescriptorFromRegistration } from './emit-protocol-descriptor-from-registration.js';
 import { emitIdentityDescriptorSkillsDomains } from './emit-identity-descriptor-skills-domains.js';
 // import { extractProtocolDataFromAgentUriJson, isOasfSkillId } from '../a2a/skill-extraction.js';
@@ -341,7 +341,7 @@ export function emitAgentsTurtle(
 
     // NOTE:
     // - We do NOT store agentURI/a2aEndpoint directly on core:AIAgent anymore (legacy).
-    // - We store ERC-8004 registration JSON on the ERC-8004 identity descriptor (core:json).
+    // - We store ERC-8004 registration JSON on the ERC-8004 identity descriptor (erc8004:registrationJson).
     // - A2A/MCP endpoints are represented via core:ServiceEndpoint + core:hasProtocol -> core:A2AProtocol/core:MCPProtocol.
     // Identity node + registration descriptor link (minimal, but standard-aligned)
     const identityIri = identity8004Iri(didIdentity);
@@ -423,7 +423,7 @@ export function emitAgentsTurtle(
 
     // Descriptor node
     lines.push(
-      `${descriptorIri} a erc8004:IdentityDescriptor8004, erc8004:AgentRegistration8004, core:AgentIdentityDescriptor, core:Descriptor, prov:Entity ;`,
+      `${descriptorIri} a erc8004:Descriptor8004Identity, erc8004:IdentityDescriptor8004, erc8004:AgentRegistration8004, core:AgentIdentityDescriptor, core:Descriptor, prov:Entity ;`,
     );
     const parsed = registrationJsonText ? parseDescriptorFieldsFromJson(registrationJsonText) : { name: null, description: null, image: null };
     const descTitle = parsed.name ?? name;
@@ -439,9 +439,21 @@ export function emitAgentsTurtle(
       if (imgTok) lines.push(`  schema:image ${imgTok} ;`);
     }
     // AgentURI / registration JSON: ALWAYS store on identity descriptor.
-    if (registrationJsonText) lines.push(`  core:json ${turtleJsonLiteral(registrationJsonText)} ;`);
+    if (registrationJsonText) lines.push(`  erc8004:registrationJson ${turtleJsonLiteral(registrationJsonText)} ;`);
     // Parse registration JSON once during sync and materialize skills/domains/protocolDescriptors into KB triples.
-    // SKIPPED: onchainMetadataJson removed for performance (was 1-3KB per agent, stored as escaped JSON literal)
+    // On-chain metadata KV rows (lossless) stored on identity descriptor.
+    // Source: subgraph agentMetadata_collection rows attached to item.agentMetadatas.
+    if (onchainObj && typeof onchainObj === 'object') {
+      try {
+        // Prefer the normalized KV object produced by buildOnchainMetadataFromAgentMetadatas.
+        lines.push(`  erc8004:nftMetadataJson ${turtleJsonLiteral(JSON.stringify(onchainObj))} ;`);
+      } catch {}
+    } else if (onchainMetadataText && onchainMetadataText.trim()) {
+      try {
+        // Fallback: raw text form from buildOnchainMetadataFromAgentMetadatas (still from subgraph).
+        lines.push(`  erc8004:nftMetadataJson ${turtleJsonLiteral(String(onchainMetadataText))} ;`);
+      } catch {}
+    }
     // Essential fields (registeredBy, registryNamespace) are still stored as individual triples
     if (metaRegisteredBy) lines.push(`  erc8004:registeredBy "${escapeTurtleString(metaRegisteredBy)}" ;`);
     if (metaRegistryNamespace) lines.push(`  erc8004:registryNamespace "${escapeTurtleString(metaRegistryNamespace)}" ;`);

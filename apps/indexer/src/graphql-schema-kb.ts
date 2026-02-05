@@ -86,7 +86,15 @@ export const graphQLSchemaStringKb = `
     name: String
     description: String
     image: String
-    json: String
+  }
+
+  # Protocol descriptor payload (e.g. A2A agent-card.json)
+  type KbProtocolDescriptor {
+    iri: ID!
+    name: String
+    description: String
+    image: String
+    agentCardJson: String
   }
 
   type KbProtocol {
@@ -94,7 +102,7 @@ export const graphQLSchemaStringKb = `
     protocol: String! # a2a | mcp | other
     protocolVersion: String
     serviceUrl: String
-    descriptor: KbDescriptor
+    descriptor: KbProtocolDescriptor
     skills: [String!]!
     domains: [String!]!
   }
@@ -112,8 +120,8 @@ export const graphQLSchemaStringKb = `
     name: String
     description: String
     image: String
-    json: String
-    onchainMetadataJson: String
+    registrationJson: String
+    nftMetadataJson: String
     registeredBy: String
     registryNamespace: String
     skills: [String!]!
