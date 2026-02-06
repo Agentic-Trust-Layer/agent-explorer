@@ -135,8 +135,7 @@ async function graphdbFetch(
         else if (key === 'cf-access-client-secret') redacted[k] = v ? '***' : '';
         else redacted[k] = v;
       }
-      // eslint-disable-next-line no-console
-      console.log('[graphdb] request headers', redacted);
+
     }
     const retriesRaw = envString('GRAPHDB_HTTP_RETRIES');
     const retries = Number.isFinite(Number(retriesRaw)) && Number(retriesRaw) >= 0 ? Math.trunc(Number(retriesRaw)) : 3;

@@ -1112,8 +1112,25 @@ LIMIT 1
         if (nativeId) {
           // eslint-disable-next-line no-console
           console.info('[hol][registry-nativeId-search] ensure (from did uaid)', { uaid, nativeId, hadKbRow: res.rows.length > 0 });
-          const holUaid = await ensureHolHitInKnowledgeGraph({ nativeId });
-          if (holUaid) res = await run(holUaid);
+          let holUaid: string | null = null;
+          try {
+            holUaid = await ensureHolHitInKnowledgeGraph({ nativeId });
+          } catch (e: any) {
+            console.warn('[hol][registry-nativeId-search] ensure failed (non-fatal)', {
+              uaid,
+              nativeId,
+              error: String(e?.message || e || ''),
+            });
+            holUaid = null;
+          }
+
+          if (holUaid) {
+            const holRes = await run(holUaid);
+            // Only switch to HOL result if it actually resolved to a KB agent row.
+            // This avoids "losing" a perfectly valid on-chain 8004 agent when HOL
+            // search is unavailable or the HOL hit hasn't been materialized into KB.
+            if (holRes.rows.length) res = holRes;
+          }
           // eslint-disable-next-line no-console
           console.info('[kb][kbAgentByUaid] after ensureHolHitInKnowledgeGraph', { uaid, nativeId, holUaid, rows: res.rows.length });
         } else {
