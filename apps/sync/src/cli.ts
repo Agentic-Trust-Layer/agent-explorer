@@ -26,6 +26,8 @@ import { emitAssociationsTurtle, emitAssociationRevocationsTurtle } from './rdf/
 import { syncAgentCardsForChain } from './a2a/agent-card-sync.js';
 import { syncAccountTypesForChain } from './account-types/sync-account-types.js';
 import { getMaxAgentId8004, getMaxDid8004AgentId, listAgentIriByDidIdentity } from './graphdb/agents.js';
+import { ingestOasfToGraphdb } from './oasf/oasf-ingest.js';
+import { ingestOntologiesToGraphdb } from './ontology/ontology-ingest.js';
 
 type SyncCommand =
   | 'agents'
@@ -38,6 +40,8 @@ type SyncCommand =
   | 'associations'
   | 'association-revocations'
   | 'agent-cards'
+  | 'oasf'
+  | 'ontologies'
   | 'account-types'
   | 'watch'
   | 'all';
@@ -423,6 +427,16 @@ async function syncAssociationRevocations(endpoint: { url: string; chainId: numb
 }
 
 async function runSync(command: SyncCommand, resetContext: boolean = false) {
+  // Global one-shot commands (not chain/subgraph specific)
+  if (command === 'oasf') {
+    await ingestOasfToGraphdb({ resetContext });
+    return;
+  }
+  if (command === 'ontologies') {
+    await ingestOntologiesToGraphdb({ resetContext });
+    return;
+  }
+
   // Filter endpoints by chainId if specified (default to chainId=1,11155111 for mainnet and sepolia)
   const chainIdFilterRaw = process.env.SYNC_CHAIN_ID || '1,11155111';
   const chainIdFilters = chainIdFilterRaw
