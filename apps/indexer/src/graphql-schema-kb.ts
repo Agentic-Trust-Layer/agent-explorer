@@ -56,6 +56,9 @@ export const graphQLSchemaStringKb = `
     uaid
     createdAtTime
     updatedAtTime
+    trustLedgerTotalPoints
+    atiOverallScore
+    bestRank
   }
 
   input KbAgentWhereInput {
@@ -257,6 +260,15 @@ export const graphQLSchemaStringKb = `
     createdAtBlock: Int
     createdAtTime: Int
     updatedAtTime: Int
+
+    # KB analytics (GraphDB-resident) scoring signals
+    trustLedgerTotalPoints: Int
+    trustLedgerBadgeCount: Int
+    trustLedgerComputedAt: Int
+    atiOverallScore: Int
+    atiOverallConfidence: Float
+    atiVersion: String
+    atiComputedAt: Int
 
     # Convenience: primary identity (prefer identity8004, else identityEns)
     identity: KbIdentity

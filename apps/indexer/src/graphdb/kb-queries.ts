@@ -17,6 +17,16 @@ export type KbAgentRow = {
   createdAtBlock: number | null;
   createdAtTime: number | null;
   updatedAtTime: number | null;
+
+  // KB analytics (GraphDB-resident)
+  trustLedgerTotalPoints: number | null;
+  trustLedgerBadgeCount: number | null;
+  trustLedgerComputedAt: number | null;
+  atiOverallScore: number | null;
+  atiOverallConfidence: number | null;
+  atiVersion: string | null;
+  atiComputedAt: number | null;
+
   did8004: string | null;
   agentId8004: number | null;
   identity8004Iri: string | null;
@@ -86,6 +96,10 @@ function chainContext(chainId: number): string {
   // This allows GraphQL callers to use chainId=295 for HOL.
   if (Math.trunc(chainId) === 295) return 'https://www.agentictrust.io/graph/data/subgraph/hol';
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
+}
+
+function analyticsContext(chainId: number): string {
+  return `https://www.agentictrust.io/graph/data/analytics/${chainId}`;
 }
 
 function iriEncodeSegment(value: string): string {
@@ -184,7 +198,16 @@ export async function kbAgentsQuery(args: {
   } | null;
   first?: number | null;
   skip?: number | null;
-  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | 'createdAtTime' | 'updatedAtTime' | null;
+  orderBy?:
+    | 'agentId8004'
+    | 'agentName'
+    | 'uaid'
+    | 'createdAtTime'
+    | 'updatedAtTime'
+    | 'trustLedgerTotalPoints'
+    | 'atiOverallScore'
+    | 'bestRank'
+    | null;
   orderDirection?: 'ASC' | 'DESC' | null;
 }, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const where = args.where ?? {};
@@ -195,6 +218,7 @@ export async function kbAgentsQuery(args: {
   const chainId = where.chainId != null ? clampInt(where.chainId, 1, 1_000_000_000, 0) : null;
   const ctxIri = chainId != null ? chainContext(chainId) : null;
   const graphs = ctxIri ? [`<${ctxIri}>`] : null;
+  const analyticsCtxIri = chainId != null && Math.trunc(chainId) !== 295 ? analyticsContext(chainId) : null;
 
   // Filtering: agentIdentifierMatch does a suffix match on identifiers (did8004, didEns, uaid)
   let did8004Filter: string | null = typeof where.did8004 === 'string' && where.did8004.trim() ? where.did8004.trim() : null;
@@ -218,18 +242,37 @@ export async function kbAgentsQuery(args: {
 
   const orderBy = args.orderBy ?? 'agentId8004';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-  const orderBaseExpr =
-    orderBy === 'agentName'
-      ? 'LCASE(STR(?agentName))'
-      : orderBy === 'uaid'
-        ? 'LCASE(STR(?uaid))'
-        : orderBy === 'createdAtTime'
-          ? 'IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)'
-          : orderBy === 'updatedAtTime'
-            ? 'IF(BOUND(?updatedAtTime), xsd:integer(?updatedAtTime), 0)'
-        : '?agentId8004';
-  const orderExpr =
-    (orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`) + ` ASC(STR(?agent))`;
+  const ord = (expr: string) => (orderDirection === 'ASC' ? `ASC(${expr})` : `DESC(${expr})`);
+
+  // NOTE: KB analytics ordering requires chainId (so we know which analytics graph to join).
+  // If chainId is missing (analyticsCtxIri null), we fall back to agentId8004 ordering.
+  const wantsAnalyticsOrder = orderBy === 'trustLedgerTotalPoints' || orderBy === 'atiOverallScore' || orderBy === 'bestRank';
+  const analyticsOrderEnabled = Boolean(analyticsCtxIri);
+
+  const orderExpr = (() => {
+    if (wantsAnalyticsOrder && !analyticsOrderEnabled) {
+      return `${ord('?agentId8004')} ASC(STR(?agent))`;
+    }
+    if (orderBy === 'agentName') return `${ord('LCASE(STR(?agentName))')} ASC(STR(?agent))`;
+    if (orderBy === 'uaid') return `${ord('LCASE(STR(?uaid))')} ASC(STR(?agent))`;
+    if (orderBy === 'createdAtTime') return `${ord('IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)')} ASC(STR(?agent))`;
+    if (orderBy === 'updatedAtTime') return `${ord('IF(BOUND(?updatedAtTime), xsd:integer(?updatedAtTime), 0)')} ASC(STR(?agent))`;
+    if (orderBy === 'trustLedgerTotalPoints') {
+      return `${ord('IF(BOUND(?trustLedgerTotalPoints), xsd:integer(?trustLedgerTotalPoints), 0)')} ASC(STR(?agent))`;
+    }
+    if (orderBy === 'atiOverallScore') {
+      return `${ord('IF(BOUND(?atiOverallScore), xsd:integer(?atiOverallScore), 0)')} ASC(STR(?agent))`;
+    }
+    if (orderBy === 'bestRank') {
+      return [
+        ord('IF(BOUND(?trustLedgerTotalPoints), xsd:integer(?trustLedgerTotalPoints), 0)'),
+        ord('IF(BOUND(?atiOverallScore), xsd:integer(?atiOverallScore), 0)'),
+        ord('IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)'),
+        'ASC(STR(?agent))',
+      ].join(' ');
+    }
+    return `${ord('?agentId8004')} ASC(STR(?agent))`;
+  })();
 
   const graphClause = graphs
     ? `VALUES ?g { ${graphs.join(' ')} }\n  GRAPH ?g {`
@@ -331,7 +374,8 @@ export async function kbAgentsQuery(args: {
   const needsUaid = Boolean(uaidFilter || (uaidIn && uaidIn.length) || orderBy === 'uaid' || agentIdentifierMatch);
   const needsAgentName = Boolean(agentNameContains || orderBy === 'agentName');
   const needsDid8004 = Boolean(did8004Filter || agentIdentifierMatch);
-  const needsAgentTimes = orderBy === 'createdAtTime' || orderBy === 'updatedAtTime';
+  const needsAgentTimes = orderBy === 'createdAtTime' || orderBy === 'updatedAtTime' || orderBy === 'bestRank';
+  const needsAnalytics = wantsAnalyticsOrder && analyticsOrderEnabled;
 
   const pageOptional: string[] = [];
   if (needsUaid) pageOptional.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
@@ -347,10 +391,32 @@ export async function kbAgentsQuery(args: {
     pageOptional.push('    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }');
   }
 
+  if (needsAnalytics && analyticsCtxIri) {
+    pageOptional.push('    OPTIONAL {');
+    pageOptional.push(`      GRAPH <${analyticsCtxIri}> {`);
+    pageOptional.push('        OPTIONAL {');
+    pageOptional.push('          ?agent analytics:hasTrustLedgerScore ?_tls .');
+    pageOptional.push('          ?_tls a analytics:AgentTrustLedgerScore ; analytics:totalPoints ?trustLedgerTotalPoints .');
+    pageOptional.push('          OPTIONAL { ?_tls analytics:badgeCount ?trustLedgerBadgeCount . }');
+    pageOptional.push('          OPTIONAL { ?_tls analytics:trustLedgerComputedAt ?trustLedgerComputedAt . }');
+    pageOptional.push('        }');
+    pageOptional.push('        BIND(IF(BOUND(?agentId8004), STR(?agentId8004), "") AS ?_agentIdStr)');
+    pageOptional.push('        OPTIONAL {');
+    pageOptional.push('          FILTER(?_agentIdStr != "")');
+    pageOptional.push('          ?ati a analytics:AgentTrustIndex ; analytics:agentId ?_agentIdStr ; analytics:overallScore ?atiOverallScore .');
+    pageOptional.push('          OPTIONAL { ?ati analytics:overallConfidence ?atiOverallConfidence . }');
+    pageOptional.push('          OPTIONAL { ?ati analytics:computedAt ?atiComputedAt . }');
+    pageOptional.push('          OPTIONAL { ?ati analytics:version ?atiVersion . }');
+    pageOptional.push('        }');
+    pageOptional.push('      }');
+    pageOptional.push('    }');
+  }
+
   // Fast path: when ordering by agentId8004, use the materialized numeric literal on the agent node.
   // IMPORTANT: do not require agentId8004 when the caller is filtering by UAID/identifier (HOL agents
   // will not have erc8004:agentId8004, and requiring it causes "count>0 but page=0").
-  const pageRequireAgentId = orderBy === 'agentId8004' && !uaidFilter && !(uaidIn && uaidIn.length) && !agentIdentifierMatch;
+  const pageRequireAgentId =
+    (orderBy === 'agentId8004' && !uaidFilter && !(uaidIn && uaidIn.length) && !agentIdentifierMatch) || needsAnalytics;
   const pageAgentIdPattern = pageRequireAgentId
     ? ['    ?agent erc8004:agentId8004 ?agentId8004 .']
     : ['    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }'];
@@ -385,6 +451,12 @@ export async function kbAgentsQuery(args: {
           ? '?agent ?createdAtTime'
           : orderBy === 'updatedAtTime'
             ? '?agent ?updatedAtTime'
+            : orderBy === 'trustLedgerTotalPoints'
+              ? '?agent ?trustLedgerTotalPoints'
+              : orderBy === 'atiOverallScore'
+                ? '?agent ?atiOverallScore'
+                : orderBy === 'bestRank'
+                  ? '?agent ?trustLedgerTotalPoints ?atiOverallScore ?createdAtTime'
             : '?agent ?agentId8004';
 
   const pageGraphClause = ctxIri
@@ -398,6 +470,7 @@ export async function kbAgentsQuery(args: {
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
     'PREFIX dcterms: <http://purl.org/dc/terms/>',
+    ...(needsAnalytics ? ['PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>'] : []),
     ...(needsDidEns ? ['PREFIX ens: <https://agentictrust.io/ontology/ens#>'] : []),
     '',
     // DISTINCT is required when anchoring on assertion edges to avoid LIMIT being applied to fanout rows.
@@ -462,6 +535,7 @@ export async function kbAgentsQuery(args: {
           'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
           'PREFIX dcterms: <http://purl.org/dc/terms/>',
           'PREFIX schema: <http://schema.org/>',
+          'PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>',
           '',
           'SELECT',
           '  ?agent',
@@ -477,6 +551,13 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?createdAtBlock) AS ?createdAtBlock)',
           '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
           '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
+          '  (SAMPLE(?trustLedgerTotalPoints) AS ?trustLedgerTotalPoints)',
+          '  (SAMPLE(?trustLedgerBadgeCount) AS ?trustLedgerBadgeCount)',
+          '  (SAMPLE(?trustLedgerComputedAt) AS ?trustLedgerComputedAt)',
+          '  (SAMPLE(?atiOverallScore) AS ?atiOverallScore)',
+          '  (SAMPLE(?atiOverallConfidence) AS ?atiOverallConfidence)',
+          '  (SAMPLE(?atiVersion) AS ?atiVersion)',
+          '  (SAMPLE(?atiComputedAt) AS ?atiComputedAt)',
           '  (SAMPLE(?identity8004) AS ?identity8004)',
           '  (SAMPLE(?did8004) AS ?did8004)',
           '  (SAMPLE(?agentId8004) AS ?agentId8004)',
@@ -682,6 +763,30 @@ export async function kbAgentsQuery(args: {
           '      }',
           '    }',
           '  }',
+          ...(analyticsCtxIri
+            ? [
+                '  OPTIONAL {',
+                `    GRAPH <${analyticsCtxIri}> {`,
+                '      OPTIONAL {',
+                '        ?agent analytics:hasTrustLedgerScore ?tls .',
+                '        ?tls a analytics:AgentTrustLedgerScore ; analytics:totalPoints ?trustLedgerTotalPoints .',
+                '        OPTIONAL { ?tls analytics:badgeCount ?trustLedgerBadgeCount . }',
+                '        OPTIONAL { ?tls analytics:trustLedgerComputedAt ?trustLedgerComputedAt . }',
+                '      }',
+                '      BIND(IF(BOUND(?agentId8004), STR(?agentId8004), "") AS ?_agentIdStrHydrate)',
+                '      OPTIONAL {',
+                '        FILTER(?_agentIdStrHydrate != "")',
+                '        ?ati a analytics:AgentTrustIndex ;',
+                '             analytics:agentId ?_agentIdStrHydrate ;',
+                '             analytics:overallScore ?atiOverallScore .',
+                '        OPTIONAL { ?ati analytics:overallConfidence ?atiOverallConfidence . }',
+                '        OPTIONAL { ?ati analytics:version ?atiVersion . }',
+                '        OPTIONAL { ?ati analytics:computedAt ?atiComputedAt . }',
+                '      }',
+                '    }',
+                '  }',
+              ]
+            : []),
           '}',
           'GROUP BY ?agent',
           '',
@@ -751,6 +856,13 @@ export async function kbAgentsQuery(args: {
       createdAtBlock: asNumber(b?.createdAtBlock),
       createdAtTime: asNumber(b?.createdAtTime),
       updatedAtTime: asNumber(b?.updatedAtTime),
+      trustLedgerTotalPoints: asNumber(b?.trustLedgerTotalPoints),
+      trustLedgerBadgeCount: asNumber(b?.trustLedgerBadgeCount),
+      trustLedgerComputedAt: asNumber(b?.trustLedgerComputedAt),
+      atiOverallScore: asNumber(b?.atiOverallScore),
+      atiOverallConfidence: asNumber(b?.atiOverallConfidence),
+      atiVersion: asString(b?.atiVersion),
+      atiComputedAt: asNumber(b?.atiComputedAt),
       identity8004Iri: asString(b?.identity8004),
       did8004: asString(b?.did8004),
       agentId8004: asNumber(b?.agentId8004),
@@ -829,7 +941,16 @@ export async function kbOwnedAgentsQuery(args: {
   ownerAddress: string;
   first?: number | null;
   skip?: number | null;
-  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | 'createdAtTime' | 'updatedAtTime' | null;
+  orderBy?:
+    | 'agentId8004'
+    | 'agentName'
+    | 'uaid'
+    | 'createdAtTime'
+    | 'updatedAtTime'
+    | 'trustLedgerTotalPoints'
+    | 'atiOverallScore'
+    | 'bestRank'
+    | null;
   orderDirection?: 'ASC' | 'DESC' | null;
 }, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
@@ -1054,6 +1175,13 @@ export async function kbOwnedAgentsQuery(args: {
     createdAtBlock: asNumber(b?.createdAtBlock),
     createdAtTime: asNumber(b?.createdAtTime),
     updatedAtTime: asNumber(b?.updatedAtTime),
+    trustLedgerTotalPoints: null, // Not fetched in this query
+    trustLedgerBadgeCount: null, // Not fetched in this query
+    trustLedgerComputedAt: null, // Not fetched in this query
+    atiOverallScore: null, // Not fetched in this query
+    atiOverallConfidence: null, // Not fetched in this query
+    atiVersion: null, // Not fetched in this query
+    atiComputedAt: null, // Not fetched in this query
     identity8004Iri: asString(b?.identity8004),
     did8004: asString(b?.did8004),
     agentId8004: asNumber(b?.agentId8004),
@@ -1149,7 +1277,16 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   ownerAddress: string;
   first?: number | null;
   skip?: number | null;
-  orderBy?: 'agentId8004' | 'agentName' | 'uaid' | 'createdAtTime' | 'updatedAtTime' | null;
+  orderBy?:
+    | 'agentId8004'
+    | 'agentName'
+    | 'uaid'
+    | 'createdAtTime'
+    | 'updatedAtTime'
+    | 'trustLedgerTotalPoints'
+    | 'atiOverallScore'
+    | 'bestRank'
+    | null;
   orderDirection?: 'ASC' | 'DESC' | null;
 }, graphdbCtx?: GraphdbQueryContext | null): Promise<{ rows: KbAgentRow[]; total: number; hasMore: boolean }> {
   const ownerAddress = typeof args.ownerAddress === 'string' ? args.ownerAddress.trim().toLowerCase() : '';
@@ -1316,6 +1453,13 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     createdAtBlock: asNumber(b?.createdAtBlock),
     createdAtTime: asNumber(b?.createdAtTime),
     updatedAtTime: asNumber(b?.updatedAtTime),
+    trustLedgerTotalPoints: null, // Not fetched in simplified query
+    trustLedgerBadgeCount: null, // Not fetched in simplified query
+    trustLedgerComputedAt: null, // Not fetched in simplified query
+    atiOverallScore: null, // Not fetched in simplified query
+    atiOverallConfidence: null, // Not fetched in simplified query
+    atiVersion: null, // Not fetched in simplified query
+    atiComputedAt: null, // Not fetched in simplified query
     identity8004Iri: null, // Not fetched in simplified query
     did8004: asString(b?.did8004),
     agentId8004: asNumber(b?.agentId8004),
