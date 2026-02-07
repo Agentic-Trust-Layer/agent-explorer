@@ -28,6 +28,10 @@ import { syncAccountTypesForChain } from './account-types/sync-account-types.js'
 import { getMaxAgentId8004, getMaxDid8004AgentId, listAgentIriByDidIdentity } from './graphdb/agents.js';
 import { ingestOasfToGraphdb } from './oasf/oasf-ingest.js';
 import { ingestOntologiesToGraphdb } from './ontology/ontology-ingest.js';
+import { runTrustIndexForChains } from './trust-index/trust-index.js';
+import { materializeRegistrationServicesForChain } from './registration/materialize-services.js';
+import { materializeAssertionSummariesForChain } from './trust-summaries/materialize-assertion-summaries.js';
+import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledger.js';
 
 type SyncCommand =
   | 'agents'
@@ -37,12 +41,16 @@ type SyncCommand =
   | 'validations'
   | 'validation-requests'
   | 'validation-responses'
+  | 'assertion-summaries'
   | 'associations'
   | 'association-revocations'
   | 'agent-cards'
   | 'oasf'
   | 'ontologies'
+  | 'trust-index'
+  | 'trust-ledger'
   | 'account-types'
+  | 'materialize-services'
   | 'watch'
   | 'all';
 
@@ -436,6 +444,13 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     await ingestOntologiesToGraphdb({ resetContext });
     return;
   }
+  if (command === 'trust-index') {
+    await runTrustIndexForChains({
+      chainIdsCsv: process.env.SYNC_CHAIN_ID || '1,11155111',
+      resetContext,
+    });
+    return;
+  }
 
   // Filter endpoints by chainId if specified (default to chainId=1,11155111 for mainnet and sepolia)
   const chainIdFilterRaw = process.env.SYNC_CHAIN_ID || '1,11155111';
@@ -513,6 +528,11 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         case 'validation-responses':
           await syncValidationResponses(endpoint, resetContext);
           break;
+        case 'assertion-summaries':
+          await materializeAssertionSummariesForChain(endpoint.chainId, {
+            limit: process.env.SYNC_ASSERTION_SUMMARIES_LIMIT ? Number(process.env.SYNC_ASSERTION_SUMMARIES_LIMIT) : undefined,
+          });
+          break;
         case 'associations':
           await syncAssociations(endpoint, resetContext);
           await syncAssociationRevocations(endpoint, resetContext);
@@ -523,6 +543,17 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         case 'agent-cards':
           await syncAgentCardsForChain(endpoint.chainId, { force: process.env.SYNC_AGENT_CARDS_FORCE === '1' });
           break;
+        case 'materialize-services':
+          await materializeRegistrationServicesForChain(endpoint.chainId, {
+            limit: process.env.SYNC_MATERIALIZE_SERVICES_LIMIT ? Number(process.env.SYNC_MATERIALIZE_SERVICES_LIMIT) : undefined,
+          });
+          break;
+        case 'trust-ledger': {
+          const limitScores = process.env.SYNC_TRUST_LEDGER_SCORES_LIMIT ? Number(process.env.SYNC_TRUST_LEDGER_SCORES_LIMIT) : undefined;
+          const limitBadgeDefs = process.env.SYNC_TRUST_LEDGER_BADGES_LIMIT ? Number(process.env.SYNC_TRUST_LEDGER_BADGES_LIMIT) : undefined;
+          await syncTrustLedgerToGraphdbForChain(endpoint.chainId, { resetContext, limitScores, limitBadgeDefs });
+          break;
+        }
         case 'account-types': {
           const limitArg = process.argv.find((a) => a.startsWith('--limit=')) ?? '';
           const concArg = process.argv.find((a) => a.startsWith('--concurrency=')) ?? '';
@@ -538,10 +569,13 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
           await syncFeedbackResponses(endpoint, resetContext);
           await syncValidationRequests(endpoint, resetContext);
           await syncValidationResponses(endpoint, resetContext);
+          await materializeAssertionSummariesForChain(endpoint.chainId, {});
           await syncAssociations(endpoint, resetContext);
           await syncAssociationRevocations(endpoint, resetContext);
+          await materializeRegistrationServicesForChain(endpoint.chainId, {});
           await syncAgentCardsForChain(endpoint.chainId, { force: process.env.SYNC_AGENT_CARDS_FORCE === '1' });
           await syncAccountTypesForChain(endpoint.chainId, {});
+          await syncTrustLedgerToGraphdbForChain(endpoint.chainId, { resetContext });
           break;
         default:
           console.error(`[sync] unknown command: ${command}`);

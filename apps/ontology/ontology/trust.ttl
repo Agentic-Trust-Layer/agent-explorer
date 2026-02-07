@@ -283,9 +283,21 @@
   rdfs:domain :FeedbackAssertionSummary ;
   rdfs:range xsd:integer .
 
+:lastFeedbackAtTime a owl:DatatypeProperty ;
+  rdfs:label "lastFeedbackAtTime" ;
+  rdfs:comment "Unix epoch seconds timestamp of the most recent feedback/reputation assertion observed for an agent (best-effort)." ;
+  rdfs:domain :FeedbackAssertionSummary ;
+  rdfs:range xsd:integer .
+
 :validationAssertionCount a owl:DatatypeProperty ;
   rdfs:label "validationAssertionCount" ;
   rdfs:comment "Precomputed count of validation/verification assertions for an agent (materialized on a summary entity)." ;
+  rdfs:domain :ValidationAssertionSummary ;
+  rdfs:range xsd:integer .
+
+:lastValidationAtTime a owl:DatatypeProperty ;
+  rdfs:label "lastValidationAtTime" ;
+  rdfs:comment "Unix epoch seconds timestamp of the most recent validation/verification assertion observed for an agent (best-effort)." ;
   rdfs:domain :ValidationAssertionSummary ;
   rdfs:range xsd:integer .
 

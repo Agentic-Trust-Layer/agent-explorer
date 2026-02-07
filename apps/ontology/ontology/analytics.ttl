@@ -154,3 +154,57 @@
   rdfs:domain :TrustLedgerBadgeDefinition ;
   rdfs:range xsd:integer .
 
+########
+# Trust Ledger scores (per-agent rollups)
+########
+
+:AgentTrustLedgerScore a owl:Class ;
+  rdfs:label "AgentTrustLedgerScore" ;
+  rdfs:comment "Precomputed trust-ledger score rollup for an agent (e.g. totalPoints, badgeCount) exported into GraphDB for ranking." ;
+  rdfs:subClassOf prov:Entity .
+
+:hasTrustLedgerScore a owl:ObjectProperty ;
+  rdfs:label "has trust ledger score" ;
+  rdfs:comment "Links an agent to its trust-ledger score rollup." ;
+  rdfs:domain core:AIAgent ;
+  rdfs:range :AgentTrustLedgerScore .
+
+:trustLedgerForAgent a owl:ObjectProperty ;
+  rdfs:label "trust ledger for agent" ;
+  rdfs:comment "Back-link from a trust-ledger score record to the agent it applies to." ;
+  rdfs:domain :AgentTrustLedgerScore ;
+  rdfs:range core:AIAgent .
+
+:totalPoints a owl:DatatypeProperty ;
+  rdfs:label "totalPoints" ;
+  rdfs:domain :AgentTrustLedgerScore ;
+  rdfs:range xsd:integer .
+
+:trustLedgerChainId a owl:DatatypeProperty ;
+  rdfs:label "trustLedgerChainId" ;
+  rdfs:domain :AgentTrustLedgerScore ;
+  rdfs:range xsd:integer .
+
+:trustLedgerAgentId a owl:DatatypeProperty ;
+  rdfs:label "trustLedgerAgentId" ;
+  rdfs:comment "Legacy numeric ERC-8004 agentId (string form, as stored in indexer DB)." ;
+  rdfs:domain :AgentTrustLedgerScore ;
+  rdfs:range xsd:string .
+
+:badgeCount a owl:DatatypeProperty ;
+  rdfs:label "badgeCount" ;
+  rdfs:domain :AgentTrustLedgerScore ;
+  rdfs:range xsd:integer .
+
+:trustLedgerComputedAt a owl:DatatypeProperty ;
+  rdfs:label "trustLedgerComputedAt" ;
+  rdfs:comment "Unix epoch seconds." ;
+  rdfs:domain :AgentTrustLedgerScore ;
+  rdfs:range xsd:integer .
+
+:digestJson a owl:DatatypeProperty ;
+  rdfs:label "digestJson" ;
+  rdfs:comment "Optional JSON digest/breakdown payload, if available." ;
+  rdfs:domain :AgentTrustLedgerScore ;
+  rdfs:range xsd:string .
+

@@ -105,6 +105,66 @@ function parseDescriptorFieldsFromJson(jsonText: string): { name: string | null;
   }
 }
 
+function bytesFromLatin1String(s: string): Uint8Array {
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i) & 0xff;
+  return out;
+}
+
+function tryNodeGunzip(bytes: Uint8Array): string | null {
+  // Avoid TS/node typings by using dynamic require (sync runs in Node).
+  try {
+    const req = (0, eval)('require') as any;
+    const zlib = req ? req('node:zlib') ?? req('zlib') : null;
+    const B = (globalThis as any).Buffer as any;
+    if (!zlib || typeof zlib.gunzipSync !== 'function' || !B) return null;
+    const buf = zlib.gunzipSync(B.from(bytes));
+    const text = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+    return text && text.trim() ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+function decodePossiblyCompressedJsonText(raw: string): string {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  if (s.startsWith('{') || s.startsWith('[')) return s;
+
+  // Case 1: raw bytes came through as a binary-ish string (often starts with gzip magic 0x1f 0x8b).
+  try {
+    const bytes = bytesFromLatin1String(s);
+    if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+      const gunzipped = tryNodeGunzip(bytes);
+      if (gunzipped) {
+        const t = gunzipped.trim();
+        if (t.startsWith('{') || t.startsWith('[')) return t;
+      }
+    }
+  } catch {}
+
+  // Case 2: base64-encoded payload (optionally gzip-compressed).
+  try {
+    const b64ish = /^[A-Za-z0-9+/=\s]+$/.test(s) && s.length >= 64;
+    const B = (globalThis as any).Buffer as any;
+    if (b64ish && B) {
+      const bytes = new Uint8Array(B.from(s.replace(/\s+/g, ''), 'base64'));
+      if (bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b) {
+        const gunzipped = tryNodeGunzip(bytes);
+        if (gunzipped) {
+          const t = gunzipped.trim();
+          if (t.startsWith('{') || t.startsWith('[')) return t;
+        }
+      }
+      const asUtf8 = new TextDecoder('utf-8', { fatal: false }).decode(bytes).trim();
+      if (asUtf8.startsWith('{') || asUtf8.startsWith('[')) return asUtf8;
+    }
+  } catch {}
+
+  // Give up: keep original (so we don't delete data).
+  return s;
+}
+
 function pickString(obj: any, keys: string[]): string {
   if (!obj || typeof obj !== 'object') return '';
   for (const k of keys) {
@@ -167,7 +227,12 @@ function parseRegistrationEndpoints(jsonText: string): any[] {
   if (!(raw.startsWith('{') || raw.startsWith('['))) return [];
   try {
     const obj: any = JSON.parse(raw);
-    const endpoints = Array.isArray(obj?.endpoints) ? obj.endpoints : [];
+    // Support both legacy `endpoints` and current `services` shapes.
+    const endpoints = Array.isArray(obj?.endpoints)
+      ? obj.endpoints
+      : Array.isArray(obj?.services)
+        ? obj.services
+        : [];
     return Array.isArray(endpoints) ? endpoints : [];
   } catch {
     return [];
@@ -317,7 +382,7 @@ export function emitAgentsTurtle(
     // Prefer UX fields from the identity descriptor JSON (registration JSON).
     // Requirement: pick the first non-empty value from descriptor JSON (identity descriptor is the first/primary descriptor).
     const registrationRaw = typeof item?.registration?.raw === 'string' && item.registration.raw.trim() ? item.registration.raw.trim() : '';
-    const registrationJsonText = registrationRaw;
+    const registrationJsonText = registrationRaw ? decodePossiblyCompressedJsonText(registrationRaw) : '';
     const parsedFromDescriptorJson = registrationJsonText ? parseDescriptorFieldsFromJson(registrationJsonText) : { name: null, description: null, image: null };
 
     const name = (typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '') || metaAgentName;
@@ -501,8 +566,9 @@ export function emitAgentsTurtle(
         allSkills.push(...skills);
         allDomains.push(...domains);
 
-        const protocol: 'a2a' | 'mcp' | null =
-          epName.includes('a2a') ? 'a2a' : epName.includes('mcp') ? 'mcp' : skills.length || domains.length ? 'a2a' : null;
+        // Only materialize Protocol/ServiceEndpoint triples for known protocol types.
+        // Other `services` (e.g. OASF, web, twitter, email) are kept as descriptor evidence only.
+        const protocol: 'a2a' | 'mcp' | null = epName.includes('a2a') ? 'a2a' : epName.includes('mcp') ? 'mcp' : null;
         if (!protocol) continue;
 
         lines.push(

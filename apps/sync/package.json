@@ -12,8 +12,12 @@
     "sync:associations": "tsx src/cli.ts associations",
     "sync:validations": "tsx src/cli.ts validations",
     "sync:agent-cards": "tsx src/cli.ts agent-cards",
+    "sync:materialize-services": "tsx src/cli.ts materialize-services",
+    "sync:assertion-summaries": "tsx src/cli.ts assertion-summaries",
+    "sync:trust-ledger": "tsx src/cli.ts trust-ledger",
     "sync:oasf": "tsx src/cli.ts oasf",
     "sync:ontologies": "tsx src/cli.ts ontologies",
+    "sync:trust-index": "tsx src/cli.ts trust-index",
     "sync:account-types": "tsx src/cli.ts account-types",
     "sync:all": "tsx src/cli.ts all",
     "sync:watch": "tsx src/cli.ts watch all"
