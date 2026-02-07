@@ -162,7 +162,7 @@ export function emitHolAgentsTurtle(items: HolAgentData[]): string {
     }
 
     // Agent node
-    lines.push(`${agentNodeIri} a core:AIAgent, hol:AIAgentHOL, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+    lines.push(`${agentNodeIri} a core:AIAgent, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
     lines.push(`  core:hasIdentity ${identityIri} ;`);
     lines.push(`  core:hasDescriptor ${agentDescIri} ;`);

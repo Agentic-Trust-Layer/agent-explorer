@@ -266,18 +266,18 @@ async function syncSingleAgentToGraphdb(chainId: number, agentId: string): Promi
   const uaid = `uaid:${didAccountSmart ?? didIdentity}`;
 
   const agentNodeIri = didAccountSmart ? agentIriFromAccountDid(didAccountSmart) : agentIri(chainId, agentId);
-  const agentType = didAccountSmart ? 'erc8004:SmartAgent' : 'erc8004:AIAgent8004';
+  const agentExtraType = didAccountSmart ? ', core:AISmartAgent' : '';
 
   const lines: string[] = [rdfPrefixes()];
 
   // Agent node
-  lines.push(`${agentNodeIri} a core:AIAgent, ${agentType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+  lines.push(`${agentNodeIri} a core:AIAgent${agentExtraType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
   const name = typeof agentRow?.name === 'string' ? agentRow.name.trim() : '';
   lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
   const ownerAcct = accountIri(chainId, owner);
   const walletAcct = accountIri(chainId, wallet);
   // Account relationships live on the ERC-8004 identity (AgentIdentity8004), not on the agent node.
-  if (didAccountSmart) lines.push(`  erc8004:hasAgentAccount ${accountIri(chainId, metaAgentAccount!)} ;`);
+  if (didAccountSmart) lines.push(`  core:hasAgentAccount ${accountIri(chainId, metaAgentAccount!)} ;`);
   if (name) {
     const agentIriInner = agentNodeIri.replace(/^<|>$/g, '');
     const agentDescIri = `<https://www.agentictrust.io/id/agent-descriptor/${encodeURIComponent(agentIriInner).replace(/%/g, '_')}>`;

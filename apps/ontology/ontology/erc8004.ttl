@@ -39,23 +39,6 @@
   rdfs:subClassOf core:AgentIdentity ;
   rdfs:subClassOf prov:Entity .
 
-:AIAgent8004 a owl:Class ;
-  rdfs:label "AIAgent8004" ;
-  rdfs:comment "ERC-8004 discoverable AI agent node." ;
-  rdfs:subClassOf core:AIAgent ;
-  rdfs:subClassOf prov:SoftwareAgent .
-
-:SmartAgent a owl:Class ;
-  rdfs:label "SmartAgent" ;
-  rdfs:comment "ERC-8004 AI agent that is associated with a Smart Account (account abstraction / contract account)." ;
-  rdfs:subClassOf :AIAgent8004 .
-
-:hasAgentAccount a owl:ObjectProperty ;
-  rdfs:label "hasAgentAccount" ;
-  rdfs:comment "Associates a SmartAgent with its AgentAccount node (an ERC-8004 agent-controlled account, typically a smart account)." ;
-  rdfs:domain :SmartAgent ;
-  rdfs:range :AgentAccount .
-
 :hasOwnerAccount a owl:ObjectProperty ;
   rdfs:label "hasOwnerAccount" ;
   rdfs:comment "Links an ERC-8004 agent identity to its owner account (EOA or Smart Account)." ;

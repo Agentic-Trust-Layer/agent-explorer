@@ -16,16 +16,6 @@
   owl:imports <http://www.w3.org/ns/prov-o#> .
 
 ########
-# HOL agent class
-########
-
-:AIAgentHOL a owl:Class ;
-  rdfs:label "AIAgentHOL" ;
-  rdfs:comment "AI agent discovered/represented via HOL (Hashgraph Online)." ;
-  rdfs:subClassOf core:AIAgent ;
-  rdfs:subClassOf prov:SoftwareAgent .
-
-########
 # HOL identity layer
 ########
 

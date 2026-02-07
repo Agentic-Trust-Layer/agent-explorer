@@ -137,8 +137,8 @@ SELECT ?agent ?didIdentity ?didAccount ?registrationJson WHERE {
     ?desc8004 erc8004:registrationJson ?registrationJson .
 
     OPTIONAL {
-      ?agent a erc8004:SmartAgent ;
-             erc8004:hasAgentAccount ?sa .
+      ?agent a core:AISmartAgent ;
+             core:hasAgentAccount ?sa .
       ?sa eth:hasAccountIdentifier ?saIdent .
       ?saIdent core:protocolIdentifier ?didSmart .
     }

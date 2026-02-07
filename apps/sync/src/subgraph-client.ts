@@ -567,6 +567,36 @@ export const ASSOCIATION_REVOCATIONS_QUERY = `query AssociationRevocations($firs
   }
 }`;
 
+// ERC-8122 registry agents + metadata (optional: not all subgraphs expose these fields)
+export const REGISTRY_AGENT_8122_QUERY = `query RegistryAgent8122S($first: Int!, $skip: Int!) {
+  registryAgent8122S(first: $first, skip: $skip, orderBy: createdAt, orderDirection: asc) {
+    agentId
+    createdAt
+    endpoint
+    owner
+    id
+    endpointType
+    registry
+    updatedAt
+    agentAccount
+  }
+}`;
+
+export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY = `query RegistryAgent8122MetadataCollection($first: Int!, $skip: Int!) {
+  registryAgent8122Metadata_collection(first: $first, skip: $skip, orderBy: setAt, orderDirection: asc) {
+    agentId
+    blockNumber
+    id
+    indexedKey
+    key
+    registry
+    setAt
+    timestamp
+    txHash
+    value
+  }
+}`;
+
 export async function fetchAllFromSubgraph(
   graphqlUrl: string,
   query: string,

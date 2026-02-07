@@ -363,8 +363,8 @@ export function emitAgentsTurtle(
     const didAccountSmart = metaAgentAccount ? `did:ethr:${chainId}:${metaAgentAccount}` : null;
     // UAID is a UAID-string (not a DID). Clients expect it to start with "uaid:".
     // We currently derive it from the authority / native identifier we already have:
-    // - SmartAgent: did:ethr:<chainId>:<smartAccount>
-    // - AIAgent8004: did:8004:<chainId>:<agentId>
+    // - AISmartAgent: did:ethr:<chainId>:<smartAccount>
+    // - AIAgent: did:8004:<chainId>:<agentId>
     const uaid = `uaid:${didAccountSmart ?? didIdentity}`;
     const didAccountForProtocols = didAccountSmart ?? didAccountEoa;
     const deferredNodes: string[] = [];
@@ -374,10 +374,10 @@ export function emitAgentsTurtle(
     // - Non-smart ERC-8004 agent stays keyed off agentId
     const agentNodeIri = didAccountSmart ? agentIriFromAccountDid(didAccountSmart) : agentIri(chainId, agentId);
 
-    // Agent node: emit the most specific type only; inference gives core:AIAgent etc.
-    const agentType = metaAgentAccount ? 'erc8004:SmartAgent' : 'erc8004:AIAgent8004';
+    // Agent node: only core:AIAgent plus optional core:AISmartAgent (registry-agnostic).
     // Emit core:AIAgent explicitly so queries don't rely on inference.
-    lines.push(`${agentNodeIri} a core:AIAgent, ${agentType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+    const agentExtraType = metaAgentAccount ? ', core:AISmartAgent' : '';
+    lines.push(`${agentNodeIri} a core:AIAgent${agentExtraType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
 
     // Prefer UX fields from the identity descriptor JSON (registration JSON).
     // Requirement: pick the first non-empty value from descriptor JSON (identity descriptor is the first/primary descriptor).
@@ -412,8 +412,8 @@ export function emitAgentsTurtle(
     void walletAcctIri;
 
     if (metaAgentAccount) {
-      // SmartAgent should be the only thing that links to its agentAccount
-      if (smartAccountIri) lines.push(`  erc8004:hasAgentAccount ${smartAccountIri} ;`);
+      // AISmartAgent should be the only thing that links to its agentAccount
+      if (smartAccountIri) lines.push(`  core:hasAgentAccount ${smartAccountIri} ;`);
       // Defer SmartAccount + identifier node emission until after the agent triple is terminated with '.'
       const acctIdIri = accountIdentifierIri(didAccountSmart!);
       if (smartAccountIri) {

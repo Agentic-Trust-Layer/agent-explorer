@@ -146,7 +146,7 @@ export async function kbHydrateAgentsByDid8004(
     '    OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount }',
     '    OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount }',
     '    OPTIONAL { ?identity8004 erc8004:hasOwnerEOAAccount ?identityOwnerEOAAccount }',
-    '    OPTIONAL { ?agent a erc8004:SmartAgent ; erc8004:hasAgentAccount ?agentAccount }',
+    '    OPTIONAL { ?agent a core:AISmartAgent ; core:hasAgentAccount ?agentAccount }',
     '    OPTIONAL {',
     '      ?agent core:hasIdentity ?identityEns .',
     '      ?identityEns a ens:AgentIdentityEns ; core:hasIdentifier ?ensIdent .',

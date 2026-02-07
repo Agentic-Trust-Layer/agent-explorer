@@ -468,7 +468,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             did: r.did8004,
             did8004: r.did8004,
             agentId8004: r.agentId8004 == null ? null : Math.trunc(r.agentId8004),
-            isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
+            isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/core#AISmartAgent'),
             descriptor: identity8004Descriptor,
             serviceEndpoints,
             ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
@@ -480,6 +480,41 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
         : null;
 
     const identityEns = r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns, descriptor: null, serviceEndpoints: [] } : null;
+
+    const identity8122Descriptor =
+      r.identity8122DescriptorIri
+        ? {
+            iri: r.identity8122DescriptorIri,
+            kind: '8122',
+            name: r.identity8122DescriptorName,
+            description: r.identity8122DescriptorDescription,
+            image: r.identity8122DescriptorImage,
+            registrationJson: r.identity8122DescriptorJson,
+            nftMetadataJson: null,
+            registeredBy: null,
+            registryNamespace: null,
+            skills: [],
+            domains: [],
+          }
+        : null;
+
+    const identity8122 =
+      r.identity8122Iri && r.did8122 && r.agentId8122
+        ? {
+            iri: r.identity8122Iri,
+            kind: '8122',
+            did: r.did8122,
+            did8122: r.did8122,
+            agentId8122: r.agentId8122,
+            registryAddress: r.registry8122,
+            endpointType: r.endpointType8122,
+            endpoint: r.endpoint8122,
+            descriptor: identity8122Descriptor,
+            serviceEndpoints: [],
+            ownerAccount: r.identity8122OwnerAccountIri ? kbAccountFromIri(r.identity8122OwnerAccountIri) : null,
+            agentAccount: r.identity8122AgentAccountIri ? kbAccountFromIri(r.identity8122AgentAccountIri) : null,
+          }
+        : null;
 
     const identityHol =
       r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
@@ -497,6 +532,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       (r.identity8004Iri && r.did8004
         ? { iri: r.identity8004Iri, kind: '8004', did: r.did8004, descriptor: identity8004Descriptor, serviceEndpoints }
         : null) ??
+      (identity8122 ? { ...identity8122 } : null) ??
       (identityHol ? { ...identityHol } : null) ??
       identityEns;
 
@@ -527,6 +563,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       atiComputedAt: r.atiComputedAt == null ? null : Math.trunc(r.atiComputedAt),
       serviceEndpoints,
       identity8004,
+      identity8122,
       identityEns,
       identityHol,
       identity,

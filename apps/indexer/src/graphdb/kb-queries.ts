@@ -58,6 +58,21 @@ export type KbAgentRow = {
 
   agentAccountIri: string | null;
 
+  // ERC-8122 identity
+  identity8122Iri: string | null;
+  did8122: string | null;
+  agentId8122: string | null;
+  registry8122: string | null;
+  endpointType8122: string | null;
+  endpoint8122: string | null;
+  identity8122DescriptorIri: string | null;
+  identity8122DescriptorName: string | null;
+  identity8122DescriptorDescription: string | null;
+  identity8122DescriptorImage: string | null;
+  identity8122DescriptorJson: string | null;
+  identity8122OwnerAccountIri: string | null;
+  identity8122AgentAccountIri: string | null;
+
   a2aServiceEndpointIri: string | null;
   a2aServiceUrl: string | null;
   a2aProtocolIri: string | null;
@@ -167,10 +182,7 @@ function did8004FromParts(chainId: number, agentId8004: number): string {
 function pickAgentTypesFromRow(typeValues: string[]): string[] {
   // Prefer most-specific types first.
   const preferred = [
-    'https://agentictrust.io/ontology/erc8004#SmartAgent',
-    'https://agentictrust.io/ontology/erc8004#AIAgent8004',
-    'https://agentictrust.io/ontology/hol#AIAgentHOL',
-    'https://agentictrust.io/ontology/nanda#AIAgentNanda',
+    'https://agentictrust.io/ontology/core#AISmartAgent',
     'https://agentictrust.io/ontology/core#AIAgent',
   ];
   const set = new Set(typeValues.filter(Boolean));
@@ -240,7 +252,8 @@ export async function kbAgentsQuery(args: {
   const minValidation =
     where.minValidationAssertionCount != null ? clampInt(where.minValidationAssertionCount, 0, 10_000_000_000, 0) : null;
 
-  const orderBy = args.orderBy ?? 'agentId8004';
+  // Default ordering: use createdAtTime so ranking never depends on ERC-8004-only agentId values.
+  const orderBy = args.orderBy ?? 'createdAtTime';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const ord = (expr: string) => (orderDirection === 'ASC' ? `ASC(${expr})` : `DESC(${expr})`);
 
@@ -251,7 +264,7 @@ export async function kbAgentsQuery(args: {
 
   const orderExpr = (() => {
     if (wantsAnalyticsOrder && !analyticsOrderEnabled) {
-      return `${ord('?agentId8004')} ASC(STR(?agent))`;
+      return `${ord('IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)')} ASC(STR(?agent))`;
     }
     if (orderBy === 'agentName') return `${ord('LCASE(STR(?agentName))')} ASC(STR(?agent))`;
     if (orderBy === 'uaid') return `${ord('LCASE(STR(?uaid))')} ASC(STR(?agent))`;
@@ -271,7 +284,8 @@ export async function kbAgentsQuery(args: {
         'ASC(STR(?agent))',
       ].join(' ');
     }
-    return `${ord('?agentId8004')} ASC(STR(?agent))`;
+    // Default/fallback ordering: createdAtTime (not agentId8004).
+    return `${ord('IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)')} ASC(STR(?agent))`;
   })();
 
   const graphClause = graphs
@@ -280,41 +294,50 @@ export async function kbAgentsQuery(args: {
   const graphClose = graphs ? `  }` : `}`;
 
   const filters: string[] = [];
+  // Identifier/name filters are expressed as EXISTS checks to avoid fanout (and avoid needing SELECT DISTINCT).
   if (did8004Filter) {
-    filters.push(`?did8004 = "${did8004Filter}"`);
+    const escaped = did8004Filter.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    filters.push(
+      `EXISTS { ?agent core:hasIdentity ?_id8004 . ?_id8004 a erc8004:AgentIdentity8004 ; core:hasIdentifier ?_ident8004 . ?_ident8004 core:protocolIdentifier "${escaped}" }`,
+    );
   }
   // agentIdentifierMatch: suffix match on identifiers (did8004, didEns, uaid)
   if (agentIdentifierMatch) {
     const escaped = agentIdentifierMatch.replace(/"/g, '\\"').replace(/\\/g, '\\\\');
     filters.push(
-      `((BOUND(?did8004) && STRENDS(STR(?did8004), ":${escaped}")) || (BOUND(?didEns) && STRENDS(STR(?didEns), ":${escaped}")) || (BOUND(?uaid) && STRENDS(STR(?uaid), ":${escaped}")))`,
+      `(` +
+        `EXISTS { ?agent core:hasIdentity ?_id8004m . ?_id8004m a erc8004:AgentIdentity8004 ; core:hasIdentifier ?_ident8004m . ?_ident8004m core:protocolIdentifier ?_did8004m . FILTER(STRENDS(STR(?_did8004m), ":${escaped}")) }` +
+        ` || EXISTS { ?agent core:hasIdentity ?_idEnsm . ?_idEnsm a ens:AgentIdentityEns ; core:hasIdentifier ?_identEnsm . ?_identEnsm core:protocolIdentifier ?_didEnsm . FILTER(STRENDS(STR(?_didEnsm), ":${escaped}")) }` +
+        ` || EXISTS { ?agent core:uaid ?_uaidm . FILTER(STRENDS(STR(?_uaidm), ":${escaped}")) }` +
+        `)`,
     );
   }
   if (uaidFilter) {
     // Allow "base UAID" (no routing params) to match stored UAIDs that include ";k=v" suffixes.
-    // Examples:
-    // - input: uaid:aid:XYZ
-    // - stored: uaid:aid:XYZ;uid=...;registry=...;proto=...
     const escaped = uaidFilter.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
     if (uaidFilter.includes(';')) {
-      filters.push(`?uaid = "${escaped}"`);
+      filters.push(`EXISTS { ?agent core:uaid ?_uaid . FILTER(STR(?_uaid) = "${escaped}") }`);
     } else {
-      filters.push(`(BOUND(?uaid) && (?uaid = "${escaped}" || STRSTARTS(STR(?uaid), "${escaped};")))`);
+      filters.push(
+        `EXISTS { ?agent core:uaid ?_uaid . FILTER(STR(?_uaid) = "${escaped}" || STRSTARTS(STR(?_uaid), "${escaped};")) }`,
+      );
     }
   }
   if (uaidIn && uaidIn.length) {
-    const values = uaidIn.map((u) => `"${u.replace(/"/g, '\\"')}"`).join(' ');
-    filters.push(`?uaid IN (${values})`);
+    const values = uaidIn.map((u) => `"${String(u).replace(/"/g, '\\"')}"`).join(' ');
+    filters.push(`EXISTS { ?agent core:uaid ?_uaidIn . FILTER(STR(?_uaidIn) IN (${values})) }`);
   }
   if (agentNameContains) {
     const escaped = agentNameContains.replace(/"/g, '\\"');
-    filters.push(`CONTAINS(LCASE(STR(?agentName)), LCASE("${escaped}"))`);
+    filters.push(
+      `EXISTS { ?agent core:hasDescriptor ?_agentDescName . ?_agentDescName dcterms:title ?_agentNameLit . FILTER(CONTAINS(LCASE(STR(?_agentNameLit)), LCASE("${escaped}"))) }`,
+    );
   }
   if (where.isSmartAgent === true) {
-    filters.push(`EXISTS { ?agent a erc8004:SmartAgent }`);
+    filters.push(`EXISTS { ?agent a core:AISmartAgent }`);
   }
   if (where.isSmartAgent === false) {
-    filters.push(`NOT EXISTS { ?agent a erc8004:SmartAgent }`);
+    filters.push(`NOT EXISTS { ?agent a core:AISmartAgent }`);
   }
   if (where.hasA2a === true) {
     filters.push(
@@ -327,27 +350,17 @@ export async function kbAgentsQuery(args: {
     );
   }
 
-  // If we're filtering to only agents-with-assertions, anchor the query on the assertion edges
-  // instead of using EXISTS filters (much faster in GraphDB).
-  const requiredPatterns: string[] = [];
+  // Assertion filters are expressed as EXISTS checks to avoid fanout joins (which force DISTINCT).
   const hasFeedbackExpr = `EXISTS { ?agent core:hasReputationAssertion ?_fb . }`;
   const hasValidationExpr = `EXISTS { ?agent core:hasVerificationAssertion ?_vr . }`;
-
   const wantReviews = where.hasReviews;
   const wantValidations = where.hasValidations;
 
-  if (wantReviews === true && wantValidations === true) {
-    requiredPatterns.push('    ?agent core:hasReputationAssertion ?_fbReq .');
-    requiredPatterns.push('    ?agent core:hasVerificationAssertion ?_vrReq .');
-  } else if (wantReviews === true) {
-    requiredPatterns.push('    ?agent core:hasReputationAssertion ?_fbReq .');
-  } else if (wantValidations === true) {
-    requiredPatterns.push('    ?agent core:hasVerificationAssertion ?_vrReq .');
-  } else if (where.hasAssertions === true) {
-    requiredPatterns.push('    { ?agent core:hasReputationAssertion ?_fbReq . } UNION { ?agent core:hasVerificationAssertion ?_vrReq . }');
+  if (wantReviews === true) filters.push(hasFeedbackExpr);
+  if (wantValidations === true) filters.push(hasValidationExpr);
+  if (where.hasAssertions === true && wantReviews !== true && wantValidations !== true) {
+    filters.push(`(${hasFeedbackExpr} || ${hasValidationExpr})`);
   }
-
-  // Keep the negative filters as EXISTS; these inherently need a NOT EXISTS check.
   if (where.hasAssertions === false) filters.push(`NOT (${hasFeedbackExpr} || ${hasValidationExpr})`);
   if (wantReviews === false) filters.push(`NOT ${hasFeedbackExpr}`);
   if (wantValidations === false) filters.push(`NOT ${hasValidationExpr}`);
@@ -371,11 +384,12 @@ export async function kbAgentsQuery(args: {
     filters.push(`?vrCntFilter >= ${minValidation}`);
   }
 
-  const needsUaid = Boolean(uaidFilter || (uaidIn && uaidIn.length) || orderBy === 'uaid' || agentIdentifierMatch);
-  const needsAgentName = Boolean(agentNameContains || orderBy === 'agentName');
-  const needsDid8004 = Boolean(did8004Filter || agentIdentifierMatch);
+  // Only bind order-by keys in the page query; filters use EXISTS blocks above.
+  const needsUaid = orderBy === 'uaid';
+  const needsAgentName = orderBy === 'agentName';
   const needsAgentTimes = orderBy === 'createdAtTime' || orderBy === 'updatedAtTime' || orderBy === 'bestRank';
   const needsAnalytics = wantsAnalyticsOrder && analyticsOrderEnabled;
+  const needsEnsPrefix = Boolean(agentIdentifierMatch);
 
   const pageOptional: string[] = [];
   if (needsUaid) pageOptional.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
@@ -412,34 +426,10 @@ export async function kbAgentsQuery(args: {
     pageOptional.push('    }');
   }
 
-  // Fast path: when ordering by agentId8004, use the materialized numeric literal on the agent node.
-  // IMPORTANT: do not require agentId8004 when the caller is filtering by UAID/identifier (HOL agents
-  // will not have erc8004:agentId8004, and requiring it causes "count>0 but page=0").
-  const pageRequireAgentId =
-    (orderBy === 'agentId8004' && !uaidFilter && !(uaidIn && uaidIn.length) && !agentIdentifierMatch) || needsAnalytics;
-  const pageAgentIdPattern = pageRequireAgentId
-    ? ['    ?agent erc8004:agentId8004 ?agentId8004 .']
-    : ['    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }'];
-
-  const needsDidEns = Boolean(agentIdentifierMatch);
-  const pageDid8004Optional = needsDid8004
-    ? [
-        '    OPTIONAL {',
-        '      ?agent core:hasIdentity ?identity8004 .',
-        '      ?identity8004 a erc8004:AgentIdentity8004 ; core:hasIdentifier ?ident8004 .',
-        '      ?ident8004 core:protocolIdentifier ?did8004 .',
-        '    }',
-      ]
-    : [];
-  const pageDidEnsOptional = needsDidEns
-    ? [
-        '    OPTIONAL {',
-        '      ?agent core:hasIdentity ?identityEns .',
-        '      ?identityEns a ens:AgentIdentityEns ; core:hasIdentifier ?ensIdent .',
-        '      ?ensIdent core:protocolIdentifier ?didEns .',
-        '    }',
-      ]
-    : [];
+  // Only bind agentId8004 when we need it for ATI joins / explicit ordering.
+  const needsAgentId8004 =
+    orderBy === 'agentId8004' || ((orderBy === 'atiOverallScore' || orderBy === 'bestRank') && needsAnalytics);
+  const pageAgentIdPattern = needsAgentId8004 ? ['    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }'] : [];
 
   // Phase 1: page query (agent ids + graph context only).
   const pageSelectVars =
@@ -463,7 +453,11 @@ export async function kbAgentsQuery(args: {
     ? `GRAPH <${ctxIri}> {`
     : graphClause;
   const pageGraphClose = ctxIri ? `}` : graphClose;
-  const pageSelect = ctxIri ? `SELECT DISTINCT ${pageSelectVars} WHERE {` : `SELECT DISTINCT ?g ${pageSelectVars} WHERE {`;
+  // Avoid DISTINCT unless we expect multi-valued order keys (uaid/name).
+  const pageDistinct = orderBy === 'uaid' || orderBy === 'agentName';
+  const pageSelect = ctxIri
+    ? `${pageDistinct ? 'SELECT DISTINCT' : 'SELECT'} ${pageSelectVars} WHERE {`
+    : `${pageDistinct ? 'SELECT DISTINCT' : 'SELECT'} ?g ${pageSelectVars} WHERE {`;
 
   const pageSparql = [
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
@@ -471,19 +465,13 @@ export async function kbAgentsQuery(args: {
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
     'PREFIX dcterms: <http://purl.org/dc/terms/>',
     ...(needsAnalytics ? ['PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>'] : []),
-    ...(needsDidEns ? ['PREFIX ens: <https://agentictrust.io/ontology/ens#>'] : []),
+    ...(needsEnsPrefix ? ['PREFIX ens: <https://agentictrust.io/ontology/ens#>'] : []),
     '',
-    // DISTINCT is required when anchoring on assertion edges to avoid LIMIT being applied to fanout rows.
     pageSelect,
     `  ${pageGraphClause}`,
-    // NOTE: keep a core:AIAgent anchor only when we are not already anchored via requiredPatterns.
-    // When requiredPatterns is empty, this keeps the query selective and avoids stray nodes.
-    ...(requiredPatterns.length ? [] : ['    ?agent a core:AIAgent .']),
-    ...requiredPatterns,
+    '    ?agent a core:AIAgent .',
     ...pageOptional,
     ...pageAgentIdPattern,
-    ...pageDid8004Optional,
-    ...pageDidEnsOptional,
     ...pagePreFilter,
     filters.length ? `    FILTER(${filters.join(' && ')})` : '',
     `  ${pageGraphClose}`,
@@ -532,6 +520,7 @@ export async function kbAgentsQuery(args: {
           'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
           'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
           'PREFIX hol: <https://agentictrust.io/ontology/hol#>',
+          'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
           'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
           'PREFIX dcterms: <http://purl.org/dc/terms/>',
           'PREFIX schema: <http://schema.org/>',
@@ -563,6 +552,19 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?agentId8004) AS ?agentId8004)',
           '  (SAMPLE(?identityEns) AS ?identityEns)',
           '  (SAMPLE(?didEns) AS ?didEns)',
+          '  (SAMPLE(?identity8122) AS ?identity8122)',
+          '  (SAMPLE(?did8122) AS ?did8122)',
+          '  (SAMPLE(?agentId8122) AS ?agentId8122)',
+          '  (SAMPLE(?registry8122) AS ?registry8122)',
+          '  (SAMPLE(?endpointType8122) AS ?endpointType8122)',
+          '  (SAMPLE(?endpoint8122) AS ?endpoint8122)',
+          '  (SAMPLE(?identity8122Descriptor) AS ?identity8122Descriptor)',
+          '  (SAMPLE(?identity8122DescriptorName) AS ?identity8122DescriptorName)',
+          '  (SAMPLE(?identity8122DescriptorDescription) AS ?identity8122DescriptorDescription)',
+          '  (SAMPLE(?identity8122DescriptorImage) AS ?identity8122DescriptorImage)',
+          '  (SAMPLE(?identity8122DescriptorJson) AS ?identity8122DescriptorJson)',
+          '  (SAMPLE(?identity8122OwnerAccount) AS ?identity8122OwnerAccount)',
+          '  (SAMPLE(?identity8122AgentAccount) AS ?identity8122AgentAccount)',
           '  (SAMPLE(?identityHol) AS ?identityHol)',
           '  (SAMPLE(?holProtocolIdentifier) AS ?holProtocolIdentifier)',
           '  (SAMPLE(?uaidHOL) AS ?uaidHOL)',
@@ -737,14 +739,34 @@ export async function kbAgentsQuery(args: {
           '      OPTIONAL { ?identity8004 erc8004:hasOwnerEOAAccount ?identityOwnerEOAAccount . }',
           '    }',
           '    OPTIONAL {',
-          '      ?agent a erc8004:SmartAgent ;',
-          '             erc8004:hasAgentAccount ?agentAccount .',
+          '      ?agent a core:AISmartAgent ;',
+          '             core:hasAgentAccount ?agentAccount .',
           '    }',
           '    OPTIONAL {',
           '      ?agent core:hasIdentity ?identityEns .',
           '      ?identityEns a ens:AgentIdentityEns ;',
           '                  core:hasIdentifier ?ensIdent .',
           '      ?ensIdent core:protocolIdentifier ?didEns .',
+          '    }',
+          '    OPTIONAL {',
+          '      ?agent core:hasIdentity ?identity8122 .',
+          '      ?identity8122 a erc8122:AgentIdentity8122 ;',
+          '                    core:hasIdentifier ?ident8122 ;',
+          '                    core:hasDescriptor ?desc8122 .',
+          '      ?ident8122 core:protocolIdentifier ?did8122 .',
+          '      OPTIONAL { ?identity8122 erc8122:agentId ?agentId8122 . }',
+          '      OPTIONAL { ?identity8122 erc8122:registryAddress ?registry8122 . }',
+          '      OPTIONAL { ?identity8122 erc8122:endpointType ?endpointType8122 . }',
+          '      OPTIONAL { ?identity8122 erc8122:endpoint ?endpoint8122 . }',
+          '      OPTIONAL { ?identity8122 erc8122:hasOwnerAccount ?identity8122OwnerAccount . }',
+          '      OPTIONAL { ?identity8122 erc8122:hasAgentAccount ?identity8122AgentAccount . }',
+          '      OPTIONAL {',
+          '        BIND(?desc8122 AS ?identity8122Descriptor)',
+          '        OPTIONAL { ?desc8122 dcterms:title ?identity8122DescriptorName . }',
+          '        OPTIONAL { ?desc8122 dcterms:description ?identity8122DescriptorDescription . }',
+          '        OPTIONAL { ?desc8122 schema:image ?identity8122DescriptorImage . }',
+          '        OPTIONAL { ?desc8122 core:json ?identity8122DescriptorJson . }',
+          '      }',
           '    }',
           '    OPTIONAL {',
           '      ?agent core:hasIdentity ?identityHol .',
@@ -798,31 +820,14 @@ export async function kbAgentsQuery(args: {
 
   const countSparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
-    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
-    'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
+    ...(did8004Filter || agentIdentifierMatch ? ['PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>'] : []),
+    ...(agentIdentifierMatch ? ['PREFIX ens: <https://agentictrust.io/ontology/ens#>'] : []),
+    ...(agentNameContains ? ['PREFIX dcterms: <http://purl.org/dc/terms/>'] : []),
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     '',
-    'SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {',
+    'SELECT (COUNT(?agent) AS ?count) WHERE {',
     `  ${graphClause}`,
     '    ?agent a core:AIAgent .',
-    // UAID is required for UAID filters (incl. HOL UAIDs like uaid:aid:*;...).
-    ...(needsUaid ? ['    OPTIONAL { ?agent core:uaid ?uaid . }'] : []),
-    '    OPTIONAL {',
-    '      ?agent core:hasIdentity ?identity8004 .',
-    '      ?identity8004 a erc8004:AgentIdentity8004 ;',
-    '                    core:hasIdentifier ?ident8004 .',
-    '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '    }',
-    // If agentIdentifierMatch is used, didEns can be part of the match expression, so bind it.
-    ...(agentIdentifierMatch
-      ? [
-          '    OPTIONAL {',
-          '      ?agent core:hasIdentity ?identityEns .',
-          '      ?identityEns a ens:AgentIdentityEns ; core:hasIdentifier ?ensIdent .',
-          '      ?ensIdent core:protocolIdentifier ?didEns .',
-          '    }',
-        ]
-      : []),
     ...pagePreFilter,
     filters.length ? `    FILTER(${filters.join(' && ')})` : '',
     `  ${graphClose}`,
@@ -878,6 +883,19 @@ export async function kbAgentsQuery(args: {
       identity8004DescriptorDomains: splitConcat(asString(b?.identity8004DescriptorDomains)),
       identityEnsIri: asString(b?.identityEns),
       didEns: asString(b?.didEns),
+      identity8122Iri: asString(b?.identity8122),
+      did8122: asString(b?.did8122),
+      agentId8122: asString(b?.agentId8122),
+      registry8122: asString(b?.registry8122),
+      endpointType8122: asString(b?.endpointType8122),
+      endpoint8122: asString(b?.endpoint8122),
+      identity8122DescriptorIri: asString(b?.identity8122Descriptor),
+      identity8122DescriptorName: asString(b?.identity8122DescriptorName),
+      identity8122DescriptorDescription: asString(b?.identity8122DescriptorDescription),
+      identity8122DescriptorImage: asString(b?.identity8122DescriptorImage),
+      identity8122DescriptorJson: asString(b?.identity8122DescriptorJson),
+      identity8122OwnerAccountIri: asString(b?.identity8122OwnerAccount),
+      identity8122AgentAccountIri: asString(b?.identity8122AgentAccount),
       identityHolIri: asString(b?.identityHol),
       identityHolProtocolIdentifier: asString(b?.holProtocolIdentifier),
       identityHolUaidHOL: asString(b?.uaidHOL),
@@ -960,7 +978,8 @@ export async function kbOwnedAgentsQuery(args: {
   const first = clampInt(args.first, 1, 500, 20);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
 
-  const orderBy = args.orderBy ?? 'agentId8004';
+  // Default ordering: createdAtTime so we don't depend on ERC-8004 agentId for ordering.
+  const orderBy = args.orderBy ?? 'createdAtTime';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const orderBaseExpr =
     orderBy === 'agentName'
@@ -971,7 +990,7 @@ export async function kbOwnedAgentsQuery(args: {
           ? 'IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)'
           : orderBy === 'updatedAtTime'
             ? 'IF(BOUND(?updatedAtTime), xsd:integer(?updatedAtTime), 0)'
-        : '?agentId8004';
+        : '0';
   const orderExpr =
     (orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`) + ` ASC(STR(?agent))`;
 
@@ -981,7 +1000,7 @@ export async function kbOwnedAgentsQuery(args: {
 
   const filters: string[] = [];
   if (!ownerIri) return { rows: [], total: 0, hasMore: false };
-  // Match either:
+  // Registry-agnostic ownership:
   // - identity hasOwnerAccount directly equals the EOA account, OR
   // - identity hasOwnerAccount is a SmartAccount whose eth:hasEOAOwner equals the EOA account.
   filters.push(`(?ownerAccount = <${ownerIri}> || EXISTS { ?ownerAccount eth:hasEOAOwner <${ownerIri}> })`);
@@ -991,6 +1010,7 @@ export async function kbOwnedAgentsQuery(args: {
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
     'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
     'PREFIX dcterms: <http://purl.org/dc/terms/>',
     'PREFIX schema: <http://schema.org/>',
@@ -1074,73 +1094,19 @@ export async function kbOwnedAgentsQuery(args: {
     '      ?vrSummary core:validationAssertionCount ?validationAssertionCount .',
     '    }',
     '    OPTIONAL {',
-    '      ?agent core:hasIdentity ?identity8004 .',
-    '      ?identity8004 a erc8004:AgentIdentity8004 ;',
-    '                    core:hasIdentifier ?ident8004 ;',
-    '                    core:hasDescriptor ?desc8004 .',
-    '      ?ident8004 core:protocolIdentifier ?did8004 .',
-    '      OPTIONAL { ?identity8004 erc8004:agentId ?agentId8004 . }',
-    '      BIND(?desc8004 AS ?identity8004Descriptor)',
-    '      OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }',
-    '      OPTIONAL { ?desc8004 dcterms:title ?identity8004DescriptorName . }',
-    '      OPTIONAL { ?desc8004 dcterms:description ?identity8004DescriptorDescription . }',
-    '      OPTIONAL { ?desc8004 schema:image ?identity8004DescriptorImage . }',
-    '      OPTIONAL { ?desc8004 erc8004:nftMetadataJson ?nftMetadataJson . }',
-    '      OPTIONAL { ?desc8004 erc8004:registeredBy ?registeredBy . }',
-    '      OPTIONAL { ?desc8004 erc8004:registryNamespace ?registryNamespace . }',
-    '      OPTIONAL {',
-    '        ?identity8004 core:hasServiceEndpoint ?seA2a .',
-    '        ?seA2a a core:ServiceEndpoint ;',
-    '              core:hasProtocol ?pA2a .',
-    '        ?pA2a a core:A2AProtocol .',
-    '        OPTIONAL {',
-    '          ?seA2a core:hasDescriptor ?seA2aDesc .',
-    '          OPTIONAL { ?seA2aDesc dcterms:title ?a2aServiceEndpointDescriptorName . }',
-    '          OPTIONAL { ?seA2aDesc dcterms:description ?a2aServiceEndpointDescriptorDescription . }',
-    '          OPTIONAL { ?seA2aDesc schema:image ?a2aServiceEndpointDescriptorImage . }',
-    '        }',
-    '        OPTIONAL { ?pA2a core:serviceUrl ?a2aServiceUrl . }',
-    '        OPTIONAL { ?pA2a core:protocolVersion ?a2aProtocolVersion . }',
-    '        OPTIONAL {',
-    '          ?pA2a core:hasDescriptor ?pA2aDesc .',
-    '          OPTIONAL { ?pA2aDesc dcterms:title ?a2aDescriptorName . }',
-    '          OPTIONAL { ?pA2aDesc dcterms:description ?a2aDescriptorDescription . }',
-    '          OPTIONAL { ?pA2aDesc schema:image ?a2aDescriptorImage . }',
-    '          OPTIONAL { ?pA2aDesc core:agentCardJson ?a2aAgentCardJson . }',
-    '        }',
-    '        OPTIONAL { ?pA2a core:hasSkill ?a2aSkill . }',
+    '      ?agent core:hasIdentity ?identity .',
+    '      {',
+    '        ?identity a erc8004:AgentIdentity8004 ;',
+    '                 erc8004:hasOwnerAccount ?ownerAccount .',
+    '      } UNION {',
+    '        ?identity a erc8122:AgentIdentity8122 ;',
+    '                 erc8122:hasOwnerAccount ?ownerAccount .',
     '      }',
-    '      OPTIONAL {',
-    '        ?identity8004 core:hasServiceEndpoint ?seMcp .',
-    '        ?seMcp a core:ServiceEndpoint ;',
-    '              core:hasProtocol ?pMcp .',
-    '        ?pMcp a core:MCPProtocol .',
-    '        OPTIONAL {',
-    '          ?seMcp core:hasDescriptor ?seMcpDesc .',
-    '          OPTIONAL { ?seMcpDesc dcterms:title ?mcpServiceEndpointDescriptorName . }',
-    '          OPTIONAL { ?seMcpDesc dcterms:description ?mcpServiceEndpointDescriptorDescription . }',
-    '          OPTIONAL { ?seMcpDesc schema:image ?mcpServiceEndpointDescriptorImage . }',
-    '        }',
-    '        OPTIONAL { ?pMcp core:serviceUrl ?mcpServiceUrl . }',
-    '        OPTIONAL { ?pMcp core:protocolVersion ?mcpProtocolVersion . }',
-    '        OPTIONAL {',
-    '          ?pMcp core:hasDescriptor ?pMcpDesc .',
-    '          OPTIONAL { ?pMcpDesc dcterms:title ?mcpDescriptorName . }',
-    '          OPTIONAL { ?pMcpDesc dcterms:description ?mcpDescriptorDescription . }',
-    '          OPTIONAL { ?pMcpDesc schema:image ?mcpDescriptorImage . }',
-    '          OPTIONAL { ?pMcpDesc core:agentCardJson ?mcpAgentCardJson . }',
-    '        }',
-    '        OPTIONAL { ?pMcp core:hasSkill ?mcpSkill . }',
-    '      }',
-    '      OPTIONAL { ?identity8004 erc8004:hasOwnerAccount ?identityOwnerAccount . }',
-    '      OPTIONAL { ?identity8004 erc8004:hasWalletAccount ?identityWalletAccount . }',
-    '      OPTIONAL { ?identity8004 erc8004:hasOperatorAccount ?identityOperatorAccount . }',
-    '      OPTIONAL { ?identity8004 erc8004:hasOwnerEOAAccount ?identityOwnerEOAAccount . }',
     '    }',
     '',
     '    OPTIONAL {',
-    '      ?agent a erc8004:SmartAgent ;',
-    '             erc8004:hasAgentAccount ?agentAccount .',
+    '      ?agent a core:AISmartAgent ;',
+    '             core:hasAgentAccount ?agentAccount .',
     '    }',
     '',
     '    OPTIONAL {',
@@ -1190,6 +1156,19 @@ export async function kbOwnedAgentsQuery(args: {
     identityHolIri: asString(b?.identityHol),
     identityHolProtocolIdentifier: asString(b?.holProtocolIdentifier),
     identityHolUaidHOL: asString(b?.uaidHOL),
+    identity8122Iri: null, // Not fetched in this query
+    did8122: null, // Not fetched in this query
+    agentId8122: null, // Not fetched in this query
+    registry8122: null, // Not fetched in this query
+    endpointType8122: null, // Not fetched in this query
+    endpoint8122: null, // Not fetched in this query
+    identity8122DescriptorIri: null, // Not fetched in this query
+    identity8122DescriptorName: null, // Not fetched in this query
+    identity8122DescriptorDescription: null, // Not fetched in this query
+    identity8122DescriptorImage: null, // Not fetched in this query
+    identity8122DescriptorJson: null, // Not fetched in this query
+    identity8122OwnerAccountIri: null, // Not fetched in this query
+    identity8122AgentAccountIri: null, // Not fetched in this query
     identityHolDescriptorIri: null, // Not fetched in this query
     identityHolDescriptorName: null, // Not fetched in this query
     identityHolDescriptorDescription: null, // Not fetched in this query
@@ -1255,12 +1234,17 @@ export async function kbOwnedAgentsQuery(args: {
   const countSparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
     'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
     '',
     'SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {',
     `  ${graphClause}`,
-    '    ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
-    '    ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:hasOwnerAccount ?ownerAccount .',
+    '    ?agent a core:AIAgent ; core:hasIdentity ?identity .',
+    '    {',
+    '      ?identity a erc8004:AgentIdentity8004 ; erc8004:hasOwnerAccount ?ownerAccount .',
+    '    } UNION {',
+    '      ?identity a erc8122:AgentIdentity8122 ; erc8122:hasOwnerAccount ?ownerAccount .',
+    '    }',
     `    FILTER(?ownerAccount = <${ownerIri}> || EXISTS { ?ownerAccount eth:hasEOAOwner <${ownerIri}> })`,
     `  ${graphClose}`,
     '}',
@@ -1299,7 +1283,8 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   const first = clampInt(args.first, 1, 500, 20);
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
 
-  const orderBy = args.orderBy ?? 'agentId8004';
+  // Default ordering: createdAtTime so we don't depend on ERC-8004 agentId for ordering.
+  const orderBy = args.orderBy ?? 'createdAtTime';
   const orderDirection = (args.orderDirection ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
   const orderBaseExpr =
     orderBy === 'agentName'
@@ -1310,7 +1295,7 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
           ? 'IF(BOUND(?createdAtTime), xsd:integer(?createdAtTime), 0)'
           : orderBy === 'updatedAtTime'
             ? 'IF(BOUND(?updatedAtTime), xsd:integer(?updatedAtTime), 0)'
-        : '?agentId8004';
+        : '0';
   const orderExpr =
     (orderDirection === 'ASC' ? `ASC(${orderBaseExpr})` : `DESC(${orderBaseExpr})`) + ` ASC(STR(?agent))`;
 
@@ -1326,19 +1311,18 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
           ? '?agent ?createdAtTime'
           : orderBy === 'updatedAtTime'
             ? '?agent ?updatedAtTime'
-            : '?agent ?agentId8004';
+            : '?agent';
 
   if (orderBy === 'uaid') {
     pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:uaid ?uaid . }');
   } else if (orderBy === 'agentName') {
     pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:hasDescriptor ?agentDescOrder . OPTIONAL { ?agentDescOrder dcterms:title ?agentName . } }');
   } else if (orderBy === 'createdAtTime' || orderBy === 'updatedAtTime') {
-    // Provenance timestamps are materialized on identity nodes by sync.
-    pageOptionalOrderBinds.push('    OPTIONAL { ?identity8004 core:createdAtTime ?createdAtTime . }');
-    pageOptionalOrderBinds.push('    OPTIONAL { ?identity8004 core:updatedAtTime ?updatedAtTime . }');
+    // Provenance timestamps are materialized on agent nodes by sync.
+    pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }');
+    pageOptionalOrderBinds.push('    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }');
   } else {
-    // agentId8004: make it required so GraphDB can sort on an indexed numeric literal without unbound values.
-    pageRequiredOrderBinds.push('    ?agent erc8004:agentId8004 ?agentId8004 .');
+    // agentId8004 ordering is deprecated in favor of createdAtTime; fall back to stable IRI ordering.
   }
 
   const pageSparql = [
@@ -1468,6 +1452,19 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     identityHolIri: null, // Not fetched in simplified query
     identityHolProtocolIdentifier: null, // Not fetched in simplified query
     identityHolUaidHOL: null, // Not fetched in simplified query
+    identity8122Iri: null, // Not fetched in simplified query
+    did8122: null, // Not fetched in simplified query
+    agentId8122: null, // Not fetched in simplified query
+    registry8122: null, // Not fetched in simplified query
+    endpointType8122: null, // Not fetched in simplified query
+    endpoint8122: null, // Not fetched in simplified query
+    identity8122DescriptorIri: null, // Not fetched in simplified query
+    identity8122DescriptorName: null, // Not fetched in simplified query
+    identity8122DescriptorDescription: null, // Not fetched in simplified query
+    identity8122DescriptorImage: null, // Not fetched in simplified query
+    identity8122DescriptorJson: null, // Not fetched in simplified query
+    identity8122OwnerAccountIri: null, // Not fetched in simplified query
+    identity8122AgentAccountIri: null, // Not fetched in simplified query
     identityHolDescriptorIri: null, // Not fetched in simplified query
     identityHolDescriptorName: null, // Not fetched in simplified query
     identityHolDescriptorDescription: null, // Not fetched in simplified query

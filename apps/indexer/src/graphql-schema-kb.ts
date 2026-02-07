@@ -164,6 +164,23 @@ export const graphQLSchemaStringKb = `
     agentAccount: KbAccount
   }
 
+  # ERC-8122 identity with attached registry/account info
+  type KbIdentity8122 {
+    iri: ID!
+    kind: String! # always "8122"
+    did: String!
+    did8122: String!
+    agentId8122: String!
+    registryAddress: String
+    endpointType: String
+    endpoint: String
+    descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
+
+    ownerAccount: KbAccount
+    agentAccount: KbAccount
+  }
+
   type KbHolAgentProfile {
     uaid: String!
     displayName: String
@@ -270,9 +287,10 @@ export const graphQLSchemaStringKb = `
     atiVersion: String
     atiComputedAt: Int
 
-    # Convenience: primary identity (prefer identity8004, else identityEns)
+    # Convenience: primary identity (prefer identity8004, else identity8122, else identityHol, else identityEns)
     identity: KbIdentity
     identity8004: KbIdentity8004
+    identity8122: KbIdentity8122
     identityHol: KbIdentity
     identityEns: KbIdentity
 

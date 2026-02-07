@@ -39,6 +39,17 @@
   rdfs:subClassOf :Agent ;
   rdfs:subClassOf prov:SoftwareAgent .
 
+:AISmartAgent a owl:Class ;
+  rdfs:label "AISmartAgent" ;
+  rdfs:comment "AI agent that is associated with an agent-controlled account (typically a smart account / contract account). Registry-agnostic." ;
+  rdfs:subClassOf :AIAgent .
+
+:hasAgentAccount a owl:ObjectProperty ;
+  rdfs:label "hasAgentAccount" ;
+  rdfs:comment "Associates an AISmartAgent with its agent-controlled account node (an eth:Account, typically typed later as eth:SmartAccount)." ;
+  rdfs:domain :AISmartAgent ;
+  rdfs:range prov:Agent .
+
 :Protocol a owl:Class ;
   rdfs:label "Protocol" ;
   rdfs:subClassOf prov:Entity .

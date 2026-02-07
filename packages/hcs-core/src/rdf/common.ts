@@ -46,6 +46,7 @@ export function rdfPrefixes(): string {
     '@prefix core: <https://agentictrust.io/ontology/core#> .',
     '@prefix eth: <https://agentictrust.io/ontology/eth#> .',
     '@prefix erc8004: <https://agentictrust.io/ontology/erc8004#> .',
+    '@prefix erc8122: <https://agentictrust.io/ontology/erc8122#> .',
     '@prefix erc8092: <https://agentictrust.io/ontology/erc8092#> .',
     '@prefix oasf: <https://agentictrust.io/ontology/oasf#> .',
     '@prefix ens: <https://agentictrust.io/ontology/ens#> .',
@@ -65,6 +66,10 @@ export function agentIri(chainId: number, agentId: string): string {
 // not the ERC-8004 NFT agentId.
 export function agentIriFromAccountDid(didAccountValue: string): string {
   return `<https://www.agentictrust.io/id/agent/by-account-did/${iriEncodeSegment(didAccountValue)}>`;
+}
+
+export function agentIriFrom8122Did(did8122Value: string): string {
+  return `<https://www.agentictrust.io/id/agent/by-8122-did/${iriEncodeSegment(did8122Value)}>`;
 }
 
 export function agentDescriptorIriFromAgentIri(agentIriValue: string): string {
@@ -89,6 +94,18 @@ export function identity8004DescriptorIri(didIdentityValue: string): string {
 
 export function identityIdentifier8004Iri(didIdentityValue: string): string {
   return `<https://www.agentictrust.io/id/identifier/8004/${iriEncodeSegment(didIdentityValue)}>`;
+}
+
+export function identity8122Iri(didIdentityValue: string): string {
+  return `<https://www.agentictrust.io/id/8122-identity/${iriEncodeSegment(didIdentityValue)}>`;
+}
+
+export function identity8122DescriptorIri(didIdentityValue: string): string {
+  return `<https://www.agentictrust.io/id/8122-identity-descriptor/${iriEncodeSegment(didIdentityValue)}>`;
+}
+
+export function identityIdentifier8122Iri(didIdentityValue: string): string {
+  return `<https://www.agentictrust.io/id/identifier/8122/${iriEncodeSegment(didIdentityValue)}>`;
 }
 
 export function identityEnsIri(ensName: string): string {

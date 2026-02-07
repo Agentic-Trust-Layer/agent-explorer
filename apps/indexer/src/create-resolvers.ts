@@ -42,8 +42,8 @@ PREFIX eth: <https://agentictrust.io/ontology/eth#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 SELECT ?didIdentity WHERE {
   GRAPH <${ctx}> {
-    ?agent a erc8004:SmartAgent ;
-           erc8004:hasAgentAccount ?acct ;
+    ?agent a core:AISmartAgent ;
+           core:hasAgentAccount ?acct ;
            core:hasIdentity ?identity8004 .
     ?acct eth:accountAddress ?addr .
     FILTER(LCASE(STR(?addr)) = "${addr}")

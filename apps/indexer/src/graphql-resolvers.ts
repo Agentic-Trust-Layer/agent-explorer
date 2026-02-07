@@ -287,7 +287,6 @@ function buildGraphWhereClause(where?: {
   mcp?: boolean;
   x402support?: boolean;
   active?: boolean;
-  is8004Agent?: boolean;
   operator_in?: string[];
   supportedTrust_in?: string[];
   a2aSkills_in?: string[];
@@ -596,11 +595,7 @@ function buildGraphWhereClause(where?: {
   } else if (where.active === false) {
     conditions.push(`(active IS NULL OR active = 0)`);
   }
-  if (where.is8004Agent === true) {
-    conditions.push(`(agentName IS NOT NULL AND LOWER(agentName) LIKE '%8004-agent.eth')`);
-  } else if (where.is8004Agent === false) {
-    conditions.push(`(agentName IS NULL OR LOWER(agentName) NOT LIKE '%8004-agent.eth')`);
-  }
+
 
   // Membership filters using EXISTS subqueries
   const addExistsFilter = (table: string, column: string, values?: string[]) => {

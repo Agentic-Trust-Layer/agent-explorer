@@ -1,0 +1,79 @@
+@base <https://agentictrust.io/ontology/erc8122#> .
+@prefix : <https://agentictrust.io/ontology/erc8122#> .
+@prefix core: <https://agentictrust.io/ontology/core#> .
+@prefix eth: <https://agentictrust.io/ontology/eth#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://agentictrust.io/ontology/erc8122> a owl:Ontology ;
+  rdfs:label "ERC-8122 Agent Registry" ;
+  rdfs:comment "Ontology for ERC-8122 agents and identities ingested from subgraphs (registryAgent8122S + metadata collection)." ;
+  owl:versionInfo "0.1.0" ;
+  owl:imports <https://agentictrust.io/ontology/eth> ;
+  owl:imports <https://agentictrust.io/ontology/core> ;
+  owl:imports <https://agentictrust.io/ontology/core/trust> ;
+  owl:imports <https://agentictrust.io/ontology/core/identity> ;
+  owl:imports <https://agentictrust.io/ontology/core/descriptors> ;
+  owl:imports <http://www.w3.org/ns/prov-o#> .
+
+########
+# Core classes
+########
+
+:AgentIdentity8122 a owl:Class ;
+  rdfs:label "AgentIdentity8122" ;
+  rdfs:comment "ERC-8122 identity node for an agent (registry + agentId + owner + endpointType/endpoint)." ;
+  rdfs:subClassOf core:AgentIdentity .
+
+:IdentityIdentifier8122 a owl:Class ;
+  rdfs:label "IdentityIdentifier8122" ;
+  rdfs:comment "Identifier for an ERC-8122 identity (represented as a DID string)." ;
+  rdfs:subClassOf core:DID .
+
+:Descriptor8122Identity a owl:Class ;
+  rdfs:label "Descriptor8122Identity" ;
+  rdfs:comment "Identity descriptor derived from ERC-8122 metadata collection." ;
+  rdfs:subClassOf core:AgentIdentityDescriptor .
+
+########
+# Properties
+########
+
+:agentId a owl:DatatypeProperty ;
+  rdfs:label "agentId" ;
+  rdfs:comment "ERC-8122 registry agentId (string form as returned by subgraph)." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range xsd:string .
+
+:registryAddress a owl:DatatypeProperty ;
+  rdfs:label "registryAddress" ;
+  rdfs:comment "ERC-8122 registry contract address (0x...)." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range xsd:string .
+
+:endpointType a owl:DatatypeProperty ;
+  rdfs:label "endpointType" ;
+  rdfs:comment "Endpoint type / service label advertised in the ERC-8122 registry." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range xsd:string .
+
+:endpoint a owl:DatatypeProperty ;
+  rdfs:label "endpoint" ;
+  rdfs:comment "Endpoint value advertised in the ERC-8122 registry (may be null in subgraph; stored when present)." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range xsd:string .
+
+:hasOwnerAccount a owl:ObjectProperty ;
+  rdfs:label "hasOwnerAccount" ;
+  rdfs:comment "Links ERC-8122 identity to its owner account (eth:Account node)." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range eth:Account .
+
+:hasAgentAccount a owl:ObjectProperty ;
+  rdfs:label "hasAgentAccount" ;
+  rdfs:comment "Links ERC-8122 identity to an optional agent account (e.g. smart account) when provided by the subgraph." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range eth:Account .
+

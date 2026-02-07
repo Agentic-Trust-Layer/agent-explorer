@@ -185,6 +185,29 @@ WHERE {
   }
 }
 `;
+      case 'erc8122':
+        return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>
+WITH <${context}>
+DELETE { ?agent core:hasIdentity ?id . }
+WHERE  { ?agent core:hasIdentity ?id . ?id a erc8122:AgentIdentity8122 . } ;
+WITH <${context}>
+DELETE { ?id ?p ?o }
+WHERE  { ?id a erc8122:AgentIdentity8122 . ?id ?p ?o . } ;
+WITH <${context}>
+DELETE { ?ident ?p ?o }
+WHERE  { ?ident a erc8122:IdentityIdentifier8122 . ?ident ?p ?o . } ;
+WITH <${context}>
+DELETE { ?desc ?p ?o }
+WHERE  { ?desc a erc8122:Descriptor8122Identity . ?desc ?p ?o . } ;
+WITH <${context}>
+DELETE { ?agent core:hasDescriptor ?ad . }
+WHERE  { ?agent core:hasDescriptor ?ad . ?ad a core:AgentDescriptor . FILTER(CONTAINS(STR(?agent), "/id/agent/by-8122-did/")) } ;
+WITH <${context}>
+DELETE { ?ad ?p ?o }
+WHERE  { ?ad a core:AgentDescriptor . ?ad ?p ?o . FILTER(CONTAINS(STR(?ad), "/id/agent-descriptor/")) } ;
+`;
       default:
         return null;
     }
@@ -382,8 +405,8 @@ WHERE  {
 
   // UAID backfill (always-on): older KB data may predate core:uaid on core:AIAgent.
   // Derivation rules:
-  // - SmartAgent: UAID = did:ethr:<chainId>:<agentAccountAddress> (from hasAgentAccount / eth:accountAddress)
-  // - AIAgent8004: UAID = did:8004:<chainId>:<agentId> (from identity protocolIdentifier)
+  // - AISmartAgent: UAID = did:ethr:<chainId>:<agentAccountAddress> (from core:hasAgentAccount / eth:accountAddress)
+  // - AIAgent (8004): UAID = did:8004:<chainId>:<agentId> (from identity protocolIdentifier)
   if (opts.section === 'agents') {
     // Default: skip these expensive GraphDB-wide maintenance updates.
     // - New ingests already emit core:uaid (with uaid: prefix) and erc8004:agentId8004 directly in Turtle.
@@ -407,8 +430,8 @@ WHERE {
     FILTER(!EXISTS { ?agent core:uaid ?_existingUaid })
 
     OPTIONAL {
-      ?agent a erc8004:SmartAgent ;
-             erc8004:hasAgentAccount ?acct .
+      ?agent a core:AISmartAgent ;
+             core:hasAgentAccount ?acct .
       OPTIONAL { ?acct eth:hasAccountIdentifier ?acctIdent . ?acctIdent core:protocolIdentifier ?didAccount . }
       OPTIONAL { ?acct eth:accountChainId ?cid . }
       OPTIONAL { ?acct eth:accountAddress ?addr . }

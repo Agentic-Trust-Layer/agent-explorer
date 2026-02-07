@@ -297,7 +297,7 @@ export function buildHolResolvedAgentUpsertSparql(args: {
   lines.push('');
 
   // Agent node
-  lines.push(`    ${agentNode} a core:AIAgent, hol:AIAgentHOL, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+  lines.push(`    ${agentNode} a core:AIAgent, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
   lines.push(`      core:uaid ${sparqlLiteralString(uaid)} ;`);
   lines.push(`      core:hasIdentity ${identityNode} ;`);
   lines.push(`      core:hasDescriptor ${agentDescNode} ;`);

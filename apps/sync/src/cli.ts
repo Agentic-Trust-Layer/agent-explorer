@@ -16,6 +16,8 @@ import {
   VALIDATION_RESPONSES_QUERY,
   ASSOCIATIONS_QUERY,
   ASSOCIATION_REVOCATIONS_QUERY,
+  REGISTRY_AGENT_8122_QUERY,
+  REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY,
 } from './subgraph-client.js';
 import { ingestSubgraphTurtleToGraphdb } from './graphdb-ingest.js';
 import { getCheckpoint, setCheckpoint } from './graphdb/checkpoints.js';
@@ -23,6 +25,7 @@ import { emitAgentsTurtle } from './rdf/emit-agents.js';
 import { emitFeedbacksTurtle } from './rdf/emit-feedbacks.js';
 import { emitValidationRequestsTurtle, emitValidationResponsesTurtle } from './rdf/emit-validations.js';
 import { emitAssociationsTurtle, emitAssociationRevocationsTurtle } from './rdf/emit-associations.js';
+import { emitErc8122AgentsTurtle } from './rdf/emit-erc8122.js';
 import { syncAgentCardsForChain } from './a2a/agent-card-sync.js';
 import { syncAccountTypesForChain } from './account-types/sync-account-types.js';
 import { getMaxAgentId8004, getMaxDid8004AgentId, listAgentIriByDidIdentity } from './graphdb/agents.js';
@@ -35,6 +38,7 @@ import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledg
 
 type SyncCommand =
   | 'agents'
+  | 'erc8122'
   | 'feedbacks'
   | 'feedback-revocations'
   | 'feedback-responses'
@@ -312,6 +316,32 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
   }
 }
 
+async function syncErc8122(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
+  // ERC-8122 fields may not exist on all subgraphs; treat as optional.
+  console.info(`[sync] fetching erc8122 agents from ${endpoint.name} (chainId: ${endpoint.chainId})`);
+
+  const agents = await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY, 'registryAgent8122S', { optional: true });
+  const metadatas = await fetchAllFromSubgraph(
+    endpoint.url,
+    REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY,
+    'registryAgent8122Metadata_collection',
+    { optional: true, maxSkip: 50_000 },
+  );
+
+  console.info(`[sync] fetched erc8122 rows from ${endpoint.name}`, {
+    chainId: endpoint.chainId,
+    agents: agents.length,
+    metadatas: metadatas.length,
+  });
+
+  if (!agents.length && !metadatas.length) return;
+
+  const { turtle } = emitErc8122AgentsTurtle({ chainId: endpoint.chainId, agents, metadatas });
+  if (!turtle.trim()) return;
+
+  await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'erc8122', turtle, resetContext });
+}
+
 async function syncFeedbacks(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching feedbacks from ${endpoint.name} (chainId: ${endpoint.chainId})`);
   let lastBlock = 0n;
@@ -507,6 +537,9 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         case 'agents':
           await syncAgents(endpoint, resetContext);
           break;
+        case 'erc8122':
+          await syncErc8122(endpoint, resetContext);
+          break;
         case 'feedbacks':
           await syncFeedbacks(endpoint, resetContext);
           await syncFeedbackRevocations(endpoint, resetContext);
@@ -564,6 +597,7 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         }
         case 'all':
           await syncAgents(endpoint, resetContext);
+          await syncErc8122(endpoint, resetContext);
           await syncFeedbacks(endpoint, resetContext);
           await syncFeedbackRevocations(endpoint, resetContext);
           await syncFeedbackResponses(endpoint, resetContext);

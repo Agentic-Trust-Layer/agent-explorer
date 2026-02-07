@@ -205,8 +205,8 @@ WHERE {
     await new Promise((r) => setTimeout(r, 250));
   }
 
-  // Ensure SmartAgent always refers to an actual AgentAccount (typed as eth:SmartAccount after classification):
-  // - If hasAgentAccount points to an account that is EOA, remove the SmartAgent typing and the hasAgentAccount link.
+  // Ensure AISmartAgent always refers to an actual SmartAccount (typed as eth:SmartAccount after classification):
+  // - If core:hasAgentAccount points to an account that is EOA, remove the AISmartAgent typing and the link.
   //
   // IMPORTANT: the naive graph-wide join can stall GraphDB during update-heavy periods.
   // Rewrite this as a VALUES-driven update using the EOA account list we *already* computed via RPC.
@@ -222,24 +222,23 @@ WHERE {
     attemptedAccounts += chunk.length;
     const valueRows = chunk.map((acct) => `(<${acct}>)`).join('\n    ');
     const fixup = `
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
 WITH <${ctx}>
-DELETE { ?agent a erc8004:SmartAgent . ?agent erc8004:hasAgentAccount ?acct . }
-INSERT { ?agent a erc8004:AIAgent8004 . }
+DELETE { ?agent a core:AISmartAgent . ?agent core:hasAgentAccount ?acct . }
 WHERE {
   VALUES (?acct) {
     ${valueRows}
   }
-  ?agent a erc8004:SmartAgent ;
-         erc8004:hasAgentAccount ?acct .
+  ?agent a core:AISmartAgent ;
+         core:hasAgentAccount ?acct .
 }
 `;
     try {
       // Fail fast: this fixup is best-effort and should not block the whole sync job.
       await updateGraphdb(baseUrl, repository, auth, fixup, { timeoutMs: 10_000, retries: 0 });
-      console.info(`[sync] [account-types] fixed SmartAgent links for ${chunk.length} EOA accounts (chunk ${i / fixChunk + 1})`);
+      console.info(`[sync] [account-types] fixed AISmartAgent links for ${chunk.length} EOA accounts (chunk ${i / fixChunk + 1})`);
     } catch (e: any) {
-      console.warn('[sync] [account-types] SmartAgent fixup timed out/failed; skipping remaining fixup work', {
+      console.warn('[sync] [account-types] AISmartAgent fixup timed out/failed; skipping remaining fixup work', {
         chainId,
         ctx,
         err: String(e?.message || e || ''),
@@ -247,7 +246,7 @@ WHERE {
       break;
     }
   }
-  console.info('[sync] [account-types] fixed SmartAgent links that pointed to EOAs', { attemptedAccounts });
+  console.info('[sync] [account-types] fixed AISmartAgent links that pointed to EOAs', { attemptedAccounts });
 
   // Always resolve SmartAccount -> EOA owner relationship (eth:hasEOAOwner).
   const smartRows = usable.filter((r) => r.address && smartSet.has(r.account));
@@ -316,7 +315,7 @@ WHERE {
     console.info(`[sync] [account-types] updated eth:hasEOAOwner for ${chunk.length} smart accounts (chunk ${i / chunkPairs + 1})`);
   }
 
-  // Populate hasOwnerEOAAccount on AgentIdentity8004:
+  // Populate erc8004:hasOwnerEOAAccount on AgentIdentity8004:
   // - if identity ownerAccount is an EOA => ownerEOA = ownerAccount
   // - if identity ownerAccount has eth:hasEOAOwner => ownerEOA = that EOA
   const updateIdentityOwnerEoa = `
