@@ -321,6 +321,7 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
 async function syncErc8122(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   // ERC-8122 fields may not exist on all subgraphs; treat as optional.
   console.info(`[sync] fetching erc8122 agents from ${endpoint.name} (chainId: ${endpoint.chainId})`);
+  console.info(`[sync] erc8122 subgraph endpoint`, { chainId: endpoint.chainId, name: endpoint.name, url: endpoint.url });
 
   const agents = await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY, 'registryAgent8122S', { optional: true });
   const metadatas = await fetchAllFromSubgraph(
@@ -336,10 +337,38 @@ async function syncErc8122(endpoint: { url: string; chainId: number; name: strin
     metadatas: metadatas.length,
   });
 
-  if (!agents.length && !metadatas.length) return;
+  // Always log a small sample so it's obvious whether we're reading the right data.
+  try {
+    const sample = (agents || []).slice(0, 25).map((a: any) => ({
+      id: a?.id ?? null,
+      agentId: a?.agentId ?? null,
+      registry: a?.registry ?? null,
+      owner: a?.owner ?? null,
+      endpointType: a?.endpointType ?? null,
+      endpoint: a?.endpoint ?? null,
+      agentAccount: a?.agentAccount ?? null,
+      createdAt: a?.createdAt ?? null,
+      updatedAt: a?.updatedAt ?? null,
+    }));
+    console.info('[sync] erc8122 agent sample', { chainId: endpoint.chainId, sampleCount: sample.length, sample });
+  } catch {}
+
+  // IMPORTANT: when --reset is used, clear the section even if the subgraph has 0 rows.
+  if (!agents.length && !metadatas.length) {
+    if (resetContext) {
+      await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'erc8122', turtle: '', resetContext: true });
+    }
+    return;
+  }
 
   const { turtle } = emitErc8122AgentsTurtle({ chainId: endpoint.chainId, agents, metadatas });
-  if (!turtle.trim()) return;
+  if (!turtle.trim()) {
+    // Still clear if reset requested.
+    if (resetContext) {
+      await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'erc8122', turtle: '', resetContext: true });
+    }
+    return;
+  }
 
   await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'erc8122', turtle, resetContext });
 }

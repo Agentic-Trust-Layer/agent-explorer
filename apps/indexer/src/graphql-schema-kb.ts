@@ -142,28 +142,6 @@ export const graphQLSchemaStringKb = `
     serviceEndpoints: [KbServiceEndpoint!]!
   }
 
-  # ERC-8004 identity with attached account info
-  type KbIdentity8004 {
-    iri: ID!
-    kind: String! # always "8004"
-    did: String!
-    # Convenience fields (previously on KbAgent)
-    did8004: String!
-    agentId8004: Int
-    isSmartAgent: Boolean!
-    descriptor: KbIdentityDescriptor
-    serviceEndpoints: [KbServiceEndpoint!]!
-
-    # Accounts attached to the ERC-8004 identity
-    ownerAccount: KbAccount
-    operatorAccount: KbAccount
-    walletAccount: KbAccount
-    ownerEOAAccount: KbAccount
-
-    # SmartAgent -> ERC-8004 agent-controlled account (AgentAccount)
-    agentAccount: KbAccount
-  }
-
   # ERC-8122 registries (factory-deployed registries + registrars)
   type KbAgentRegistry8122 {
     iri: ID!
@@ -301,9 +279,8 @@ export const graphQLSchemaStringKb = `
     atiVersion: String
     atiComputedAt: Int
 
-    # Convenience: primary identity (prefer identity8004, else identity8122, else identityHol, else identityEns)
+    # Convenience: primary identity (prefer identity8122, else identityHol, else identityEns)
     identity: KbIdentity
-    identity8004: KbIdentity8004
     identity8122: KbIdentity8122
     identityHol: KbIdentity
     identityEns: KbIdentity
