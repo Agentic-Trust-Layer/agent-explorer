@@ -283,6 +283,7 @@ export default {
             kbHolRegistrySearch: (_p: any, args: any) => sharedKb.kbHolRegistrySearch(args),
             kbHolVectorSearch: (_p: any, args: any) => sharedKb.kbHolVectorSearch(args),
             kbSemanticAgentSearch: (_p: any, args: any) => sharedKb.kbSemanticAgentSearch(args),
+            kbErc8122Registries: (_p: any, args: any) => sharedKb.kbErc8122Registries(args),
                 kbReviews: (_p: any, args: any) => sharedKb.kbReviews(args),
             kbValidations: (_p: any, args: any) => sharedKb.kbValidations(args),
             kbAssociations: (_p: any, args: any) => sharedKb.kbAssociations(args),

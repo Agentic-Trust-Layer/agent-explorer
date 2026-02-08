@@ -1440,18 +1440,24 @@ LIMIT 1
       if (!Number.isFinite(chainId) || Math.trunc(chainId) <= 0) return [];
       const first = args?.first ?? null;
       const skip = args?.skip ?? null;
-      const rows = await kbErc8122RegistriesQuery({ chainId: Math.trunc(chainId), first, skip }, graphdbCtx);
-      return rows.map((r) => ({
-        iri: r.iri,
-        chainId: r.chainId,
-        registryAddress: r.registryAddress,
-        registrarAddress: r.registrarAddress,
-        registryName: r.registryName,
-        registryImplementationAddress: r.registryImplementationAddress,
-        registrarImplementationAddress: r.registrarImplementationAddress,
-        registeredAgentCount: r.registeredAgentCount == null ? null : Math.trunc(r.registeredAgentCount),
-        lastAgentUpdatedAtTime: r.lastAgentUpdatedAtTime == null ? null : Math.trunc(r.lastAgentUpdatedAtTime),
-      }));
+      try {
+        const rows = await kbErc8122RegistriesQuery({ chainId: Math.trunc(chainId), first, skip }, graphdbCtx);
+        return rows.map((r) => ({
+          iri: r.iri,
+          chainId: r.chainId,
+          registryAddress: r.registryAddress,
+          registrarAddress: r.registrarAddress,
+          registryName: r.registryName,
+          registryImplementationAddress: r.registryImplementationAddress,
+          registrarImplementationAddress: r.registrarImplementationAddress,
+          registeredAgentCount: r.registeredAgentCount == null ? null : Math.trunc(r.registeredAgentCount),
+          lastAgentUpdatedAtTime: r.lastAgentUpdatedAtTime == null ? null : Math.trunc(r.lastAgentUpdatedAtTime),
+        }));
+      } catch (e: any) {
+        // IMPORTANT: schema declares non-null list. Never return null.
+        console.warn('[kb][kbErc8122Registries] failed; returning []', { chainId: Math.trunc(chainId), error: String(e?.message || e || '') });
+        return [];
+      }
     },
 
     kbSemanticAgentSearch: async (args: any, ctx: any) => {

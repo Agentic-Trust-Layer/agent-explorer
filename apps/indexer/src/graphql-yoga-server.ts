@@ -125,6 +125,7 @@ async function createYogaGraphQLServer(port: number = Number(process.env.GRAPHQL
         kbHolRegistrySearch: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolRegistrySearch(args, ctx),
         kbHolVectorSearch: (_p: unknown, args: any, ctx: any) => sharedKb.kbHolVectorSearch(args, ctx),
         kbSemanticAgentSearch: (_p: unknown, args: any, ctx: any) => sharedKb.kbSemanticAgentSearch(args, ctx),
+        kbErc8122Registries: (_p: unknown, args: any, ctx: any) => sharedKb.kbErc8122Registries(args, ctx),
         kbReviews: (_p: unknown, args: any, ctx: any) => sharedKb.kbReviews(args, ctx),
         kbValidations: (_p: unknown, args: any, ctx: any) => sharedKb.kbValidations(args, ctx),
         kbAssociations: (_p: unknown, args: any, ctx: any) => sharedKb.kbAssociations(args, ctx),
