@@ -1,5 +1,5 @@
 import type { SemanticSearchService } from './semantic/semantic-search-service.js';
-import { kbAgentsQuery, kbOwnedAgentsAllChainsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
+import { kbAgentsQuery, kbErc8122RegistriesQuery, kbOwnedAgentsAllChainsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
 import {
   kbAssociationsQuery,
   kbReviewItemsForAgentQuery,
@@ -507,6 +507,26 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             did8122: r.did8122,
             agentId8122: r.agentId8122,
             registryAddress: r.registry8122,
+            registry:
+              r.identity8122RegistryIri && r.registry8122
+                ? {
+                    iri: r.identity8122RegistryIri,
+                    chainId: (() => {
+                      const m = String(r.did8122 || '').match(/^did:8122:(\d+):/);
+                      const n = m ? Number(m[1]) : NaN;
+                      return Number.isFinite(n) ? Math.trunc(n) : 0;
+                    })(),
+                    registryAddress: r.registry8122,
+                    registrarAddress: r.identity8122RegistrarAddress,
+                    registryName: r.identity8122RegistryName,
+                    registryImplementationAddress: r.identity8122RegistryImplementationAddress,
+                    registrarImplementationAddress: r.identity8122RegistrarImplementationAddress,
+                    registeredAgentCount:
+                      r.identity8122RegisteredAgentCount == null ? null : Math.trunc(r.identity8122RegisteredAgentCount),
+                    lastAgentUpdatedAtTime:
+                      r.identity8122LastAgentUpdatedAtTime == null ? null : Math.trunc(r.identity8122LastAgentUpdatedAtTime),
+                  }
+                : null,
             endpointType: r.endpointType8122,
             endpoint: r.endpoint8122,
             descriptor: identity8122Descriptor,
@@ -1412,6 +1432,26 @@ LIMIT 1
       const caps = await fetchHolCapabilities();
       const res = await upsertHolCapabilityCatalogToGraphdb({ capabilities: caps });
       return { success: true, count: res.count, message: `Upserted ${res.count} HOL capabilities into KB.` };
+    },
+
+    kbErc8122Registries: async (args: any, ctx: any) => {
+      const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
+      const chainId = Number(args?.chainId);
+      if (!Number.isFinite(chainId) || Math.trunc(chainId) <= 0) return [];
+      const first = args?.first ?? null;
+      const skip = args?.skip ?? null;
+      const rows = await kbErc8122RegistriesQuery({ chainId: Math.trunc(chainId), first, skip }, graphdbCtx);
+      return rows.map((r) => ({
+        iri: r.iri,
+        chainId: r.chainId,
+        registryAddress: r.registryAddress,
+        registrarAddress: r.registrarAddress,
+        registryName: r.registryName,
+        registryImplementationAddress: r.registryImplementationAddress,
+        registrarImplementationAddress: r.registrarImplementationAddress,
+        registeredAgentCount: r.registeredAgentCount == null ? null : Math.trunc(r.registeredAgentCount),
+        lastAgentUpdatedAtTime: r.lastAgentUpdatedAtTime == null ? null : Math.trunc(r.lastAgentUpdatedAtTime),
+      }));
     },
 
     kbSemanticAgentSearch: async (args: any, ctx: any) => {

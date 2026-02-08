@@ -164,6 +164,19 @@ export const graphQLSchemaStringKb = `
     agentAccount: KbAccount
   }
 
+  # ERC-8122 registries (factory-deployed registries + registrars)
+  type KbAgentRegistry8122 {
+    iri: ID!
+    chainId: Int!
+    registryAddress: String!
+    registrarAddress: String
+    registryName: String
+    registryImplementationAddress: String
+    registrarImplementationAddress: String
+    registeredAgentCount: Int
+    lastAgentUpdatedAtTime: Int
+  }
+
   # ERC-8122 identity with attached registry/account info
   type KbIdentity8122 {
     iri: ID!
@@ -172,6 +185,7 @@ export const graphQLSchemaStringKb = `
     did8122: String!
     agentId8122: String!
     registryAddress: String
+    registry: KbAgentRegistry8122
     endpointType: String
     endpoint: String
     descriptor: KbIdentityDescriptor
@@ -516,6 +530,8 @@ export const graphQLSchemaStringKb = `
     kbHolVectorSearch(input: KbHolVectorSearchInput!): KbHolRegistrySearchResult!
 
     kbSemanticAgentSearch(input: SemanticAgentSearchInput!): KbSemanticAgentSearchResult!
+
+    kbErc8122Registries(chainId: Int!, first: Int, skip: Int): [KbAgentRegistry8122!]!
 
     # Minimal trust/event reads from KB (typed nodes + raw JSON where needed)
     kbReviews(chainId: Int!, first: Int, skip: Int): [KbReviewResponse!]!

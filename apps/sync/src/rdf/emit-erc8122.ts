@@ -4,6 +4,7 @@ import {
   agentIriFrom8122Did,
   agentIriFromAccountDid,
   agentDescriptorIriFromAgentIri,
+  agentRegistry8122Iri,
   escapeTurtleString,
   identity8122DescriptorIri,
   identity8122Iri,
@@ -144,6 +145,7 @@ export function emitErc8122AgentsTurtle(args: {
 
     lines.push(`${identityIri} a erc8122:AgentIdentity8122, core:AgentIdentity, prov:Entity ;`);
     lines.push(`  core:identityOf ${agentNode} ;`);
+    lines.push(`  core:identityRegistry ${agentRegistry8122Iri(chainId, registry)} ;`);
     lines.push(`  core:hasIdentifier ${identIri} ;`);
     lines.push(`  core:hasDescriptor ${descIri} ;`);
     lines.push(`  erc8122:agentId "${escapeTurtleString(agentId)}" ;`);

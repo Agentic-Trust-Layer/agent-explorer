@@ -108,6 +108,21 @@ export function identityIdentifier8122Iri(didIdentityValue: string): string {
   return `<https://www.agentictrust.io/id/identifier/8122/${iriEncodeSegment(didIdentityValue)}>`;
 }
 
+export function registryFactory8122Iri(chainId: number, factoryAddress: string): string {
+  const addr = String(factoryAddress || '').trim().toLowerCase();
+  return `<https://www.agentictrust.io/id/registry-factory/8122/${chainId}/${iriEncodeSegment(addr)}>`;
+}
+
+export function agentRegistry8122Iri(chainId: number, registryAddress: string): string {
+  const addr = String(registryAddress || '').trim().toLowerCase();
+  return `<https://www.agentictrust.io/id/registry/8122/${chainId}/${iriEncodeSegment(addr)}>`;
+}
+
+export function agentRegistrar8122Iri(chainId: number, registrarAddress: string): string {
+  const addr = String(registrarAddress || '').trim().toLowerCase();
+  return `<https://www.agentictrust.io/id/registrar/8122/${chainId}/${iriEncodeSegment(addr)}>`;
+}
+
 export function identityEnsIri(ensName: string): string {
   return `<https://www.agentictrust.io/id/ens-identity/${iriEncodeSegment(ensName)}>`;
 }

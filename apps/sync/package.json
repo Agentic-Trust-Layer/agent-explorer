@@ -9,6 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "sync:agents": "tsx src/cli.ts agents",
     "sync:erc8122": "tsx src/cli.ts erc8122",
+    "sync:erc8122-registries": "tsx src/cli.ts erc8122-registries",
     "sync:feedbacks": "tsx src/cli.ts feedbacks",
     "sync:associations": "tsx src/cli.ts associations",
     "sync:validations": "tsx src/cli.ts validations",

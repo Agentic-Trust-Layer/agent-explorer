@@ -22,6 +22,21 @@
 # Core classes
 ########
 
+:AgentRegistryFactory8122 a owl:Class ;
+  rdfs:label "AgentRegistryFactory8122" ;
+  rdfs:comment "ERC-8122 AgentRegistryFactory that deploys AgentRegistry + AgentRegistrar clone instances." ;
+  rdfs:subClassOf prov:Entity .
+
+:AgentRegistry8122 a owl:Class ;
+  rdfs:label "AgentRegistry8122" ;
+  rdfs:comment "An ERC-8122 AgentRegistry instance deployed by a factory." ;
+  rdfs:subClassOf core:AgentRegistry .
+
+:AgentRegistrar8122 a owl:Class ;
+  rdfs:label "AgentRegistrar8122" ;
+  rdfs:comment "An ERC-8122 AgentRegistrar instance (mints/creates agents in a registry)." ;
+  rdfs:subClassOf prov:Entity .
+
 :AgentIdentity8122 a owl:Class ;
   rdfs:label "AgentIdentity8122" ;
   rdfs:comment "ERC-8122 identity node for an agent (registry + agentId + owner + endpointType/endpoint)." ;
@@ -41,15 +56,87 @@
 # Properties
 ########
 
-:agentId a owl:DatatypeProperty ;
-  rdfs:label "agentId" ;
-  rdfs:comment "ERC-8122 registry agentId (string form as returned by subgraph)." ;
-  rdfs:domain :AgentIdentity8122 ;
+:factoryAddress a owl:DatatypeProperty ;
+  rdfs:label "factoryAddress" ;
+  rdfs:comment "AgentRegistryFactory contract address (0x...)." ;
+  rdfs:domain :AgentRegistryFactory8122 ;
   rdfs:range xsd:string .
+
+:registryImplementationAddress a owl:DatatypeProperty ;
+  rdfs:label "registryImplementationAddress" ;
+  rdfs:comment "AgentRegistry implementation contract address used by a factory." ;
+  rdfs:domain prov:Entity ;
+  rdfs:range xsd:string .
+
+:registrarImplementationAddress a owl:DatatypeProperty ;
+  rdfs:label "registrarImplementationAddress" ;
+  rdfs:comment "AgentRegistrar implementation contract address used by a factory." ;
+  rdfs:domain prov:Entity ;
+  rdfs:range xsd:string .
+
+:deployedRegistry a owl:ObjectProperty ;
+  rdfs:label "deployedRegistry" ;
+  rdfs:comment "Links a factory to a deployed registry instance." ;
+  rdfs:domain :AgentRegistryFactory8122 ;
+  rdfs:range :AgentRegistry8122 .
+
+:deployedRegistrar a owl:ObjectProperty ;
+  rdfs:label "deployedRegistrar" ;
+  rdfs:comment "Links a factory to a deployed registrar instance." ;
+  rdfs:domain :AgentRegistryFactory8122 ;
+  rdfs:range :AgentRegistrar8122 .
+
+:hasRegistrar a owl:ObjectProperty ;
+  rdfs:label "hasRegistrar" ;
+  rdfs:comment "Links an ERC-8122 registry to its associated registrar (when known)." ;
+  rdfs:domain :AgentRegistry8122 ;
+  rdfs:range :AgentRegistrar8122 .
+
+:forRegistry a owl:ObjectProperty ;
+  rdfs:label "forRegistry" ;
+  rdfs:comment "Links an ERC-8122 registrar to the registry it mints into." ;
+  rdfs:domain :AgentRegistrar8122 ;
+  rdfs:range :AgentRegistry8122 .
 
 :registryAddress a owl:DatatypeProperty ;
   rdfs:label "registryAddress" ;
   rdfs:comment "ERC-8122 registry contract address (0x...)." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range xsd:string .
+
+:registryContractAddress a owl:DatatypeProperty ;
+  rdfs:label "registryContractAddress" ;
+  rdfs:comment "ERC-8122 registry contract address (0x...) for a registry entity." ;
+  rdfs:domain :AgentRegistry8122 ;
+  rdfs:range xsd:string .
+
+:registrarContractAddress a owl:DatatypeProperty ;
+  rdfs:label "registrarContractAddress" ;
+  rdfs:comment "ERC-8122 registrar contract address (0x...). " ;
+  rdfs:domain :AgentRegistrar8122 ;
+  rdfs:range xsd:string .
+
+:registryName a owl:DatatypeProperty ;
+  rdfs:label "registryName" ;
+  rdfs:comment "Human-readable registry name (best-effort; typically read from on-chain metadata like name())." ;
+  rdfs:domain :AgentRegistry8122 ;
+  rdfs:range xsd:string .
+
+:registeredAgentCount a owl:DatatypeProperty ;
+  rdfs:label "registeredAgentCount" ;
+  rdfs:comment "Count of agents observed in this registry from the subgraph." ;
+  rdfs:domain :AgentRegistry8122 ;
+  rdfs:range xsd:integer .
+
+:lastAgentUpdatedAtTime a owl:DatatypeProperty ;
+  rdfs:label "lastAgentUpdatedAtTime" ;
+  rdfs:comment "Max(updatedAt) across agents observed in this registry from the subgraph." ;
+  rdfs:domain :AgentRegistry8122 ;
+  rdfs:range xsd:integer .
+
+:agentId a owl:DatatypeProperty ;
+  rdfs:label "agentId" ;
+  rdfs:comment "ERC-8122 registry agentId (string form as returned by subgraph)." ;
   rdfs:domain :AgentIdentity8122 ;
   rdfs:range xsd:string .
 

@@ -72,6 +72,13 @@ export type KbAgentRow = {
   identity8122DescriptorJson: string | null;
   identity8122OwnerAccountIri: string | null;
   identity8122AgentAccountIri: string | null;
+  identity8122RegistryIri: string | null;
+  identity8122RegistryName: string | null;
+  identity8122RegistryImplementationAddress: string | null;
+  identity8122RegistrarImplementationAddress: string | null;
+  identity8122RegistrarAddress: string | null;
+  identity8122RegisteredAgentCount: number | null;
+  identity8122LastAgentUpdatedAtTime: number | null;
 
   a2aServiceEndpointIri: string | null;
   a2aServiceUrl: string | null;
@@ -565,6 +572,13 @@ export async function kbAgentsQuery(args: {
           '  (SAMPLE(?identity8122DescriptorJson) AS ?identity8122DescriptorJson)',
           '  (SAMPLE(?identity8122OwnerAccount) AS ?identity8122OwnerAccount)',
           '  (SAMPLE(?identity8122AgentAccount) AS ?identity8122AgentAccount)',
+          '  (SAMPLE(?identity8122Registry) AS ?identity8122Registry)',
+          '  (SAMPLE(?identity8122RegistryName) AS ?identity8122RegistryName)',
+          '  (SAMPLE(?identity8122RegistryImplementationAddress) AS ?identity8122RegistryImplementationAddress)',
+          '  (SAMPLE(?identity8122RegistrarImplementationAddress) AS ?identity8122RegistrarImplementationAddress)',
+          '  (SAMPLE(?identity8122RegistrarAddress) AS ?identity8122RegistrarAddress)',
+          '  (SAMPLE(?identity8122RegisteredAgentCount) AS ?identity8122RegisteredAgentCount)',
+          '  (SAMPLE(?identity8122LastAgentUpdatedAtTime) AS ?identity8122LastAgentUpdatedAtTime)',
           '  (SAMPLE(?identityHol) AS ?identityHol)',
           '  (SAMPLE(?holProtocolIdentifier) AS ?holProtocolIdentifier)',
           '  (SAMPLE(?uaidHOL) AS ?uaidHOL)',
@@ -767,6 +781,18 @@ export async function kbAgentsQuery(args: {
           '        OPTIONAL { ?desc8122 schema:image ?identity8122DescriptorImage . }',
           '        OPTIONAL { ?desc8122 core:json ?identity8122DescriptorJson . }',
           '      }',
+          '      OPTIONAL {',
+          '        ?identity8122 core:identityRegistry ?identity8122Registry .',
+          '        OPTIONAL { ?identity8122Registry erc8122:registryName ?identity8122RegistryName . }',
+          '        OPTIONAL { ?identity8122Registry erc8122:registryImplementationAddress ?identity8122RegistryImplementationAddress . }',
+          '        OPTIONAL { ?identity8122Registry erc8122:registrarImplementationAddress ?identity8122RegistrarImplementationAddress . }',
+          '        OPTIONAL { ?identity8122Registry erc8122:registeredAgentCount ?identity8122RegisteredAgentCount . }',
+          '        OPTIONAL { ?identity8122Registry erc8122:lastAgentUpdatedAtTime ?identity8122LastAgentUpdatedAtTime . }',
+          '        OPTIONAL {',
+          '          ?identity8122Registry erc8122:hasRegistrar ?_identity8122Registrar .',
+          '          OPTIONAL { ?_identity8122Registrar erc8122:registrarContractAddress ?identity8122RegistrarAddress . }',
+          '        }',
+          '      }',
           '    }',
           '    OPTIONAL {',
           '      ?agent core:hasIdentity ?identityHol .',
@@ -896,6 +922,13 @@ export async function kbAgentsQuery(args: {
       identity8122DescriptorJson: asString(b?.identity8122DescriptorJson),
       identity8122OwnerAccountIri: asString(b?.identity8122OwnerAccount),
       identity8122AgentAccountIri: asString(b?.identity8122AgentAccount),
+      identity8122RegistryIri: asString(b?.identity8122Registry),
+      identity8122RegistryName: asString(b?.identity8122RegistryName),
+      identity8122RegistryImplementationAddress: asString(b?.identity8122RegistryImplementationAddress),
+      identity8122RegistrarImplementationAddress: asString(b?.identity8122RegistrarImplementationAddress),
+      identity8122RegistrarAddress: asString(b?.identity8122RegistrarAddress),
+      identity8122RegisteredAgentCount: asNumber(b?.identity8122RegisteredAgentCount),
+      identity8122LastAgentUpdatedAtTime: asNumber(b?.identity8122LastAgentUpdatedAtTime),
       identityHolIri: asString(b?.identityHol),
       identityHolProtocolIdentifier: asString(b?.holProtocolIdentifier),
       identityHolUaidHOL: asString(b?.uaidHOL),
@@ -1169,6 +1202,13 @@ export async function kbOwnedAgentsQuery(args: {
     identity8122DescriptorJson: null, // Not fetched in this query
     identity8122OwnerAccountIri: null, // Not fetched in this query
     identity8122AgentAccountIri: null, // Not fetched in this query
+    identity8122RegistryIri: null, // Not fetched in this query
+    identity8122RegistryName: null, // Not fetched in this query
+    identity8122RegistryImplementationAddress: null, // Not fetched in this query
+    identity8122RegistrarImplementationAddress: null, // Not fetched in this query
+    identity8122RegistrarAddress: null, // Not fetched in this query
+    identity8122RegisteredAgentCount: null, // Not fetched in this query
+    identity8122LastAgentUpdatedAtTime: null, // Not fetched in this query
     identityHolDescriptorIri: null, // Not fetched in this query
     identityHolDescriptorName: null, // Not fetched in this query
     identityHolDescriptorDescription: null, // Not fetched in this query
@@ -1465,6 +1505,13 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
     identity8122DescriptorJson: null, // Not fetched in simplified query
     identity8122OwnerAccountIri: null, // Not fetched in simplified query
     identity8122AgentAccountIri: null, // Not fetched in simplified query
+    identity8122RegistryIri: null, // Not fetched in simplified query
+    identity8122RegistryName: null, // Not fetched in simplified query
+    identity8122RegistryImplementationAddress: null, // Not fetched in simplified query
+    identity8122RegistrarImplementationAddress: null, // Not fetched in simplified query
+    identity8122RegistrarAddress: null, // Not fetched in simplified query
+    identity8122RegisteredAgentCount: null, // Not fetched in simplified query
+    identity8122LastAgentUpdatedAtTime: null, // Not fetched in simplified query
     identityHolDescriptorIri: null, // Not fetched in simplified query
     identityHolDescriptorName: null, // Not fetched in simplified query
     identityHolDescriptorDescription: null, // Not fetched in simplified query
@@ -1546,6 +1593,85 @@ export async function kbOwnedAgentsAllChainsQuery(args: {
   const total = clampInt(asNumber(countBindings?.[0]?.count), 0, 10_000_000_000, 0);
 
   return { rows, total, hasMore };
+}
+
+export type KbErc8122RegistryRow = {
+  iri: string;
+  chainId: number;
+  registryAddress: string;
+  registrarAddress: string | null;
+  registryName: string | null;
+  registryImplementationAddress: string | null;
+  registrarImplementationAddress: string | null;
+  registeredAgentCount: number | null;
+  lastAgentUpdatedAtTime: number | null;
+};
+
+export async function kbErc8122RegistriesQuery(args: {
+  chainId: number;
+  first?: number | null;
+  skip?: number | null;
+}, graphdbCtx?: GraphdbQueryContext | null): Promise<KbErc8122RegistryRow[]> {
+  const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
+  const first = clampInt(args.first, 1, 5000, 200);
+  const skip = clampInt(args.skip, 0, 1_000_000, 0);
+  const ctx = chainContext(chainId);
+
+  const sparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
+    'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
+    '',
+    'SELECT',
+    '  ?registry',
+    '  (SAMPLE(?registryAddress) AS ?registryAddress)',
+    '  (SAMPLE(?registrarAddress) AS ?registrarAddress)',
+    '  (SAMPLE(?registryName) AS ?registryName)',
+    '  (SAMPLE(?registryImplementationAddress) AS ?registryImplementationAddress)',
+    '  (SAMPLE(?registrarImplementationAddress) AS ?registrarImplementationAddress)',
+    '  (SAMPLE(?registeredAgentCount) AS ?registeredAgentCount)',
+    '  (SAMPLE(?lastAgentUpdatedAtTime) AS ?lastAgentUpdatedAtTime)',
+    'WHERE {',
+    `  GRAPH <${ctx}> {`,
+    '    ?registry a erc8122:AgentRegistry8122, core:AgentRegistry .',
+    '    OPTIONAL { ?registry erc8122:registryContractAddress ?registryAddress . }',
+    '    OPTIONAL { ?registry erc8122:registryName ?registryName . }',
+    '    OPTIONAL { ?registry erc8122:registryImplementationAddress ?registryImplementationAddress . }',
+    '    OPTIONAL { ?registry erc8122:registrarImplementationAddress ?registrarImplementationAddress . }',
+    '    OPTIONAL { ?registry erc8122:registeredAgentCount ?registeredAgentCount . }',
+    '    OPTIONAL { ?registry erc8122:lastAgentUpdatedAtTime ?lastAgentUpdatedAtTime . }',
+    '    OPTIONAL {',
+    '      ?registry erc8122:hasRegistrar ?registrar .',
+    '      OPTIONAL { ?registrar erc8122:registrarContractAddress ?registrarAddress . }',
+    '    }',
+    `  }`,
+    '}',
+    'GROUP BY ?registry',
+    'ORDER BY LCASE(STR(COALESCE(?registryName, ""))) ASC(STR(?registry))',
+    `LIMIT ${first}`,
+    `OFFSET ${skip}`,
+    '',
+  ].join('\n');
+
+  const bindings = await runGraphdbQuery(sparql, graphdbCtx, 'kbErc8122RegistriesQuery');
+  return bindings
+    .map((b: any) => {
+      const iri = asString(b?.registry);
+      const address = asString(b?.registryAddress);
+      if (!iri || !address) return null;
+      return {
+        iri,
+        chainId,
+        registryAddress: address,
+        registrarAddress: asString(b?.registrarAddress),
+        registryName: asString(b?.registryName),
+        registryImplementationAddress: asString(b?.registryImplementationAddress),
+        registrarImplementationAddress: asString(b?.registrarImplementationAddress),
+        registeredAgentCount: asNumber(b?.registeredAgentCount),
+        lastAgentUpdatedAtTime: asNumber(b?.lastAgentUpdatedAtTime),
+      } satisfies KbErc8122RegistryRow;
+    })
+    .filter((x): x is KbErc8122RegistryRow => Boolean(x));
 }
 
 export type KbSubgraphRecord = {

@@ -26,6 +26,7 @@ import { emitFeedbacksTurtle } from './rdf/emit-feedbacks.js';
 import { emitValidationRequestsTurtle, emitValidationResponsesTurtle } from './rdf/emit-validations.js';
 import { emitAssociationsTurtle, emitAssociationRevocationsTurtle } from './rdf/emit-associations.js';
 import { emitErc8122AgentsTurtle } from './rdf/emit-erc8122.js';
+import { syncErc8122RegistriesToGraphdbForChain } from './erc8122/sync-erc8122-registries.js';
 import { syncAgentCardsForChain } from './a2a/agent-card-sync.js';
 import { syncAccountTypesForChain } from './account-types/sync-account-types.js';
 import { getMaxAgentId8004, getMaxDid8004AgentId, listAgentIriByDidIdentity } from './graphdb/agents.js';
@@ -39,6 +40,7 @@ import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledg
 type SyncCommand =
   | 'agents'
   | 'erc8122'
+  | 'erc8122-registries'
   | 'feedbacks'
   | 'feedback-revocations'
   | 'feedback-responses'
@@ -342,6 +344,12 @@ async function syncErc8122(endpoint: { url: string; chainId: number; name: strin
   await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'erc8122', turtle, resetContext });
 }
 
+async function syncErc8122Registries(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
+  // Registry factories + registries + registrars are read from chain RPC (and optionally enriched from subgraph).
+  console.info(`[sync] syncing erc8122 registries (chainId: ${endpoint.chainId})`);
+  await syncErc8122RegistriesToGraphdbForChain({ chainId: endpoint.chainId, resetContext });
+}
+
 async function syncFeedbacks(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   console.info(`[sync] fetching feedbacks from ${endpoint.name} (chainId: ${endpoint.chainId})`);
   let lastBlock = 0n;
@@ -540,6 +548,9 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         case 'erc8122':
           await syncErc8122(endpoint, resetContext);
           break;
+        case 'erc8122-registries':
+          await syncErc8122Registries(endpoint, resetContext);
+          break;
         case 'feedbacks':
           await syncFeedbacks(endpoint, resetContext);
           await syncFeedbackRevocations(endpoint, resetContext);
@@ -598,6 +609,7 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         case 'all':
           await syncAgents(endpoint, resetContext);
           await syncErc8122(endpoint, resetContext);
+          await syncErc8122Registries(endpoint, resetContext);
           await syncFeedbacks(endpoint, resetContext);
           await syncFeedbackRevocations(endpoint, resetContext);
           await syncFeedbackResponses(endpoint, resetContext);

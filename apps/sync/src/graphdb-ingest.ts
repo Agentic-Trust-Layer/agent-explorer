@@ -208,6 +208,29 @@ WITH <${context}>
 DELETE { ?ad ?p ?o }
 WHERE  { ?ad a core:AgentDescriptor . ?ad ?p ?o . FILTER(CONTAINS(STR(?ad), "/id/agent-descriptor/")) } ;
 `;
+      case 'erc8122-registries':
+        return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>
+WITH <${context}>
+DELETE { ?s ?p ?o }
+WHERE  {
+  {
+    ?s a erc8122:AgentRegistryFactory8122 .
+    ?s ?p ?o .
+  }
+  UNION
+  {
+    ?s a erc8122:AgentRegistry8122 .
+    ?s ?p ?o .
+  }
+  UNION
+  {
+    ?s a erc8122:AgentRegistrar8122 .
+    ?s ?p ?o .
+  }
+}
+`;
       default:
         return null;
     }
