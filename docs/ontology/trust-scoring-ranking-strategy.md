@@ -84,6 +84,58 @@ flowchart TD
 - `analytics:AgentTrustComponent`
   - `analytics:component`, `analytics:score`, `analytics:weight`, `analytics:evidenceCountsJson`
 
+**What inputs go into the ATI score** (current `kb-cts-v1` implementation in `apps/sync/src/trust-index/trust-index.ts`):
+
+- **Overall score**
+  - **Formula**: weighted sum of component scores, rounded to an integer and clamped to 0..100.
+  - **Weights** (sum to 1.0): existence 0.08, identity 0.12, descriptor 0.18, capability 0.22, experience 0.16, freshness 0.12, endpoints 0.06, agentCard 0.06.
+
+- **Overall confidence**
+  - Derived from:
+    - **sample strength**: \(\log_{10}(1 + feedbackCount + validationCount)\) scaled (more evidence → higher confidence)
+    - **freshness factor**: freshnessScore/100 (more recent updates → higher confidence)
+  - The confidence is a 0..1 number intended for UI/explain (“how much evidence do we have?”).
+
+- **Component: `existence` (100 or not present)**
+  - This run only emits ATI rows for agents with an ERC‑8004 identity/agentId, so existence is currently always 100 for included agents.
+
+- **Component: `identity` (100 or not present)**
+  - Same as existence: this job currently targets agents that have an ERC‑8004 identity + numeric agentId, so identity is currently always 100 for included agents.
+
+- **Component: `descriptor` (0..100)**
+  - Uses two completeness signals (each 0..1) and blends them:
+    - `agentDescriptorCompleteness01` (55% weight): based on the agent’s descriptor having title/description/image.
+    - `identityDescriptorCompleteness01` (45% weight): based on the ERC‑8004 identity descriptor having registrationJson + image + registeredBy + registryNamespace.
+  - Also captures descriptor-derived evidence in `evidenceCountsJson`, including:
+    - whether identity skills/domains exist
+    - whether A2A/MCP skills/domains exist
+    - registration-derived counts: `registrationSkillCount`, `registrationDomainCount`
+    - `x402SupportFromRegistration`
+
+- **Component: `capability` (0..100)**
+  - Input: `validationAssertionCount` from `core:ValidationAssertionSummary`.
+  - Scoring: log-scaled, capped at 50 validations (\(\approx 50 \rightarrow 100\)).
+
+- **Component: `experience` (0..100)**
+  - Input: `feedbackAssertionCount` from `core:FeedbackAssertionSummary`.
+  - Scoring: log-scaled, capped at 50 feedback assertions.
+
+- **Component: `freshness` (0..100)**
+  - Input: `core:updatedAtTime` on the agent (best-effort materialized during sync).
+  - Scoring: exponential decay vs age in days (very recent → near 100; older → approaches 0).
+
+- **Component: `endpoints` (0 or 100)**
+  - Inputs:
+    - endpoint evidence on the agent (`hasA2A`, `hasMCP`)
+    - endpoint evidence parsed from ERC‑8004 registration JSON (`hasA2AFromRegistration`, `hasMCPFromRegistration`, `hasWebFromRegistration`, `hasOASFServiceFromRegistration`)
+  - Scoring: 100 if any of (A2A, MCP, Web) is present; else 0.
+
+- **Component: `agentCard` (0..100)**
+  - Inputs:
+    - direct presence of `core:agentCardJson` for A2A and/or MCP
+    - or an agent-card URL pattern in registration services (weaker signal)
+  - Scoring ladder (best → worst): A2A agentCardJson (1.0), MCP agentCardJson (0.85), A2A agent-card URL (0.65), MCP agent-card URL (0.55), else 0.
+
 ## Badges and awards
 
 Badges exist at two layers:

@@ -239,6 +239,28 @@ function parseRegistrationEndpoints(jsonText: string): any[] {
   }
 }
 
+function parseRegistrationObject(jsonText: string): any | null {
+  const raw = typeof jsonText === 'string' ? jsonText.trim() : '';
+  if (!raw) return null;
+  if (!(raw.startsWith('{') || raw.startsWith('['))) return null;
+  try {
+    const obj: any = JSON.parse(raw);
+    return obj && typeof obj === 'object' ? obj : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseEip155ChainIdFromAgentRegistry(registry: unknown): number | null {
+  const s = typeof registry === 'string' ? registry.trim() : '';
+  // Expected: eip155:<chainId>:<address>
+  const parts = s.split(':');
+  if (parts.length < 3) return null;
+  if (parts[0].toLowerCase() !== 'eip155') return null;
+  const n = Number(parts[1]);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+}
+
 function splitSkillsDomains(ep: any): { skills: string[]; domains: string[] } {
   const skills = Array.isArray(ep?.a2aSkills)
     ? ep.a2aSkills
@@ -532,6 +554,31 @@ export function emitAgentsTurtle(
     }
     // AgentURI / registration JSON: ALWAYS store on identity descriptor.
     if (registrationJsonText) lines.push(`  erc8004:registrationJson ${turtleJsonLiteral(registrationJsonText)} ;`);
+
+    // Registration-derived signals (materialized for analytics/badges)
+    const regObj = registrationJsonText ? parseRegistrationObject(registrationJsonText) : null;
+    if (regObj && typeof regObj === 'object') {
+      const x402 = Boolean((regObj as any).x402Support ?? (regObj as any).x402support);
+      if (x402) lines.push(`  erc8004:x402Support true ;`);
+
+      // OASF service declaration counts (skills + domains)
+      const services = Array.isArray((regObj as any).services) ? ((regObj as any).services as any[]) : [];
+      let oasfSkillCount = 0;
+      let oasfDomainCount = 0;
+      for (const s of services) {
+        if (!s || typeof s !== 'object') continue;
+        const name = String((s as any).name ?? '').trim().toLowerCase();
+        if (name !== 'oasf') continue;
+        const skills = Array.isArray((s as any).skills) ? (s as any).skills : [];
+        const domains = Array.isArray((s as any).domains) ? (s as any).domains : [];
+        const uniqSkills = new Set(skills.filter((x: any) => typeof x === 'string' && x.trim()).map((x: any) => String(x).trim()));
+        const uniqDomains = new Set(domains.filter((x: any) => typeof x === 'string' && x.trim()).map((x: any) => String(x).trim()));
+        oasfSkillCount = Math.max(oasfSkillCount, uniqSkills.size);
+        oasfDomainCount = Math.max(oasfDomainCount, uniqDomains.size);
+      }
+      if (oasfSkillCount > 0) lines.push(`  erc8004:registrationOasfSkillCount ${oasfSkillCount} ;`);
+      if (oasfDomainCount > 0) lines.push(`  erc8004:registrationOasfDomainCount ${oasfDomainCount} ;`);
+    }
     // Parse registration JSON once during sync and materialize skills/domains/protocolDescriptors into KB triples.
     // On-chain metadata KV rows (lossless) stored on identity descriptor.
     // Source: subgraph agentMetadata_collection rows attached to item.agentMetadatas.
@@ -552,6 +599,41 @@ export function emitAgentsTurtle(
     // terminate descriptor
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
+
+    // Multi-registration references: add additional ERC-8004 identities (different chains/agentIds) to the same agent node.
+    if (regObj && typeof regObj === 'object') {
+      const regs = Array.isArray((regObj as any).registrations) ? ((regObj as any).registrations as any[]) : [];
+      for (const r of regs) {
+        if (!r || typeof r !== 'object') continue;
+        const otherAgentIdRaw = (r as any).agentId;
+        const otherAgentIdNum = Number(otherAgentIdRaw);
+        if (!Number.isFinite(otherAgentIdNum) || otherAgentIdNum <= 0) continue;
+        const otherChainId = parseEip155ChainIdFromAgentRegistry((r as any).agentRegistry);
+        if (!otherChainId) continue;
+        // Skip the current chain/agentId (already emitted).
+        if (otherChainId === chainId && Math.trunc(otherAgentIdNum) === Math.trunc(agentIdNum)) continue;
+
+        const otherDidIdentity = `did:8004:${otherChainId}:${Math.trunc(otherAgentIdNum)}`;
+        const otherIdentityIri = identity8004Iri(otherDidIdentity);
+        const otherIdentifierIri = identityIdentifier8004Iri(otherDidIdentity);
+
+        // Link agent -> identity
+        lines.push(`${agentNodeIri} core:hasIdentity ${otherIdentityIri} .`);
+        lines.push('');
+
+        // Minimal identity node (no accounts/descriptors because we don't have them here)
+        lines.push(`${otherIdentityIri} a erc8004:AgentIdentity8004, core:AgentIdentity, prov:Entity ;`);
+        lines.push(`  core:identityOf ${agentNodeIri} ;`);
+        lines.push(`  erc8004:agentId ${Math.trunc(otherAgentIdNum)} ;`);
+        lines.push(`  core:hasIdentifier ${otherIdentifierIri} .`);
+        lines.push('');
+
+        lines.push(`${otherIdentifierIri} a erc8004:IdentityIdentifier8004, core:UniversalIdentifier, core:Identifier, core:DID, prov:Entity ;`);
+        lines.push(`  core:protocolIdentifier "${escapeTurtleString(otherDidIdentity)}" ;`);
+        lines.push(`  core:didMethod <https://www.agentictrust.io/id/did-method/8004> .`);
+        lines.push('');
+      }
+    }
 
     if (registrationJsonText) {
       const endpoints = parseRegistrationEndpoints(registrationJsonText);

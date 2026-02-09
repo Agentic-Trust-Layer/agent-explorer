@@ -100,9 +100,37 @@ export function emitProtocolDescriptorFromRegistration(opts: {
   lines.push('');
 
   // Protocol descriptor (placeholder; agent-cards sync will populate core:agentCardJson + UX fields)
-  lines.push(`${pDescIri} a core:Descriptor, prov:Entity ;`);
+  const isMcp = opts.protocol === 'mcp';
+  const pDescType = isMcp ? 'core:DescriptorMCPProtocol' : 'core:Descriptor';
+  lines.push(`${pDescIri} a ${pDescType}, core:Descriptor, prov:Entity ;`);
   lines.push(`  dcterms:title "${escapeTurtleString(opts.protocol)}" ;`);
-  lines.push(`  rdfs:label "${escapeTurtleString(opts.protocol)}" .`);
+  lines.push(`  rdfs:label "${escapeTurtleString(opts.protocol)}" ;`);
+
+  // MCP registration-declared tools/prompts/capabilities (materialize for analytics/badges).
+  if (isMcp && opts.endpointJson && typeof opts.endpointJson === 'object') {
+    const tools = Array.isArray((opts.endpointJson as any).tools) ? (opts.endpointJson as any).tools : [];
+    const prompts = Array.isArray((opts.endpointJson as any).prompts) ? (opts.endpointJson as any).prompts : [];
+    const capabilities = Array.isArray((opts.endpointJson as any).capabilities) ? (opts.endpointJson as any).capabilities : [];
+
+    const toolsStr = tools.filter((x: any) => typeof x === 'string' && x.trim()).map((x: any) => String(x).trim());
+    const promptsStr = prompts.filter((x: any) => typeof x === 'string' && x.trim()).map((x: any) => String(x).trim());
+    const capsStr = capabilities.filter((x: any) => typeof x === 'string' && x.trim()).map((x: any) => String(x).trim());
+
+    if (toolsStr.length) {
+      lines.push(`  core:mcpToolsCount ${toolsStr.length} ;`);
+      lines.push(`  core:mcpToolsJson ${turtleJsonLiteral(JSON.stringify(toolsStr))} ;`);
+    }
+    if (promptsStr.length) {
+      lines.push(`  core:mcpPromptsCount ${promptsStr.length} ;`);
+      lines.push(`  core:mcpPromptsJson ${turtleJsonLiteral(JSON.stringify(promptsStr))} ;`);
+    }
+    if (capsStr.length) {
+      lines.push(`  core:mcpCapabilitiesCount ${capsStr.length} ;`);
+      lines.push(`  core:mcpCapabilitiesJson ${turtleJsonLiteral(JSON.stringify(capsStr))} ;`);
+    }
+  }
+
+  lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
   lines.push('');
 
   for (const n of extra) lines.push(n + '\n');

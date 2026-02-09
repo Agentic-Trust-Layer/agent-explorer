@@ -110,67 +110,45 @@ OFFSET ${Math.trunc(pageOffset)}
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-SELECT ?agent (COUNT(?fb) AS ?feedbackCount) WHERE {
+SELECT ?agent (xsd:integer(COALESCE(?cnt, 0)) AS ?feedbackCount) WHERE {
   GRAPH <${ctx}> {
     VALUES ?agent { ${valuesForAgents(agentIris)} }
     OPTIONAL {
-      ?agent core:hasReputationAssertion ?fb .
-      ?fb a erc8004:Feedback .
+      SELECT ?agent (COUNT(?fb) AS ?cnt) WHERE {
+        VALUES ?agent { ${valuesForAgents(agentIris)} }
+        ?agent core:hasReputationAssertion ?fb .
+        ?fb a erc8004:Feedback .
+      }
+      GROUP BY ?agent
     }
   }
 }
-GROUP BY ?agent
 `;
 
-  const feedbackLastTsSparql = (agentIris: string[]) => `
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-SELECT ?agent (MAX(?fbTs) AS ?lastFeedbackTs) WHERE {
-  GRAPH <${ctx}> {
-    VALUES ?agent { ${valuesForAgents(agentIris)} }
-    ?agent core:hasReputationAssertion ?fb .
-    ?fb a erc8004:Feedback .
-    ?fbRec a erc8004:SubgraphIngestRecord ;
-           erc8004:recordsEntity ?fb ;
-           erc8004:subgraphTimestamp ?fbTs .
-  }
-}
-GROUP BY ?agent
-`;
+  // NOTE: We intentionally do not compute per-agent "last feedback timestamp" here.
+  // The MAX(timestamp) query requires GROUP BY over ingest records and OOMs on hosted GraphDB mainnet.
 
   const validationCountsSparql = (agentIris: string[]) => `
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-SELECT ?agent (COUNT(?va) AS ?validationCount) WHERE {
+SELECT ?agent (xsd:integer(COALESCE(?cnt, 0)) AS ?validationCount) WHERE {
   GRAPH <${ctx}> {
     VALUES ?agent { ${valuesForAgents(agentIris)} }
     OPTIONAL {
-      ?agent core:hasVerificationAssertion ?va .
-      ?va a erc8004:ValidationResponse .
+      SELECT ?agent (COUNT(?va) AS ?cnt) WHERE {
+        VALUES ?agent { ${valuesForAgents(agentIris)} }
+        ?agent core:hasVerificationAssertion ?va .
+        ?va a erc8004:ValidationResponse .
+      }
+      GROUP BY ?agent
     }
   }
 }
-GROUP BY ?agent
 `;
 
-  const validationLastTsSparql = (agentIris: string[]) => `
-PREFIX core: <https://agentictrust.io/ontology/core#>
-PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
-PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-SELECT ?agent (MAX(?vaTs) AS ?lastValidationTs) WHERE {
-  GRAPH <${ctx}> {
-    VALUES ?agent { ${valuesForAgents(agentIris)} }
-    ?agent core:hasVerificationAssertion ?va .
-    ?va a erc8004:ValidationResponse .
-    ?vaRec a erc8004:SubgraphIngestRecord ;
-           erc8004:recordsEntity ?va ;
-           erc8004:subgraphTimestamp ?vaTs .
-  }
-}
-GROUP BY ?agent
-`;
+  // NOTE: We intentionally do not compute per-agent "last validation timestamp" here.
+  // Same issue as feedback last timestamps.
 
   for (;;) {
     // Phase 1: get a page of agents.
@@ -196,15 +174,9 @@ GROUP BY ?agent
       fbMap.set(a, { count: Math.max(0, Math.trunc(asNumBinding(b?.feedbackCount) ?? 0)), lastTs: null });
     }
 
-    const resFbTs = await queryGraphdb(baseUrl, repository, auth, feedbackLastTsSparql(agentIris));
-    const fbTsBindings = Array.isArray(resFbTs?.results?.bindings) ? resFbTs.results.bindings : [];
-    for (const b of fbTsBindings) {
-      const a = asStrBinding(b?.agent);
-      if (!a) continue;
-      const prev = fbMap.get(a) ?? { count: 0, lastTs: null };
-      prev.lastTs = asNumBinding(b?.lastFeedbackTs);
-      fbMap.set(a, prev);
-    }
+    // NOTE: We intentionally do NOT compute per-agent "last timestamp" on mainnet.
+    // The MAX(timestamp) queries require GROUP BY over ingest records and repeatedly OOM
+    // on the hosted GraphDB. Counts alone are sufficient for Trust Ledger scoring.
 
     const resVa = await queryGraphdb(baseUrl, repository, auth, validationCountsSparql(agentIris));
     const vaBindings = Array.isArray(resVa?.results?.bindings) ? resVa.results.bindings : [];
@@ -214,15 +186,7 @@ GROUP BY ?agent
       vaMap.set(a, { count: Math.max(0, Math.trunc(asNumBinding(b?.validationCount) ?? 0)), lastTs: null });
     }
 
-    const resVaTs = await queryGraphdb(baseUrl, repository, auth, validationLastTsSparql(agentIris));
-    const vaTsBindings = Array.isArray(resVaTs?.results?.bindings) ? resVaTs.results.bindings : [];
-    for (const b of vaTsBindings) {
-      const a = asStrBinding(b?.agent);
-      if (!a) continue;
-      const prev = vaMap.get(a) ?? { count: 0, lastTs: null };
-      prev.lastTs = asNumBinding(b?.lastValidationTs);
-      vaMap.set(a, prev);
-    }
+    // (same as feedback timestamps)
 
     const lines: string[] = [rdfPrefixes()];
     for (const a of pageAgents) {

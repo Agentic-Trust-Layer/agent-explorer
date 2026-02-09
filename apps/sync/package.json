@@ -14,6 +14,7 @@
     "sync:associations": "tsx src/cli.ts associations",
     "sync:validations": "tsx src/cli.ts validations",
     "sync:agent-cards": "tsx src/cli.ts agent-cards",
+    "sync:mcp": "tsx src/cli.ts mcp",
     "sync:materialize-services": "tsx src/cli.ts materialize-services",
     "sync:assertion-summaries": "tsx src/cli.ts assertion-summaries",
     "sync:trust-ledger": "tsx src/cli.ts trust-ledger",

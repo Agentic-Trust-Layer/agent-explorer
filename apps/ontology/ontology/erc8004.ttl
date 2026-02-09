@@ -92,6 +92,24 @@
   rdfs:domain :Descriptor8004Identity ;
   rdfs:range xsd:string .
 
+::x402Support a owl:DatatypeProperty ;
+  rdfs:label "x402Support" ;
+  rdfs:comment "Whether the ERC-8004 registration JSON declares x402 support (materialized for analytics/badges)." ;
+  rdfs:domain :Descriptor8004Identity ;
+  rdfs:range xsd:boolean .
+
+::registrationOasfSkillCount a owl:DatatypeProperty ;
+  rdfs:label "registrationOasfSkillCount" ;
+  rdfs:comment "Count of OASF skills declared in ERC-8004 registration JSON services[].name==\"OASF\" (materialized for analytics/badges)." ;
+  rdfs:domain :Descriptor8004Identity ;
+  rdfs:range xsd:integer .
+
+::registrationOasfDomainCount a owl:DatatypeProperty ;
+  rdfs:label "registrationOasfDomainCount" ;
+  rdfs:comment "Count of OASF domains declared in ERC-8004 registration JSON services[].name==\"OASF\" (materialized for analytics/badges)." ;
+  rdfs:domain :Descriptor8004Identity ;
+  rdfs:range xsd:integer .
+
 :registeredBy a owl:DatatypeProperty ;
   rdfs:label "registeredBy" ;
   rdfs:comment "Human-readable registration issuer/brand extracted from on-chain metadata (best-effort)." ;

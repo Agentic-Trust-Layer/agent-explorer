@@ -204,6 +204,83 @@
   rdfs:domain :DescriptorA2AProtocol ;
   rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
 
+:DescriptorMCPProtocol a owl:Class ;
+  rdfs:label "DescriptorMCPProtocol" ;
+  rdfs:comment "Descriptor payload for an MCP protocol instance, including materialized tools/prompts and optional runtime health checks." ;
+  rdfs:subClassOf :Descriptor .
+
+:mcpToolsJson a owl:DatatypeProperty ;
+  rdfs:label "mcpToolsJson" ;
+  rdfs:comment "Lossless JSON payload for MCP tools declared in ERC-8004 registrationJson (debug/traceability only)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:mcpPromptsJson a owl:DatatypeProperty ;
+  rdfs:label "mcpPromptsJson" ;
+  rdfs:comment "Lossless JSON payload for MCP prompts declared in ERC-8004 registrationJson (debug/traceability only)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:mcpCapabilitiesJson a owl:DatatypeProperty ;
+  rdfs:label "mcpCapabilitiesJson" ;
+  rdfs:comment "Lossless JSON payload for MCP capabilities declared in ERC-8004 registrationJson (debug/traceability only)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:mcpToolsCount a owl:DatatypeProperty ;
+  rdfs:label "mcpToolsCount" ;
+  rdfs:comment "Count of MCP tools (best-effort; declared or fetched depending on the job that wrote it)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:mcpPromptsCount a owl:DatatypeProperty ;
+  rdfs:label "mcpPromptsCount" ;
+  rdfs:comment "Count of MCP prompts (best-effort; declared or fetched depending on the job that wrote it)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:mcpCapabilitiesCount a owl:DatatypeProperty ;
+  rdfs:label "mcpCapabilitiesCount" ;
+  rdfs:comment "Count of MCP capabilities (best-effort; declared or fetched depending on the job that wrote it)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:mcpAlive a owl:DatatypeProperty ;
+  rdfs:label "mcpAlive" ;
+  rdfs:comment "Whether the MCP endpoint responded successfully during the last health check." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#boolean> .
+
+:mcpCheckedAtTime a owl:DatatypeProperty ;
+  rdfs:label "mcpCheckedAtTime" ;
+  rdfs:comment "Unix epoch seconds when the MCP endpoint was last checked." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:mcpLastOkAtTime a owl:DatatypeProperty ;
+  rdfs:label "mcpLastOkAtTime" ;
+  rdfs:comment "Unix epoch seconds when the MCP endpoint last responded OK." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:mcpLastStatusCode a owl:DatatypeProperty ;
+  rdfs:label "mcpLastStatusCode" ;
+  rdfs:comment "Last HTTP status code observed for the MCP endpoint (best-effort)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#integer> .
+
+:mcpToolsListJson a owl:DatatypeProperty ;
+  rdfs:label "mcpToolsListJson" ;
+  rdfs:comment "Lossless JSON payload captured from the live MCP endpoint describing available tools (debug/traceability only)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
+:mcpPromptsListJson a owl:DatatypeProperty ;
+  rdfs:label "mcpPromptsListJson" ;
+  rdfs:comment "Lossless JSON payload captured from the live MCP endpoint describing available prompts (debug/traceability only)." ;
+  rdfs:domain :DescriptorMCPProtocol ;
+  rdfs:range <http://www.w3.org/2001/XMLSchema#string> .
+
 :hasAgentDescriptor a owl:ObjectProperty ;
   rdfs:label "hasAgentDescriptor" ;
   rdfs:domain :AIAgent ;

@@ -36,6 +36,7 @@ import { runTrustIndexForChains } from './trust-index/trust-index.js';
 import { materializeRegistrationServicesForChain } from './registration/materialize-services.js';
 import { materializeAssertionSummariesForChain } from './trust-summaries/materialize-assertion-summaries.js';
 import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledger.js';
+import { syncMcpForChain } from './mcp/mcp-sync.js';
 
 type SyncCommand =
   | 'agents'
@@ -51,6 +52,7 @@ type SyncCommand =
   | 'associations'
   | 'association-revocations'
   | 'agent-cards'
+  | 'mcp'
   | 'oasf'
   | 'ontologies'
   | 'trust-index'
@@ -602,9 +604,7 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
           await syncValidationResponses(endpoint, resetContext);
           break;
         case 'assertion-summaries':
-          await materializeAssertionSummariesForChain(endpoint.chainId, {
-            limit: process.env.SYNC_ASSERTION_SUMMARIES_LIMIT ? Number(process.env.SYNC_ASSERTION_SUMMARIES_LIMIT) : undefined,
-          });
+          await materializeAssertionSummariesForChain(endpoint.chainId, {});
           break;
         case 'associations':
           await syncAssociations(endpoint, resetContext);
@@ -616,15 +616,14 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
         case 'agent-cards':
           await syncAgentCardsForChain(endpoint.chainId, { force: process.env.SYNC_AGENT_CARDS_FORCE === '1' });
           break;
+        case 'mcp':
+          await syncMcpForChain(endpoint.chainId, {});
+          break;
         case 'materialize-services':
-          await materializeRegistrationServicesForChain(endpoint.chainId, {
-            limit: process.env.SYNC_MATERIALIZE_SERVICES_LIMIT ? Number(process.env.SYNC_MATERIALIZE_SERVICES_LIMIT) : undefined,
-          });
+          await materializeRegistrationServicesForChain(endpoint.chainId, {});
           break;
         case 'trust-ledger': {
-          const limitScores = process.env.SYNC_TRUST_LEDGER_SCORES_LIMIT ? Number(process.env.SYNC_TRUST_LEDGER_SCORES_LIMIT) : undefined;
-          const limitBadgeDefs = process.env.SYNC_TRUST_LEDGER_BADGES_LIMIT ? Number(process.env.SYNC_TRUST_LEDGER_BADGES_LIMIT) : undefined;
-          await syncTrustLedgerToGraphdbForChain(endpoint.chainId, { resetContext, limitScores, limitBadgeDefs });
+          await syncTrustLedgerToGraphdbForChain(endpoint.chainId, { resetContext });
           break;
         }
         case 'account-types': {

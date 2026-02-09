@@ -29,6 +29,29 @@ LIMIT ${Math.trunc(limit)}
 OFFSET 0
 `;
 
+const firstAgentsWithSummaryCounts = (limit: number) => `
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+SELECT ?agent ?agentId ?fbCount ?vaCount WHERE {
+  GRAPH <${ctx}> {
+    ?agent a core:AIAgent ; core:hasIdentity ?id .
+    ?id a erc8004:AgentIdentity8004 ; erc8004:agentId ?agentId .
+    OPTIONAL {
+      ?agent core:hasFeedbackAssertionSummary ?fbSum .
+      ?fbSum core:assertionCount ?fbCount .
+    }
+    OPTIONAL {
+      ?agent core:hasValidationAssertionSummary ?vaSum .
+      ?vaSum core:assertionCount ?vaCount .
+    }
+  }
+}
+ORDER BY xsd:integer(?agentId) ASC(STR(?agent))
+LIMIT ${Math.trunc(limit)}
+OFFSET 0
+`;
+
 async function run() {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
   console.log('[debug] graphdb', { baseUrl, repository, hasAuth: Boolean(auth) });
@@ -41,6 +64,10 @@ async function run() {
     const n = Array.isArray(res?.results?.bindings) ? res.results.bindings.length : 0;
     console.log('[debug] page', { limit: lim, bindings: n });
   }
+
+  const resFirst = await queryGraphdb(baseUrl, repository, auth, firstAgentsWithSummaryCounts(50));
+  const bindings = Array.isArray(resFirst?.results?.bindings) ? resFirst.results.bindings : [];
+  console.log('[debug] firstAgents summary counts', bindings);
 }
 
 run().catch((e) => {

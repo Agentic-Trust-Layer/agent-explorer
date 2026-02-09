@@ -518,9 +518,10 @@ export async function kbAgentsQuery(args: {
   // Phase 2: hydrate heavy fields for the page only.
   const valuesPairs = trimmedPairs.map((p) => `(<${p.g}> <${p.agent}>)`).join(' ');
   const valuesAgents = trimmedAgents.map((a) => `<${a}>`).join(' ');
-  const rowsBindings = (ctxIri ? trimmedAgents.length : trimmedPairs.length)
-    ? await runGraphdbQuery(
-        [
+  const hydrateTargetCount = ctxIri ? trimmedAgents.length : trimmedPairs.length;
+  let rowsBindings: any[] = [];
+  if (hydrateTargetCount) {
+    const hydrateSparql = [
           'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
           'PREFIX core: <https://agentictrust.io/ontology/core#>',
           'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
@@ -838,11 +839,59 @@ export async function kbAgentsQuery(args: {
           '}',
           'GROUP BY ?agent',
           '',
-        ].join('\n'),
-        graphdbCtx,
-        'kbAgentsQuery.hydrate',
-      )
-    : [];
+        ].join('\n');
+
+    rowsBindings = await runGraphdbQuery(hydrateSparql, graphdbCtx, 'kbAgentsQuery.hydrate');
+
+    // Fallback: if GraphDB returns no bindings (observed intermittently with large aggregate hydrate query),
+    // use a lightweight hydrate query that still supports the leaderboard / ranking use-case.
+    if (!rowsBindings.length) {
+      const fallbackSparql = [
+        'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
+        'PREFIX core: <https://agentictrust.io/ontology/core#>',
+        'PREFIX dcterms: <http://purl.org/dc/terms/>',
+        'PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>',
+        '',
+        'SELECT ?agent ?uaid ?agentName ?createdAtTime ?updatedAtTime ?trustLedgerTotalPoints ?trustLedgerBadgeCount ?trustLedgerComputedAt ?atiOverallScore ?atiOverallConfidence ?atiVersion ?atiComputedAt WHERE {',
+        ctxIri ? `  VALUES ?agent { ${valuesAgents} }` : `  VALUES (?g ?agent) { ${valuesPairs} }`,
+        ctxIri ? `  GRAPH <${ctxIri}> {` : '  GRAPH ?g {',
+        '    ?agent a core:AIAgent .',
+        '    OPTIONAL { ?agent core:uaid ?uaid . }',
+        '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
+        '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
+        '    OPTIONAL {',
+        '      ?agent core:hasDescriptor ?desc .',
+        '      OPTIONAL { ?desc dcterms:title ?agentName . }',
+        '    }',
+        ctxIri ? `  }` : '  }',
+        ...(analyticsCtxIri
+          ? [
+              '  OPTIONAL {',
+              `    GRAPH <${analyticsCtxIri}> {`,
+              '      OPTIONAL {',
+              '        ?agent analytics:hasTrustLedgerScore ?tls .',
+              '        ?tls a analytics:AgentTrustLedgerScore ; analytics:totalPoints ?trustLedgerTotalPoints .',
+              '        OPTIONAL { ?tls analytics:badgeCount ?trustLedgerBadgeCount . }',
+              '        OPTIONAL { ?tls analytics:trustLedgerComputedAt ?trustLedgerComputedAt . }',
+              '      }',
+              '      OPTIONAL {',
+              '        ?ati a analytics:AgentTrustIndex ;',
+              '             analytics:forAgent ?agent ;',
+              '             analytics:overallScore ?atiOverallScore .',
+              '        OPTIONAL { ?ati analytics:overallConfidence ?atiOverallConfidence . }',
+              '        OPTIONAL { ?ati analytics:version ?atiVersion . }',
+              '        OPTIONAL { ?ati analytics:computedAt ?atiComputedAt . }',
+              '      }',
+              '    }',
+              '  }',
+            ]
+          : []),
+        '}',
+        '',
+      ].join('\n');
+      rowsBindings = await runGraphdbQuery(fallbackSparql, graphdbCtx, 'kbAgentsQuery.hydrate.fallback');
+    }
+  }
 
   const countSparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
