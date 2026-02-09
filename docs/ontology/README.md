@@ -5,6 +5,7 @@
 - **[Ontology Overview](./agentictrust-overview.md)**: Design patterns, core classes, and key relationships
 - **[Philosophy](./philosophy.md)**: Modeling principles and alignment with ERC-8004/8092, DnS, PROV-O, p-plan, DIDs, OASF
 - **[Sync analytics jobs (GraphDB)](./sync-analytics-jobs.md)**: What `sync:assertion-summaries`, `sync:trust-index`, and `sync:trust-ledger` write to the KB and how GraphQL reads it
+- **[Trust scoring + ranking strategy](./trust-scoring-ranking-strategy.md)**: How Trust Ledger (badges/points) and ATI (trust index) combine to drive `bestRank` in GraphQL
 - **[Use Cases](#use-cases)**: Concrete end-to-end examples (intent → plan → tasks → skills → actions)
 - **[Documentation Index](#documentation-structure)**: Complete list of documentation files
 - **[Ontology Source Files](#ontology-source-files)**: Location of TTL files
