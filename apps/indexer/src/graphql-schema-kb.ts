@@ -133,15 +133,6 @@ export const graphQLSchemaStringKb = `
     domains: [String!]!
   }
 
-  type KbIdentity {
-    iri: ID!
-    kind: String! # 8004 | ens | hol | nanda | other
-    did: String!
-    uaidHOL: String
-    descriptor: KbIdentityDescriptor
-    serviceEndpoints: [KbServiceEndpoint!]!
-  }
-
   # ERC-8122 registries (factory-deployed registries + registrars)
   type KbAgentRegistry8122 {
     iri: ID!
@@ -155,22 +146,82 @@ export const graphQLSchemaStringKb = `
     lastAgentUpdatedAtTime: Int
   }
 
-  # ERC-8122 identity with attached registry/account info
-  type KbIdentity8122 {
+  # Agent identity record (may include multiple identities per agent, even multiple of the same kind).
+  interface KbAgentIdentity {
     iri: ID!
-    kind: String! # always "8122"
+    kind: String! # 8004 | 8122 | ens | hol | other
     did: String!
+    descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
+  }
+
+  type KbIdentity8004 implements KbAgentIdentity {
+    iri: ID!
+    kind: String! # "8004"
+    did: String!
+
+    did8004: String!
+    agentId8004: Int
+    isSmartAgent: Boolean
+
+    descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
+
+    ownerAccount: KbAccount
+    agentAccount: KbAccount
+    operatorAccount: KbAccount
+    walletAccount: KbAccount
+    ownerEOAAccount: KbAccount
+  }
+
+  type KbIdentity8122 implements KbAgentIdentity {
+    iri: ID!
+    kind: String! # "8122"
+    did: String!
+
     did8122: String!
     agentId8122: String!
     registryAddress: String
     registry: KbAgentRegistry8122
     endpointType: String
     endpoint: String
+
     descriptor: KbIdentityDescriptor
     serviceEndpoints: [KbServiceEndpoint!]!
 
     ownerAccount: KbAccount
     agentAccount: KbAccount
+  }
+
+  type KbIdentityEns implements KbAgentIdentity {
+    iri: ID!
+    kind: String! # "ens"
+    did: String!
+
+    didEns: String!
+
+    descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
+  }
+
+  type KbIdentityHol implements KbAgentIdentity {
+    iri: ID!
+    kind: String! # "hol"
+    did: String!
+
+    uaidHOL: String
+
+    descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
+  }
+
+  type KbIdentityOther implements KbAgentIdentity {
+    iri: ID!
+    kind: String!
+    did: String!
+
+    descriptor: KbIdentityDescriptor
+    serviceEndpoints: [KbServiceEndpoint!]!
   }
 
   type KbHolAgentProfile {
@@ -279,11 +330,7 @@ export const graphQLSchemaStringKb = `
     atiVersion: String
     atiComputedAt: Int
 
-    # Convenience: primary identity (prefer identity8122, else identityHol, else identityEns)
-    identity: KbIdentity
-    identity8122: KbIdentity8122
-    identityHol: KbIdentity
-    identityEns: KbIdentity
+    identities: [KbAgentIdentity!]!
 
     serviceEndpoints: [KbServiceEndpoint!]!
 

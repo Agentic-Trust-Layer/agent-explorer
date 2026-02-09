@@ -27,6 +27,10 @@ export type KbAgentRow = {
   atiVersion: string | null;
   atiComputedAt: number | null;
 
+  // New (KB-first) identity shape for GraphQL: pre-hydrated identity records.
+  // If present, GraphQL resolvers should prefer this over the legacy singleton identity fields below.
+  identities?: any[];
+
   did8004: string | null;
   agentId8004: number | null;
   identity8004Iri: string | null;
@@ -184,6 +188,301 @@ async function runGraphdbQuery(sparql: string, ctx?: GraphdbQueryContext | null,
 
 function did8004FromParts(chainId: number, agentId8004: number): string {
   return `did:8004:${chainId}:${agentId8004}`;
+}
+
+function parseDid8004(did: string): { chainId: number; agentId8004: number } | null {
+  const s = String(did || '').trim();
+  const m = s.match(/^did:8004:(\d+):(\d+)$/);
+  if (!m?.[1] || !m?.[2]) return null;
+  const chainId = Number(m[1]);
+  const agentId8004 = Number(m[2]);
+  if (!Number.isFinite(chainId) || !Number.isFinite(agentId8004)) return null;
+  return { chainId: Math.trunc(chainId), agentId8004: Math.trunc(agentId8004) };
+}
+
+type HydratedIdentity = {
+  __typename?: string;
+  kind: string;
+  iri: string;
+  did: string;
+  descriptor: any | null;
+  serviceEndpoints: any[];
+  // type-specific optional fields
+  did8004?: string;
+  agentId8004?: number | null;
+  isSmartAgent?: boolean | null;
+  ownerAccount?: any | null;
+  agentAccount?: any | null;
+  operatorAccount?: any | null;
+  walletAccount?: any | null;
+  ownerEOAAccount?: any | null;
+
+  did8122?: string;
+  agentId8122?: string | null;
+  registryAddress?: string | null;
+  endpointType?: string | null;
+  endpoint?: string | null;
+
+  uaidHOL?: string | null;
+  didEns?: string;
+};
+
+async function hydrateIdentitiesForAgents(args: {
+  agentIris: string[];
+  ctxIri: string;
+  graphdbCtx?: GraphdbQueryContext | null;
+}): Promise<Map<string, HydratedIdentity[]>> {
+  const agentIris = (args.agentIris || []).map((s) => String(s || '').trim()).filter(Boolean);
+  const ctxIri = String(args.ctxIri || '').trim();
+  if (!agentIris.length || !ctxIri) return new Map();
+
+  const valuesAgents = agentIris.map((a) => `<${a}>`).join(' ');
+  const sparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
+    'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
+    'PREFIX hol: <https://agentictrust.io/ontology/hol#>',
+    'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
+    'PREFIX dcterms: <http://purl.org/dc/terms/>',
+    'PREFIX schema: <http://schema.org/>',
+    '',
+    'SELECT',
+    '  ?agent',
+    '  ?identity',
+    '  ?kind',
+    '  ?did',
+    '  ?did8122',
+    '  ?agentId8122',
+    '  ?registryAddress',
+    '  ?endpointType',
+    '  ?endpoint',
+    '  ?uaidHOL',
+    '  ?didEns',
+    '  ?desc',
+    '  ?descTitle',
+    '  ?descDescription',
+    '  ?descImage',
+    '  ?registrationJson',
+    '  ?nftMetadataJson',
+    '  ?registeredBy',
+    '  ?registryNamespace',
+    '  ?skillOut',
+    '  ?domainOut',
+    '  ?ownerAccount',
+    '  ?ownerAccountChainId',
+    '  ?ownerAccountAddress',
+    '  ?ownerAccountType',
+    '  ?ownerAccountDidEthr',
+    '  ?agentAccount',
+    '  ?agentAccountChainId',
+    '  ?agentAccountAddress',
+    '  ?agentAccountType',
+    '  ?agentAccountDidEthr',
+    'WHERE {',
+    `  VALUES ?agent { ${valuesAgents} }`,
+    `  GRAPH <${ctxIri}> {`,
+    '    ?agent core:hasIdentity ?identity .',
+    '',
+    '    OPTIONAL { ?identity a erc8004:AgentIdentity8004 . BIND("8004" AS ?kind) }',
+    '    OPTIONAL { ?identity a erc8122:AgentIdentity8122 . BIND("8122" AS ?kind) }',
+    '    OPTIONAL { ?identity a ens:AgentIdentityEns . BIND("ens" AS ?kind) }',
+    '    OPTIONAL { ?identity a hol:AgentIdentityHOL . BIND("hol" AS ?kind) }',
+    '    BIND(COALESCE(?kind, "other") AS ?kind)',
+    '',
+    '    OPTIONAL {',
+    '      ?identity core:hasIdentifier ?ident .',
+    '      ?ident core:protocolIdentifier ?did .',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity core:hasDescriptor ?desc .',
+    '      OPTIONAL { ?desc dcterms:title ?descTitle . }',
+    '      OPTIONAL { ?desc dcterms:description ?descDescription . }',
+    '      OPTIONAL { ?desc schema:image ?descImage . }',
+    '      OPTIONAL { ?desc erc8004:registrationJson ?registrationJson . }',
+    '      OPTIONAL { ?desc erc8004:nftMetadataJson ?nftMetadataJson . }',
+    '      OPTIONAL { ?desc erc8004:registeredBy ?registeredBy . }',
+    '      OPTIONAL { ?desc erc8004:registryNamespace ?registryNamespace . }',
+    '      OPTIONAL {',
+    '        ?desc oasf:hasSkill ?_skill .',
+    '        OPTIONAL { ?_skill core:hasSkillClassification ?_skillClass . OPTIONAL { ?_skillClass oasf:key ?_skillKey . } }',
+    '        OPTIONAL { ?_skill core:skillId ?_skillId . }',
+    '        BIND(COALESCE(?_skillKey, ?_skillId, STR(?_skill)) AS ?skillOut)',
+    '      }',
+    '      OPTIONAL {',
+    '        ?desc oasf:hasDomain ?_domain .',
+    '        OPTIONAL { ?_domain core:hasDomainClassification ?_domainClass . OPTIONAL { ?_domainClass oasf:key ?_domainKey . } }',
+    '        BIND(COALESCE(?_domainKey, STR(?_domain)) AS ?domainOut)',
+    '      }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a erc8122:AgentIdentity8122 .',
+    '      OPTIONAL {',
+    '        ?identity core:hasIdentifier ?ident8122 .',
+    '        ?ident8122 core:protocolIdentifier ?did8122 .',
+    '      }',
+    '      OPTIONAL { ?identity erc8122:agentId ?agentId8122 . }',
+    '      OPTIONAL { ?identity erc8122:registryAddress ?registryAddress . }',
+    '      OPTIONAL { ?identity erc8122:endpointType ?endpointType . }',
+    '      OPTIONAL { ?identity erc8122:endpoint ?endpoint . }',
+    '      OPTIONAL { ?identity erc8122:hasOwnerAccount ?ownerAccount . }',
+    '      OPTIONAL { ?identity erc8122:hasAgentAccount ?agentAccount . }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a erc8004:AgentIdentity8004 .',
+    '      OPTIONAL { ?identity erc8004:hasOwnerAccount ?ownerAccount . }',
+    '      OPTIONAL { ?agent core:hasAgentAccount ?agentAccount . }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a hol:AgentIdentityHOL .',
+    '      OPTIONAL { ?identity hol:uaidHOL ?uaidHOL . }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a ens:AgentIdentityEns .',
+    '      OPTIONAL {',
+    '        ?identity core:hasIdentifier ?ensIdent .',
+    '        ?ensIdent core:protocolIdentifier ?didEns .',
+    '      }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      FILTER(BOUND(?ownerAccount))',
+    '      OPTIONAL { ?ownerAccount eth:chainId ?ownerAccountChainId . }',
+    '      OPTIONAL { ?ownerAccount eth:address ?ownerAccountAddress . }',
+    '      OPTIONAL {',
+    '        OPTIONAL { ?ownerAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_oaType) }',
+    '        OPTIONAL { ?ownerAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_oaType) }',
+    '        BIND(COALESCE(?_oaType, "Account") AS ?ownerAccountType)',
+    '      }',
+    '      OPTIONAL { ?ownerAccount core:hasIdentifier ?_oaIdent . ?_oaIdent core:protocolIdentifier ?ownerAccountDidEthr . }',
+    '    }',
+    '    OPTIONAL {',
+    '      FILTER(BOUND(?agentAccount))',
+    '      OPTIONAL { ?agentAccount eth:chainId ?agentAccountChainId . }',
+    '      OPTIONAL { ?agentAccount eth:address ?agentAccountAddress . }',
+    '      OPTIONAL {',
+    '        OPTIONAL { ?agentAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_aaType) }',
+    '        OPTIONAL { ?agentAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_aaType) }',
+    '        BIND(COALESCE(?_aaType, "Account") AS ?agentAccountType)',
+    '      }',
+    '      OPTIONAL { ?agentAccount core:hasIdentifier ?_aaIdent . ?_aaIdent core:protocolIdentifier ?agentAccountDidEthr . }',
+    '    }',
+    `  }`,
+    '}',
+    '',
+  ].join('\n');
+
+  const bindings = await runGraphdbQuery(sparql, args.graphdbCtx, 'kbAgentsQuery.identities');
+
+  // agentIri -> identityIri -> hydrated identity (with skill/domain accumulation)
+  const byAgent = new Map<string, Map<string, { ident: HydratedIdentity; skills: Set<string>; domains: Set<string> }>>();
+
+  const upsertAccount = (b: any, prefix: 'ownerAccount' | 'agentAccount'): any | null => {
+    const iri = asString(b?.[prefix]);
+    if (!iri) return null;
+    return {
+      iri,
+      chainId: asNumber(b?.[`${prefix}ChainId`]),
+      address: asString(b?.[`${prefix}Address`]),
+      accountType: asString(b?.[`${prefix}Type`]),
+      didEthr: asString(b?.[`${prefix}DidEthr`]),
+    };
+  };
+
+  for (const b of bindings) {
+    const agent = asString((b as any)?.agent);
+    const identity = asString((b as any)?.identity);
+    if (!agent || !identity) continue;
+
+    const kind = asString((b as any)?.kind) ?? 'other';
+    const did = asString((b as any)?.did);
+    // Some identity nodes may not have identifiers yet; omit them entirely (GraphQL requires did).
+    if (!did) continue;
+
+    let byIdentity = byAgent.get(agent);
+    if (!byIdentity) {
+      byIdentity = new Map();
+      byAgent.set(agent, byIdentity);
+    }
+
+    let entry = byIdentity.get(identity);
+    if (!entry) {
+      const descIri = asString((b as any)?.desc);
+      const ident: HydratedIdentity = {
+        kind,
+        iri: identity,
+        did,
+        descriptor: descIri
+          ? {
+              iri: descIri,
+              kind,
+              name: asString((b as any)?.descTitle),
+              description: asString((b as any)?.descDescription),
+              image: asString((b as any)?.descImage),
+              registrationJson: asString((b as any)?.registrationJson),
+              nftMetadataJson: asString((b as any)?.nftMetadataJson),
+              registeredBy: asString((b as any)?.registeredBy),
+              registryNamespace: asString((b as any)?.registryNamespace),
+              skills: [],
+              domains: [],
+            }
+          : null,
+        serviceEndpoints: [],
+      };
+
+      if (kind === '8004') {
+        const parsed = parseDid8004(did);
+        ident.did8004 = did;
+        ident.agentId8004 = parsed?.agentId8004 ?? null;
+        // isSmartAgent is derived from the agent's rdf:type (already in agentTypes), resolver can fill it.
+        ident.ownerAccount = upsertAccount(b as any, 'ownerAccount');
+        ident.agentAccount = upsertAccount(b as any, 'agentAccount');
+      } else if (kind === '8122') {
+        ident.did8122 = asString((b as any)?.did8122) ?? did;
+        ident.agentId8122 = asString((b as any)?.agentId8122);
+        ident.registryAddress = asString((b as any)?.registryAddress);
+        ident.endpointType = asString((b as any)?.endpointType);
+        ident.endpoint = asString((b as any)?.endpoint);
+        ident.ownerAccount = upsertAccount(b as any, 'ownerAccount');
+        ident.agentAccount = upsertAccount(b as any, 'agentAccount');
+      } else if (kind === 'hol') {
+        ident.uaidHOL = asString((b as any)?.uaidHOL);
+      } else if (kind === 'ens') {
+        ident.didEns = asString((b as any)?.didEns) ?? did;
+      }
+
+      entry = { ident, skills: new Set<string>(), domains: new Set<string>() };
+      byIdentity.set(identity, entry);
+    }
+
+    const skill = asString((b as any)?.skillOut);
+    if (skill) entry.skills.add(skill);
+    const domain = asString((b as any)?.domainOut);
+    if (domain) entry.domains.add(domain);
+  }
+
+  const out = new Map<string, HydratedIdentity[]>();
+  for (const [agent, byIdentity] of byAgent.entries()) {
+    const identities: HydratedIdentity[] = [];
+    for (const { ident, skills, domains } of byIdentity.values()) {
+      if (ident.descriptor) {
+        ident.descriptor.skills = Array.from(skills);
+        ident.descriptor.domains = Array.from(domains);
+      }
+      identities.push(ident);
+    }
+    // stable-ish ordering: by kind then did
+    identities.sort((a, b) => (a.kind || '').localeCompare(b.kind || '') || (a.did || '').localeCompare(b.did || ''));
+    out.set(agent, identities);
+  }
+
+  return out;
 }
 
 function pickAgentTypesFromRow(typeValues: string[]): string[] {
@@ -1046,6 +1345,22 @@ export async function kbAgentsQuery(args: {
   const ordered = ctxIri
     ? trimmedAgents.map((iri) => byIri.get(iri)).filter((x): x is KbAgentRow => Boolean(x))
     : trimmedPairs.map((p) => byIri.get(p.agent)).filter((x): x is KbAgentRow => Boolean(x));
+
+  // Identity hydration: even when using the lightweight hydrate query, attach identities so GraphQL can
+  // return the new `KbAgent.identities` list reliably.
+  if (ctxIri && ordered.length) {
+    try {
+      const identMap = await hydrateIdentitiesForAgents({ agentIris: ordered.map((r) => r.iri), ctxIri, graphdbCtx });
+      for (const r of ordered) {
+        const ids = identMap.get(r.iri);
+        if (ids?.length) r.identities = ids;
+      }
+    } catch (e: any) {
+      // Non-fatal: keep agent list functional even if identity hydrate fails.
+      // eslint-disable-next-line no-console
+      console.warn('[kbAgentsQuery] identity hydrate failed (non-fatal)', { error: String(e?.message || e || '') });
+    }
+  }
 
   return { rows: ordered, total: Number.isFinite(total) ? total : 0, hasMore };
 }

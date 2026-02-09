@@ -424,7 +424,11 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
         : null,
     ].filter(Boolean);
 
-    const identity8004Descriptor =
+    // identities list (new shape)
+    // Prefer identities already materialized on the row (kb-queries hydration), otherwise fall back to legacy singletons.
+    const identitiesFromRow = Array.isArray(r.identities) ? r.identities : [];
+
+    const legacyIdentity8004Descriptor =
       r.identity8004DescriptorIri
         ? {
             iri: r.identity8004DescriptorIri,
@@ -436,52 +440,12 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
             nftMetadataJson: r.identity8004NftMetadataJson,
             registeredBy: r.identity8004RegisteredBy,
             registryNamespace: r.identity8004RegistryNamespace,
-            // IMPORTANT: identity descriptor skills/domains come ONLY from agentURI registration JSON materialized on the descriptor.
-            // Do not derive from protocol metadata (agent-card.json) here.
             skills: Array.isArray(r.identity8004DescriptorSkills) ? r.identity8004DescriptorSkills : [],
             domains: Array.isArray(r.identity8004DescriptorDomains) ? r.identity8004DescriptorDomains : [],
           }
         : null;
 
-    const identityHolDescriptor =
-      r.identityHolDescriptorIri
-        ? {
-            iri: r.identityHolDescriptorIri,
-            kind: 'hol',
-            name: r.identityHolDescriptorName,
-            description: r.identityHolDescriptorDescription,
-            image: r.identityHolDescriptorImage,
-            registrationJson: r.identityHolDescriptorJson,
-            nftMetadataJson: null,
-            registeredBy: null,
-            registryNamespace: null,
-            skills: [],
-            domains: [],
-          }
-        : null;
-
-    const identity8004 =
-      r.identity8004Iri && r.did8004
-        ? {
-            iri: r.identity8004Iri,
-            kind: '8004',
-            did: r.did8004,
-            did8004: r.did8004,
-            agentId8004: r.agentId8004 == null ? null : Math.trunc(r.agentId8004),
-            isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/core#AISmartAgent'),
-            descriptor: identity8004Descriptor,
-            serviceEndpoints,
-            ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
-            operatorAccount: r.identityOperatorAccountIri ? kbAccountFromIri(r.identityOperatorAccountIri) : null,
-            walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
-            ownerEOAAccount: r.identityOwnerEOAAccountIri ? kbAccountFromIri(r.identityOwnerEOAAccountIri) : null,
-            agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
-          }
-        : null;
-
-    const identityEns = r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns, descriptor: null, serviceEndpoints: [] } : null;
-
-    const identity8122Descriptor =
+    const legacyIdentity8122Descriptor =
       r.identity8122DescriptorIri
         ? {
             iri: r.identity8122DescriptorIri,
@@ -498,63 +462,107 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
           }
         : null;
 
-    const identity8122 =
-      r.identity8122Iri && r.did8122 && r.agentId8122
+    const legacyIdentityHolDescriptor =
+      r.identityHolDescriptorIri
         ? {
-            iri: r.identity8122Iri,
-            kind: '8122',
-            did: r.did8122,
-            did8122: r.did8122,
-            agentId8122: r.agentId8122,
-            registryAddress: r.registry8122,
-            registry:
-              r.identity8122RegistryIri && r.registry8122
-                ? {
-                    iri: r.identity8122RegistryIri,
-                    chainId: (() => {
-                      const m = String(r.did8122 || '').match(/^did:8122:(\d+):/);
-                      const n = m ? Number(m[1]) : NaN;
-                      return Number.isFinite(n) ? Math.trunc(n) : 0;
-                    })(),
-                    registryAddress: r.registry8122,
-                    registrarAddress: r.identity8122RegistrarAddress,
-                    registryName: r.identity8122RegistryName,
-                    registryImplementationAddress: r.identity8122RegistryImplementationAddress,
-                    registrarImplementationAddress: r.identity8122RegistrarImplementationAddress,
-                    registeredAgentCount:
-                      r.identity8122RegisteredAgentCount == null ? null : Math.trunc(r.identity8122RegisteredAgentCount),
-                    lastAgentUpdatedAtTime:
-                      r.identity8122LastAgentUpdatedAtTime == null ? null : Math.trunc(r.identity8122LastAgentUpdatedAtTime),
-                  }
-                : null,
-            endpointType: r.endpointType8122,
-            endpoint: r.endpoint8122,
-            descriptor: identity8122Descriptor,
-            serviceEndpoints: [],
-            ownerAccount: r.identity8122OwnerAccountIri ? kbAccountFromIri(r.identity8122OwnerAccountIri) : null,
-            agentAccount: r.identity8122AgentAccountIri ? kbAccountFromIri(r.identity8122AgentAccountIri) : null,
-          }
-        : null;
-
-    const identityHol =
-      r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
-        ? {
-            iri: r.identityHolIri,
+            iri: r.identityHolDescriptorIri,
             kind: 'hol',
-            did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
-            uaidHOL: r.identityHolUaidHOL,
-            descriptor: identityHolDescriptor,
-            serviceEndpoints: [],
+            name: r.identityHolDescriptorName,
+            description: r.identityHolDescriptorDescription,
+            image: r.identityHolDescriptorImage,
+            registrationJson: r.identityHolDescriptorJson,
+            nftMetadataJson: null,
+            registeredBy: null,
+            registryNamespace: null,
+            skills: [],
+            domains: [],
           }
         : null;
 
-    const identity =
-      (r.identity8004Iri && r.did8004
-        ? { iri: r.identity8004Iri, kind: '8004', did: r.did8004, descriptor: identity8004Descriptor, serviceEndpoints }
-        : null) ??
-      (identity8122 ? { ...identity8122 } : null) ??
-      (identityHol ? { ...identityHol } : null) ??
-      identityEns;
+    const legacyIdentities: any[] = [];
+    if (r.identity8004Iri && r.did8004) {
+      legacyIdentities.push({
+        iri: r.identity8004Iri,
+        kind: '8004',
+        did: r.did8004,
+        did8004: r.did8004,
+        agentId8004: r.agentId8004 == null ? null : Math.trunc(r.agentId8004),
+        isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/core#AISmartAgent'),
+        descriptor: legacyIdentity8004Descriptor,
+        serviceEndpoints,
+        ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
+        operatorAccount: r.identityOperatorAccountIri ? kbAccountFromIri(r.identityOperatorAccountIri) : null,
+        walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
+        ownerEOAAccount: r.identityOwnerEOAAccountIri ? kbAccountFromIri(r.identityOwnerEOAAccountIri) : null,
+        agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
+      });
+    }
+    if (r.identity8122Iri && r.did8122) {
+      legacyIdentities.push({
+        iri: r.identity8122Iri,
+        kind: '8122',
+        did: r.did8122,
+        did8122: r.did8122,
+        agentId8122: r.agentId8122,
+        registryAddress: r.registry8122,
+        registry:
+          r.identity8122RegistryIri && r.registry8122
+            ? {
+                iri: r.identity8122RegistryIri,
+                chainId: (() => {
+                  const m = String(r.did8122 || '').match(/^did:8122:(\d+):/);
+                  const n = m ? Number(m[1]) : NaN;
+                  return Number.isFinite(n) ? Math.trunc(n) : 0;
+                })(),
+                registryAddress: r.registry8122,
+                registrarAddress: r.identity8122RegistrarAddress,
+                registryName: r.identity8122RegistryName,
+                registryImplementationAddress: r.identity8122RegistryImplementationAddress,
+                registrarImplementationAddress: r.identity8122RegistrarImplementationAddress,
+                registeredAgentCount:
+                  r.identity8122RegisteredAgentCount == null ? null : Math.trunc(r.identity8122RegisteredAgentCount),
+                lastAgentUpdatedAtTime:
+                  r.identity8122LastAgentUpdatedAtTime == null ? null : Math.trunc(r.identity8122LastAgentUpdatedAtTime),
+              }
+            : null,
+        endpointType: r.endpointType8122,
+        endpoint: r.endpoint8122,
+        descriptor: legacyIdentity8122Descriptor,
+        serviceEndpoints: [],
+        ownerAccount: r.identity8122OwnerAccountIri ? kbAccountFromIri(r.identity8122OwnerAccountIri) : null,
+        agentAccount: r.identity8122AgentAccountIri ? kbAccountFromIri(r.identity8122AgentAccountIri) : null,
+      });
+    }
+    if (r.identityEnsIri && r.didEns) {
+      legacyIdentities.push({ iri: r.identityEnsIri, kind: 'ens', did: r.didEns, didEns: r.didEns, descriptor: null, serviceEndpoints: [] });
+    }
+    if (r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)) {
+      legacyIdentities.push({
+        iri: r.identityHolIri,
+        kind: 'hol',
+        did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
+        uaidHOL: r.identityHolUaidHOL,
+        descriptor: legacyIdentityHolDescriptor,
+        serviceEndpoints: [],
+      });
+    }
+
+    const identitiesRaw = identitiesFromRow.length ? identitiesFromRow : legacyIdentities;
+    const identities = identitiesRaw.map((id: any) => {
+      const kind = typeof id?.kind === 'string' ? id.kind.trim().toLowerCase() : '';
+      // Provide __typename for clients that rely on it (in addition to interface resolveType).
+      const __typename =
+        kind === '8004'
+          ? 'KbIdentity8004'
+          : kind === '8122'
+            ? 'KbIdentity8122'
+            : kind === 'ens'
+              ? 'KbIdentityEns'
+              : kind === 'hol'
+                ? 'KbIdentityHol'
+                : 'KbIdentityOther';
+      return { __typename, ...id };
+    });
 
     return {
       iri: r.iri,
@@ -582,11 +590,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       atiVersion: r.atiVersion ?? null,
       atiComputedAt: r.atiComputedAt == null ? null : Math.trunc(r.atiComputedAt),
       serviceEndpoints,
-      identity8004,
-      identity8122,
-      identityEns,
-      identityHol,
-      identity,
+      identities,
 
       // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
       reviewAssertions: async (args: any, ctx: any) => {
@@ -798,6 +802,16 @@ LIMIT 1
   };
 
   return {
+    KbAgentIdentity: {
+      __resolveType(obj: any) {
+        const kind = typeof obj?.kind === 'string' ? obj.kind.trim().toLowerCase() : '';
+        if (kind === '8004') return 'KbIdentity8004';
+        if (kind === '8122') return 'KbIdentity8122';
+        if (kind === 'ens') return 'KbIdentityEns';
+        if (kind === 'hol') return 'KbIdentityHol';
+        return 'KbIdentityOther';
+      },
+    },
     oasfSkills: async (args: any, ctx: any) => {
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const { key, nameKey, category, extendsKey } = args || {};
@@ -1159,7 +1173,13 @@ LIMIT 1
         extractedNativeId: extractHolNativeIdFromUaid(uaid),
       });
 
-      const run = async (uaidToQuery: string) => await kbAgentsQuery({ where: { uaid: uaidToQuery }, first: 1, skip: 0 }, graphdbCtx);
+      const run = async (uaidToQuery: string) => {
+        const inferredChainId = parseUaidChainId(uaidToQuery);
+        return await kbAgentsQuery(
+          { where: { uaid: uaidToQuery, ...(inferredChainId != null ? { chainId: inferredChainId } : {}) }, first: 1, skip: 0 },
+          graphdbCtx,
+        );
+      };
 
       // Use uaid (not uaid_in) so the query layer can apply base-UAID prefix matching (for HOL UAIDs).
       let res = await run(uaid);
