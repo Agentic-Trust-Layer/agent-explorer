@@ -230,7 +230,6 @@ export default {
             trustScore: (_p: any, args: any, ctx: any) => ctx.dbQueries.trustScore(args),
             agentTrustIndex: (_p: any, args: any, ctx: any) => ctx.dbQueries.agentTrustIndex(args),
             agentTrustComponents: (_p: any, args: any, ctx: any) => ctx.dbQueries.agentTrustComponents(args),
-            trustLedgerBadgeDefinitions: (_p: any, args: any, ctx: any) => ctx.dbQueries.trustLedgerBadgeDefinitions(args),
             feedbacks: (_p: any, args: any, ctx: any) => ctx.dbQueries.feedbacks(args),
             feedback: (_p: any, args: any, ctx: any) => ctx.dbQueries.feedback(args),
             feedbackByReference: (_p: any, args: any, ctx: any) => ctx.dbQueries.feedbackByReference(args),
@@ -250,8 +249,6 @@ export default {
             createAccessCode: (_p: any, args: any, ctx: any) => ctx.dbQueries.createAccessCode(args),
             indexAgent: (_p: any, args: any, ctx: any) => ctx.dbQueries.indexAgent(args),
             indexAgentByUaid: (_p: any, args: any, ctx: any) => ctx.dbQueries.indexAgentByUaid(args),
-            upsertTrustLedgerBadgeDefinition: (_p: any, args: any, ctx: any) => ctx.dbQueries.upsertTrustLedgerBadgeDefinition(args),
-            setTrustLedgerBadgeActive: (_p: any, args: any, ctx: any) => ctx.dbQueries.setTrustLedgerBadgeActive(args),
           },
         },
       });

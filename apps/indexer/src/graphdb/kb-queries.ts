@@ -841,18 +841,23 @@ export async function kbAgentsQuery(args: {
           '',
         ].join('\n');
 
-    rowsBindings = await runGraphdbQuery(hydrateSparql, graphdbCtx, 'kbAgentsQuery.hydrate');
+    // NOTE: The "heavy hydrate" query above is expensive and has been observed returning 0 bindings
+    // in production-like GraphDB deployments even for small pages, which breaks paging (total>0, agents=[]).
+    // Use the lightweight hydrate as the default. Keep the heavy hydrate behind a feature flag.
+    const useHeavyHydrate = process.env.KB_AGENTS_USE_HEAVY_HYDRATE === '1';
+    if (useHeavyHydrate) {
+      rowsBindings = await runGraphdbQuery(hydrateSparql, graphdbCtx, 'kbAgentsQuery.hydrate.heavy');
+    }
 
-    // Fallback: if GraphDB returns no bindings (observed intermittently with large aggregate hydrate query),
-    // use a lightweight hydrate query that still supports the leaderboard / ranking use-case.
     if (!rowsBindings.length) {
       const fallbackSparql = [
         'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
         'PREFIX core: <https://agentictrust.io/ontology/core#>',
         'PREFIX dcterms: <http://purl.org/dc/terms/>',
+        'PREFIX schema: <http://schema.org/>',
         'PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>',
         '',
-        'SELECT ?agent ?uaid ?agentName ?createdAtTime ?updatedAtTime ?trustLedgerTotalPoints ?trustLedgerBadgeCount ?trustLedgerComputedAt ?atiOverallScore ?atiOverallConfidence ?atiVersion ?atiComputedAt WHERE {',
+        'SELECT ?agent ?uaid ?agentName ?agentImage ?agentDesc ?agentDescTitle ?agentDescDescription ?agentDescImage ?agentTypes ?feedbackAssertionCount ?validationAssertionCount ?createdAtTime ?updatedAtTime ?trustLedgerTotalPoints ?trustLedgerBadgeCount ?trustLedgerComputedAt ?atiOverallScore ?atiOverallConfidence ?atiVersion ?atiComputedAt WHERE {',
         ctxIri ? `  VALUES ?agent { ${valuesAgents} }` : `  VALUES (?g ?agent) { ${valuesPairs} }`,
         ctxIri ? `  GRAPH <${ctxIri}> {` : '  GRAPH ?g {',
         '    ?agent a core:AIAgent .',
@@ -860,9 +865,18 @@ export async function kbAgentsQuery(args: {
         '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
         '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
         '    OPTIONAL {',
-        '      ?agent core:hasDescriptor ?desc .',
-        '      OPTIONAL { ?desc dcterms:title ?agentName . }',
+        '      ?agent core:hasDescriptor ?agentDesc .',
+        '      OPTIONAL { ?agentDesc dcterms:title ?agentDescTitle . }',
+        '      OPTIONAL { ?agentDesc dcterms:description ?agentDescDescription . }',
+        '      OPTIONAL { ?agentDesc schema:image ?agentDescImage . }',
         '    }',
+        '    BIND(?agentDescTitle AS ?agentName)',
+        '    BIND(?agentDescImage AS ?agentImage)',
+        '    OPTIONAL { ?agent core:hasFeedbackAssertionSummary ?fbSummary . ?fbSummary core:feedbackAssertionCount ?feedbackAssertionCount . }',
+        '    OPTIONAL { ?agent core:hasValidationAssertionSummary ?vrSummary . ?vrSummary core:validationAssertionCount ?validationAssertionCount . }',
+        // Provide a single preferred agent type without fanout.
+        '    BIND(IF(EXISTS { ?agent a core:AISmartAgent }, "https://agentictrust.io/ontology/core#AISmartAgent", "https://agentictrust.io/ontology/core#AIAgent") AS ?_t)',
+        '    BIND(STR(?_t) AS ?agentTypes)',
         ctxIri ? `  }` : '  }',
         ...(analyticsCtxIri
           ? [
@@ -889,7 +903,7 @@ export async function kbAgentsQuery(args: {
         '}',
         '',
       ].join('\n');
-      rowsBindings = await runGraphdbQuery(fallbackSparql, graphdbCtx, 'kbAgentsQuery.hydrate.fallback');
+      rowsBindings = await runGraphdbQuery(fallbackSparql, graphdbCtx, 'kbAgentsQuery.hydrate');
     }
   }
 
