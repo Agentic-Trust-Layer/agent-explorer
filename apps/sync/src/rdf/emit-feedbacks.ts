@@ -52,6 +52,34 @@ function normalizeHexFromAccountId(value: unknown): string | null {
   return /^0x[0-9a-f]{40}$/.test(hex) ? hex : null;
 }
 
+function extractAgentIdFromFeedbackRow(fb: any): string | null {
+  // Preferred: agent relation id (when subgraph rows are well-formed)
+  const rel = typeof fb?.agent?.id === 'string' ? fb.agent.id.trim() : '';
+  if (rel) return rel;
+
+  // Fallback: sepolia subgraph uses "<txOrHash>-<agentId>" ids (agentId is numeric string).
+  const id = typeof fb?.id === 'string' ? fb.id.trim() : '';
+  if (id) {
+    const m = id.match(/-(\d+)$/);
+    if (m?.[1]) return m[1];
+  }
+
+  // Last resort: sometimes agentId is embedded in JSON payloads.
+  const jsonRaw = typeof fb?.feedbackJson === 'string' ? fb.feedbackJson.trim() : '';
+  if (jsonRaw) {
+    try {
+      const obj: any = JSON.parse(jsonRaw);
+      const v = obj?.agentId ?? obj?.agent_id ?? obj?.agent ?? null;
+      const s = typeof v === 'string' ? v.trim() : typeof v === 'number' && Number.isFinite(v) ? String(Math.trunc(v)) : '';
+      if (/^\d+$/.test(s)) return s;
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
 export function emitFeedbacksTurtle(
   chainId: number,
   items: any[],
@@ -63,7 +91,7 @@ export function emitFeedbacksTurtle(
 
   for (const fb of items) {
     const id = String(fb?.id ?? '').trim();
-    const agentId = String(fb?.agent?.id ?? '').trim();
+    const agentId = extractAgentIdFromFeedbackRow(fb);
     const client = String(fb?.clientAddress ?? '').trim();
     const feedbackIndex = Number(fb?.feedbackIndex ?? NaN);
     if (!id || !agentId || !client || !Number.isFinite(feedbackIndex)) continue;

@@ -478,9 +478,13 @@ export async function fetchAllFromSubgraphByMintedAtCursor(
 }
 
 export const FEEDBACKS_QUERY = `query RepFeedbacks($first: Int!, $skip: Int!) {
+  # Some subgraph deployments contain broken rows where the relation is null even though the field is non-nullable.
+  # Filtering prevents the entire query page from erroring.
+  #
+  # NOTE: Some deployments still throw when selecting agent { id } even with agent_not:null.
+  # We intentionally do NOT select the agent relation here, and instead derive agentId from the feedback id.
   repFeedbacks(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
     id
-    agent { id }
     clientAddress
     feedbackIndex
     feedbackJson
@@ -493,7 +497,6 @@ export const FEEDBACKS_QUERY = `query RepFeedbacks($first: Int!, $skip: Int!) {
 export const FEEDBACK_REVOCATIONS_QUERY = `query RepFeedbackRevokeds($first: Int!, $skip: Int!) {
   repFeedbackRevokeds(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
     id
-    agent { id }
     clientAddress
     feedbackIndex
     txHash
@@ -505,7 +508,6 @@ export const FEEDBACK_REVOCATIONS_QUERY = `query RepFeedbackRevokeds($first: Int
 export const FEEDBACK_RESPONSES_QUERY = `query RepResponseAppendeds($first: Int!, $skip: Int!) {
   repResponseAppendeds(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
     id
-    agent { id }
     clientAddress
     feedbackIndex
     responder

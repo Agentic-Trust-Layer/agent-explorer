@@ -151,6 +151,7 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String! # 8004 | 8122 | ens | hol | other
     did: String!
+    chainId: Int
     descriptor: KbIdentityDescriptor
     serviceEndpoints: [KbServiceEndpoint!]!
   }
@@ -159,6 +160,7 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String! # "8004"
     did: String!
+    chainId: Int
 
     did8004: String!
     agentId8004: Int
@@ -178,6 +180,7 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String! # "8122"
     did: String!
+    chainId: Int
 
     did8122: String!
     agentId8122: String!
@@ -197,8 +200,10 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String! # "ens"
     did: String!
+    chainId: Int
 
     didEns: String!
+    ensName: String
 
     descriptor: KbIdentityDescriptor
     serviceEndpoints: [KbServiceEndpoint!]!
@@ -208,6 +213,7 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String! # "hol"
     did: String!
+    chainId: Int
 
     uaidHOL: String
 
@@ -219,6 +225,7 @@ export const graphQLSchemaStringKb = `
     iri: ID!
     kind: String!
     did: String!
+    chainId: Int
 
     descriptor: KbIdentityDescriptor
     serviceEndpoints: [KbServiceEndpoint!]!
@@ -331,6 +338,13 @@ export const graphQLSchemaStringKb = `
     atiComputedAt: Int
 
     identities: [KbAgentIdentity!]!
+
+    # Convenience singletons (back-compat for clients that aren't yet migrated to identities[]).
+    # If multiple identities of the same kind exist, these return the first (unspecified order).
+    identity8004: KbIdentity8004
+    identity8122: KbIdentity8122
+    identityEns: KbIdentityEns
+    identityHol: KbIdentityHol
 
     serviceEndpoints: [KbServiceEndpoint!]!
 

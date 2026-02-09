@@ -561,8 +561,29 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
               : kind === 'hol'
                 ? 'KbIdentityHol'
                 : 'KbIdentityOther';
-      return { __typename, ...id };
+      const did = typeof id?.did === 'string' ? id.did.trim() : '';
+      const chainId =
+        id?.chainId != null
+          ? (Number.isFinite(Number(id.chainId)) ? Math.trunc(Number(id.chainId)) : null)
+          : did
+            ? parseDidChainId(did)
+            : null;
+      const ensName =
+        kind === 'ens'
+          ? (typeof id?.ensName === 'string' && id.ensName.trim()
+              ? id.ensName.trim()
+              : did
+                ? parseEnsNameFromDid(did)
+                : null)
+          : null;
+      // Put derived fields first, but allow explicitly hydrated values to override.
+      return { __typename, chainId, ensName, ...id };
     });
+
+    const pickIdentity = (k: '8004' | '8122' | 'ens' | 'hol') => {
+      const want = k.toLowerCase();
+      return identities.find((x: any) => String(x?.kind || '').trim().toLowerCase() === want) ?? null;
+    };
 
     return {
       iri: r.iri,
@@ -591,6 +612,12 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       atiComputedAt: r.atiComputedAt == null ? null : Math.trunc(r.atiComputedAt),
       serviceEndpoints,
       identities,
+
+      // Convenience singletons (back-compat): derived from identities list.
+      identity8004: pickIdentity('8004'),
+      identity8122: pickIdentity('8122'),
+      identityEns: pickIdentity('ens'),
+      identityHol: pickIdentity('hol'),
 
       // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
       reviewAssertions: async (args: any, ctx: any) => {
@@ -656,6 +683,33 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     return /^0x[0-9a-f]{40}$/.test(a) ? a : null;
   };
 
+  const parseDidChainId = (did: string): number | null => {
+    const s = String(did || '').trim();
+    const m8004 = s.match(/^did:8004:(\d+):\d+$/);
+    if (m8004?.[1]) {
+      const n = Number(m8004[1]);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    }
+    const m8122 = s.match(/^did:8122:(\d+):0x[0-9a-fA-F]{40}:\d+$/);
+    if (m8122?.[1]) {
+      const n = Number(m8122[1]);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    }
+    const methr = s.match(/^did:ethr:(\d+):0x[0-9a-fA-F]{40}$/);
+    if (methr?.[1]) {
+      const n = Number(methr[1]);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    }
+    return null;
+  };
+
+  const parseEnsNameFromDid = (did: string): string | null => {
+    const s = String(did || '').trim();
+    if (!s.startsWith('did:ens:')) return null;
+    const name = s.slice('did:ens:'.length).trim();
+    return name || null;
+  };
+
   const parseUaidChainId = (uaid: string): number | null => {
     const u = stripUaidPrefix(String(uaid || '').trim());
     const mEthr = u.match(/^did:ethr:(\d+):0x[0-9a-fA-F]{40}$/);
@@ -666,6 +720,12 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     const m8004 = u.match(/^did:8004:(\d+):\d+$/);
     if (m8004?.[1]) {
       const n = Number(m8004[1]);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    }
+    // ERC-8122 UAIDs are did:8122:<chainId>:<registryOrAgentAddress>:<agentId>
+    const m8122 = u.match(/^did:8122:(\d+):0x[0-9a-fA-F]{40}:\d+$/);
+    if (m8122?.[1]) {
+      const n = Number(m8122[1]);
       return Number.isFinite(n) ? Math.trunc(n) : null;
     }
     return null;

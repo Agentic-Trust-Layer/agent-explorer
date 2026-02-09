@@ -283,93 +283,107 @@ async function hydrateIdentitiesForAgents(args: {
     'WHERE {',
     `  VALUES ?agent { ${valuesAgents} }`,
     `  GRAPH <${ctxIri}> {`,
-    '    ?agent core:hasIdentity ?identity .',
+    '    {',
+    '      ?agent core:hasIdentity ?identity .',
     '',
-    '    OPTIONAL { ?identity a erc8004:AgentIdentity8004 . BIND("8004" AS ?kind) }',
-    '    OPTIONAL { ?identity a erc8122:AgentIdentity8122 . BIND("8122" AS ?kind) }',
-    '    OPTIONAL { ?identity a ens:AgentIdentityEns . BIND("ens" AS ?kind) }',
-    '    OPTIONAL { ?identity a hol:AgentIdentityHOL . BIND("hol" AS ?kind) }',
-    '    BIND(COALESCE(?kind, "other") AS ?kind)',
+    '      OPTIONAL { ?identity a erc8004:AgentIdentity8004 . BIND("8004" AS ?kind) }',
+    '      OPTIONAL { ?identity a erc8122:AgentIdentity8122 . BIND("8122" AS ?kind) }',
+    '      OPTIONAL { ?identity a ens:AgentIdentityEns . BIND("ens" AS ?kind) }',
+    '      OPTIONAL { ?identity a hol:AgentIdentityHOL . BIND("hol" AS ?kind) }',
+    '      BIND(COALESCE(?kind, "other") AS ?kind)',
     '',
-    '    OPTIONAL {',
-    '      ?identity core:hasIdentifier ?ident .',
-    '      ?ident core:protocolIdentifier ?did .',
-    '    }',
-    '',
-    '    OPTIONAL {',
-    '      ?identity core:hasDescriptor ?desc .',
-    '      OPTIONAL { ?desc dcterms:title ?descTitle . }',
-    '      OPTIONAL { ?desc dcterms:description ?descDescription . }',
-    '      OPTIONAL { ?desc schema:image ?descImage . }',
-    '      OPTIONAL { ?desc erc8004:registrationJson ?registrationJson . }',
-    '      OPTIONAL { ?desc erc8004:nftMetadataJson ?nftMetadataJson . }',
-    '      OPTIONAL { ?desc erc8004:registeredBy ?registeredBy . }',
-    '      OPTIONAL { ?desc erc8004:registryNamespace ?registryNamespace . }',
     '      OPTIONAL {',
-    '        ?desc oasf:hasSkill ?_skill .',
-    '        OPTIONAL { ?_skill core:hasSkillClassification ?_skillClass . OPTIONAL { ?_skillClass oasf:key ?_skillKey . } }',
-    '        OPTIONAL { ?_skill core:skillId ?_skillId . }',
-    '        BIND(COALESCE(?_skillKey, ?_skillId, STR(?_skill)) AS ?skillOut)',
+    '        ?identity core:hasIdentifier ?ident .',
+    '        ?ident core:protocolIdentifier ?did .',
     '      }',
+    '',
     '      OPTIONAL {',
-    '        ?desc oasf:hasDomain ?_domain .',
-    '        OPTIONAL { ?_domain core:hasDomainClassification ?_domainClass . OPTIONAL { ?_domainClass oasf:key ?_domainKey . } }',
-    '        BIND(COALESCE(?_domainKey, STR(?_domain)) AS ?domainOut)',
+    '        ?identity core:hasDescriptor ?desc .',
+    '        OPTIONAL { ?desc dcterms:title ?descTitle . }',
+    '        OPTIONAL { ?desc dcterms:description ?descDescription . }',
+    '        OPTIONAL { ?desc schema:image ?descImage . }',
+    '        OPTIONAL { ?desc erc8004:registrationJson ?registrationJson . }',
+    '        OPTIONAL { ?desc erc8004:nftMetadataJson ?nftMetadataJson . }',
+    '        OPTIONAL { ?desc erc8004:registeredBy ?registeredBy . }',
+    '        OPTIONAL { ?desc erc8004:registryNamespace ?registryNamespace . }',
+    '        OPTIONAL {',
+    '          ?desc oasf:hasSkill ?_skill .',
+    '          OPTIONAL { ?_skill core:hasSkillClassification ?_skillClass . OPTIONAL { ?_skillClass oasf:key ?_skillKey . } }',
+    '          OPTIONAL { ?_skill core:skillId ?_skillId . }',
+    '          BIND(COALESCE(?_skillKey, ?_skillId, STR(?_skill)) AS ?skillOut)',
+    '        }',
+    '        OPTIONAL {',
+    '          ?desc oasf:hasDomain ?_domain .',
+    '          OPTIONAL { ?_domain core:hasDomainClassification ?_domainClass . OPTIONAL { ?_domainClass oasf:key ?_domainKey . } }',
+    '          BIND(COALESCE(?_domainKey, STR(?_domain)) AS ?domainOut)',
+    '        }',
     '      }',
-    '    }',
     '',
-    '    OPTIONAL {',
-    '      ?identity a erc8122:AgentIdentity8122 .',
     '      OPTIONAL {',
-    '        ?identity core:hasIdentifier ?ident8122 .',
-    '        ?ident8122 core:protocolIdentifier ?did8122 .',
+    '        ?identity a erc8122:AgentIdentity8122 .',
+    '        OPTIONAL {',
+    '          ?identity core:hasIdentifier ?ident8122 .',
+    '          ?ident8122 core:protocolIdentifier ?did8122 .',
+    '        }',
+    '        OPTIONAL { ?identity erc8122:agentId ?agentId8122 . }',
+    '        OPTIONAL { ?identity erc8122:registryAddress ?registryAddress . }',
+    '        OPTIONAL { ?identity erc8122:endpointType ?endpointType . }',
+    '        OPTIONAL { ?identity erc8122:endpoint ?endpoint . }',
+    '        OPTIONAL { ?identity erc8122:hasOwnerAccount ?ownerAccount . }',
+    '        OPTIONAL { ?identity erc8122:hasAgentAccount ?agentAccount . }',
     '      }',
-    '      OPTIONAL { ?identity erc8122:agentId ?agentId8122 . }',
-    '      OPTIONAL { ?identity erc8122:registryAddress ?registryAddress . }',
-    '      OPTIONAL { ?identity erc8122:endpointType ?endpointType . }',
-    '      OPTIONAL { ?identity erc8122:endpoint ?endpoint . }',
-    '      OPTIONAL { ?identity erc8122:hasOwnerAccount ?ownerAccount . }',
-    '      OPTIONAL { ?identity erc8122:hasAgentAccount ?agentAccount . }',
-    '    }',
     '',
-    '    OPTIONAL {',
-    '      ?identity a erc8004:AgentIdentity8004 .',
-    '      OPTIONAL { ?identity erc8004:hasOwnerAccount ?ownerAccount . }',
-    '      OPTIONAL { ?agent core:hasAgentAccount ?agentAccount . }',
-    '    }',
-    '',
-    '    OPTIONAL {',
-    '      ?identity a hol:AgentIdentityHOL .',
-    '      OPTIONAL { ?identity hol:uaidHOL ?uaidHOL . }',
-    '    }',
-    '',
-    '    OPTIONAL {',
-    '      ?identity a ens:AgentIdentityEns .',
     '      OPTIONAL {',
-    '        ?identity core:hasIdentifier ?ensIdent .',
-    '        ?ensIdent core:protocolIdentifier ?didEns .',
+    '        ?identity a erc8004:AgentIdentity8004 .',
+    '        OPTIONAL { ?identity erc8004:hasOwnerAccount ?ownerAccount . }',
+    '        OPTIONAL { ?agent core:hasAgentAccount ?agentAccount . }',
     '      }',
+    '',
+    '      OPTIONAL {',
+    '        ?identity a hol:AgentIdentityHOL .',
+    '        OPTIONAL { ?identity hol:uaidHOL ?uaidHOL . }',
+    '      }',
+    '',
+    '      OPTIONAL {',
+    '        ?identity a ens:AgentIdentityEns .',
+    '        OPTIONAL {',
+    '          ?identity core:hasIdentifier ?ensIdent .',
+    '          ?ensIdent core:protocolIdentifier ?didEns .',
+    '        }',
+    '      }',
+    '    }',
+    '    UNION',
+    '    {',
+    '      # ENS name attached to agent (common for SmartAgent/account-based agents)',
+    '      ?agent core:hasName ?ensNameNode .',
+    '      ?ensNameNode a eth:AgentNameENS ; eth:ensName ?ensName .',
+    '      BIND(?ensNameNode AS ?identity)',
+    '      BIND("ens" AS ?kind)',
+    '      BIND(CONCAT("did:ens:", STR(?ensName)) AS ?did)',
+    '      BIND(?did AS ?didEns)',
     '    }',
     '',
     '    OPTIONAL {',
     '      FILTER(BOUND(?ownerAccount))',
-    '      OPTIONAL { ?ownerAccount eth:chainId ?ownerAccountChainId . }',
-    '      OPTIONAL { ?ownerAccount eth:address ?ownerAccountAddress . }',
+    '      OPTIONAL { ?ownerAccount eth:accountChainId ?ownerAccountChainId . }',
+    '      OPTIONAL { ?ownerAccount eth:accountAddress ?ownerAccountAddress . }',
     '      OPTIONAL {',
-    '        OPTIONAL { ?ownerAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_oaType) }',
-    '        OPTIONAL { ?ownerAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_oaType) }',
-    '        BIND(COALESCE(?_oaType, "Account") AS ?ownerAccountType)',
+    '        OPTIONAL { ?ownerAccount eth:accountType ?_oaT . }',
+    '        OPTIONAL { ?ownerAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_oaType2) }',
+    '        OPTIONAL { ?ownerAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_oaType2) }',
+    '        BIND(COALESCE(?_oaT, ?_oaType2, "Account") AS ?ownerAccountType)',
     '      }',
     '      OPTIONAL { ?ownerAccount core:hasIdentifier ?_oaIdent . ?_oaIdent core:protocolIdentifier ?ownerAccountDidEthr . }',
     '    }',
     '    OPTIONAL {',
     '      FILTER(BOUND(?agentAccount))',
-    '      OPTIONAL { ?agentAccount eth:chainId ?agentAccountChainId . }',
-    '      OPTIONAL { ?agentAccount eth:address ?agentAccountAddress . }',
+    '      OPTIONAL { ?agentAccount eth:accountChainId ?agentAccountChainId . }',
+    '      OPTIONAL { ?agentAccount eth:accountAddress ?agentAccountAddress . }',
     '      OPTIONAL {',
-    '        OPTIONAL { ?agentAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_aaType) }',
-    '        OPTIONAL { ?agentAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_aaType) }',
-    '        BIND(COALESCE(?_aaType, "Account") AS ?agentAccountType)',
+    '        OPTIONAL { ?agentAccount eth:accountType ?_aaT . }',
+    '        OPTIONAL { ?agentAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_aaType2) }',
+    '        OPTIONAL { ?agentAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_aaType2) }',
+    '        BIND(COALESCE(?_aaT, ?_aaType2, "Account") AS ?agentAccountType)',
     '      }',
     '      OPTIONAL { ?agentAccount core:hasIdentifier ?_aaIdent . ?_aaIdent core:protocolIdentifier ?agentAccountDidEthr . }',
     '    }',
@@ -478,6 +492,284 @@ async function hydrateIdentitiesForAgents(args: {
       identities.push(ident);
     }
     // stable-ish ordering: by kind then did
+    identities.sort((a, b) => (a.kind || '').localeCompare(b.kind || '') || (a.did || '').localeCompare(b.did || ''));
+    out.set(agent, identities);
+  }
+
+  return out;
+}
+
+async function hydrateIdentitiesForPairs(args: {
+  pairs: Array<{ g: string; agent: string }>;
+  graphdbCtx?: GraphdbQueryContext | null;
+}): Promise<Map<string, HydratedIdentity[]>> {
+  const pairs = Array.isArray(args.pairs) ? args.pairs : [];
+  if (!pairs.length) return new Map();
+
+  const valuesPairs = pairs
+    .map((p) => {
+      const g = String(p?.g || '').trim();
+      const agent = String(p?.agent || '').trim();
+      if (!g || !agent) return '';
+      return `(<${g}> <${agent}>)`;
+    })
+    .filter(Boolean)
+    .join(' ');
+  if (!valuesPairs) return new Map();
+
+  const sparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
+    'PREFIX ens: <https://agentictrust.io/ontology/ens#>',
+    'PREFIX hol: <https://agentictrust.io/ontology/hol#>',
+    'PREFIX oasf: <https://agentictrust.io/ontology/oasf#>',
+    'PREFIX dcterms: <http://purl.org/dc/terms/>',
+    'PREFIX schema: <http://schema.org/>',
+    '',
+    'SELECT',
+    '  ?agent',
+    '  ?identity',
+    '  ?kind',
+    '  ?did',
+    '  ?did8122',
+    '  ?agentId8122',
+    '  ?registryAddress',
+    '  ?endpointType',
+    '  ?endpoint',
+    '  ?uaidHOL',
+    '  ?didEns',
+    '  ?desc',
+    '  ?descTitle',
+    '  ?descDescription',
+    '  ?descImage',
+    '  ?registrationJson',
+    '  ?nftMetadataJson',
+    '  ?registeredBy',
+    '  ?registryNamespace',
+    '  ?skillOut',
+    '  ?domainOut',
+    '  ?ownerAccount',
+    '  ?ownerAccountChainId',
+    '  ?ownerAccountAddress',
+    '  ?ownerAccountType',
+    '  ?ownerAccountDidEthr',
+    '  ?agentAccount',
+    '  ?agentAccountChainId',
+    '  ?agentAccountAddress',
+    '  ?agentAccountType',
+    '  ?agentAccountDidEthr',
+    'WHERE {',
+    `  VALUES (?g ?agent) { ${valuesPairs} }`,
+    '  GRAPH ?g {',
+    '    {',
+    '      ?agent core:hasIdentity ?identity .',
+    '',
+    '    OPTIONAL { ?identity a erc8004:AgentIdentity8004 . BIND("8004" AS ?kind) }',
+    '    OPTIONAL { ?identity a erc8122:AgentIdentity8122 . BIND("8122" AS ?kind) }',
+    '    OPTIONAL { ?identity a ens:AgentIdentityEns . BIND("ens" AS ?kind) }',
+    '    OPTIONAL { ?identity a hol:AgentIdentityHOL . BIND("hol" AS ?kind) }',
+    '    BIND(COALESCE(?kind, "other") AS ?kind)',
+    '',
+    '    OPTIONAL {',
+    '      ?identity core:hasIdentifier ?ident .',
+    '      ?ident core:protocolIdentifier ?did .',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity core:hasDescriptor ?desc .',
+    '      OPTIONAL { ?desc dcterms:title ?descTitle . }',
+    '      OPTIONAL { ?desc dcterms:description ?descDescription . }',
+    '      OPTIONAL { ?desc schema:image ?descImage . }',
+    '      OPTIONAL { ?desc erc8004:registrationJson ?registrationJson . }',
+    '      OPTIONAL { ?desc erc8004:nftMetadataJson ?nftMetadataJson . }',
+    '      OPTIONAL { ?desc erc8004:registeredBy ?registeredBy . }',
+    '      OPTIONAL { ?desc erc8004:registryNamespace ?registryNamespace . }',
+    '      OPTIONAL {',
+    '        ?desc oasf:hasSkill ?_skill .',
+    '        OPTIONAL { ?_skill core:hasSkillClassification ?_skillClass . OPTIONAL { ?_skillClass oasf:key ?_skillKey . } }',
+    '        OPTIONAL { ?_skill core:skillId ?_skillId . }',
+    '        BIND(COALESCE(?_skillKey, ?_skillId, STR(?_skill)) AS ?skillOut)',
+    '      }',
+    '      OPTIONAL {',
+    '        ?desc oasf:hasDomain ?_domain .',
+    '        OPTIONAL { ?_domain core:hasDomainClassification ?_domainClass . OPTIONAL { ?_domainClass oasf:key ?_domainKey . } }',
+    '        BIND(COALESCE(?_domainKey, STR(?_domain)) AS ?domainOut)',
+    '      }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a erc8122:AgentIdentity8122 .',
+    '      OPTIONAL {',
+    '        ?identity core:hasIdentifier ?ident8122 .',
+    '        ?ident8122 core:protocolIdentifier ?did8122 .',
+    '      }',
+    '      OPTIONAL { ?identity erc8122:agentId ?agentId8122 . }',
+    '      OPTIONAL { ?identity erc8122:registryAddress ?registryAddress . }',
+    '      OPTIONAL { ?identity erc8122:endpointType ?endpointType . }',
+    '      OPTIONAL { ?identity erc8122:endpoint ?endpoint . }',
+    '      OPTIONAL { ?identity erc8122:hasOwnerAccount ?ownerAccount . }',
+    '      OPTIONAL { ?identity erc8122:hasAgentAccount ?agentAccount . }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a erc8004:AgentIdentity8004 .',
+    '      OPTIONAL { ?identity erc8004:hasOwnerAccount ?ownerAccount . }',
+    '      OPTIONAL { ?agent core:hasAgentAccount ?agentAccount . }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a hol:AgentIdentityHOL .',
+    '      OPTIONAL { ?identity hol:uaidHOL ?uaidHOL . }',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      ?identity a ens:AgentIdentityEns .',
+    '      OPTIONAL {',
+    '        ?identity core:hasIdentifier ?ensIdent .',
+    '        ?ensIdent core:protocolIdentifier ?didEns .',
+    '      }',
+    '    }',
+    '',
+    '    }',
+    '    UNION',
+    '    {',
+    '      # ENS name attached to agent (common for SmartAgent/account-based agents)',
+    '      ?agent core:hasName ?ensNameNode .',
+    '      ?ensNameNode a eth:AgentNameENS ; eth:ensName ?ensName .',
+    '      BIND(?ensNameNode AS ?identity)',
+    '      BIND("ens" AS ?kind)',
+    '      BIND(CONCAT("did:ens:", STR(?ensName)) AS ?did)',
+    '      BIND(?did AS ?didEns)',
+    '    }',
+    '',
+    '    OPTIONAL {',
+    '      FILTER(BOUND(?ownerAccount))',
+    '      OPTIONAL { ?ownerAccount eth:accountChainId ?ownerAccountChainId . }',
+    '      OPTIONAL { ?ownerAccount eth:accountAddress ?ownerAccountAddress . }',
+    '      OPTIONAL {',
+    '        OPTIONAL { ?ownerAccount eth:accountType ?_oaT . }',
+    '        OPTIONAL { ?ownerAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_oaType2) }',
+    '        OPTIONAL { ?ownerAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_oaType2) }',
+    '        BIND(COALESCE(?_oaT, ?_oaType2, "Account") AS ?ownerAccountType)',
+    '      }',
+    '      OPTIONAL { ?ownerAccount core:hasIdentifier ?_oaIdent . ?_oaIdent core:protocolIdentifier ?ownerAccountDidEthr . }',
+    '    }',
+    '    OPTIONAL {',
+    '      FILTER(BOUND(?agentAccount))',
+    '      OPTIONAL { ?agentAccount eth:accountChainId ?agentAccountChainId . }',
+    '      OPTIONAL { ?agentAccount eth:accountAddress ?agentAccountAddress . }',
+    '      OPTIONAL {',
+    '        OPTIONAL { ?agentAccount eth:accountType ?_aaT . }',
+    '        OPTIONAL { ?agentAccount a eth:EOAAccount . BIND("EOAAccount" AS ?_aaType2) }',
+    '        OPTIONAL { ?agentAccount a eth:SmartAccount . BIND("SmartAccount" AS ?_aaType2) }',
+    '        BIND(COALESCE(?_aaT, ?_aaType2, "Account") AS ?agentAccountType)',
+    '      }',
+    '      OPTIONAL { ?agentAccount core:hasIdentifier ?_aaIdent . ?_aaIdent core:protocolIdentifier ?agentAccountDidEthr . }',
+    '    }',
+    '  }',
+    '}',
+    '',
+  ].join('\n');
+
+  const bindings = await runGraphdbQuery(sparql, args.graphdbCtx, 'kbAgentsQuery.identities.pairs');
+
+  // agentIri -> identityIri -> hydrated identity (with skill/domain accumulation)
+  const byAgent = new Map<string, Map<string, { ident: HydratedIdentity; skills: Set<string>; domains: Set<string> }>>();
+
+  const upsertAccount = (b: any, prefix: 'ownerAccount' | 'agentAccount'): any | null => {
+    const iri = asString(b?.[prefix]);
+    if (!iri) return null;
+    return {
+      iri,
+      chainId: asNumber(b?.[`${prefix}ChainId`]),
+      address: asString(b?.[`${prefix}Address`]),
+      accountType: asString(b?.[`${prefix}Type`]),
+      didEthr: asString(b?.[`${prefix}DidEthr`]),
+    };
+  };
+
+  for (const b of bindings) {
+    const agent = asString((b as any)?.agent);
+    const identity = asString((b as any)?.identity);
+    if (!agent || !identity) continue;
+
+    const kind = asString((b as any)?.kind) ?? 'other';
+    const did = asString((b as any)?.did);
+    if (!did) continue; // GraphQL requires did
+
+    let byIdentity = byAgent.get(agent);
+    if (!byIdentity) {
+      byIdentity = new Map();
+      byAgent.set(agent, byIdentity);
+    }
+
+    let entry = byIdentity.get(identity);
+    if (!entry) {
+      const descIri = asString((b as any)?.desc);
+      const ident: HydratedIdentity = {
+        kind,
+        iri: identity,
+        did,
+        descriptor: descIri
+          ? {
+              iri: descIri,
+              kind,
+              name: asString((b as any)?.descTitle),
+              description: asString((b as any)?.descDescription),
+              image: asString((b as any)?.descImage),
+              registrationJson: asString((b as any)?.registrationJson),
+              nftMetadataJson: asString((b as any)?.nftMetadataJson),
+              registeredBy: asString((b as any)?.registeredBy),
+              registryNamespace: asString((b as any)?.registryNamespace),
+              skills: [],
+              domains: [],
+            }
+          : null,
+        serviceEndpoints: [],
+      };
+
+      if (kind === '8004') {
+        const parsed = parseDid8004(did);
+        ident.did8004 = did;
+        ident.agentId8004 = parsed?.agentId8004 ?? null;
+        ident.ownerAccount = upsertAccount(b as any, 'ownerAccount');
+        ident.agentAccount = upsertAccount(b as any, 'agentAccount');
+      } else if (kind === '8122') {
+        ident.did8122 = asString((b as any)?.did8122) ?? did;
+        ident.agentId8122 = asString((b as any)?.agentId8122);
+        ident.registryAddress = asString((b as any)?.registryAddress);
+        ident.endpointType = asString((b as any)?.endpointType);
+        ident.endpoint = asString((b as any)?.endpoint);
+        ident.ownerAccount = upsertAccount(b as any, 'ownerAccount');
+        ident.agentAccount = upsertAccount(b as any, 'agentAccount');
+      } else if (kind === 'hol') {
+        ident.uaidHOL = asString((b as any)?.uaidHOL);
+      } else if (kind === 'ens') {
+        ident.didEns = asString((b as any)?.didEns) ?? did;
+      }
+
+      entry = { ident, skills: new Set<string>(), domains: new Set<string>() };
+      byIdentity.set(identity, entry);
+    }
+
+    const skill = asString((b as any)?.skillOut);
+    if (skill) entry.skills.add(skill);
+    const domain = asString((b as any)?.domainOut);
+    if (domain) entry.domains.add(domain);
+  }
+
+  const out = new Map<string, HydratedIdentity[]>();
+  for (const [agent, byIdentity] of byAgent.entries()) {
+    const identities: HydratedIdentity[] = [];
+    for (const { ident, skills, domains } of byIdentity.values()) {
+      if (ident.descriptor) {
+        ident.descriptor.skills = Array.from(skills);
+        ident.descriptor.domains = Array.from(domains);
+      }
+      identities.push(ident);
+    }
     identities.sort((a, b) => (a.kind || '').localeCompare(b.kind || '') || (a.did || '').localeCompare(b.did || ''));
     out.set(agent, identities);
   }
@@ -1348,9 +1640,11 @@ export async function kbAgentsQuery(args: {
 
   // Identity hydration: even when using the lightweight hydrate query, attach identities so GraphQL can
   // return the new `KbAgent.identities` list reliably.
-  if (ctxIri && ordered.length) {
+  if (ordered.length) {
     try {
-      const identMap = await hydrateIdentitiesForAgents({ agentIris: ordered.map((r) => r.iri), ctxIri, graphdbCtx });
+      const identMap = ctxIri
+        ? await hydrateIdentitiesForAgents({ agentIris: ordered.map((r) => r.iri), ctxIri, graphdbCtx })
+        : await hydrateIdentitiesForPairs({ pairs: trimmedPairs, graphdbCtx });
       for (const r of ordered) {
         const ids = identMap.get(r.iri);
         if (ids?.length) r.identities = ids;
