@@ -96,7 +96,7 @@
 
 :TrustLedgerBadgeDefinition a owl:Class ;
   rdfs:label "TrustLedgerBadgeDefinition" ;
-  rdfs:comment "Trust ledger badge definition (catalog entry) exported from indexer tables for GraphDB-backed GraphQL." ;
+  rdfs:comment "Trust ledger badge definition (catalog entry) stored in GraphDB (source of truth: sync defaults / KB-native workflows)." ;
   rdfs:subClassOf prov:Entity .
 
 :badgeId a owl:DatatypeProperty ;
@@ -153,6 +153,45 @@
   rdfs:label "updatedAt" ;
   rdfs:domain :TrustLedgerBadgeDefinition ;
   rdfs:range xsd:integer .
+
+########
+# Trust Ledger badge awards (per-agent)
+########
+
+::TrustLedgerBadgeAward a owl:Class ;
+  rdfs:label "TrustLedgerBadgeAward" ;
+  rdfs:comment "A badge award record for an agent under a Trust Ledger program (materialized in GraphDB for scoring and UI)." ;
+  rdfs:subClassOf prov:Entity .
+
+::hasTrustLedgerBadgeAward a owl:ObjectProperty ;
+  rdfs:label "has trust ledger badge award" ;
+  rdfs:comment "Links an agent to a badge award record." ;
+  rdfs:domain core:AIAgent ;
+  rdfs:range :TrustLedgerBadgeAward .
+
+::badgeAwardForAgent a owl:ObjectProperty ;
+  rdfs:label "badge award for agent" ;
+  rdfs:comment "Back-link from a badge award record to the agent it applies to." ;
+  rdfs:domain :TrustLedgerBadgeAward ;
+  rdfs:range core:AIAgent .
+
+::awardedBadgeDefinition a owl:ObjectProperty ;
+  rdfs:label "awarded badge definition" ;
+  rdfs:comment "Badge definition that was awarded." ;
+  rdfs:domain :TrustLedgerBadgeAward ;
+  rdfs:range :TrustLedgerBadgeDefinition .
+
+::awardedAt a owl:DatatypeProperty ;
+  rdfs:label "awardedAt" ;
+  rdfs:comment "Unix epoch seconds." ;
+  rdfs:domain :TrustLedgerBadgeAward ;
+  rdfs:range xsd:integer .
+
+::evidenceJson a owl:DatatypeProperty ;
+  rdfs:label "evidenceJson" ;
+  rdfs:comment "Optional JSON blob describing evidence used for awarding this badge (debugging/traceability only)." ;
+  rdfs:domain :TrustLedgerBadgeAward ;
+  rdfs:range xsd:string .
 
 ########
 # Trust Ledger scores (per-agent rollups)

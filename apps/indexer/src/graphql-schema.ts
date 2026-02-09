@@ -92,10 +92,6 @@ export const graphQLSchemaString = `
     atiVersion: String
     atiComputedAt: Int
     atiBundleJson: String
-    trustLedgerScore: Int
-    trustLedgerBadgeCount: Int
-    trustLedgerOverallRank: Int
-    trustLedgerCapabilityRank: Int
     metadata: [AgentMetadata!]!
   }
 
@@ -133,32 +129,6 @@ export const graphQLSchemaString = `
     computedAt: Int!
     bundleJson: String
     components: [AgentTrustComponent!]!
-  }
-
-  type TrustLedgerBadgeDefinition {
-    badgeId: String!
-    program: String!
-    name: String!
-    description: String
-    iconRef: String
-    points: Int!
-    ruleId: String!
-    ruleJson: String
-    active: Boolean!
-    createdAt: Int!
-    updatedAt: Int!
-  }
-
-  input TrustLedgerBadgeDefinitionInput {
-    badgeId: String!
-    program: String!
-    name: String!
-    description: String
-    iconRef: String
-    points: Int!
-    ruleId: String!
-    ruleJson: String
-    active: Boolean!
   }
 
   type AssociationAccount {
@@ -730,11 +700,6 @@ export const graphQLSchemaString = `
     agentTrustIndex(chainId: Int!, agentId: String!): AgentTrustIndex
     agentTrustComponents(chainId: Int!, agentId: String!): [AgentTrustComponent!]!
 
-    trustLedgerBadgeDefinitions(
-      program: String
-      active: Boolean
-    ): [TrustLedgerBadgeDefinition!]!
-
     feedbacks(
       chainId: Int
       agentId: String
@@ -854,15 +819,6 @@ export const graphQLSchemaString = `
     createAccessCode(address: String!): AccessCode!
     indexAgent(agentId: String!, chainId: Int): IndexAgentResult!
     indexAgentByUaid(uaid: String!): IndexAgentResult!
-
-    upsertTrustLedgerBadgeDefinition(
-      input: TrustLedgerBadgeDefinitionInput!
-    ): TrustLedgerBadgeDefinition!
-
-    setTrustLedgerBadgeActive(
-      badgeId: String!
-      active: Boolean!
-    ): TrustLedgerBadgeDefinition!
   }
 
   type IndexAgentResult {

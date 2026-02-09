@@ -119,6 +119,18 @@
   rdfs:comment "ERC-8004 feedback record." ;
   rdfs:subClassOf core:ReputationTrustAssertion .
 
+::feedbackRatingPct a owl:DatatypeProperty ;
+  rdfs:label "feedbackRatingPct" ;
+  rdfs:comment "Optional feedback rating as an integer percentage (0..100), materialized from feedbackJson for efficient scoring." ;
+  rdfs:domain :Feedback ;
+  rdfs:range xsd:integer .
+
+::feedbackScore a owl:DatatypeProperty ;
+  rdfs:label "feedbackScore" ;
+  rdfs:comment "Optional feedback score (e.g. 0..5), materialized from feedbackJson for efficient scoring." ;
+  rdfs:domain :Feedback ;
+  rdfs:range xsd:decimal .
+
 ########
 # Subgraph ingest (raw records + checkpoints stored in GraphDB)
 ########

@@ -1271,43 +1271,7 @@ async function fetchAgentTrustComponents(db: any, chainId: number, agentId: stri
   }));
 }
 
-async function fetchTrustLedgerBadgeDefinitions(db: any, args?: { program?: string | null; active?: boolean | null }) {
-  const conditions: string[] = [];
-  const params: any[] = [];
-  if (args?.program && String(args.program).trim()) {
-    conditions.push('program = ?');
-    params.push(String(args.program).trim());
-  }
-  if (args?.active === true) {
-    conditions.push('active = 1');
-  } else if (args?.active === false) {
-    conditions.push('(active IS NULL OR active = 0)');
-  }
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const rows = await executeQuery(
-    db,
-    `
-      SELECT badgeId, program, name, description, iconRef, points, ruleId, ruleJson, active, createdAt, updatedAt
-      FROM trust_ledger_badge_definitions
-      ${where}
-      ORDER BY badgeId ASC
-    `,
-    params,
-  );
-  return rows.map((row) => ({
-    badgeId: String((row as any)?.badgeId ?? ''),
-    program: String((row as any)?.program ?? ''),
-    name: String((row as any)?.name ?? ''),
-    description: (row as any)?.description != null ? String((row as any).description) : null,
-    iconRef: (row as any)?.iconRef != null ? String((row as any).iconRef) : null,
-    points: Number((row as any)?.points ?? 0) || 0,
-    ruleId: String((row as any)?.ruleId ?? ''),
-    ruleJson: (row as any)?.ruleJson != null ? String((row as any).ruleJson) : null,
-    active: Boolean((row as any)?.active === 1 || (row as any)?.active === true),
-    createdAt: Number((row as any)?.createdAt ?? 0) || 0,
-    updatedAt: Number((row as any)?.updatedAt ?? 0) || 0,
-  }));
-}
+// Removed: legacy D1 trust-ledger badge definitions. Badge definitions now live in the KB (GraphDB).
 
 /**
  * Create GraphQL resolvers
@@ -2884,78 +2848,7 @@ export function createGraphQLResolvers(db: any, options?: GraphQLResolverOptions
       };
     },
 
-    trustLedgerBadgeDefinitions: async (args: { program?: string | null; active?: boolean | null }) => {
-      return await fetchTrustLedgerBadgeDefinitions(db, args);
-    },
-
-    upsertTrustLedgerBadgeDefinition: async (args: { input: any }) => {
-      const input = args?.input ?? {};
-      const badgeId = String(input.badgeId ?? '').trim();
-      if (!badgeId) throw new Error('badgeId is required');
-      const program = String(input.program ?? '').trim();
-      const name = String(input.name ?? '').trim();
-      const points = Number(input.points ?? 0);
-      const ruleId = String(input.ruleId ?? '').trim();
-      const ruleJson = input.ruleJson != null ? String(input.ruleJson) : null;
-      const description = input.description != null ? String(input.description) : null;
-      const iconRef = input.iconRef != null ? String(input.iconRef) : null;
-      const active = input.active === false ? 0 : 1;
-      const now = Math.floor(Date.now() / 1000);
-
-      if (!program) throw new Error('program is required');
-      if (!name) throw new Error('name is required');
-      if (!Number.isFinite(points)) throw new Error('points must be a number');
-      if (!ruleId) throw new Error('ruleId is required');
-      if (ruleJson && ruleJson.trim()) {
-        try {
-          JSON.parse(ruleJson);
-        } catch {
-          throw new Error('ruleJson must be valid JSON');
-        }
-      }
-
-      await executeUpdate(
-        db,
-        `
-          INSERT INTO trust_ledger_badge_definitions(
-            badgeId, program, name, description, iconRef, points, ruleId, ruleJson, active, createdAt, updatedAt
-          )
-          VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON CONFLICT(badgeId) DO UPDATE SET
-            program=excluded.program,
-            name=excluded.name,
-            description=excluded.description,
-            iconRef=excluded.iconRef,
-            points=excluded.points,
-            ruleId=excluded.ruleId,
-            ruleJson=excluded.ruleJson,
-            active=excluded.active,
-            updatedAt=excluded.updatedAt
-        `,
-        [badgeId, program, name, description, iconRef, Math.trunc(points), ruleId, ruleJson, active, now, now],
-      );
-
-      const defs = await fetchTrustLedgerBadgeDefinitions(db, { program: null, active: null });
-      const updated = defs.find((d: any) => String(d.badgeId) === badgeId);
-      if (!updated) throw new Error('Failed to read back badge definition');
-      return updated;
-    },
-
-    setTrustLedgerBadgeActive: async (args: { badgeId: string; active: boolean }) => {
-      const badgeId = String(args.badgeId ?? '').trim();
-      if (!badgeId) throw new Error('badgeId is required');
-      const active = args.active === false ? 0 : 1;
-      const now = Math.floor(Date.now() / 1000);
-      await executeUpdate(
-        db,
-        `UPDATE trust_ledger_badge_definitions SET active = ?, updatedAt = ? WHERE badgeId = ?`,
-        [active, now, badgeId],
-      );
-      const defs = await fetchTrustLedgerBadgeDefinitions(db, { program: null, active: null });
-      const updated = defs.find((d: any) => String(d.badgeId) === badgeId);
-      if (!updated) throw new Error('Badge not found');
-      return updated;
-    },
+    // Removed: legacy D1 trust-ledger badge definitions/mutations. Badge definitions now live in the KB (GraphDB).
   };
 }
 

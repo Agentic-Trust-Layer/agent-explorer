@@ -1,5 +1,4 @@
 import { resolveEoaOwner } from './ownership.js';
-import { computeAndUpsertATI } from './ati.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 
 /**
@@ -507,12 +506,7 @@ export async function processAgentDirectly(
       }
     } catch {}
 
-    // Precompute ATI for fast frontend retrieval
-    try {
-      await computeAndUpsertATI(db, chainId, agentId);
-    } catch (e) {
-      console.warn('............ATI compute failed (processAgentDirectly)', e);
-    }
+    // NOTE: ATI/TrustLedger score computation in D1 has been removed. Scores are computed/materialized in the KB (GraphDB).
   }
 }
 

@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 import { resolve as pathResolve } from 'node:path';
 // Semantic ingest is intentionally NOT part of the indexer runtime. Use CLI only.
 import { resolveEoaInfo, resolveEoaOwner } from './ownership.js';
-import { computeAndUpsertATI } from './ati.js';
 import { upsertAgentCardForAgent } from './a2a/agent-card-fetch.js';
 
 
@@ -719,14 +718,7 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
       a2aEndpoint,
     );
 
-    // ATI compute is intentionally NOT part of the hot path (expensive). Use CLI only.
-    if (process.env.ATI_COMPUTE_ON_WRITE === '1') {
-      try {
-        await computeAndUpsertATI(dbInstance, chainId, agentId);
-      } catch (e) {
-        console.warn('............ATI compute failed (upsertFromTransfer)', e);
-      }
-    }
+    // NOTE: ATI/TrustLedger score computation in D1 has been removed. Scores are computed/materialized in the KB (GraphDB).
     // NOTE: Transfer events don’t change validation/association/feedback signals used by the Trust Ledger badges.
     // Running trust-ledger evaluation here makes backfills look “infinite” (lots of expensive badge-rule queries).
     // Trust ledger processing is triggered by the relevant evidence events (validation/association/feedback) instead.
@@ -925,15 +917,9 @@ export async function upsertFromTransfer(to: string, tokenId: bigint, tokenInfo:
           agentId,
         );
 
-        // ATI compute is intentionally NOT part of the hot path (expensive). Use CLI only.
-        if (process.env.ATI_COMPUTE_ON_WRITE === '1') {
-          try {
-            await computeAndUpsertATI(dbInstance, chainId, agentId);
-          } catch (e) {
-            console.warn('............ATI compute failed (metadata update)', e);
-          }
-        }
-        // Badge processing is now done via CLI: `pnpm badge:process`
+        // NOTE: ATI/TrustLedger score computation in D1 has been removed. Scores are computed/materialized in the KB (GraphDB).
+        // NOTE: Trust Ledger (points/badges) and ATI scoring are no longer computed/stored in D1 by the indexer.
+        // Leaderboard scoring is materialized in the KB (GraphDB) via the `sync` app.
 
         // Agent-card fetch is intentionally NOT part of the hot path (network-heavy). Use CLI only.
         if (process.env.AGENT_CARD_FETCH_ON_UPDATE === '1') {
@@ -1296,7 +1282,8 @@ async function upsertFeedbackFromGraph(
   const stmt = dbInstance.prepare(sql);
   await enqueueOrRun(batch, stmt, args);
 
-  // Badge processing is now done via CLI: `pnpm badge:process`
+  // NOTE: Trust Ledger (points/badges) and ATI scoring are no longer computed/stored in D1 by the indexer.
+  // Leaderboard scoring is materialized in the KB (GraphDB) via the `sync` app.
 
   return feedbackIndex;
 }
@@ -2434,15 +2421,9 @@ async function applyUriUpdateFromGraph(update: any, chainId: number, dbInstance:
     } catch {}
   }
 
-  // ATI compute is intentionally NOT part of the hot path (expensive). Use CLI only.
-  if (process.env.ATI_COMPUTE_ON_WRITE === '1') {
-    try {
-      await computeAndUpsertATI(dbInstance, chainId, agentId);
-    } catch (e) {
-      console.warn('............ATI compute failed (applyUriUpdateFromGraph)', e);
-    }
-  }
-  // Badge processing is now done via CLI: `pnpm badge:process`
+  // NOTE: ATI/TrustLedger score computation in D1 has been removed. Scores are computed/materialized in the KB (GraphDB).
+  // NOTE: Trust Ledger (points/badges) and ATI scoring are no longer computed/stored in D1 by the indexer.
+  // Leaderboard scoring is materialized in the KB (GraphDB) via the `sync` app.
 }
 
 async function recordEvent(ev: any, type: string, args: any, agentIdForEventOrDb?: string | any, dbOverride?: any) {
@@ -2572,23 +2553,7 @@ async function upsertAssociationFromGraph(
     lastUpdatedTimestamp,
   ]);
 
-  // Best-effort: recompute ATI for any agents matching initiator/approver account suffixes.
-  try {
-    const suffixA = initiatorAccountId.slice(-40);
-    const suffixB = approverAccountId.slice(-40);
-    const agentRows = await dbInstance
-      .prepare(`SELECT agentId FROM agents WHERE chainId = ? AND (substr(LOWER(agentAccount), -40) = ? OR substr(LOWER(agentAccount), -40) = ?) LIMIT 10`)
-      .all(chainId, suffixA, suffixB);
-    const results = Array.isArray((agentRows as any)?.results) ? (agentRows as any).results : Array.isArray(agentRows) ? agentRows : [];
-    for (const r of results) {
-      const aid = String(r?.agentId ?? '');
-      if (!aid) continue;
-      await computeAndUpsertATI(dbInstance, chainId, aid);
-      // Badge processing is now done via CLI: `pnpm badge:process`
-    }
-  } catch (e) {
-    console.warn('............ATI compute failed (association upsert)', e);
-  }
+  // NOTE: ATI/TrustLedger score computation in D1 has been removed. Scores are computed/materialized in the KB (GraphDB).
 }
 
 async function recordAssociationRevocationFromGraph(

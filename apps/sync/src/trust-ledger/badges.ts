@@ -13,6 +13,7 @@ export type TrustLedgerBadgeDefinition = {
 // Program namespace for Trust Ledger.
 export const TRUST_LEDGER_PROGRAM = 'trust-ledger';
 
+// Source of truth: seeded into GraphDB analytics/system by `sync:trust-ledger`.
 export const DEFAULT_TRUST_LEDGER_BADGES: TrustLedgerBadgeDefinition[] = [
   {
     badgeId: 'validation:first_response',
@@ -59,5 +60,4 @@ export const DEFAULT_TRUST_LEDGER_BADGES: TrustLedgerBadgeDefinition[] = [
     active: true,
   },
 ];
-
 

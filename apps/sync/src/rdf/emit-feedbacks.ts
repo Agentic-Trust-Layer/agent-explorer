@@ -1,6 +1,40 @@
 import { agentIri, escapeTurtleString, feedbackIri, rdfPrefixes, turtleJsonLiteral } from './common.js';
 import { emitRawSubgraphRecord } from './emit-raw-record.js';
 
+function clampInt(n: number, min: number, max: number): number {
+  const x = Number.isFinite(n) ? Math.trunc(n) : 0;
+  return Math.max(min, Math.min(max, x));
+}
+
+function parseFeedbackSignals(feedbackJsonRaw: unknown): { ratingPct: number | null; score: number | null } {
+  const raw = typeof feedbackJsonRaw === 'string' ? feedbackJsonRaw.trim() : '';
+  if (!raw) return { ratingPct: null, score: null };
+  try {
+    const obj: any = JSON.parse(raw);
+
+    // Prefer explicit percent fields.
+    const rp =
+      obj?.ratingPct ?? obj?.rating_pct ?? obj?.ratingPercent ?? obj?.rating_percent ?? obj?.rating_percentage ?? obj?.ratingPercentage;
+    if (rp != null) {
+      const n = Number(rp);
+      if (Number.isFinite(n)) return { ratingPct: clampInt(n, 0, 100), score: null };
+    }
+
+    // Fall back to a 0..5 score if present.
+    const sc = obj?.score ?? obj?.rating ?? obj?.stars ?? obj?.starsRating ?? obj?.stars_rating;
+    if (sc != null) {
+      const n = Number(sc);
+      if (Number.isFinite(n)) {
+        const score = Math.max(0, Math.min(5, n));
+        return { ratingPct: clampInt(Math.round((score / 5) * 100), 0, 100), score };
+      }
+    }
+  } catch {
+    // ignore parse failures
+  }
+  return { ratingPct: null, score: null };
+}
+
 function turtleIri(value: string): string {
   const v = String(value || '').trim();
   if (!v) return '<https://www.agentictrust.io/id/unknown>';
@@ -50,7 +84,11 @@ export function emitFeedbacksTurtle(
     const fIri = feedbackIri(chainId, agentId, client, feedbackIndex);
     lines.push(`${fIri} a erc8004:Feedback, prov:Entity ;`);
     lines.push(`  core:agentId "${escapeTurtleString(agentId)}" ;`);
-    lines.push(`  core:json ${turtleJsonLiteral(String(fb?.feedbackJson ?? ''))} ;`);
+    const feedbackJson = String(fb?.feedbackJson ?? '');
+    const signals = parseFeedbackSignals(feedbackJson);
+    lines.push(`  core:json ${turtleJsonLiteral(feedbackJson)} ;`);
+    if (signals.ratingPct != null) lines.push(`  erc8004:feedbackRatingPct ${signals.ratingPct} ;`);
+    if (signals.score != null) lines.push(`  erc8004:feedbackScore "${signals.score}"^^xsd:decimal ;`);
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
 

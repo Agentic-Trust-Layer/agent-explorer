@@ -62,7 +62,7 @@ export async function materializeAssertionSummariesForChain(
 ): Promise<{ processedAgents: number; emittedAgents: number }> {
   const maxAgents = typeof opts?.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0 ? Math.trunc(opts.limit) : 100_000;
   const pageSize =
-    typeof opts?.pageSize === 'number' && Number.isFinite(opts.pageSize) && opts.pageSize > 0 ? Math.trunc(opts.pageSize) : 1000;
+    typeof opts?.pageSize === 'number' && Number.isFinite(opts.pageSize) && opts.pageSize > 0 ? Math.trunc(opts.pageSize) : 100;
 
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
   await ensureRepositoryExistsOrThrow(baseUrl, repository, auth);
@@ -77,63 +77,167 @@ export async function materializeAssertionSummariesForChain(
   let processedAgents = 0;
   let emittedAgents = 0;
 
-  for (;;) {
-    const sparql = `
+  const agentPageSparql = (pageOffset: number) => `
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+SELECT ?agent ?agentId WHERE {
+  GRAPH <${ctx}> {
+    ?agent a core:AIAgent ;
+           core:hasIdentity ?id .
+    ?id a erc8004:AgentIdentity8004 ;
+        erc8004:agentId ?agentId .
+  }
+}
+ORDER BY xsd:integer(?agentId) ASC(STR(?agent))
+LIMIT ${pageSize}
+OFFSET ${Math.trunc(pageOffset)}
+`;
+
+  const valuesForAgents = (agents: string[]) =>
+    agents
+      .map((a) => {
+        const iri = String(a || '').trim();
+        if (!iri) return null;
+        return iri.startsWith('<') ? iri : `<${iri}>`;
+      })
+      .filter((x): x is string => Boolean(x))
+      .join(' ');
+
+  // Keep these queries cheap: do counts and MAX timestamps separately.
+  // MAX timestamp requires joining SubgraphIngestRecord, which can blow up memory when combined with counts.
+  const feedbackCountsSparql = (agentIris: string[]) => `
 PREFIX core: <https://agentictrust.io/ontology/core#>
 PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
 PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
-SELECT ?agent ?agentId ?feedbackCount ?lastFeedbackTs ?validationCount ?lastValidationTs WHERE {
+SELECT ?agent (COUNT(?fb) AS ?feedbackCount) WHERE {
   GRAPH <${ctx}> {
-    ?agent a core:AIAgent ;
-           core:agentId ?agentId .
-
+    VALUES ?agent { ${valuesForAgents(agentIris)} }
     OPTIONAL {
-      SELECT ?agent (COUNT(?fb) AS ?feedbackCount) (MAX(?fbTs) AS ?lastFeedbackTs) WHERE {
-        ?agent core:hasReputationAssertion ?fb .
-        ?fb a erc8004:Feedback .
-        OPTIONAL {
-          ?fbRec a erc8004:SubgraphIngestRecord ;
-                 erc8004:recordsEntity ?fb ;
-                 erc8004:subgraphTimestamp ?fbTs .
-        }
-      } GROUP BY ?agent
-    }
-
-    OPTIONAL {
-      SELECT ?agent (COUNT(?va) AS ?validationCount) (MAX(?vaTs) AS ?lastValidationTs) WHERE {
-        ?agent core:hasVerificationAssertion ?va .
-        ?va a erc8004:ValidationResponse .
-        OPTIONAL {
-          ?vaRec a erc8004:SubgraphIngestRecord ;
-                 erc8004:recordsEntity ?va ;
-                 erc8004:subgraphTimestamp ?vaTs .
-        }
-      } GROUP BY ?agent
+      ?agent core:hasReputationAssertion ?fb .
+      ?fb a erc8004:Feedback .
     }
   }
 }
-ORDER BY xsd:integer(?agentId)
-LIMIT ${pageSize}
-OFFSET ${offset}
+GROUP BY ?agent
 `;
 
-    const res = await queryGraphdb(baseUrl, repository, auth, sparql);
-    const bindings = Array.isArray(res?.results?.bindings) ? res.results.bindings : [];
-    if (!bindings.length) break;
+  const feedbackLastTsSparql = (agentIris: string[]) => `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?agent (MAX(?fbTs) AS ?lastFeedbackTs) WHERE {
+  GRAPH <${ctx}> {
+    VALUES ?agent { ${valuesForAgents(agentIris)} }
+    ?agent core:hasReputationAssertion ?fb .
+    ?fb a erc8004:Feedback .
+    ?fbRec a erc8004:SubgraphIngestRecord ;
+           erc8004:recordsEntity ?fb ;
+           erc8004:subgraphTimestamp ?fbTs .
+  }
+}
+GROUP BY ?agent
+`;
+
+  const validationCountsSparql = (agentIris: string[]) => `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?agent (COUNT(?va) AS ?validationCount) WHERE {
+  GRAPH <${ctx}> {
+    VALUES ?agent { ${valuesForAgents(agentIris)} }
+    OPTIONAL {
+      ?agent core:hasVerificationAssertion ?va .
+      ?va a erc8004:ValidationResponse .
+    }
+  }
+}
+GROUP BY ?agent
+`;
+
+  const validationLastTsSparql = (agentIris: string[]) => `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?agent (MAX(?vaTs) AS ?lastValidationTs) WHERE {
+  GRAPH <${ctx}> {
+    VALUES ?agent { ${valuesForAgents(agentIris)} }
+    ?agent core:hasVerificationAssertion ?va .
+    ?va a erc8004:ValidationResponse .
+    ?vaRec a erc8004:SubgraphIngestRecord ;
+           erc8004:recordsEntity ?va ;
+           erc8004:subgraphTimestamp ?vaTs .
+  }
+}
+GROUP BY ?agent
+`;
+
+  for (;;) {
+    // Phase 1: get a page of agents.
+    const resAgents = await queryGraphdb(baseUrl, repository, auth, agentPageSparql(offset));
+    const bindingsAgents = Array.isArray(resAgents?.results?.bindings) ? resAgents.results.bindings : [];
+    if (!bindingsAgents.length) break;
+
+    const pageAgents: Array<{ agent: string; agentId: string }> = bindingsAgents
+      .map((b: any) => ({ agent: asStrBinding(b?.agent), agentId: asStrBinding(b?.agentId) }))
+      .filter((x: any) => Boolean(x.agent && x.agentId));
+
+    const agentIris = pageAgents.map((a) => a.agent);
+
+    // Phase 2: compute signals only for those agents (VALUES), to avoid full-graph GROUP BY memory pressure.
+    const fbMap = new Map<string, { count: number; lastTs: number | null }>();
+    const vaMap = new Map<string, { count: number; lastTs: number | null }>();
+
+    const resFb = await queryGraphdb(baseUrl, repository, auth, feedbackCountsSparql(agentIris));
+    const fbBindings = Array.isArray(resFb?.results?.bindings) ? resFb.results.bindings : [];
+    for (const b of fbBindings) {
+      const a = asStrBinding(b?.agent);
+      if (!a) continue;
+      fbMap.set(a, { count: Math.max(0, Math.trunc(asNumBinding(b?.feedbackCount) ?? 0)), lastTs: null });
+    }
+
+    const resFbTs = await queryGraphdb(baseUrl, repository, auth, feedbackLastTsSparql(agentIris));
+    const fbTsBindings = Array.isArray(resFbTs?.results?.bindings) ? resFbTs.results.bindings : [];
+    for (const b of fbTsBindings) {
+      const a = asStrBinding(b?.agent);
+      if (!a) continue;
+      const prev = fbMap.get(a) ?? { count: 0, lastTs: null };
+      prev.lastTs = asNumBinding(b?.lastFeedbackTs);
+      fbMap.set(a, prev);
+    }
+
+    const resVa = await queryGraphdb(baseUrl, repository, auth, validationCountsSparql(agentIris));
+    const vaBindings = Array.isArray(resVa?.results?.bindings) ? resVa.results.bindings : [];
+    for (const b of vaBindings) {
+      const a = asStrBinding(b?.agent);
+      if (!a) continue;
+      vaMap.set(a, { count: Math.max(0, Math.trunc(asNumBinding(b?.validationCount) ?? 0)), lastTs: null });
+    }
+
+    const resVaTs = await queryGraphdb(baseUrl, repository, auth, validationLastTsSparql(agentIris));
+    const vaTsBindings = Array.isArray(resVaTs?.results?.bindings) ? resVaTs.results.bindings : [];
+    for (const b of vaTsBindings) {
+      const a = asStrBinding(b?.agent);
+      if (!a) continue;
+      const prev = vaMap.get(a) ?? { count: 0, lastTs: null };
+      prev.lastTs = asNumBinding(b?.lastValidationTs);
+      vaMap.set(a, prev);
+    }
 
     const lines: string[] = [rdfPrefixes()];
-    for (const b of bindings) {
-      const agent = asStrBinding(b?.agent);
-      const agentId = asStrBinding(b?.agentId);
-      if (!agent || !agentId) continue;
+    for (const a of pageAgents) {
+      const agent = a.agent;
+      const agentId = a.agentId;
 
       processedAgents++;
       if (processedAgents > maxAgents) break;
 
-      const fbCount = Math.max(0, Math.trunc(asNumBinding(b?.feedbackCount) ?? 0));
-      const lastFb = asNumBinding(b?.lastFeedbackTs);
-      const vaCount = Math.max(0, Math.trunc(asNumBinding(b?.validationCount) ?? 0));
-      const lastVa = asNumBinding(b?.lastValidationTs);
+      const fb = fbMap.get(agent) ?? { count: 0, lastTs: null };
+      const va = vaMap.get(agent) ?? { count: 0, lastTs: null };
+      const fbCount = fb.count;
+      const lastFb = fb.lastTs;
+      const vaCount = va.count;
+      const lastVa = va.lastTs;
 
       const agentTok = agent.startsWith('<') ? agent : `<${agent}>`;
       const fbSum = feedbackSummaryIri(chainId, agentId);
@@ -166,7 +270,7 @@ OFFSET ${offset}
       await uploadTurtleToRepository(baseUrl, repository, auth, { context: ctx, turtle });
     }
 
-    offset += bindings.length;
+    offset += pageAgents.length;
     if (processedAgents >= maxAgents) break;
     console.info('[sync] [assertion-summaries] progress', { chainId, processedAgents, emittedAgents, offset });
   }
