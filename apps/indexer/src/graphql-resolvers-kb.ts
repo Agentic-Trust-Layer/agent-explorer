@@ -151,6 +151,32 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
     return v;
   };
 
+  // Canonicalize UAIDs so SPARQL exact-match filters are stable.
+  // GraphDB stores most addresses lowercased (sync emitters normalize to lowercase).
+  // Clients often submit mixed-case EIP-55 addresses; normalize those segments.
+  const canonicalizeUaid = (uaid: string): string => {
+    const u = String(uaid || '').trim();
+    if (!u.startsWith('uaid:')) return u;
+    // uaid:did:ethr:<chainId>:<0xAddr>[;<params>]
+    const mEthr = u.match(/^uaid:did:ethr:(\d+):(0x[0-9a-fA-F]{40})(.*)$/);
+    if (mEthr?.[1] && mEthr?.[2] != null) {
+      const chainId = mEthr[1];
+      const addr = mEthr[2].toLowerCase();
+      const suffix = mEthr[3] ?? '';
+      return `uaid:did:ethr:${chainId}:${addr}${suffix}`;
+    }
+    // uaid:did:8122:<chainId>:<0xRegistryOrAgentAddr>:<agentId>[;<params>]
+    const m8122 = u.match(/^uaid:did:8122:(\d+):(0x[0-9a-fA-F]{40}):(\d+)(.*)$/);
+    if (m8122?.[1] && m8122?.[2] && m8122?.[3]) {
+      const chainId = m8122[1];
+      const reg = m8122[2].toLowerCase();
+      const agentId = m8122[3];
+      const suffix = m8122[4] ?? '';
+      return `uaid:did:8122:${chainId}:${reg}:${agentId}${suffix}`;
+    }
+    return u;
+  };
+
   const normalizeUaidString = (input: unknown): string | null => {
     const s = typeof input === 'string' ? input.trim() : '';
     if (!s) return null;
@@ -458,17 +484,48 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       return { __typename, chainId, ensName, ...id };
     });
 
+    // Agent UX fields should primarily come from the agent's identities (especially ERC-8004),
+    // not from the agent descriptor (which may be missing/null in some ingests).
+    const pickIdentity = (k: string) =>
+      identities.find((x: any) => String(x?.kind || '').trim().toLowerCase() === k.toLowerCase()) ?? null;
+    const primary8004 = pickIdentity('8004');
+    const primary8122 = pickIdentity('8122');
+    const primaryEns = pickIdentity('ens');
+
+    const identityName =
+      (typeof primary8004?.descriptor?.name === 'string' && primary8004.descriptor.name.trim()
+        ? primary8004.descriptor.name.trim()
+        : null) ??
+      (typeof primary8122?.descriptor?.name === 'string' && primary8122.descriptor.name.trim()
+        ? primary8122.descriptor.name.trim()
+        : null) ??
+      (typeof primaryEns?.ensName === 'string' && primaryEns.ensName.trim() ? primaryEns.ensName.trim() : null) ??
+      null;
+
+    const identityDescription =
+      (typeof primary8004?.descriptor?.description === 'string' && primary8004.descriptor.description.trim()
+        ? primary8004.descriptor.description.trim()
+        : null) ??
+      (typeof primary8122?.descriptor?.description === 'string' && primary8122.descriptor.description.trim()
+        ? primary8122.descriptor.description.trim()
+        : null) ??
+      null;
+
+    const agentName = identityName ?? r.agentDescriptorName ?? null;
+    const agentDescription = identityDescription ?? r.agentDescriptorDescription ?? null;
+
     return {
       iri: r.iri,
       uaid: r.uaid,
-      agentName: r.agentDescriptorName,
-      agentDescription: r.agentDescriptorDescription,
+      agentName,
+      agentDescription,
       agentImage: r.agentDescriptorImage,
       agentDescriptor: r.agentDescriptorIri
         ? {
             iri: r.agentDescriptorIri,
-            name: r.agentDescriptorName,
-            description: r.agentDescriptorDescription,
+            // Expose the same derived fields on agentDescriptor for consistency.
+            name: agentName,
+            description: agentDescription,
             image: r.agentDescriptorImage,
           }
         : null,
@@ -983,11 +1040,15 @@ LIMIT 1
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
       const where = args?.where ?? null;
       if (where && typeof where === 'object') {
-        if (where.uaid != null) assertUaidInput(where.uaid, 'where.uaid');
+        if (where.uaid != null) {
+          const v = canonicalizeUaid(assertUaidInput(where.uaid, 'where.uaid'));
+          (where as any).uaid = v;
+        }
         if (where.uaid_in != null) {
           if (!Array.isArray(where.uaid_in)) throw new Error(`Invalid where.uaid_in: expected an array of "uaid:*" strings.`);
           for (let i = 0; i < where.uaid_in.length; i++) {
-            assertUaidInput(where.uaid_in[i], `where.uaid_in[${i}]`);
+            const v = canonicalizeUaid(assertUaidInput(where.uaid_in[i], `where.uaid_in[${i}]`));
+            (where as any).uaid_in[i] = v;
           }
         }
       }
@@ -1091,7 +1152,7 @@ LIMIT 1
 
     kbAgentByUaid: async (args: any, ctx: any) => {
       const graphdbCtx = (ctx && typeof ctx === 'object' ? (ctx as any).graphdb : null) as GraphdbQueryContext | null;
-      const uaid = assertUaidInput(args?.uaid, 'uaid');
+      const uaid = canonicalizeUaid(assertUaidInput(args?.uaid, 'uaid'));
       if (!uaid) return null;
       // eslint-disable-next-line no-console
       console.info('[kb][kbAgentByUaid] start', {

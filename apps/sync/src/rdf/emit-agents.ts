@@ -301,6 +301,33 @@ export function emitAgentsTurtle(
   const emittedAccounts = new Set<string>();
   const emittedAccountIdentifiers = new Set<string>();
 
+  // Debug helper: subgraph often has names, but sometimes fields are empty or registration.raw is missing.
+  // This helps diagnose "null agentName/agentDescription" downstream in GraphQL.
+  try {
+    let missingName = 0;
+    let missingDesc = 0;
+    let missingRegName = 0;
+    let missingRegDesc = 0;
+    for (const it of Array.isArray(items) ? items : []) {
+      const name = typeof it?.name === 'string' ? it.name.trim() : '';
+      const desc = typeof it?.description === 'string' ? it.description.trim() : '';
+      const rn = typeof it?.registration?.name === 'string' ? it.registration.name.trim() : '';
+      const rd = typeof it?.registration?.description === 'string' ? it.registration.description.trim() : '';
+      if (!name) missingName++;
+      if (!desc) missingDesc++;
+      if (!rn) missingRegName++;
+      if (!rd) missingRegDesc++;
+    }
+    console.info('[sync][agents] subgraph field presence', {
+      chainId,
+      items: Array.isArray(items) ? items.length : 0,
+      missingName,
+      missingDesc,
+      missingRegName,
+      missingRegDesc,
+    });
+  } catch {}
+
   for (const item of items) {
     const agentId = String(item?.id ?? '').trim();
     if (!agentId) continue;
@@ -346,6 +373,14 @@ export function emitAgentsTurtle(
       pickString(onchainByKey, ['agentName', 'name', 'AGENT NAME']) ||
       pickString(onchainObj, ['AGENT NAME', 'agentName', 'name']) ||
       findLabeledValue(onchainObj, 'AGENT NAME');
+    const metaAgentDescription =
+      pickString(onchainByKey, ['agentDescription', 'description', 'AGENT DESCRIPTION']) ||
+      pickString(onchainObj, ['AGENT DESCRIPTION', 'agentDescription', 'description']) ||
+      findLabeledValue(onchainObj, 'AGENT DESCRIPTION');
+    const metaAgentImage =
+      pickString(onchainByKey, ['agentImage', 'image', 'AGENT IMAGE']) ||
+      pickString(onchainObj, ['AGENT IMAGE', 'agentImage', 'image']) ||
+      findLabeledValue(onchainObj, 'AGENT IMAGE');
     const metaAgentWallet = normalizeHex(
       pickString(onchainByKey, ['agentWallet', 'wallet', 'AGENT WALLET']) ||
         pickString(onchainObj, ['AGENT WALLET', 'agentWallet', 'wallet']) ||
@@ -377,12 +412,19 @@ export function emitAgentsTurtle(
     const agentWallet = walletAddress;
     if (!agentWallet) continue;
 
-    // If on-chain metadata includes AGENT ACCOUNT, emit a SmartAgent node and associate it with a SmartAccount node.
-    // Otherwise anchor the agent to the ERC-8004 agent id.
-    const smartAccountIri = metaAgentAccount ? accountIri(chainId, metaAgentAccount) : null;
+    // IMPORTANT: ERC-8004 "agentAccount" metadata may be present even for simple (EOA) agents.
+    // We only treat it as a SmartAgent when the agentAccount is DISTINCT from the agent's wallet/owner.
+    // Otherwise we keep the canonical UAID anchored to the ERC-8004 identity DID (did:8004:*).
+    const isSmartAgent8004 =
+      Boolean(metaAgentAccount) &&
+      Boolean(agentWallet) &&
+      metaAgentAccount !== agentWallet &&
+      metaAgentAccount !== ownerAddress;
+    const smartAgentAccount = isSmartAgent8004 ? metaAgentAccount : null;
+    const smartAccountIri = smartAgentAccount ? accountIri(chainId, smartAgentAccount) : null;
     const didIdentity = `did:8004:${chainId}:${agentId}`;
     const didAccountEoa = `did:ethr:${chainId}:${agentWallet}`;
-    const didAccountSmart = metaAgentAccount ? `did:ethr:${chainId}:${metaAgentAccount}` : null;
+    const didAccountSmart = smartAgentAccount ? `did:ethr:${chainId}:${smartAgentAccount}` : null;
     // UAID is a UAID-string (not a DID). Clients expect it to start with "uaid:".
     // We currently derive it from the authority / native identifier we already have:
     // - AISmartAgent: did:ethr:<chainId>:<smartAccount>
@@ -398,7 +440,7 @@ export function emitAgentsTurtle(
 
     // Agent node: only core:AIAgent plus optional core:AISmartAgent (registry-agnostic).
     // Emit core:AIAgent explicitly so queries don't rely on inference.
-    const agentExtraType = metaAgentAccount ? ', core:AISmartAgent' : '';
+    const agentExtraType = didAccountSmart ? ', core:AISmartAgent' : '';
     lines.push(`${agentNodeIri} a core:AIAgent${agentExtraType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
 
     // Prefer UX fields from the identity descriptor JSON (registration JSON).
@@ -406,6 +448,13 @@ export function emitAgentsTurtle(
     const registrationRaw = typeof item?.registration?.raw === 'string' && item.registration.raw.trim() ? item.registration.raw.trim() : '';
     const registrationJsonText = registrationRaw ? decodePossiblyCompressedJsonText(registrationRaw) : '';
     const parsedFromDescriptorJson = registrationJsonText ? parseDescriptorFieldsFromJson(registrationJsonText) : { name: null, description: null, image: null };
+    // Subgraph often provides decoded registration fields even when `registration.raw` is missing/opaque.
+    const registrationName =
+      typeof item?.registration?.name === 'string' && item.registration.name.trim() ? item.registration.name.trim() : null;
+    const registrationDescription =
+      typeof item?.registration?.description === 'string' && item.registration.description.trim() ? item.registration.description.trim() : null;
+    const registrationImage =
+      typeof item?.registration?.image === 'string' && item.registration.image.trim() ? item.registration.image.trim() : null;
 
     const name = (typeof item?.name === 'string' && item.name.trim() ? item.name.trim() : '') || metaAgentName;
     lines.push(`  core:uaid "${escapeTurtleString(uaid)}" ;`);
@@ -433,7 +482,7 @@ export function emitAgentsTurtle(
     void operatorAcctIri;
     void walletAcctIri;
 
-    if (metaAgentAccount) {
+    if (didAccountSmart) {
       // AISmartAgent should be the only thing that links to its agentAccount
       if (smartAccountIri) lines.push(`  core:hasAgentAccount ${smartAccountIri} ;`);
       // Defer SmartAccount + identifier node emission until after the agent triple is terminated with '.'
@@ -442,7 +491,7 @@ export function emitAgentsTurtle(
         // Type as ERC-8004 AgentAccount + eth:Account here; `sync:account-types` will add eth:SmartAccount vs eth:EOAAccount.
         deferredNodes.push(`${smartAccountIri} a erc8004:AgentAccount, eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
         deferredNodes.push(`  eth:accountChainId ${chainId} ;`);
-        deferredNodes.push(`  eth:accountAddress "${escapeTurtleString(metaAgentAccount)}" ;`);
+        deferredNodes.push(`  eth:accountAddress "${escapeTurtleString(smartAgentAccount!)}" ;`);
         deferredNodes.push(`  eth:hasAccountIdentifier ${acctIdIri} .\n`);
       }
       deferredNodes.push(`${acctIdIri} a eth:AccountIdentifier, core:UniversalIdentifier, core:Identifier, core:DID, prov:Entity ;`);
@@ -468,9 +517,20 @@ export function emitAgentsTurtle(
     // - dcterms:description (description)
     // - schema:image (image)
     // Values sourced from the first identity descriptor JSON that provides them (registration JSON).
-    const agentDescTitle = parsedFromDescriptorJson.name ?? (name ? String(name).trim() : null);
-    const agentDescDescription = parsedFromDescriptorJson.description ?? null;
-    const agentDescImage = parsedFromDescriptorJson.image ?? null;
+    const agentDescTitle =
+      parsedFromDescriptorJson.name ??
+      registrationName ??
+      (name ? String(name).trim() : null);
+    const agentDescDescription =
+      parsedFromDescriptorJson.description ??
+      registrationDescription ??
+      (metaAgentDescription && metaAgentDescription.trim() ? metaAgentDescription.trim() : null) ??
+      (typeof item?.description === 'string' && item.description.trim() ? item.description.trim() : null);
+    const agentDescImage =
+      parsedFromDescriptorJson.image ??
+      registrationImage ??
+      (metaAgentImage && metaAgentImage.trim() ? metaAgentImage.trim() : null) ??
+      (typeof item?.image === 'string' && item.image.trim() ? item.image.trim() : null);
     lines.push(`${agentDescriptorIri} a core:AgentDescriptor, core:Descriptor, prov:Entity ;`);
     if (agentDescTitle) lines.push(`  dcterms:title "${escapeTurtleString(agentDescTitle)}" ;`);
     if (agentDescDescription) lines.push(`  dcterms:description "${escapeTurtleString(agentDescDescription)}" ;`);
@@ -540,11 +600,17 @@ export function emitAgentsTurtle(
       `${descriptorIri} a erc8004:Descriptor8004Identity, erc8004:IdentityDescriptor8004, erc8004:AgentRegistration8004, core:AgentIdentityDescriptor, core:Descriptor, prov:Entity ;`,
     );
     const parsed = registrationJsonText ? parseDescriptorFieldsFromJson(registrationJsonText) : { name: null, description: null, image: null };
-    const descTitle = parsed.name ?? name;
+    const descTitle = parsed.name ?? registrationName ?? name;
     const descDescription =
       parsed.description ??
+      registrationDescription ??
+      (metaAgentDescription && metaAgentDescription.trim() ? metaAgentDescription.trim() : null) ??
       (typeof item?.description === 'string' && item.description.trim() ? item.description.trim() : null);
-    const descImage = parsed.image ?? (item?.image != null ? String(item.image) : null);
+    const descImage =
+      parsed.image ??
+      registrationImage ??
+      (metaAgentImage && metaAgentImage.trim() ? metaAgentImage.trim() : null) ??
+      (typeof item?.image === 'string' && item.image.trim() ? item.image.trim() : null);
 
     if (descTitle) lines.push(`  dcterms:title "${escapeTurtleString(descTitle)}" ;`);
     if (descDescription) lines.push(`  dcterms:description "${escapeTurtleString(descDescription)}" ;`);
