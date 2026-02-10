@@ -84,7 +84,11 @@ export function emitErc8122AgentsTurtle(args: {
     if (!agentId || !registry || !owner) continue;
 
     const didIdentity = did8122(chainId, registry, agentId);
-    const uaid = `uaid:${didIdentity}`;
+    // UAID should reflect the "agent node key":
+    // - for SmartAgents keyed by account DID, use uaid:did:ethr:<chainId>:<agentAccount>
+    // - otherwise, fall back to our minted did:8122:<chainId>:<registry>:<agentId>
+    const uaid =
+      agentAccount != null ? `uaid:did:ethr:${chainId}:${agentAccount}` : `uaid:${didIdentity}`;
 
     // If agentAccount is present, key agent node off account DID to merge with SmartAgent keyed nodes.
     const agentNode =
