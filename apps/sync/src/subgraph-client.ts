@@ -584,8 +584,37 @@ export const REGISTRY_AGENT_8122_QUERY = `query RegistryAgent8122S($first: Int!,
   }
 }`;
 
+export const REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN = `query RegistryAgent8122SByRegistryIn($first: Int!, $skip: Int!, $registries: [Bytes!]!) {
+  registryAgent8122S(first: $first, skip: $skip, where: { registry_in: $registries }, orderBy: createdAt, orderDirection: asc) {
+    agentId
+    createdAt
+    endpoint
+    owner
+    id
+    endpointType
+    registry
+    updatedAt
+    agentAccount
+  }
+}`;
+
 export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY = `query RegistryAgent8122MetadataCollection($first: Int!, $skip: Int!) {
   registryAgent8122Metadata_collection(first: $first, skip: $skip, orderBy: setAt, orderDirection: asc) {
+    agentId
+    blockNumber
+    id
+    indexedKey
+    key
+    registry
+    setAt
+    timestamp
+    txHash
+    value
+  }
+}`;
+
+export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN = `query RegistryAgent8122MetadataCollectionByRegistryIn($first: Int!, $skip: Int!, $registries: [Bytes!]!) {
+  registryAgent8122Metadata_collection(first: $first, skip: $skip, where: { registry_in: $registries }, orderBy: setAt, orderDirection: asc) {
     agentId
     blockNumber
     id

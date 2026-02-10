@@ -424,130 +424,8 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
         : null,
     ].filter(Boolean);
 
-    // identities list (new shape)
-    // Prefer identities already materialized on the row (kb-queries hydration), otherwise fall back to legacy singletons.
-    const identitiesFromRow = Array.isArray(r.identities) ? r.identities : [];
-
-    const legacyIdentity8004Descriptor =
-      r.identity8004DescriptorIri
-        ? {
-            iri: r.identity8004DescriptorIri,
-            kind: '8004',
-            name: r.identity8004DescriptorName,
-            description: r.identity8004DescriptorDescription,
-            image: r.identity8004DescriptorImage,
-            registrationJson: r.identity8004RegistrationJson,
-            nftMetadataJson: r.identity8004NftMetadataJson,
-            registeredBy: r.identity8004RegisteredBy,
-            registryNamespace: r.identity8004RegistryNamespace,
-            skills: Array.isArray(r.identity8004DescriptorSkills) ? r.identity8004DescriptorSkills : [],
-            domains: Array.isArray(r.identity8004DescriptorDomains) ? r.identity8004DescriptorDomains : [],
-          }
-        : null;
-
-    const legacyIdentity8122Descriptor =
-      r.identity8122DescriptorIri
-        ? {
-            iri: r.identity8122DescriptorIri,
-            kind: '8122',
-            name: r.identity8122DescriptorName,
-            description: r.identity8122DescriptorDescription,
-            image: r.identity8122DescriptorImage,
-            registrationJson: r.identity8122DescriptorJson,
-            nftMetadataJson: null,
-            registeredBy: null,
-            registryNamespace: null,
-            skills: [],
-            domains: [],
-          }
-        : null;
-
-    const legacyIdentityHolDescriptor =
-      r.identityHolDescriptorIri
-        ? {
-            iri: r.identityHolDescriptorIri,
-            kind: 'hol',
-            name: r.identityHolDescriptorName,
-            description: r.identityHolDescriptorDescription,
-            image: r.identityHolDescriptorImage,
-            registrationJson: r.identityHolDescriptorJson,
-            nftMetadataJson: null,
-            registeredBy: null,
-            registryNamespace: null,
-            skills: [],
-            domains: [],
-          }
-        : null;
-
-    const legacyIdentities: any[] = [];
-    if (r.identity8004Iri && r.did8004) {
-      legacyIdentities.push({
-        iri: r.identity8004Iri,
-        kind: '8004',
-        did: r.did8004,
-        did8004: r.did8004,
-        agentId8004: r.agentId8004 == null ? null : Math.trunc(r.agentId8004),
-        isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/core#AISmartAgent'),
-        descriptor: legacyIdentity8004Descriptor,
-        serviceEndpoints,
-        ownerAccount: r.identityOwnerAccountIri ? kbAccountFromIri(r.identityOwnerAccountIri) : null,
-        operatorAccount: r.identityOperatorAccountIri ? kbAccountFromIri(r.identityOperatorAccountIri) : null,
-        walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
-        ownerEOAAccount: r.identityOwnerEOAAccountIri ? kbAccountFromIri(r.identityOwnerEOAAccountIri) : null,
-        agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
-      });
-    }
-    if (r.identity8122Iri && r.did8122) {
-      legacyIdentities.push({
-        iri: r.identity8122Iri,
-        kind: '8122',
-        did: r.did8122,
-        did8122: r.did8122,
-        agentId8122: r.agentId8122,
-        registryAddress: r.registry8122,
-        registry:
-          r.identity8122RegistryIri && r.registry8122
-            ? {
-                iri: r.identity8122RegistryIri,
-                chainId: (() => {
-                  const m = String(r.did8122 || '').match(/^did:8122:(\d+):/);
-                  const n = m ? Number(m[1]) : NaN;
-                  return Number.isFinite(n) ? Math.trunc(n) : 0;
-                })(),
-                registryAddress: r.registry8122,
-                registrarAddress: r.identity8122RegistrarAddress,
-                registryName: r.identity8122RegistryName,
-                registryImplementationAddress: r.identity8122RegistryImplementationAddress,
-                registrarImplementationAddress: r.identity8122RegistrarImplementationAddress,
-                registeredAgentCount:
-                  r.identity8122RegisteredAgentCount == null ? null : Math.trunc(r.identity8122RegisteredAgentCount),
-                lastAgentUpdatedAtTime:
-                  r.identity8122LastAgentUpdatedAtTime == null ? null : Math.trunc(r.identity8122LastAgentUpdatedAtTime),
-              }
-            : null,
-        endpointType: r.endpointType8122,
-        endpoint: r.endpoint8122,
-        descriptor: legacyIdentity8122Descriptor,
-        serviceEndpoints: [],
-        ownerAccount: r.identity8122OwnerAccountIri ? kbAccountFromIri(r.identity8122OwnerAccountIri) : null,
-        agentAccount: r.identity8122AgentAccountIri ? kbAccountFromIri(r.identity8122AgentAccountIri) : null,
-      });
-    }
-    if (r.identityEnsIri && r.didEns) {
-      legacyIdentities.push({ iri: r.identityEnsIri, kind: 'ens', did: r.didEns, didEns: r.didEns, descriptor: null, serviceEndpoints: [] });
-    }
-    if (r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)) {
-      legacyIdentities.push({
-        iri: r.identityHolIri,
-        kind: 'hol',
-        did: r.identityHolProtocolIdentifier ?? 'aid:unknown',
-        uaidHOL: r.identityHolUaidHOL,
-        descriptor: legacyIdentityHolDescriptor,
-        serviceEndpoints: [],
-      });
-    }
-
-    const identitiesRaw = identitiesFromRow.length ? identitiesFromRow : legacyIdentities;
+    // identities list (new shape): kb-queries always hydrates this (array, possibly empty).
+    const identitiesRaw = Array.isArray(r.identities) ? r.identities : [];
     const identities = identitiesRaw.map((id: any) => {
       const kind = typeof id?.kind === 'string' ? id.kind.trim().toLowerCase() : '';
       // Provide __typename for clients that rely on it (in addition to interface resolveType).
@@ -580,11 +458,6 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       return { __typename, chainId, ensName, ...id };
     });
 
-    const pickIdentity = (k: '8004' | '8122' | 'ens' | 'hol') => {
-      const want = k.toLowerCase();
-      return identities.find((x: any) => String(x?.kind || '').trim().toLowerCase() === want) ?? null;
-    };
-
     return {
       iri: r.iri,
       uaid: r.uaid,
@@ -612,12 +485,6 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       atiComputedAt: r.atiComputedAt == null ? null : Math.trunc(r.atiComputedAt),
       serviceEndpoints,
       identities,
-
-      // Convenience singletons (back-compat): derived from identities list.
-      identity8004: pickIdentity('8004'),
-      identity8122: pickIdentity('8122'),
-      identityEns: pickIdentity('ens'),
-      identityHol: pickIdentity('hol'),
 
       // Counts are precomputed in the main kbAgents/kbOwnedAgents queries to avoid N+1 GraphDB calls.
       reviewAssertions: async (args: any, ctx: any) => {
@@ -1639,15 +1506,30 @@ LIMIT 1
                   }
                 : null,
             ].filter(Boolean),
-            identity8004:
-              r.identity8004Iri
+            identities: [
+              r.identity8004Iri && r.did8004
                 ? {
                     iri: r.identity8004Iri,
                     kind: '8004',
                     did: r.did8004,
                     did8004: r.did8004,
                     agentId8004: Number.isFinite(Number(r.did8004.split(':').pop())) ? Number(r.did8004.split(':').pop()) : null,
-                    isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/erc8004#SmartAgent'),
+                    isSmartAgent: r.agentTypes.includes('https://agentictrust.io/ontology/core#AISmartAgent'),
+                    descriptor: r.identity8004DescriptorIri
+                      ? {
+                          iri: r.identity8004DescriptorIri,
+                          kind: '8004',
+                          name: null,
+                          description: null,
+                          image: null,
+                          registrationJson: r.registrationJson,
+                          nftMetadataJson: null,
+                          registeredBy: null,
+                          registryNamespace: null,
+                          skills: [],
+                          domains: [],
+                        }
+                      : null,
                     serviceEndpoints: [
                       r.a2aServiceEndpointIri && r.a2aProtocolIri
                         ? {
@@ -1717,25 +1599,11 @@ LIMIT 1
                     walletAccount: r.identityWalletAccountIri ? kbAccountFromIri(r.identityWalletAccountIri) : null,
                     ownerEOAAccount: r.identityOwnerEOAAccountIri ? kbAccountFromIri(r.identityOwnerEOAAccountIri) : null,
                     agentAccount: r.agentAccountIri ? kbAccountFromIri(r.agentAccountIri) : null,
-                    descriptor: r.identity8004DescriptorIri
-                      ? {
-                          iri: r.identity8004DescriptorIri,
-                          kind: '8004',
-                          name: null,
-                          description: null,
-                          image: null,
-                          registrationJson: r.registrationJson,
-                          nftMetadataJson: null,
-                          registeredBy: null,
-                          registryNamespace: null,
-                          skills: [],
-                          domains: [],
-                        }
-                      : null,
                   }
                 : null,
-            identityEns: r.identityEnsIri && r.didEns ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns, descriptor: null, serviceEndpoints: [] } : null,
-            identityHol:
+              r.identityEnsIri && r.didEns
+                ? { iri: r.identityEnsIri, kind: 'ens', did: r.didEns, didEns: r.didEns, ensName: parseEnsNameFromDid(r.didEns), descriptor: null, serviceEndpoints: [] }
+                : null,
               r.identityHolIri && (r.identityHolProtocolIdentifier || r.identityHolUaidHOL)
                 ? {
                     iri: r.identityHolIri,
@@ -1746,6 +1614,7 @@ LIMIT 1
                     serviceEndpoints: [],
                   }
                 : null,
+            ].filter(Boolean),
           });
         }
       }

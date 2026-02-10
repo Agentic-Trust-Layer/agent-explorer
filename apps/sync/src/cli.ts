@@ -18,6 +18,8 @@ import {
   ASSOCIATION_REVOCATIONS_QUERY,
   REGISTRY_AGENT_8122_QUERY,
   REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY,
+  REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN,
+  REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN,
 } from './subgraph-client.js';
 import { ingestSubgraphTurtleToGraphdb } from './graphdb-ingest.js';
 import { getCheckpoint, setCheckpoint } from './graphdb/checkpoints.js';
@@ -37,6 +39,8 @@ import { materializeRegistrationServicesForChain } from './registration/material
 import { materializeAssertionSummariesForChain } from './trust-summaries/materialize-assertion-summaries.js';
 import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledger.js';
 import { syncMcpForChain } from './mcp/mcp-sync.js';
+import { syncEnsParentForChain } from './ens/ens-parent-sync.js';
+import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb-http.js';
 
 type SyncCommand =
   | 'agents'
@@ -57,6 +61,7 @@ type SyncCommand =
   | 'ontologies'
   | 'trust-index'
   | 'trust-ledger'
+  | 'ens-parent'
   | 'account-types'
   | 'materialize-services'
   | 'watch'
@@ -325,13 +330,95 @@ async function syncErc8122(endpoint: { url: string; chainId: number; name: strin
   console.info(`[sync] fetching erc8122 agents from ${endpoint.name} (chainId: ${endpoint.chainId})`);
   console.info(`[sync] erc8122 subgraph endpoint`, { chainId: endpoint.chainId, name: endpoint.name, url: endpoint.url });
 
-  const agents = await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY, 'registryAgent8122S', { optional: true });
-  const metadatas = await fetchAllFromSubgraph(
-    endpoint.url,
-    REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY,
-    'registryAgent8122Metadata_collection',
-    { optional: true, maxSkip: 50_000 },
-  );
+  const normalizeHexAddr = (value: unknown): string | null => {
+    const s = typeof value === 'string' ? value.trim().toLowerCase() : '';
+    return /^0x[0-9a-f]{40}$/.test(s) ? s : null;
+  };
+
+  const listRegistriesFromKb = async (): Promise<string[]> => {
+    // Registry source of truth: KB (GraphDB) written by sync:erc8122-registries
+    const ctx = `https://www.agentictrust.io/graph/data/subgraph/${endpoint.chainId}`;
+    const sparql = [
+      'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
+      'SELECT DISTINCT ?addr WHERE {',
+      `  GRAPH <${ctx}> {`,
+      '    ?reg a erc8122:AgentRegistry8122 ;',
+      '         erc8122:registryContractAddress ?addr .',
+      '  }',
+      '}',
+      'ORDER BY LCASE(STR(?addr))',
+      '',
+    ].join('\n');
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+    const out: string[] = [];
+    for (const b of Array.isArray(res?.results?.bindings) ? res.results.bindings : []) {
+      const v = typeof (b as any)?.addr?.value === 'string' ? String((b as any).addr.value) : '';
+      const n = normalizeHexAddr(v);
+      if (n) out.push(n);
+    }
+    return out;
+  };
+
+  const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+    const s = Math.max(1, Math.trunc(size));
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += s) out.push(arr.slice(i, i + s));
+    return out;
+  };
+
+  let registries: string[] = [];
+  try {
+    registries = await listRegistriesFromKb();
+  } catch (e: any) {
+    console.warn('[sync] erc8122 failed to list registries from KB; falling back to unfiltered subgraph fetch', {
+      chainId: endpoint.chainId,
+      error: String(e?.message || e || ''),
+    });
+    registries = [];
+  }
+
+  const useRegistryFilter = registries.length > 0;
+  const registryChunks = useRegistryFilter ? chunkArray(registries, 100) : [];
+  if (useRegistryFilter) {
+    console.info('[sync] erc8122 registry allowlist from KB', {
+      chainId: endpoint.chainId,
+      registries: registries.length,
+      chunks: registryChunks.length,
+    });
+  } else {
+    console.info('[sync] erc8122 registry allowlist from KB is empty; fetching all subgraph rows', { chainId: endpoint.chainId });
+  }
+
+  const agents: any[] = [];
+  const metadatas: any[] = [];
+  if (!useRegistryFilter) {
+    agents.push(...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY, 'registryAgent8122S', { optional: true })));
+    metadatas.push(
+      ...(await fetchAllFromSubgraph(
+        endpoint.url,
+        REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY,
+        'registryAgent8122Metadata_collection',
+        { optional: true, maxSkip: 50_000 },
+      )),
+    );
+  } else {
+    for (const regs of registryChunks) {
+      agents.push(
+        ...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN, 'registryAgent8122S', {
+          optional: true,
+          buildVariables: ({ first, skip }) => ({ first, skip, registries: regs }),
+        })),
+      );
+      metadatas.push(
+        ...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN, 'registryAgent8122Metadata_collection', {
+          optional: true,
+          maxSkip: 50_000,
+          buildVariables: ({ first, skip }) => ({ first, skip, registries: regs }),
+        })),
+      );
+    }
+  }
 
   console.info(`[sync] fetched erc8122 rows from ${endpoint.name}`, {
     chainId: endpoint.chainId,
@@ -624,6 +711,12 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
           break;
         case 'trust-ledger': {
           await syncTrustLedgerToGraphdbForChain(endpoint.chainId, { resetContext });
+          break;
+        }
+        case 'ens-parent': {
+          const parentArg = process.argv.find((a) => a.startsWith('--parent=')) ?? '';
+          const parent = parentArg ? String(parentArg.split('=')[1] || '').trim() : '8004-agent.eth';
+          await syncEnsParentForChain(endpoint.chainId, { parentName: parent, resetContext });
           break;
         }
         case 'account-types': {

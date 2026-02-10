@@ -339,13 +339,6 @@ export const graphQLSchemaStringKb = `
 
     identities: [KbAgentIdentity!]!
 
-    # Convenience singletons (back-compat for clients that aren't yet migrated to identities[]).
-    # If multiple identities of the same kind exist, these return the first (unspecified order).
-    identity8004: KbIdentity8004
-    identity8122: KbIdentity8122
-    identityEns: KbIdentityEns
-    identityHol: KbIdentityHol
-
     serviceEndpoints: [KbServiceEndpoint!]!
 
     # Counts are always available; items are only fetched when you request a specific agent.

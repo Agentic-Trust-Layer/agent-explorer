@@ -22,6 +22,7 @@
     "sync:ontologies": "tsx src/cli.ts ontologies",
     "sync:trust-index": "tsx src/cli.ts trust-index",
     "sync:account-types": "tsx src/cli.ts account-types",
+    "sync:ens-parent": "tsx src/cli.ts ens-parent",
     "sync:all": "tsx src/cli.ts all",
     "sync:watch": "tsx src/cli.ts watch all"
   },

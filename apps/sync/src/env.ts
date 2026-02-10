@@ -11,6 +11,10 @@ export const BASE_SEPOLIA_GRAPHQL_URL = envString('BASE_SEPOLIA_GRAPHQL_URL', ''
 export const OP_SEPOLIA_GRAPHQL_URL = envString('OP_SEPOLIA_GRAPHQL_URL', '');
 export const GRAPHQL_API_KEY = envString('GRAPHQL_API_KEY', '');
 
+// ENS subgraph endpoints (used to enumerate subnames under a parent ENS name without scanning blocks).
+export const ENS_MAINNET_GRAPHQL_URL = envString('ENS_MAINNET_GRAPHQL_URL', '');
+export const ENS_SEPOLIA_GRAPHQL_URL = envString('ENS_SEPOLIA_GRAPHQL_URL', '');
+
 export const ETH_MAINNET_RPC_HTTP_URL = envString('ETH_MAINNET_RPC_HTTP_URL', '');
 export const ETH_SEPOLIA_RPC_HTTP_URL = envString('ETH_SEPOLIA_RPC_HTTP_URL', '');
 export const BASE_SEPOLIA_RPC_HTTP_URL = envString('BASE_SEPOLIA_RPC_HTTP_URL', '');

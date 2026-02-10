@@ -231,6 +231,29 @@ WHERE  {
   }
 }
 `;
+      case 'ens-parent':
+        return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+WITH <${context}>
+DELETE { ?agent core:hasName ?name . }
+WHERE  {
+  ?agent core:hasName ?name .
+  ?name a eth:AgentNameENS .
+} ;
+WITH <${context}>
+DELETE { ?name ?p ?o }
+WHERE  {
+  ?name a eth:AgentNameENS .
+  ?name ?p ?o .
+} ;
+WITH <${context}>
+DELETE { ?desc ?p ?o }
+WHERE  {
+  ?desc a eth:AgentNameENSDescriptor .
+  ?desc ?p ?o .
+} ;
+`;
       default:
         return null;
     }

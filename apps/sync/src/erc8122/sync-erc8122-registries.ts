@@ -1,7 +1,6 @@
 import { createPublicClient, http, type Abi } from 'viem';
 import { getAddress } from 'viem/utils';
 import { ingestSubgraphTurtleToGraphdb } from '../graphdb-ingest.js';
-import { fetchAllFromSubgraph, REGISTRY_AGENT_8122_QUERY, SUBGRAPH_ENDPOINTS } from '../subgraph-client.js';
 import {
   agentRegistry8122Iri,
   agentRegistrar8122Iri,
@@ -213,24 +212,9 @@ export async function syncErc8122RegistriesToGraphdbForChain(args: {
     if (maxRegistries != null && allRegistries.length >= maxRegistries) break;
   }
 
-  // Subgraph-derived registry stats (counts + max updatedAt) from registryAgent8122S rows.
-  const endpoint = SUBGRAPH_ENDPOINTS.find((ep) => ep.chainId === chainId) ?? null;
-  const statsByRegistry = new Map<string, { agentCount: number; lastUpdatedAt: number | null }>();
-  if (endpoint) {
-    const agents = await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY, 'registryAgent8122S', { optional: true }).catch(() => []);
-    for (const row of agents as any[]) {
-      const reg = normalizeHexAddr(row?.registry);
-      if (!reg) continue;
-      const prev = statsByRegistry.get(reg) ?? { agentCount: 0, lastUpdatedAt: null };
-      prev.agentCount += 1;
-      const upd = typeof row?.updatedAt === 'string' ? Number(row.updatedAt) : NaN;
-      if (Number.isFinite(upd)) prev.lastUpdatedAt = prev.lastUpdatedAt == null ? Math.trunc(upd) : Math.max(prev.lastUpdatedAt, Math.trunc(upd));
-      statsByRegistry.set(reg, prev);
-    }
-    console.info('[sync] [erc8122-registries] subgraph registry stats', { chainId, registries: statsByRegistry.size, agents: agents.length });
-  } else {
-    console.info('[sync] [erc8122-registries] no subgraph endpoint configured; skipping stats', { chainId });
-  }
+  // Registry list source of truth: on-chain factory.
+  // We intentionally avoid relying on subgraph registryAgent8122S for registry discovery, since subgraph
+  // coverage can lag or be incomplete.
 
   // On-chain per-registry: registrar + best-effort registry name()
   const lines: string[] = [rdfPrefixes()];
@@ -287,16 +271,11 @@ export async function syncErc8122RegistriesToGraphdbForChain(args: {
       } catch {}
     }
 
-    const stats = statsByRegistry.get(regAddr) ?? null;
     nameRows.push({ registry: regAddr, name: regName, registrar: registrarAddr });
 
     lines.push(`${regIri} a erc8122:AgentRegistry8122, core:AgentRegistry, prov:Entity ;`);
     lines.push(`  erc8122:registryContractAddress "${escapeTurtleString(regAddr)}" ;`);
     if (regName) lines.push(`  erc8122:registryName "${escapeTurtleString(regName)}" ;`);
-    if (stats) {
-      lines.push(`  erc8122:registeredAgentCount ${stats.agentCount} ;`);
-      if (stats.lastUpdatedAt != null) lines.push(`  erc8122:lastAgentUpdatedAtTime ${stats.lastUpdatedAt} ;`);
-    }
     if (registryImpl && normalizeHexAddr(registryImpl)) {
       lines.push(`  erc8122:registryImplementationAddress "${escapeTurtleString(String(registryImpl).toLowerCase())}" ;`);
     }

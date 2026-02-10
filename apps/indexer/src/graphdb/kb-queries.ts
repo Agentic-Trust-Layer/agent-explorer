@@ -1652,13 +1652,17 @@ export async function kbAgentsQuery(args: {
         ? await hydrateIdentitiesForAgents({ agentIris: ordered.map((r) => r.iri), ctxIri, graphdbCtx })
         : await hydrateIdentitiesForPairs({ pairs: trimmedPairs, graphdbCtx });
       for (const r of ordered) {
-        const ids = identMap.get(r.iri);
-        if (ids?.length) r.identities = ids;
+        // Always materialize identities as an array (even empty) so GraphQL resolvers
+        // can rely on it without falling back to legacy singleton fields.
+        const ids = identMap.get(r.iri) ?? [];
+        r.identities = ids;
       }
     } catch (e: any) {
       // Non-fatal: keep agent list functional even if identity hydrate fails.
       // eslint-disable-next-line no-console
       console.warn('[kbAgentsQuery] identity hydrate failed (non-fatal)', { error: String(e?.message || e || '') });
+      // Still set identities=[] so callers get a stable shape.
+      for (const r of ordered) r.identities = [];
     }
   }
 
