@@ -227,6 +227,24 @@ type HydratedIdentity = {
   didEns?: string;
 };
 
+type HydratedServiceEndpoints = {
+  a2aServiceEndpointIri: string | null;
+  a2aServiceUrl: string | null;
+  a2aProtocolIri: string | null;
+  a2aServiceEndpointDescriptorIri: string | null;
+  a2aProtocolDescriptorIri: string | null;
+  a2aProtocolVersion: string | null;
+  a2aAgentCardJson: string | null;
+
+  mcpServiceEndpointIri: string | null;
+  mcpServiceUrl: string | null;
+  mcpProtocolIri: string | null;
+  mcpServiceEndpointDescriptorIri: string | null;
+  mcpProtocolDescriptorIri: string | null;
+  mcpProtocolVersion: string | null;
+  mcpAgentCardJson: string | null;
+};
+
 async function hydrateIdentitiesForAgents(args: {
   agentIris: string[];
   ctxIri: string;
@@ -783,6 +801,232 @@ async function hydrateIdentitiesForPairs(args: {
   return out;
 }
 
+async function hydrateServiceEndpointsForAgents(args: {
+  agentIris: string[];
+  ctxIri: string;
+  graphdbCtx?: GraphdbQueryContext | null;
+}): Promise<Map<string, HydratedServiceEndpoints>> {
+  const agentIris = (args.agentIris || []).map((s) => String(s || '').trim()).filter(Boolean);
+  const ctxIri = String(args.ctxIri || '').trim();
+  if (!agentIris.length || !ctxIri) return new Map();
+
+  const valuesAgents = agentIris.map((a) => `<${a}>`).join(' ');
+  const sparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    '',
+    'SELECT',
+    '  ?agent',
+    '  ?seA2a ?a2aServiceUrl ?pA2a ?a2aProtocolVersion ?seA2aDesc ?pA2aDesc ?a2aAgentCardJson',
+    '  ?seMcp ?mcpServiceUrl ?pMcp ?mcpProtocolVersion ?seMcpDesc ?pMcpDesc ?mcpAgentCardJson',
+    'WHERE {',
+    `  VALUES ?agent { ${valuesAgents} }`,
+    `  GRAPH <${ctxIri}> {`,
+    '    ?agent a core:AIAgent .',
+    '    OPTIONAL {',
+    '      ?agent core:hasIdentity ?identity8004 .',
+    '      ?identity8004 a erc8004:AgentIdentity8004 .',
+    '      ?identity8004 core:hasServiceEndpoint ?seA2a .',
+    '      OPTIONAL { ?seA2a core:hasDescriptor ?seA2aDesc . }',
+    '      ?seA2a core:hasProtocol ?pA2a .',
+    '      ?pA2a a core:A2AProtocol .',
+    '      OPTIONAL { ?pA2a core:serviceUrl ?a2aServiceUrl . }',
+    '      OPTIONAL { ?pA2a core:protocolVersion ?a2aProtocolVersion . }',
+    '      OPTIONAL {',
+    '        ?pA2a core:hasDescriptor ?pA2aDesc .',
+    '        OPTIONAL { ?pA2aDesc core:agentCardJson ?a2aAgentCardJson . }',
+    '      }',
+    '    }',
+    '    OPTIONAL {',
+    '      ?agent core:hasIdentity ?identity8004b .',
+    '      ?identity8004b a erc8004:AgentIdentity8004 .',
+    '      ?identity8004b core:hasServiceEndpoint ?seMcp .',
+    '      OPTIONAL { ?seMcp core:hasDescriptor ?seMcpDesc . }',
+    '      ?seMcp core:hasProtocol ?pMcp .',
+    '      ?pMcp a core:MCPProtocol .',
+    '      OPTIONAL { ?pMcp core:serviceUrl ?mcpServiceUrl . }',
+    '      OPTIONAL { ?pMcp core:protocolVersion ?mcpProtocolVersion . }',
+    '      OPTIONAL {',
+    '        ?pMcp core:hasDescriptor ?pMcpDesc .',
+    '        OPTIONAL { ?pMcpDesc core:agentCardJson ?mcpAgentCardJson . }',
+    '      }',
+    '    }',
+    '  }',
+    '}',
+    '',
+  ].join('\n');
+
+  const bindings = await runGraphdbQuery(sparql, args.graphdbCtx, 'kbAgentsQuery.serviceEndpoints');
+  const out = new Map<string, HydratedServiceEndpoints>();
+
+  const blank = (): HydratedServiceEndpoints => ({
+    a2aServiceEndpointIri: null,
+    a2aServiceUrl: null,
+    a2aProtocolIri: null,
+    a2aServiceEndpointDescriptorIri: null,
+    a2aProtocolDescriptorIri: null,
+    a2aProtocolVersion: null,
+    a2aAgentCardJson: null,
+    mcpServiceEndpointIri: null,
+    mcpServiceUrl: null,
+    mcpProtocolIri: null,
+    mcpServiceEndpointDescriptorIri: null,
+    mcpProtocolDescriptorIri: null,
+    mcpProtocolVersion: null,
+    mcpAgentCardJson: null,
+  });
+
+  for (const b of bindings) {
+    const agent = asString((b as any)?.agent);
+    if (!agent) continue;
+
+    const existing = out.get(agent) ?? blank();
+
+    const seA2a = asString((b as any)?.seA2a);
+    if (seA2a && !existing.a2aServiceEndpointIri) {
+      existing.a2aServiceEndpointIri = seA2a;
+      existing.a2aServiceUrl = asString((b as any)?.a2aServiceUrl);
+      existing.a2aProtocolIri = asString((b as any)?.pA2a);
+      existing.a2aServiceEndpointDescriptorIri = asString((b as any)?.seA2aDesc);
+      existing.a2aProtocolDescriptorIri = asString((b as any)?.pA2aDesc);
+      existing.a2aProtocolVersion = asString((b as any)?.a2aProtocolVersion);
+      existing.a2aAgentCardJson = asString((b as any)?.a2aAgentCardJson);
+    }
+
+    const seMcp = asString((b as any)?.seMcp);
+    if (seMcp && !existing.mcpServiceEndpointIri) {
+      existing.mcpServiceEndpointIri = seMcp;
+      existing.mcpServiceUrl = asString((b as any)?.mcpServiceUrl);
+      existing.mcpProtocolIri = asString((b as any)?.pMcp);
+      existing.mcpServiceEndpointDescriptorIri = asString((b as any)?.seMcpDesc);
+      existing.mcpProtocolDescriptorIri = asString((b as any)?.pMcpDesc);
+      existing.mcpProtocolVersion = asString((b as any)?.mcpProtocolVersion);
+      existing.mcpAgentCardJson = asString((b as any)?.mcpAgentCardJson);
+    }
+
+    out.set(agent, existing);
+  }
+
+  return out;
+}
+
+async function hydrateServiceEndpointsForPairs(args: {
+  pairs: Array<{ g: string; agent: string }>;
+  graphdbCtx?: GraphdbQueryContext | null;
+}): Promise<Map<string, HydratedServiceEndpoints>> {
+  const pairs = Array.isArray(args.pairs) ? args.pairs : [];
+  if (!pairs.length) return new Map();
+
+  const valuesPairs = pairs
+    .map((p) => {
+      const g = String(p?.g || '').trim();
+      const agent = String(p?.agent || '').trim();
+      if (!g || !agent) return '';
+      return `(<${g}> <${agent}>)`;
+    })
+    .filter(Boolean)
+    .join(' ');
+  if (!valuesPairs) return new Map();
+
+  const sparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    '',
+    'SELECT',
+    '  ?agent',
+    '  ?seA2a ?a2aServiceUrl ?pA2a ?a2aProtocolVersion ?seA2aDesc ?pA2aDesc ?a2aAgentCardJson',
+    '  ?seMcp ?mcpServiceUrl ?pMcp ?mcpProtocolVersion ?seMcpDesc ?pMcpDesc ?mcpAgentCardJson',
+    'WHERE {',
+    `  VALUES (?g ?agent) { ${valuesPairs} }`,
+    '  GRAPH ?g {',
+    '    ?agent a core:AIAgent .',
+    '    OPTIONAL {',
+    '      ?agent core:hasIdentity ?identity8004 .',
+    '      ?identity8004 a erc8004:AgentIdentity8004 .',
+    '      ?identity8004 core:hasServiceEndpoint ?seA2a .',
+    '      OPTIONAL { ?seA2a core:hasDescriptor ?seA2aDesc . }',
+    '      ?seA2a core:hasProtocol ?pA2a .',
+    '      ?pA2a a core:A2AProtocol .',
+    '      OPTIONAL { ?pA2a core:serviceUrl ?a2aServiceUrl . }',
+    '      OPTIONAL { ?pA2a core:protocolVersion ?a2aProtocolVersion . }',
+    '      OPTIONAL {',
+    '        ?pA2a core:hasDescriptor ?pA2aDesc .',
+    '        OPTIONAL { ?pA2aDesc core:agentCardJson ?a2aAgentCardJson . }',
+    '      }',
+    '    }',
+    '    OPTIONAL {',
+    '      ?agent core:hasIdentity ?identity8004b .',
+    '      ?identity8004b a erc8004:AgentIdentity8004 .',
+    '      ?identity8004b core:hasServiceEndpoint ?seMcp .',
+    '      OPTIONAL { ?seMcp core:hasDescriptor ?seMcpDesc . }',
+    '      ?seMcp core:hasProtocol ?pMcp .',
+    '      ?pMcp a core:MCPProtocol .',
+    '      OPTIONAL { ?pMcp core:serviceUrl ?mcpServiceUrl . }',
+    '      OPTIONAL { ?pMcp core:protocolVersion ?mcpProtocolVersion . }',
+    '      OPTIONAL {',
+    '        ?pMcp core:hasDescriptor ?pMcpDesc .',
+    '        OPTIONAL { ?pMcpDesc core:agentCardJson ?mcpAgentCardJson . }',
+    '      }',
+    '    }',
+    '  }',
+    '}',
+    '',
+  ].join('\n');
+
+  const bindings = await runGraphdbQuery(sparql, args.graphdbCtx, 'kbAgentsQuery.serviceEndpoints.pairs');
+  const out = new Map<string, HydratedServiceEndpoints>();
+
+  const blank = (): HydratedServiceEndpoints => ({
+    a2aServiceEndpointIri: null,
+    a2aServiceUrl: null,
+    a2aProtocolIri: null,
+    a2aServiceEndpointDescriptorIri: null,
+    a2aProtocolDescriptorIri: null,
+    a2aProtocolVersion: null,
+    a2aAgentCardJson: null,
+    mcpServiceEndpointIri: null,
+    mcpServiceUrl: null,
+    mcpProtocolIri: null,
+    mcpServiceEndpointDescriptorIri: null,
+    mcpProtocolDescriptorIri: null,
+    mcpProtocolVersion: null,
+    mcpAgentCardJson: null,
+  });
+
+  for (const b of bindings) {
+    const agent = asString((b as any)?.agent);
+    if (!agent) continue;
+
+    const existing = out.get(agent) ?? blank();
+
+    const seA2a = asString((b as any)?.seA2a);
+    if (seA2a && !existing.a2aServiceEndpointIri) {
+      existing.a2aServiceEndpointIri = seA2a;
+      existing.a2aServiceUrl = asString((b as any)?.a2aServiceUrl);
+      existing.a2aProtocolIri = asString((b as any)?.pA2a);
+      existing.a2aServiceEndpointDescriptorIri = asString((b as any)?.seA2aDesc);
+      existing.a2aProtocolDescriptorIri = asString((b as any)?.pA2aDesc);
+      existing.a2aProtocolVersion = asString((b as any)?.a2aProtocolVersion);
+      existing.a2aAgentCardJson = asString((b as any)?.a2aAgentCardJson);
+    }
+
+    const seMcp = asString((b as any)?.seMcp);
+    if (seMcp && !existing.mcpServiceEndpointIri) {
+      existing.mcpServiceEndpointIri = seMcp;
+      existing.mcpServiceUrl = asString((b as any)?.mcpServiceUrl);
+      existing.mcpProtocolIri = asString((b as any)?.pMcp);
+      existing.mcpServiceEndpointDescriptorIri = asString((b as any)?.seMcpDesc);
+      existing.mcpProtocolDescriptorIri = asString((b as any)?.pMcpDesc);
+      existing.mcpProtocolVersion = asString((b as any)?.mcpProtocolVersion);
+      existing.mcpAgentCardJson = asString((b as any)?.mcpAgentCardJson);
+    }
+
+    out.set(agent, existing);
+  }
+
+  return out;
+}
+
 function pickAgentTypesFromRow(typeValues: string[]): string[] {
   // Prefer most-specific types first.
   const preferred = [
@@ -1089,9 +1333,15 @@ export async function kbAgentsQuery(args: {
   const pageBindings = await runGraphdbQuery(pageSparql, graphdbCtx, 'kbAgentsQuery.page');
   const pageAgents: string[] = [];
   if (ctxIri) {
+    // Deduplicate agents (page query can fan out due to OPTIONAL patterns).
+    // This prevents duplicate leaderboard rows and keeps pagination stable.
+    const seenAgents = new Set<string>();
     for (const b of pageBindings) {
       const agent = asString((b as any)?.agent);
-      if (agent) pageAgents.push(agent);
+      if (!agent) continue;
+      if (seenAgents.has(agent)) continue;
+      seenAgents.add(agent);
+      pageAgents.push(agent);
     }
   }
 
@@ -1663,6 +1913,37 @@ export async function kbAgentsQuery(args: {
       console.warn('[kbAgentsQuery] identity hydrate failed (non-fatal)', { error: String(e?.message || e || '') });
       // Still set identities=[] so callers get a stable shape.
       for (const r of ordered) r.identities = [];
+    }
+
+    // Service endpoint hydration: the lightweight hydrate query intentionally omits these fields.
+    // Hydrate them separately so `KbAgent.serviceEndpoints` returns KB materialized data.
+    try {
+      const seMap = ctxIri
+        ? await hydrateServiceEndpointsForAgents({ agentIris: ordered.map((r) => r.iri), ctxIri, graphdbCtx })
+        : await hydrateServiceEndpointsForPairs({ pairs: trimmedPairs, graphdbCtx });
+      for (const r of ordered) {
+        const se = seMap.get(r.iri);
+        if (!se) continue;
+
+        r.a2aServiceEndpointIri = r.a2aServiceEndpointIri ?? se.a2aServiceEndpointIri;
+        r.a2aProtocolIri = r.a2aProtocolIri ?? se.a2aProtocolIri;
+        r.a2aServiceUrl = r.a2aServiceUrl ?? se.a2aServiceUrl;
+        r.a2aServiceEndpointDescriptorIri = r.a2aServiceEndpointDescriptorIri ?? se.a2aServiceEndpointDescriptorIri;
+        r.a2aProtocolDescriptorIri = r.a2aProtocolDescriptorIri ?? se.a2aProtocolDescriptorIri;
+        r.a2aProtocolVersion = r.a2aProtocolVersion ?? se.a2aProtocolVersion;
+        r.a2aAgentCardJson = r.a2aAgentCardJson ?? se.a2aAgentCardJson;
+
+        r.mcpServiceEndpointIri = r.mcpServiceEndpointIri ?? se.mcpServiceEndpointIri;
+        r.mcpProtocolIri = r.mcpProtocolIri ?? se.mcpProtocolIri;
+        r.mcpServiceUrl = r.mcpServiceUrl ?? se.mcpServiceUrl;
+        r.mcpServiceEndpointDescriptorIri = r.mcpServiceEndpointDescriptorIri ?? se.mcpServiceEndpointDescriptorIri;
+        r.mcpProtocolDescriptorIri = r.mcpProtocolDescriptorIri ?? se.mcpProtocolDescriptorIri;
+        r.mcpProtocolVersion = r.mcpProtocolVersion ?? se.mcpProtocolVersion;
+        r.mcpAgentCardJson = r.mcpAgentCardJson ?? se.mcpAgentCardJson;
+      }
+    } catch (e: any) {
+      // eslint-disable-next-line no-console
+      console.warn('[kbAgentsQuery] service endpoint hydrate failed (non-fatal)', { error: String(e?.message || e || '') });
     }
   }
 

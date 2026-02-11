@@ -290,6 +290,50 @@ function partitionOasfKeys(values: string[]): { oasf: string[]; other: string[] 
   return { oasf, other };
 }
 
+function buildFallbackRegistrationEndpoints(args: {
+  item: any;
+  onchainByKey: any;
+  onchainObj: any;
+}): Array<{ name: string; endpoint: string; version?: string | null }> {
+  const { item, onchainByKey, onchainObj } = args;
+  const out: Array<{ name: string; endpoint: string; version?: string | null }> = [];
+
+  const pickEndpoint = (keys: string[], topLevel?: unknown, regLevel?: unknown): string => {
+    const reg = typeof regLevel === 'string' ? regLevel.trim() : '';
+    if (reg) return reg;
+    const top = typeof topLevel === 'string' ? topLevel.trim() : '';
+    if (top) return top;
+    const byKeyVal = pickString(onchainByKey, keys);
+    if (byKeyVal) return byKeyVal;
+    const objVal = pickString(onchainObj, keys);
+    if (objVal) return objVal;
+    // final: labeled search through entries
+    for (const k of keys) {
+      const v = findLabeledValue(onchainObj, k);
+      if (v) return v;
+    }
+    return '';
+  };
+
+  // A2A: prefer registration.a2aEndpoint, then agent.a2aEndpoint, then onchain metadata keys.
+  const a2a = pickEndpoint(
+    ['a2aEndpoint', 'A2A ENDPOINT', 'A2A', 'agentCardUrl', 'AGENT CARD', 'AGENT CARD URL'],
+    item?.a2aEndpoint,
+    item?.registration?.a2aEndpoint,
+  );
+  if (a2a) out.push({ name: 'a2a', endpoint: a2a, version: typeof item?.registration?.type === 'string' ? null : null });
+
+  // MCP: best-effort — registration JSON usually carries it, but if missing, allow metadata keys.
+  const mcp = pickEndpoint(
+    ['mcpEndpoint', 'MCP ENDPOINT', 'MCP', 'mcp', 'mcpUrl', 'MCP URL'],
+    (item as any)?.mcpEndpoint,
+    (item as any)?.registration?.mcpEndpoint,
+  );
+  if (mcp) out.push({ name: 'mcp', endpoint: mcp, version: null });
+
+  return out;
+}
+
 export function emitAgentsTurtle(
   chainId: number,
   items: any[],
@@ -446,7 +490,13 @@ export function emitAgentsTurtle(
     // Prefer UX fields from the identity descriptor JSON (registration JSON).
     // Requirement: pick the first non-empty value from descriptor JSON (identity descriptor is the first/primary descriptor).
     const registrationRaw = typeof item?.registration?.raw === 'string' && item.registration.raw.trim() ? item.registration.raw.trim() : '';
-    const registrationJsonText = registrationRaw ? decodePossiblyCompressedJsonText(registrationRaw) : '';
+    // Some subgraphs provide agent-level metadataJson (registration-v1 payload) even when registration.raw is missing/opaque.
+    const metadataJsonRaw = typeof (item as any)?.metadataJson === 'string' && String((item as any).metadataJson).trim() ? String((item as any).metadataJson).trim() : '';
+    const registrationJsonText = registrationRaw
+      ? decodePossiblyCompressedJsonText(registrationRaw)
+      : metadataJsonRaw
+        ? decodePossiblyCompressedJsonText(metadataJsonRaw)
+        : '';
     const parsedFromDescriptorJson = registrationJsonText ? parseDescriptorFieldsFromJson(registrationJsonText) : { name: null, description: null, image: null };
     // Subgraph often provides decoded registration fields even when `registration.raw` is missing/opaque.
     const registrationName =
@@ -701,14 +751,30 @@ export function emitAgentsTurtle(
       }
     }
 
-    if (registrationJsonText) {
-      const endpoints = parseRegistrationEndpoints(registrationJsonText);
+    {
+      // Materialize A2A/MCP endpoints from registration JSON when available.
+      // If registration.raw is missing/opaque, fall back to subgraph fields + onchain metadata KV.
+      let endpoints = registrationJsonText ? parseRegistrationEndpoints(registrationJsonText) : [];
+      if (!endpoints.length) {
+        endpoints = buildFallbackRegistrationEndpoints({ item, onchainByKey, onchainObj });
+      }
       const allSkills: string[] = [];
       const allDomains: string[] = [];
       for (const ep of endpoints) {
         if (!ep || typeof ep !== 'object') continue;
-        const epName = typeof ep?.name === 'string' ? ep.name.trim().toLowerCase() : '';
-        const serviceUrl = typeof ep?.endpoint === 'string' ? ep.endpoint.trim() : '';
+        const epNameRaw =
+          (typeof ep?.name === 'string' && ep.name.trim() ? ep.name.trim() : '') ||
+          (typeof ep?.type === 'string' && ep.type.trim() ? ep.type.trim() : '') ||
+          (typeof ep?.protocol === 'string' && ep.protocol.trim() ? ep.protocol.trim() : '');
+        const epName = epNameRaw ? epNameRaw.toLowerCase() : '';
+        const serviceUrl =
+          (typeof ep?.endpoint === 'string' && ep.endpoint.trim()
+            ? ep.endpoint.trim()
+            : typeof ep?.url === 'string' && ep.url.trim()
+              ? ep.url.trim()
+              : typeof ep?.serviceUrl === 'string' && ep.serviceUrl.trim()
+                ? ep.serviceUrl.trim()
+                : '');
         if (!serviceUrl) continue;
         const { skills, domains } = splitSkillsDomains(ep);
         allSkills.push(...skills);

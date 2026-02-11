@@ -511,22 +511,32 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
         : null) ??
       null;
 
+    const identityImage =
+      (typeof primary8004?.descriptor?.image === 'string' && primary8004.descriptor.image.trim()
+        ? primary8004.descriptor.image.trim()
+        : null) ??
+      (typeof primary8122?.descriptor?.image === 'string' && primary8122.descriptor.image.trim()
+        ? primary8122.descriptor.image.trim()
+        : null) ??
+      null;
+
     const agentName = identityName ?? r.agentDescriptorName ?? null;
     const agentDescription = identityDescription ?? r.agentDescriptorDescription ?? null;
+    const agentImage = identityImage ?? r.agentDescriptorImage ?? null;
 
     return {
       iri: r.iri,
       uaid: r.uaid,
       agentName,
       agentDescription,
-      agentImage: r.agentDescriptorImage,
+      agentImage,
       agentDescriptor: r.agentDescriptorIri
         ? {
             iri: r.agentDescriptorIri,
             // Expose the same derived fields on agentDescriptor for consistency.
             name: agentName,
             description: agentDescription,
-            image: r.agentDescriptorImage,
+            image: agentImage,
           }
         : null,
       agentTypes: r.agentTypes,

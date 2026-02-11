@@ -159,6 +159,7 @@ export async function syncErc8122RegistriesToGraphdbForChain(args: {
 
   const client = createPublicClient({ transport: http(rpcUrl) });
   const factory = getAddress(factoryAddress);
+  console.info('[sync] [erc8122-registries] factory', { chainId, factory, pageSize, maxRegistries });
 
   // Factory global implementation addresses
   let registryImpl: string | null = null;
@@ -211,6 +212,13 @@ export async function syncErc8122RegistriesToGraphdbForChain(args: {
     }
     if (maxRegistries != null && allRegistries.length >= maxRegistries) break;
   }
+
+  console.info('[sync] [erc8122-registries] discovered registries', {
+    chainId,
+    factory,
+    count: allRegistries.length,
+    registries: allRegistries,
+  });
 
   // Registry list source of truth: on-chain factory.
   // We intentionally avoid relying on subgraph registryAgent8122S for registry discovery, since subgraph
