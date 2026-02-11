@@ -185,6 +185,7 @@ export const graphQLSchemaStringKb = `
     did8122: String!
     agentId8122: String!
     registryAddress: String
+    collectionName: String
     registry: KbAgentRegistry8122
     endpointType: String
     endpoint: String

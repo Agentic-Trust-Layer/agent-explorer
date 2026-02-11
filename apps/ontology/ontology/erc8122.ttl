@@ -122,6 +122,12 @@
   rdfs:domain :AgentRegistry8122 ;
   rdfs:range xsd:string .
 
+:collectionName a owl:DatatypeProperty ;
+  rdfs:label "collectionName" ;
+  rdfs:comment "Human-readable ERC-8122 registry collection name associated with this identity (best-effort; typically derived from the on-chain registry name())." ;
+  rdfs:domain :AgentIdentity8122 ;
+  rdfs:range xsd:string .
+
 :registeredAgentCount a owl:DatatypeProperty ;
   rdfs:label "registeredAgentCount" ;
   rdfs:comment "Count of agents observed in this registry from the subgraph." ;

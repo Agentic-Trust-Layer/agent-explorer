@@ -220,6 +220,7 @@ type HydratedIdentity = {
   did8122?: string;
   agentId8122?: string | null;
   registryAddress?: string | null;
+  collectionName?: string | null;
   endpointType?: string | null;
   endpoint?: string | null;
 
@@ -274,6 +275,8 @@ async function hydrateIdentitiesForAgents(args: {
     '  ?did8122',
     '  ?agentId8122',
     '  ?registryAddress',
+    '  ?collectionName8122',
+    '  ?registryName8122',
     '  ?endpointType',
     '  ?endpoint',
     '  ?uaidHOL',
@@ -345,6 +348,13 @@ async function hydrateIdentitiesForAgents(args: {
     '        }',
     '        OPTIONAL { ?identity erc8122:agentId ?agentId8122 . }',
     '        OPTIONAL { ?identity erc8122:registryAddress ?registryAddress . }',
+    '        OPTIONAL { ?identity erc8122:collectionName ?collectionName8122 . }',
+    '        OPTIONAL {',
+    '          FILTER(BOUND(?registryAddress))',
+    '          ?reg8122 a erc8122:AgentRegistry8122 ;',
+    '                   erc8122:registryContractAddress ?registryAddress .',
+    '          OPTIONAL { ?reg8122 erc8122:registryName ?registryName8122 . }',
+    '        }',
     '        OPTIONAL { ?identity erc8122:endpointType ?endpointType . }',
     '        OPTIONAL { ?identity erc8122:endpoint ?endpoint . }',
     '        OPTIONAL { ?identity erc8122:hasOwnerAccount ?ownerAccount . }',
@@ -482,6 +492,7 @@ async function hydrateIdentitiesForAgents(args: {
         ident.did8122 = asString((b as any)?.did8122) ?? did;
         ident.agentId8122 = asString((b as any)?.agentId8122);
         ident.registryAddress = asString((b as any)?.registryAddress);
+        ident.collectionName = asString((b as any)?.collectionName8122) ?? asString((b as any)?.registryName8122);
         ident.endpointType = asString((b as any)?.endpointType);
         ident.endpoint = asString((b as any)?.endpoint);
         ident.ownerAccount = upsertAccount(b as any, 'ownerAccount');
@@ -557,6 +568,8 @@ async function hydrateIdentitiesForPairs(args: {
     '  ?did8122',
     '  ?agentId8122',
     '  ?registryAddress',
+    '  ?collectionName8122',
+    '  ?registryName8122',
     '  ?endpointType',
     '  ?endpoint',
     '  ?uaidHOL',
@@ -628,6 +641,13 @@ async function hydrateIdentitiesForPairs(args: {
     '      }',
     '      OPTIONAL { ?identity erc8122:agentId ?agentId8122 . }',
     '      OPTIONAL { ?identity erc8122:registryAddress ?registryAddress . }',
+    '      OPTIONAL { ?identity erc8122:collectionName ?collectionName8122 . }',
+    '      OPTIONAL {',
+    '        FILTER(BOUND(?registryAddress))',
+    '        ?reg8122 a erc8122:AgentRegistry8122 ;',
+    '                 erc8122:registryContractAddress ?registryAddress .',
+    '        OPTIONAL { ?reg8122 erc8122:registryName ?registryName8122 . }',
+    '      }',
     '      OPTIONAL { ?identity erc8122:endpointType ?endpointType . }',
     '      OPTIONAL { ?identity erc8122:endpoint ?endpoint . }',
     '      OPTIONAL { ?identity erc8122:hasOwnerAccount ?ownerAccount . }',
@@ -764,6 +784,7 @@ async function hydrateIdentitiesForPairs(args: {
         ident.did8122 = asString((b as any)?.did8122) ?? did;
         ident.agentId8122 = asString((b as any)?.agentId8122);
         ident.registryAddress = asString((b as any)?.registryAddress);
+        ident.collectionName = asString((b as any)?.collectionName8122) ?? asString((b as any)?.registryName8122);
         ident.endpointType = asString((b as any)?.endpointType);
         ident.endpoint = asString((b as any)?.endpoint);
         ident.ownerAccount = upsertAccount(b as any, 'ownerAccount');

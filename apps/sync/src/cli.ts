@@ -360,6 +360,33 @@ async function syncErc8122(endpoint: { url: string; chainId: number; name: strin
     return out;
   };
 
+  const listRegistryNamesFromKb = async (): Promise<Map<string, string>> => {
+    const ctx = `https://www.agentictrust.io/graph/data/subgraph/${endpoint.chainId}`;
+    const sparql = [
+      'PREFIX erc8122: <https://agentictrust.io/ontology/erc8122#>',
+      'SELECT DISTINCT ?addr ?name WHERE {',
+      `  GRAPH <${ctx}> {`,
+      '    ?reg a erc8122:AgentRegistry8122 ;',
+      '         erc8122:registryContractAddress ?addr .',
+      '    OPTIONAL { ?reg erc8122:registryName ?name . }',
+      '  }',
+      '}',
+      'ORDER BY LCASE(STR(?addr))',
+      '',
+    ].join('\n');
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+    const out = new Map<string, string>();
+    for (const b of Array.isArray(res?.results?.bindings) ? res.results.bindings : []) {
+      const addr = typeof (b as any)?.addr?.value === 'string' ? String((b as any).addr.value) : '';
+      const naddr = normalizeHexAddr(addr);
+      if (!naddr) continue;
+      const name = typeof (b as any)?.name?.value === 'string' ? String((b as any).name.value).trim() : '';
+      if (name) out.set(naddr, name);
+    }
+    return out;
+  };
+
   const chunkArray = <T,>(arr: T[], size: number): T[][] => {
     const s = Math.max(1, Math.trunc(size));
     const out: T[][] = [];
@@ -450,7 +477,22 @@ async function syncErc8122(endpoint: { url: string; chainId: number; name: strin
     return;
   }
 
-  const { turtle } = emitErc8122AgentsTurtle({ chainId: endpoint.chainId, agents, metadatas });
+  let registryNamesByAddress: Map<string, string> | null = null;
+  try {
+    registryNamesByAddress = await listRegistryNamesFromKb();
+    console.info('[sync] erc8122 registry names from KB', {
+      chainId: endpoint.chainId,
+      registriesWithNames: registryNamesByAddress.size,
+    });
+  } catch (e: any) {
+    console.warn('[sync] erc8122 failed to read registry names from KB (non-fatal)', {
+      chainId: endpoint.chainId,
+      error: String(e?.message || e || ''),
+    });
+    registryNamesByAddress = null;
+  }
+
+  const { turtle } = emitErc8122AgentsTurtle({ chainId: endpoint.chainId, agents, metadatas, registryNamesByAddress });
   if (!turtle.trim()) {
     // Still clear if reset requested.
     if (resetContext) {

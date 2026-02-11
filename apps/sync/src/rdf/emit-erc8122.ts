@@ -30,10 +30,34 @@ function normalizeHexAddr(value: unknown): string | null {
   return /^0x[0-9a-f]{40}$/.test(s) ? s : null;
 }
 
-export function emitErc8122AgentsTurtle(args: { chainId: number; agents: any[]; metadatas: any[] }): { turtle: string } {
+export function emitErc8122AgentsTurtle(args: {
+  chainId: number;
+  agents: any[];
+  metadatas: any[];
+  registryNamesByAddress?: Map<string, string> | Record<string, string> | null;
+}): { turtle: string } {
   const { chainId } = args;
   const agents = Array.isArray(args.agents) ? args.agents : [];
   const metadatas = Array.isArray(args.metadatas) ? args.metadatas : [];
+  const registryNamesByAddress = (args as any)?.registryNamesByAddress as
+    | Map<string, string>
+    | Record<string, string>
+    | null
+    | undefined;
+
+  const getRegistryName = (addr: string): string | null => {
+    const a = String(addr || '').trim().toLowerCase();
+    if (!a) return null;
+    if (registryNamesByAddress instanceof Map) {
+      const v = registryNamesByAddress.get(a);
+      return typeof v === 'string' && v.trim() ? v.trim() : null;
+    }
+    if (registryNamesByAddress && typeof registryNamesByAddress === 'object') {
+      const v = (registryNamesByAddress as any)[a];
+      return typeof v === 'string' && v.trim() ? v.trim() : null;
+    }
+    return null;
+  };
 
   // Group metadata rows by registryAgent8122 id (or by agentId+registry as fallback).
   const metaByAgentRowId = new Map<string, any[]>();
@@ -69,6 +93,7 @@ export function emitErc8122AgentsTurtle(args: { chainId: number; agents: any[]; 
     const agentAccount = normalizeHexAddr(a?.agentAccount);
     const endpointType = typeof a?.endpointType === 'string' ? a.endpointType.trim() : '';
     const endpoint = typeof a?.endpoint === 'string' ? a.endpoint.trim() : '';
+    const collectionName = getRegistryName(registry);
 
     const createdAtTime = a?.createdAt != null ? Number(a.createdAt) : null;
     const updatedAtTime = a?.updatedAt != null ? Number(a.updatedAt) : null;
@@ -129,6 +154,7 @@ export function emitErc8122AgentsTurtle(args: { chainId: number; agents: any[]; 
     lines.push(`  core:hasIdentifier ${identIri} ;`);
     lines.push(`  core:hasDescriptor ${descIri} ;`);
     lines.push(`  erc8122:registryAddress "${escapeTurtleString(registry)}" ;`);
+    if (collectionName) lines.push(`  erc8122:collectionName "${escapeTurtleString(collectionName)}" ;`);
     lines.push(`  erc8122:agentId "${escapeTurtleString(agentId8122)}" ;`);
     if (endpointType) lines.push(`  erc8122:endpointType "${escapeTurtleString(endpointType)}" ;`);
     if (endpoint) lines.push(`  erc8122:endpoint "${escapeTurtleString(endpoint)}" ;`);
