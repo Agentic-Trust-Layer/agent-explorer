@@ -1081,6 +1081,15 @@ function pickAgentTypesFromRow(typeValues: string[]): string[] {
   return out;
 }
 
+// Chunk size for trust-ledger badge hydrate. GraphDB/HTTP truncate result sets; use 3 agents (~21 bindings) per chunk.
+const TRUST_LEDGER_BADGE_HYDRATE_CHUNK = 3;
+
+function normalizeAgentIriForBadgeMap(iri: string | null): string {
+  const s = typeof iri === 'string' ? iri.trim() : '';
+  if (!s) return '';
+  return s.endsWith('/') ? s.slice(0, -1) : s;
+}
+
 async function hydrateTrustLedgerBadgesForAgents(args: {
   agentIris: string[];
   analyticsCtxIri: string;
@@ -1090,108 +1099,135 @@ async function hydrateTrustLedgerBadgesForAgents(args: {
   const analyticsCtxIri = String(args.analyticsCtxIri || '').trim();
   if (!agentIris.length || !analyticsCtxIri) return new Map();
 
-  const valuesAgents = agentIris.map((a) => `<${a}>`).join(' ');
-  const systemCtx = 'https://www.agentictrust.io/graph/data/analytics/system';
-  const sparql = [
-    'PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>',
-    'PREFIX prov: <http://www.w3.org/ns/prov#>',
-    '',
-    'SELECT',
-    '  ?agent ?award ?awardedAt ?evidenceJson',
-    '  ?badgeId ?program ?name ?description ?iconRef ?points ?ruleId ?ruleJson ?active ?createdAt ?updatedAt',
-    'WHERE {',
-    `  VALUES ?agent { ${valuesAgents} }`,
-    `  GRAPH <${analyticsCtxIri}> {`,
-    '    { ?agent analytics:hasTrustLedgerBadgeAward ?award } UNION { ?award analytics:badgeAwardForAgent ?agent } .',
-    '    ?award a analytics:TrustLedgerBadgeAward, prov:Entity .',
-    '    OPTIONAL { ?award analytics:awardedAt ?awardedAt }',
-    '    OPTIONAL { ?award analytics:evidenceJson ?evidenceJson }',
-    '    OPTIONAL { ?award analytics:awardedBadgeDefinition ?def }',
-    '  }',
-    '  OPTIONAL {',
-    `    GRAPH <${systemCtx}> {`,
-    '      FILTER(BOUND(?def))',
-    '      ?def a analytics:TrustLedgerBadgeDefinition, prov:Entity ;',
-    '           analytics:badgeId ?badgeId ;',
-    '           analytics:program ?program ;',
-    '           analytics:name ?name ;',
-    '           analytics:points ?points ;',
-    '           analytics:ruleId ?ruleId ;',
-    '           analytics:active ?active ;',
-    '           analytics:createdAt ?createdAt ;',
-    '           analytics:updatedAt ?updatedAt .',
-    '      OPTIONAL { ?def analytics:description ?description }',
-    '      OPTIONAL { ?def analytics:iconRef ?iconRef }',
-    '      OPTIONAL { ?def analytics:ruleJson ?ruleJson }',
-    '    }',
-    '  }',
-    '}',
-    'ORDER BY ?agent ?award',
-    '',
-  ].join('\n');
-
-  const bindings = await runGraphdbQuery(sparql, args.graphdbCtx, 'kbAgentsQuery.trustLedgerBadges');
-  const byAgentAward = new Map<string, Map<string, HydratedTrustLedgerBadgeAward>>();
-
-  const ensure = (agent: string, awardIri: string): HydratedTrustLedgerBadgeAward => {
-    let m = byAgentAward.get(agent);
-    if (!m) {
-      m = new Map();
-      byAgentAward.set(agent, m);
-    }
-    let existing = m.get(awardIri);
-    if (!existing) {
-      existing = { iri: awardIri, awardedAt: null, evidenceJson: null, definition: null };
-      m.set(awardIri, existing);
-    }
-    return existing;
-  };
-
-  for (const b of bindings) {
-    const agent = asString((b as any)?.agent);
-    const awardIri = asString((b as any)?.award);
-    if (!agent || !awardIri) continue;
-    const rec = ensure(agent, awardIri);
-
-    const awardedAt = asNumber((b as any)?.awardedAt);
-    if (awardedAt != null) rec.awardedAt = rec.awardedAt == null ? awardedAt : Math.max(rec.awardedAt, awardedAt);
-
-    const ev = asString((b as any)?.evidenceJson);
-    if (ev && !rec.evidenceJson) rec.evidenceJson = ev;
-
-    const badgeId = asString((b as any)?.badgeId);
-    if (badgeId && !rec.definition) {
-      rec.definition = {
-        badgeId,
-        program: asString((b as any)?.program) ?? '',
-        name: asString((b as any)?.name) ?? '',
-        description: asString((b as any)?.description),
-        iconRef: asString((b as any)?.iconRef),
-        points: asNumber((b as any)?.points) ?? 0,
-        ruleId: asString((b as any)?.ruleId) ?? '',
-        ruleJson: asString((b as any)?.ruleJson),
-        active: String(asString((b as any)?.active) ?? 'false') === 'true',
-        createdAt: asNumber((b as any)?.createdAt) ?? 0,
-        updatedAt: asNumber((b as any)?.updatedAt) ?? 0,
-      };
-    }
-  }
-
   const out = new Map<string, HydratedTrustLedgerBadgeAward[]>();
-  for (const [agent, byAward] of byAgentAward.entries()) {
-    const awards = Array.from(byAward.values());
-    // Stable-ish ordering: most recent award first, then badgeId/name when available, then iri.
-    awards.sort((a, b) => {
-      const atA = a.awardedAt ?? 0;
-      const atB = b.awardedAt ?? 0;
-      if (atA !== atB) return atB - atA;
-      const idA = a.definition?.badgeId ?? '';
-      const idB = b.definition?.badgeId ?? '';
-      if (idA !== idB) return idA.localeCompare(idB);
-      return a.iri.localeCompare(b.iri);
-    });
-    out.set(agent, awards);
+  const chunkSize = Math.max(1, TRUST_LEDGER_BADGE_HYDRATE_CHUNK);
+
+  for (let i = 0; i < agentIris.length; i += chunkSize) {
+    const chunk = agentIris.slice(i, i + chunkSize);
+    const valuesAgents = chunk.map((a) => `<${a}>`).join(' ');
+    const systemCtx = 'https://www.agentictrust.io/graph/data/analytics/system';
+    // Single pattern (no UNION) to avoid doubling bindings and hitting result truncation limits.
+    const sparql = [
+      'PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>',
+      'PREFIX prov: <http://www.w3.org/ns/prov#>',
+      '',
+      'SELECT',
+      '  ?agent ?award ?awardedAt ?evidenceJson',
+      // NOTE: Only select the minimal definition fields needed by the GraphQL clients today.
+      // The system graph may accumulate multiple values for fields like createdAt/updatedAt across sync runs,
+      // which can cause result fanout and trigger GraphDB result-size limits (returning partial badge lists).
+      '  ?badgeId ?name ?iconRef ?points',
+      'WHERE {',
+      `  VALUES ?agent { ${valuesAgents} }`,
+      `  GRAPH <${analyticsCtxIri}> {`,
+      '    ?agent analytics:hasTrustLedgerBadgeAward ?award .',
+      '    ?award a analytics:TrustLedgerBadgeAward, prov:Entity .',
+      '    OPTIONAL { ?award analytics:awardedAt ?awardedAt }',
+      '    OPTIONAL { ?award analytics:evidenceJson ?evidenceJson }',
+      '    OPTIONAL { ?award analytics:awardedBadgeDefinition ?def }',
+      '  }',
+      '  OPTIONAL {',
+      `    GRAPH <${systemCtx}> {`,
+      '      FILTER(BOUND(?def))',
+        '      ?def analytics:badgeId ?badgeId ;',
+        '           analytics:name ?name ;',
+        '           analytics:points ?points .',
+        '      OPTIONAL { ?def analytics:iconRef ?iconRef }',
+      '    }',
+      '  }',
+      '}',
+      'ORDER BY ?agent ?award',
+      '',
+    ].join('\n');
+
+    const bindings = await runGraphdbQuery(sparql, args.graphdbCtx, 'kbAgentsQuery.trustLedgerBadges');
+    const byAgentAward = new Map<string, Map<string, HydratedTrustLedgerBadgeAward>>();
+
+    const ensure = (agent: string, awardIri: string): HydratedTrustLedgerBadgeAward => {
+      let m = byAgentAward.get(agent);
+      if (!m) {
+        m = new Map();
+        byAgentAward.set(agent, m);
+      }
+      let existing = m.get(awardIri);
+      if (!existing) {
+        existing = { iri: awardIri, awardedAt: null, evidenceJson: null, definition: null };
+        m.set(awardIri, existing);
+      }
+      return existing;
+    };
+
+    for (const b of bindings) {
+      const agent = asString((b as any)?.agent);
+      const awardIri = asString((b as any)?.award);
+      if (!agent || !awardIri) continue;
+      const agentKey = normalizeAgentIriForBadgeMap(agent);
+      const rec = ensure(agentKey, awardIri);
+
+      const awardedAt = asNumber((b as any)?.awardedAt);
+      if (awardedAt != null) rec.awardedAt = rec.awardedAt == null ? awardedAt : Math.max(rec.awardedAt, awardedAt);
+
+      const ev = asString((b as any)?.evidenceJson);
+      if (ev && !rec.evidenceJson) rec.evidenceJson = ev;
+
+      const badgeId = asString((b as any)?.badgeId);
+      if (badgeId && !rec.definition) {
+        rec.definition = {
+          badgeId,
+          program: asString((b as any)?.program) ?? '',
+          name: asString((b as any)?.name) ?? '',
+          description: asString((b as any)?.description),
+          iconRef: asString((b as any)?.iconRef),
+          points: asNumber((b as any)?.points) ?? 0,
+          ruleId: asString((b as any)?.ruleId) ?? '',
+          ruleJson: asString((b as any)?.ruleJson),
+          active: String(asString((b as any)?.active) ?? 'false') === 'true',
+          createdAt: asNumber((b as any)?.createdAt) ?? 0,
+          updatedAt: asNumber((b as any)?.updatedAt) ?? 0,
+        };
+      }
+    }
+
+    for (const [agentKey, byAward] of byAgentAward.entries()) {
+      const rawAwards = Array.from(byAward.values());
+
+      // De-dupe to one award per badgeId when possible.
+      // Older sync runs may have emitted awards with different IRIs (e.g. encoding changes),
+      // or duplicate award nodes can exist if previous cleanup rules differed.
+      const byBadge = new Map<string, HydratedTrustLedgerBadgeAward>();
+      for (const a of rawAwards) {
+        const k = a.definition?.badgeId ? `badge:${a.definition.badgeId}` : `award:${a.iri}`;
+        const prev = byBadge.get(k);
+        if (!prev) {
+          byBadge.set(k, a);
+          continue;
+        }
+        // Prefer the most recent awardedAt; if missing, prefer the one with a definition.
+        const atA = a.awardedAt ?? -1;
+        const atP = prev.awardedAt ?? -1;
+        if (atA > atP) {
+          byBadge.set(k, a);
+          continue;
+        }
+        if (atA === atP && !prev.definition && a.definition) {
+          byBadge.set(k, a);
+        }
+      }
+
+      const awards = Array.from(byBadge.values());
+      awards.sort((a, b) => {
+        const atA = a.awardedAt ?? 0;
+        const atB = b.awardedAt ?? 0;
+        if (atA !== atB) return atB - atA;
+        const idA = a.definition?.badgeId ?? '';
+        const idB = b.definition?.badgeId ?? '';
+        if (idA !== idB) return idA.localeCompare(idB);
+        return a.iri.localeCompare(b.iri);
+      });
+      out.set(agentKey, awards);
+    }
   }
+
   return out;
 }
 
@@ -1230,7 +1266,12 @@ export async function kbAgentsQuery(args: {
   const skip = clampInt(args.skip, 0, 1_000_000, 0);
 
   // chainId=295 is reserved for HOL (maps to GRAPH <https://www.agentictrust.io/graph/data/subgraph/hol>)
-  const chainId = where.chainId != null ? clampInt(where.chainId, 1, 1_000_000_000, 0) : null;
+  let chainId = where.chainId != null ? clampInt(where.chainId, 1, 1_000_000_000, 0) : null;
+  const wantsAnalyticsOrderEarly =
+    (args.orderBy === 'trustLedgerTotalPoints' || args.orderBy === 'atiOverallScore' || args.orderBy === 'bestRank');
+  if (chainId == null && wantsAnalyticsOrderEarly) {
+    chainId = 1;
+  }
   const ctxIri = chainId != null ? chainContext(chainId) : null;
   const graphs = ctxIri ? [`<${ctxIri}>`] : null;
   const analyticsCtxIri = chainId != null && Math.trunc(chainId) !== 295 ? analyticsContext(chainId) : null;
@@ -2102,22 +2143,97 @@ export async function kbAgentsQuery(args: {
     }
 
     // Trust ledger badges: batch hydrate badge awards + definition info for the page.
-    // Requires chainId so we know which analytics graph to query.
+    // Requires analytics context (per chain). When chainId in where: use it. Otherwise derive from agent IRI or graph.
+    for (const r of ordered) r.trustLedgerBadges = [];
     if (analyticsCtxIri) {
       try {
+        const agentIrisForBadges = ordered.map((r) => r.iri);
         const badgeMap = await hydrateTrustLedgerBadgesForAgents({
-          agentIris: ordered.map((r) => r.iri),
+          agentIris: agentIrisForBadges,
           analyticsCtxIri,
           graphdbCtx,
         });
-        for (const r of ordered) r.trustLedgerBadges = badgeMap.get(r.iri) ?? [];
+        for (const r of ordered) {
+          const key = normalizeAgentIriForBadgeMap(r.iri);
+          r.trustLedgerBadges = badgeMap.get(key) ?? badgeMap.get(r.iri) ?? [];
+        }
+        const hydrateAgentsWithBadges = badgeMap.size;
+        const totalBadgeAwards = Array.from(badgeMap.values()).reduce((s, arr) => s + arr.length, 0);
+        const agentsWithBadgesInResponse = ordered.filter((r) => (r.trustLedgerBadges?.length ?? 0) > 0).length;
+        if (process.env.DEBUG_TRUST_LEDGER_BADGES === '1' || (hydrateAgentsWithBadges === 0 && ordered.some((r) => (r.trustLedgerBadgeCount ?? 0) > 0))) {
+          const perAgent = ordered.slice(0, 20).map((r) => {
+            const key = normalizeAgentIriForBadgeMap(r.iri);
+            const fromMap = (badgeMap.get(key) ?? badgeMap.get(r.iri) ?? []).length;
+            return { iri: r.iri, key, badgeCount: r.trustLedgerBadgeCount ?? null, fromMap };
+          });
+          // eslint-disable-next-line no-console
+          console.warn('[kbAgentsQuery] trust ledger badges', {
+            analyticsCtxIri,
+            orderedCount: ordered.length,
+            agentIrisSample: agentIrisForBadges.slice(0, 2),
+            hydrateAgentsWithBadges,
+            totalBadgeAwards,
+            agentsWithBadgesInResponse,
+            mapKeysSample: Array.from(badgeMap.keys()).slice(0, 2),
+            perAgent,
+          });
+        }
       } catch (e: any) {
         // eslint-disable-next-line no-console
         console.warn('[kbAgentsQuery] trust ledger badge hydrate failed (non-fatal)', { error: String(e?.message || e || '') });
-        for (const r of ordered) r.trustLedgerBadges = [];
+      }
+    } else if (trimmedPairs.length) {
+      const chainIdFromGraph = (g: string): number | null => {
+        const m = g.match(/\/subgraph\/(\d+)$/);
+        return m ? Math.trunc(Number(m[1])) : null;
+      };
+      const byChain = new Map<number, string[]>();
+      for (const p of trimmedPairs) {
+        const cid = chainIdFromGraph(p.g);
+        if (cid == null || cid === 295) continue;
+        const list = byChain.get(cid) ?? [];
+        list.push(p.agent);
+        byChain.set(cid, list);
+      }
+      try {
+        for (const [cid, agentIris] of byChain.entries()) {
+          const ctx = analyticsContext(cid);
+          const badgeMap = await hydrateTrustLedgerBadgesForAgents({
+            agentIris,
+            analyticsCtxIri: ctx,
+            graphdbCtx,
+          });
+          for (const r of ordered) {
+            const key = normalizeAgentIriForBadgeMap(r.iri);
+            if (badgeMap.has(key) || badgeMap.has(r.iri)) r.trustLedgerBadges = badgeMap.get(key) ?? badgeMap.get(r.iri) ?? [];
+          }
+        }
+      } catch (e: any) {
+        // eslint-disable-next-line no-console
+        console.warn('[kbAgentsQuery] trust ledger badge hydrate failed (non-fatal)', { error: String(e?.message || e || '') });
       }
     } else {
-      for (const r of ordered) r.trustLedgerBadges = [];
+      const chainIdFromIri = (iri: string): number | null => {
+        const m = iri.match(/\/agent\/(\d+)\/\d+$/);
+        return m ? Math.trunc(Number(m[1])) : null;
+      };
+      const derivedChainId = ordered.length ? chainIdFromIri(ordered[0].iri) : null;
+      if (derivedChainId != null && derivedChainId !== 295) {
+        try {
+          const badgeMap = await hydrateTrustLedgerBadgesForAgents({
+            agentIris: ordered.map((r) => r.iri),
+            analyticsCtxIri: analyticsContext(derivedChainId),
+            graphdbCtx,
+          });
+          for (const r of ordered) {
+            const key = normalizeAgentIriForBadgeMap(r.iri);
+            r.trustLedgerBadges = badgeMap.get(key) ?? badgeMap.get(r.iri) ?? [];
+          }
+        } catch (e: any) {
+          // eslint-disable-next-line no-console
+          console.warn('[kbAgentsQuery] trust ledger badge hydrate failed (non-fatal)', { error: String(e?.message || e || '') });
+        }
+      }
     }
   }
 

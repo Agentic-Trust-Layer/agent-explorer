@@ -84,10 +84,13 @@ interface Env {
   BASE_SEPOLIA_RPC_HTTP_URL?: string;
   OP_SEPOLIA_RPC_URL?: string;
   OP_SEPOLIA_RPC_HTTP_URL?: string;
+  LINEA_MAINNET_RPC_URL?: string;
+  LINEA_MAINNET_RPC_HTTP_URL?: string;
   // Chain configuration - Registry addresses
   ETH_SEPOLIA_IDENTITY_REGISTRY?: string;
   BASE_SEPOLIA_IDENTITY_REGISTRY?: string;
   OP_SEPOLIA_IDENTITY_REGISTRY?: string;
+  LINEA_MAINNET_IDENTITY_REGISTRY?: string;
   // Additional bindings are present (GraphDB, debug flags, etc.)
   [key: string]: any;
 }

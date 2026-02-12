@@ -29,6 +29,9 @@ if (isNodeEnvironment) {
     // Load repo-root env: ./.env
     const rootEnvPath = path.resolve(__dirname, "../../../.env");
     const result2 = dotenv.config({ path: rootEnvPath, override: false });
+    // Load sync app .env so GRAPHDB_* etc. work when running indexer locally (override: false so indexer .env wins)
+    const syncEnvPath = path.resolve(__dirname, "../../sync/.env");
+    dotenv.config({ path: syncEnvPath, override: false });
     
     // Debug: Log if env file was loaded
     if (process.env.DEBUG_ENV) {
@@ -65,6 +68,11 @@ export const BASE_SEPOLIA_RPC_HTTP_URL      = isNodeEnvironment ? must("BASE_SEP
 export const OP_SEPOLIA_IDENTITY_REGISTRY = isNodeEnvironment ? (process.env.OP_SEPOLIA_IDENTITY_REGISTRY as `0x${string}`) : undefined;
 export const OP_SEPOLIA_RPC_HTTP_URL      = isNodeEnvironment ? (process.env.OP_SEPOLIA_RPC_HTTP_URL || '') : '';
 
+export const LINEA_MAINNET_IDENTITY_REGISTRY = isNodeEnvironment
+  ? (process.env.LINEA_MAINNET_IDENTITY_REGISTRY as `0x${string}`)
+  : undefined;
+export const LINEA_MAINNET_RPC_HTTP_URL = isNodeEnvironment ? (process.env.LINEA_MAINNET_RPC_HTTP_URL || '') : '';
+
 export const RPC_WS_URL        = process.env.RPC_WS_URL; // optional
 export const CONFIRMATIONS     = Number(process.env.CONFIRMATIONS ?? 12);
 export const START_BLOCK       = BigInt(process.env.START_BLOCK ?? 0);
@@ -74,6 +82,7 @@ export const BACKFILL_MODE     = (process.env.BACKFILL_MODE ?? 'logs') as 'logs'
 export const ETH_SEPOLIA_GRAPHQL_URL       = process.env.ETH_SEPOLIA_GRAPHQL_URL || '';
 export const BASE_SEPOLIA_GRAPHQL_URL       = process.env.BASE_SEPOLIA_GRAPHQL_URL || '';
 export const OP_SEPOLIA_GRAPHQL_URL       = process.env.OP_SEPOLIA_GRAPHQL_URL || '';
+export const LINEA_MAINNET_GRAPHQL_URL = process.env.LINEA_MAINNET_GRAPHQL_URL || '';
 export const GRAPHQL_API_KEY   = process.env.GRAPHQL_API_KEY || '';
 export const GRAPHQL_POLL_MS   = Number(process.env.GRAPHQL_POLL_MS ?? 120000);
 export const GRAPHQL_SERVER_PORT = Number(process.env.GRAPHQL_SERVER_PORT ?? 4000);

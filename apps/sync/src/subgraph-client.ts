@@ -25,6 +25,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+let lastSubgraphRequestTime = 0;
+
+function getSubgraphRequestDelayMs(): number {
+  const v = process.env.SUBGRAPH_REQUEST_DELAY_MS;
+  const n = v ? Number(v) : NaN;
+  return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0;
+}
+
+async function throttleSubgraphRequest(): Promise<void> {
+  const delayMs = getSubgraphRequestDelayMs();
+  if (delayMs <= 0) return;
+  const elapsed = Date.now() - lastSubgraphRequestTime;
+  if (elapsed < delayMs) await sleep(delayMs - elapsed);
+  lastSubgraphRequestTime = Date.now();
+}
+
 async function fetchJson(
   graphqlUrl: string,
   body: { query: string; variables: Record<string, any> },
@@ -43,6 +59,7 @@ async function fetchJson(
   }
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    await throttleSubgraphRequest();
     const timeoutMs = 60_000;
     const controller = new AbortController();
     let timeoutHandle: any;
@@ -68,7 +85,18 @@ async function fetchJson(
 
       if (!res.ok) {
         const text = await res.text().catch(() => '');
-        throw new Error(`GraphQL ${res.status}: ${text || res.statusText}`);
+        const retryAfter = res.headers.get('Retry-After');
+        let errBody = text || res.statusText;
+        try {
+          const json = JSON.parse(text || '{}');
+          if (json?.errors && Array.isArray(json.errors)) {
+            errBody = JSON.stringify(json.errors, null, 2);
+          } else if (json?.error || json?.message) {
+            errBody = JSON.stringify(json);
+          }
+        } catch {}
+        const retryHint = retryAfter ? ` (Retry-After: ${retryAfter})` : '';
+        throw new Error(`GraphQL ${res.status}: ${errBody}${retryHint}`);
       }
 
       const json = await res.json();
@@ -91,13 +119,45 @@ async function fetchJson(
         throw e;
       }
 
-      const backoffMs = Math.min(30_000, 750 * Math.pow(2, attempt)) + Math.floor(Math.random() * 250);
-      console.warn(`[subgraph] Retry ${attempt + 1}/${maxRetries} after ${backoffMs}ms: ${msg}`);
+      const is429 = lower.includes('graphql 429');
+      const backoffMs = is429
+        ? Math.min(60_000, 5_000 * Math.pow(2, attempt)) + Math.floor(Math.random() * 2_000)
+        : Math.min(30_000, 750 * Math.pow(2, attempt)) + Math.floor(Math.random() * 250);
+      console.warn('[subgraph] Subgraph error (raw):', msg);
+      console.warn(`[subgraph] Retry ${attempt + 1}/${maxRetries} after ${backoffMs}ms`);
       await sleep(backoffMs);
     }
   }
 
   throw new Error('fetchJson: exhausted retries');
+}
+
+/** Minimal introspection query - lightest possible, no entity data. Use to check if blocked entirely. */
+const PING_QUERY_SCHEMA = 'query PingSchema { __schema { queryType { name } } }';
+
+/** Single attempt, no retries. Uses minimal introspection query (no entity fetch). Returns raw response or throws. */
+export async function pingSubgraph(graphqlUrl: string): Promise<{ ok: boolean; status: number; body: unknown }> {
+  const endpoint = (graphqlUrl || '').replace(/\/graphql\/?$/i, '');
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    accept: 'application/json',
+  };
+  if (GRAPHQL_API_KEY) headers['Authorization'] = `Bearer ${GRAPHQL_API_KEY}`;
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      query: PING_QUERY_SCHEMA,
+      variables: {},
+    }),
+  });
+  const text = await res.text().catch(() => '');
+  let body: unknown = text;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {}
+  return { ok: res.ok, status: res.status, body };
 }
 
 async function fetchQueryFieldNames(graphqlUrl: string): Promise<Set<string>> {
@@ -112,7 +172,7 @@ async function fetchQueryFieldNames(graphqlUrl: string): Promise<Set<string>> {
     variables: {},
   };
   try {
-    const resp = await fetchJson(graphqlUrl, introspectionQuery, 1);
+    const resp = await fetchJson(graphqlUrl, introspectionQuery, 4);
     const fields = (resp?.data?.__schema?.queryType?.fields || []) as any[];
     return new Set(fields.map((f: any) => String(f?.name || '')).filter(Boolean));
   } catch (e) {
@@ -430,7 +490,7 @@ export async function fetchAllFromSubgraphByMintedAtCursor(
 ): Promise<any[]> {
   const pageSize = opts?.first ?? 500;
   const optional = opts?.optional ?? false;
-  const maxRetries = opts?.maxRetries ?? (optional ? 6 : 3);
+  const maxRetries = opts?.maxRetries ?? 6;
   const maxItems = opts?.maxItems ?? 250_000;
   const allItems: any[] = [];
 
@@ -543,6 +603,19 @@ export const FEEDBACKS_QUERY = `query RepFeedbacks($first: Int!, $skip: Int!) {
   }
 }`;
 
+/** Optional: fetch feedbacks for one agent (subgraph must support where: { agent: $agentId }). */
+export const FEEDBACKS_QUERY_BY_AGENT = `query RepFeedbacksByAgent($first: Int!, $skip: Int!, $agentId: String!) {
+  repFeedbacks(first: $first, skip: $skip, where: { agent: $agentId }, orderBy: blockNumber, orderDirection: asc) {
+    id
+    clientAddress
+    feedbackIndex
+    feedbackJson
+    txHash
+    blockNumber
+    timestamp
+  }
+}`;
+
 export const FEEDBACK_REVOCATIONS_QUERY = `query RepFeedbackRevokeds($first: Int!, $skip: Int!) {
   repFeedbackRevokeds(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
     id
@@ -581,8 +654,31 @@ export const VALIDATION_REQUESTS_QUERY = `query ValidationRequests($first: Int!,
   }
 }`;
 
+export const VALIDATION_REQUESTS_QUERY_BY_AGENT = `query ValidationRequestsByAgent($first: Int!, $skip: Int!, $agentId: String!) {
+  validationRequests(first: $first, skip: $skip, where: { agent: $agentId }, orderBy: blockNumber, orderDirection: asc) {
+    id
+    agent { id }
+    requestUri
+    requestJson
+    txHash
+    blockNumber
+    timestamp
+  }
+}`;
+
 export const VALIDATION_RESPONSES_QUERY = `query ValidationResponses($first: Int!, $skip: Int!) {
   validationResponses(first: $first, skip: $skip, orderBy: blockNumber, orderDirection: asc) {
+    id
+    agent { id }
+    responseJson
+    txHash
+    blockNumber
+    timestamp
+  }
+}`;
+
+export const VALIDATION_RESPONSES_QUERY_BY_AGENT = `query ValidationResponsesByAgent($first: Int!, $skip: Int!, $agentId: String!) {
+  validationResponses(first: $first, skip: $skip, where: { agent: $agentId }, orderBy: blockNumber, orderDirection: asc) {
     id
     agent { id }
     responseJson
@@ -890,4 +986,52 @@ export async function fetchAllFromSubgraph(
   }
 
   return allItems;
+}
+
+/** Fetch validation requests for one agent (subgraph must support where: { agent: $agentId }). */
+export async function fetchValidationRequestsByAgentId(
+  graphqlUrl: string,
+  agentId: string,
+  opts?: { optional?: boolean },
+): Promise<any[]> {
+  const id = String(agentId ?? '').trim();
+  if (!id) return [];
+  return fetchAllFromSubgraph(graphqlUrl, VALIDATION_REQUESTS_QUERY_BY_AGENT, 'validationRequests', {
+    optional: opts?.optional ?? true,
+    first: 500,
+    maxSkip: 50_000,
+    buildVariables: ({ first, skip }) => ({ first, skip, agentId: id }),
+  });
+}
+
+/** Fetch validation responses for one agent. */
+export async function fetchValidationResponsesByAgentId(
+  graphqlUrl: string,
+  agentId: string,
+  opts?: { optional?: boolean },
+): Promise<any[]> {
+  const id = String(agentId ?? '').trim();
+  if (!id) return [];
+  return fetchAllFromSubgraph(graphqlUrl, VALIDATION_RESPONSES_QUERY_BY_AGENT, 'validationResponses', {
+    optional: opts?.optional ?? true,
+    first: 500,
+    maxSkip: 50_000,
+    buildVariables: ({ first, skip }) => ({ first, skip, agentId: id }),
+  });
+}
+
+/** Fetch feedbacks for one agent. Tries where: { agent: $agentId }; if unsupported, returns []. */
+export async function fetchFeedbacksByAgentId(
+  graphqlUrl: string,
+  agentId: string,
+  opts?: { optional?: boolean },
+): Promise<any[]> {
+  const id = String(agentId ?? '').trim();
+  if (!id) return [];
+  return fetchAllFromSubgraph(graphqlUrl, FEEDBACKS_QUERY_BY_AGENT, 'repFeedbacks', {
+    optional: opts?.optional ?? true,
+    first: 500,
+    maxSkip: 50_000,
+    buildVariables: ({ first, skip }) => ({ first, skip, agentId: id }),
+  });
 }

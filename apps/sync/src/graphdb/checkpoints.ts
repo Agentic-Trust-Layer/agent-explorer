@@ -1,4 +1,4 @@
-import { getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from '../graphdb-http.js';
+import { clearStatements, getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from '../graphdb-http.js';
 import { d1Exec, d1Query, getD1ConfigFromEnv } from '../d1/d1-http.js';
 
 function checkpointContext(chainId: number): string {
@@ -173,5 +173,24 @@ INSERT {
     });
     throw e;
   }
+}
+
+/** Clears all checkpoints for a chain so the next sync starts from scratch. */
+export async function clearCheckpointsForChain(chainId: number): Promise<void> {
+  if (await ensureD1CheckpointsTable()) {
+    try {
+      await d1Exec(`DELETE FROM sync_checkpoints WHERE chainId = ?`, [chainId], { timeoutMs: 15_000, retries: 1 });
+      console.info('[sync] checkpoints cleared for chain (D1)', { chainId });
+      return;
+    } catch (e: any) {
+      console.error('[sync] clearCheckpointsForChain failed (D1)', { chainId, err: String(e?.message || e || '') });
+      throw e;
+    }
+  }
+
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  const ctx = checkpointContext(chainId);
+  await clearStatements(baseUrl, repository, auth, { context: ctx });
+  console.info('[sync] checkpoints cleared for chain (GraphDB)', { chainId });
 }
 

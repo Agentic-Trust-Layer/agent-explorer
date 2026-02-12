@@ -469,15 +469,37 @@ function toAtiTurtle(records: TrustIndexComputed[], chainId: number): { turtle: 
   return { turtle: lines.join('\n'), subjects };
 }
 
-async function fetchEvidencePage(args: {
-  baseUrl: string;
-  repository: string;
-  auth: any;
-  ctxIri: string;
-  limit: number;
-  offset: number;
-}): Promise<EvidenceRow[]> {
-  const sparql = [
+function buildEvidenceSparql(ctxIri: string, opts?: { limit?: number; offset?: number; agentIds?: string[] }): string {
+  const valuesClause =
+    opts?.agentIds?.length &&
+    opts.agentIds.every((id) => typeof id === 'string' && /^\d+$/.test(String(id).trim()))
+      ? `    VALUES ?agentId { ${opts.agentIds!.map((id) => `"${String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(' ')} }`
+      : null;
+  const innerSelect =
+    valuesClause != null
+      ? [
+          '    SELECT ?agent ?agentId ?identity8004 WHERE {',
+          `      GRAPH <${ctxIri}> {`,
+          valuesClause,
+          '        ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
+          '        ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:agentId ?agentId .',
+          '      }',
+          '    }',
+          '    ORDER BY xsd:integer(?agentId) ASC(STR(?agent))',
+        ].join('\n')
+      : [
+          '    SELECT ?agent ?agentId ?identity8004 WHERE {',
+          `      GRAPH <${ctxIri}> {`,
+          '        ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
+          '        ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:agentId ?agentId .',
+          '      }',
+          '    }',
+          '    ORDER BY xsd:integer(?agentId) ASC(STR(?agent))',
+          `    LIMIT ${Math.trunc(opts?.limit ?? 500)}`,
+          `    OFFSET ${Math.trunc(opts?.offset ?? 0)}`,
+        ].join('\n');
+
+  return [
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
@@ -493,18 +515,10 @@ async function fetchEvidencePage(args: {
     '  ?hasIdentitySkills ?hasIdentityDomains ?hasA2ASkills ?hasA2ADomains ?hasMCPSkills ?hasMCPDomains',
     'WHERE {',
     '  {',
-    '    SELECT ?agent ?agentId ?identity8004 WHERE {',
-    `      GRAPH <${args.ctxIri}> {`,
-    '        ?agent a core:AIAgent ; core:hasIdentity ?identity8004 .',
-    '        ?identity8004 a erc8004:AgentIdentity8004 ; erc8004:agentId ?agentId .',
-    '      }',
-    '    }',
-    '    ORDER BY xsd:integer(?agentId) ASC(STR(?agent))',
-    `    LIMIT ${Math.trunc(args.limit)}`,
-    `    OFFSET ${Math.trunc(args.offset)}`,
+    innerSelect,
     '  }',
     '',
-    `  GRAPH <${args.ctxIri}> {`,
+    `  GRAPH <${ctxIri}> {`,
     '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
     '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
     '    OPTIONAL { ?agent core:hasFeedbackAssertionSummary ?fbS . ?fbS core:feedbackAssertionCount ?feedbackAssertionCount . }',
@@ -572,6 +586,22 @@ async function fetchEvidencePage(args: {
     '}',
     '',
   ].join('\n');
+}
+
+async function fetchEvidencePage(args: {
+  baseUrl: string;
+  repository: string;
+  auth: any;
+  ctxIri: string;
+  limit: number;
+  offset: number;
+  agentIds?: string[];
+}): Promise<EvidenceRow[]> {
+  const sparql =
+    args.agentIds?.length &&
+    args.agentIds.every((id) => typeof id === 'string' && /^\d+$/.test(String(id).trim()))
+      ? buildEvidenceSparql(args.ctxIri, { agentIds: args.agentIds })
+      : buildEvidenceSparql(args.ctxIri, { limit: args.limit, offset: args.offset });
 
   const json = await queryGraphdb(args.baseUrl, args.repository, args.auth, sparql);
   const bindings = json?.results?.bindings;
@@ -771,11 +801,11 @@ function shouldSkipRecompute(args: {
 export async function runTrustIndexForChains(args: {
   chainIdsCsv: string;
   resetContext: boolean;
+  agentIds?: string[];
 }): Promise<void> {
   const chainIds = parseChainIds(args.chainIdsCsv || '1,11155111');
   if (!chainIds.length) throw new Error('[trust-index] no chainIds provided');
 
-  // Intentionally no runtime tuning knobs (no flags/env), except SYNC_CHAIN_ID.
   const ttlSeconds = 6 * 3600;
   const pageSize = 500;
   const batchSize = 200;
@@ -794,6 +824,7 @@ export async function runTrustIndexForChains(args: {
       kbCtxIri,
       analyticsCtxIri,
       resetContext: args.resetContext,
+      agentIds: args.agentIds?.length ?? 'all',
       force: false,
       ttlSeconds,
       pageSize,
@@ -801,7 +832,7 @@ export async function runTrustIndexForChains(args: {
       version,
     });
 
-    if (args.resetContext) {
+    if (args.resetContext && !args.agentIds?.length) {
       console.info('[trust-index] clearing analytics context', { chainId, analyticsCtxIri });
       await clearStatements(baseUrl, repository, auth, { context: analyticsCtxIri });
     }
@@ -811,8 +842,13 @@ export async function runTrustIndexForChains(args: {
     let recomputed = 0;
     let skipped = 0;
 
+    const fetchPage = () =>
+      args.agentIds?.length
+        ? fetchEvidencePage({ baseUrl, repository, auth, ctxIri: kbCtxIri, limit: pageSize, offset: 0, agentIds: args.agentIds })
+        : fetchEvidencePage({ baseUrl, repository, auth, ctxIri: kbCtxIri, limit: pageSize, offset });
+
     for (;;) {
-      const page = await fetchEvidencePage({ baseUrl, repository, auth, ctxIri: kbCtxIri, limit: pageSize, offset });
+      const page = await fetchPage();
       if (!page.length) break;
 
       processed += page.length;
@@ -890,6 +926,7 @@ export async function runTrustIndexForChains(args: {
       }
 
       console.info('[trust-index] progress', { chainId, processed, recomputed, skipped, offset });
+      if (args.agentIds?.length) break;
     }
 
     console.info('[trust-index] done', { chainId, processed, recomputed, skipped });

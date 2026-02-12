@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { kbAgentsQuery } from '../graphdb/kb-queries.js';
 
 async function run(): Promise<void> {
@@ -23,6 +24,9 @@ async function run(): Promise<void> {
       agentName: r.agentName,
       createdAtTime: r.createdAtTime,
       trustLedgerTotalPoints: r.trustLedgerTotalPoints,
+      trustLedgerBadgeCount: r.trustLedgerBadgeCount,
+      trustLedgerBadgesLength: r.trustLedgerBadges?.length ?? 0,
+      trustLedgerBadges: r.trustLedgerBadges,
       atiOverallScore: r.atiOverallScore,
     })),
   );

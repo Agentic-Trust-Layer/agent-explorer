@@ -8,13 +8,14 @@ import {
   type PublicClient,
   getAddress,
 } from 'viem';
-import { baseSepolia, optimismSepolia, sepolia } from 'viem/chains';
+import { baseSepolia, linea, optimismSepolia, sepolia } from 'viem/chains';
 import { getAccountOwner } from './account-owner.js';
 
 import {
   BASE_SEPOLIA_RPC_HTTP_URL,
   ETH_SEPOLIA_RPC_HTTP_URL,
   OP_SEPOLIA_RPC_HTTP_URL,
+  LINEA_MAINNET_RPC_HTTP_URL,
 } from './env';
 
 type ChainConfig = {
@@ -29,6 +30,7 @@ const chainConfigs: Record<number, ChainConfig> = {
   11155111: { chain: sepolia, rpcUrl: ETH_SEPOLIA_RPC_HTTP_URL },
   84532: { chain: baseSepolia, rpcUrl: BASE_SEPOLIA_RPC_HTTP_URL },
   11155420: { chain: optimismSepolia, rpcUrl: OP_SEPOLIA_RPC_HTTP_URL },
+  59144: { chain: linea, rpcUrl: LINEA_MAINNET_RPC_HTTP_URL },
 };
 
 const publicClientCache = new Map<number, PublicClient>();

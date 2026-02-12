@@ -4,7 +4,7 @@
  * NOTE: this intentionally does NOT touch D1 tables.
  */
 
-import { BASE_SEPOLIA_GRAPHQL_URL, ETH_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY, OP_SEPOLIA_GRAPHQL_URL } from './env.js';
+import { BASE_SEPOLIA_GRAPHQL_URL, ETH_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY, OP_SEPOLIA_GRAPHQL_URL, LINEA_MAINNET_GRAPHQL_URL } from './env.js';
 import { getGraphdbConfigFromEnv, uploadTurtleToRepository, updateGraphdb } from './graphdb/graphdb-http.js';
 
 export interface IndexAgentConfig {
@@ -22,6 +22,7 @@ function graphqlUrlForChainId(chainId: number): string {
   if (chainId === 11155111) return ETH_SEPOLIA_GRAPHQL_URL;
   if (chainId === 84532) return BASE_SEPOLIA_GRAPHQL_URL;
   if (chainId === 11155420) return OP_SEPOLIA_GRAPHQL_URL;
+  if (chainId === 59144) return LINEA_MAINNET_GRAPHQL_URL;
   return '';
 }
 

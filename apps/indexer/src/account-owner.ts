@@ -1,9 +1,9 @@
 import { createPublicClient, http, type Abi, type Address, type Chain, type PublicClient } from 'viem';
-import { baseSepolia, optimismSepolia, sepolia } from 'viem/chains';
+import { baseSepolia, linea, optimismSepolia, sepolia } from 'viem/chains';
 import { getAddress } from 'viem';
 import { HybridDeleGator } from '@metamask/smart-accounts-kit/contracts';
 
-import { BASE_SEPOLIA_RPC_HTTP_URL, ETH_SEPOLIA_RPC_HTTP_URL, OP_SEPOLIA_RPC_HTTP_URL } from './env';
+import { BASE_SEPOLIA_RPC_HTTP_URL, ETH_SEPOLIA_RPC_HTTP_URL, OP_SEPOLIA_RPC_HTTP_URL, LINEA_MAINNET_RPC_HTTP_URL } from './env';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -12,6 +12,7 @@ const chainConfigs: Record<number, ChainConfig> = {
   11155111: { chain: sepolia, rpcUrl: ETH_SEPOLIA_RPC_HTTP_URL },
   84532: { chain: baseSepolia, rpcUrl: BASE_SEPOLIA_RPC_HTTP_URL },
   11155420: { chain: optimismSepolia, rpcUrl: OP_SEPOLIA_RPC_HTTP_URL },
+  59144: { chain: linea, rpcUrl: LINEA_MAINNET_RPC_HTTP_URL },
 };
 
 const clientCache = new Map<number, PublicClient>();

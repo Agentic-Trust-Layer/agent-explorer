@@ -1,6 +1,7 @@
 import './env-load.js';
 import {
   SUBGRAPH_ENDPOINTS,
+  pingSubgraph,
   fetchAllFromSubgraph,
   fetchAllFromSubgraphByIdCursor,
   AGENTS_QUERY,
@@ -25,18 +26,32 @@ import {
   REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_LEGACY,
   REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN_LEGACY,
   REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN_LEGACY,
+  fetchFeedbacksByAgentId,
+  fetchValidationRequestsByAgentId,
+  fetchValidationResponsesByAgentId,
 } from './subgraph-client.js';
-import { ingestSubgraphTurtleToGraphdb } from './graphdb-ingest.js';
-import { getCheckpoint, setCheckpoint } from './graphdb/checkpoints.js';
+import {
+  clearSubgraphSectionForAgent,
+  clearSubgraphSectionForAgentBatch,
+  ingestSubgraphTurtleToGraphdb,
+} from './graphdb-ingest.js';
+import { clearCheckpointsForChain, getCheckpoint, setCheckpoint } from './graphdb/checkpoints.js';
 import { emitAgentsTurtle } from './rdf/emit-agents.js';
-import { emitFeedbacksTurtle } from './rdf/emit-feedbacks.js';
+import { emitFeedbacksTurtle, extractAgentIdFromFeedbackRow } from './rdf/emit-feedbacks.js';
 import { emitValidationRequestsTurtle, emitValidationResponsesTurtle } from './rdf/emit-validations.js';
 import { emitAssociationsTurtle, emitAssociationRevocationsTurtle } from './rdf/emit-associations.js';
 import { emitErc8122AgentsTurtle } from './rdf/emit-erc8122.js';
 import { syncErc8122RegistriesToGraphdbForChain } from './erc8122/sync-erc8122-registries.js';
 import { syncAgentCardsForAgentIds, syncAgentCardsForChain } from './a2a/agent-card-sync.js';
 import { syncAccountTypesForChain } from './account-types/sync-account-types.js';
-import { getMaxAgentId8004, getMaxDid8004AgentId, listAgentIriByDidIdentity } from './graphdb/agents.js';
+import {
+  getMaxAgentId8004,
+  getMaxDid8004AgentId,
+  listAccountsForAgent,
+  listAccountsForAgentBatch,
+  listAgentIdsForChain,
+  listAgentIriByDidIdentity,
+} from './graphdb/agents.js';
 import { ingestOasfToGraphdb } from './oasf/oasf-ingest.js';
 import { ingestOntologiesToGraphdb } from './ontology/ontology-ingest.js';
 import { runTrustIndexForChains } from './trust-index/trust-index.js';
@@ -45,7 +60,7 @@ import { materializeAssertionSummariesForChain } from './trust-summaries/materia
 import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledger.js';
 import { syncMcpForAgentIds, syncMcpForChain } from './mcp/mcp-sync.js';
 import { syncEnsParentForChain } from './ens/ens-parent-sync.js';
-import { getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from './graphdb-http.js';
+import { ensureRepositoryExistsOrThrow, getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from './graphdb-http.js';
 import { watchErc8004RegistryEventsMultiChain } from './erc8004/registry-events-watch.js';
 
 type SyncCommand =
@@ -72,13 +87,17 @@ type SyncCommand =
   | 'account-types'
   | 'materialize-services'
   | 'watch'
-  | 'all';
+  | 'all'
+  | 'reset-chain-agents'
+  | 'agent-pipeline'
+  | 'subgraph-ping';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function syncAgents(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
+/** Returns the list of agent IDs that were ingested in this run (for pipeline to process only that batch). */
+async function syncAgents(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean): Promise<string[]> {
   console.info(`[sync] fetching agents from ${endpoint.name} (chainId: ${endpoint.chainId})`);
   // If we're resetting the GraphDB context, we MUST also ignore prior checkpoints,
   // otherwise we'll clear the data and then filter out all rows as "already processed".
@@ -98,8 +117,10 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
   let cursorModeUsed = false;
   const limitArg = process.argv.find((a) => a.startsWith('--limit=')) ?? '';
   const parsedLimit = limitArg ? Number(limitArg.split('=')[1]) : NaN;
+  const envLimit = Number(process.env.SYNC_AGENT_LIMIT ?? '');
+  const defaultLimit = Number.isFinite(envLimit) && envLimit > 0 ? Math.trunc(envLimit) : 5000;
   const maxAgentsPerRun =
-    Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.trunc(parsedLimit) : 5000; // keep runs bounded; repeated runs/watch will catch up
+    Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.trunc(parsedLimit) : defaultLimit; // keep runs bounded; repeated runs/watch will catch up
   const uploadChunkArg = process.argv.find((a) => a.startsWith('--uploadChunkBytes=')) ?? '';
   const parsedUploadChunk = uploadChunkArg ? Number(uploadChunkArg.split('=')[1]) : NaN;
   const uploadChunkBytes = Number.isFinite(parsedUploadChunk) && parsedUploadChunk > 0 ? Math.trunc(parsedUploadChunk) : undefined;
@@ -182,7 +203,7 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
     const msg = String(e?.message || e || '');
     if (msg.includes('Subgraph schema mismatch') && msg.includes('no field "agents"')) {
       console.warn(`[sync] skipping agents for ${endpoint.name}: subgraph has no "agents" field`);
-      return;
+      return [];
     }
     throw e;
   }
@@ -322,14 +343,41 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
       cursorModeUsed,
       fetched: items.length,
     });
-  } else {
-    console.info('[sync] agents sync complete', {
-      chainId: endpoint.chainId,
-      emitted: false,
-      cursorModeUsed,
-      fetched: items.length,
-    });
+    const ingestedIds = items
+      .map((it: any) => String(it?.id ?? '').trim())
+      .filter((id) => /^\d+$/.test(id));
+    return ingestedIds;
   }
+  console.info('[sync] agents sync complete', {
+    chainId: endpoint.chainId,
+    emitted: false,
+    cursorModeUsed,
+    fetched: items.length,
+  });
+  return [];
+}
+
+/** Sync a single agent from subgraph into GraphDB (for agent-pipeline when using --agent-ids for new agents). */
+export async function syncSingleAgent(
+  endpoint: { url: string; chainId: number; name: string },
+  agentId: string,
+): Promise<boolean> {
+  const id = String(agentId ?? '').trim();
+  if (!id) return false;
+  const row = await fetchAgentById(endpoint.url, id).catch(() => null);
+  if (!row) {
+    console.warn('[sync] [syncSingleAgent] agent not found in subgraph', { chainId: endpoint.chainId, agentId: id });
+    return false;
+  }
+  const { turtle } = emitAgentsTurtle(endpoint.chainId, [row], 'mintedAt', -1n);
+  if (!turtle || !turtle.trim()) return true;
+  await ingestSubgraphTurtleToGraphdb({
+    chainId: endpoint.chainId,
+    section: 'agents',
+    turtle,
+    resetContext: false,
+  });
+  return true;
 }
 
 async function clearErc8004AgentFromGraphdb(chainId: number, agentId8004: number): Promise<void> {
@@ -864,8 +912,328 @@ async function syncAssociationRevocations(endpoint: { url: string; chainId: numb
   }
 }
 
+export type BulkSubgraphData = {
+  feedbacksByAgentId: Map<string, any[]>;
+  validationRequestsByAgentId: Map<string, any[]>;
+  validationResponsesByAgentId: Map<string, any[]>;
+  associationsByAccountId: Map<string, any[]>;
+};
+
+/** Bulk-load feedbacks, validation requests/responses, and associations once per run for pipeline. */
+async function loadBulkSubgraphData(endpoint: { url: string; chainId: number; name: string }): Promise<BulkSubgraphData> {
+  const opts = { optional: true, first: 500, maxSkip: 150_000 };
+  const bulkDelayMs = Math.max(0, Number(process.env.SUBGRAPH_BULK_FETCH_DELAY_MS) || 2000);
+  const feedbackItems = await fetchAllFromSubgraph(endpoint.url, FEEDBACKS_QUERY, 'repFeedbacks', opts).catch(() => []);
+  if (bulkDelayMs) await sleep(bulkDelayMs);
+  const reqItems = await fetchAllFromSubgraph(endpoint.url, VALIDATION_REQUESTS_QUERY, 'validationRequests', opts).catch(() => []);
+  if (bulkDelayMs) await sleep(bulkDelayMs);
+  const resItems = await fetchAllFromSubgraph(endpoint.url, VALIDATION_RESPONSES_QUERY, 'validationResponses', opts).catch(() => []);
+  if (bulkDelayMs) await sleep(bulkDelayMs);
+  const assocItems = await fetchAllFromSubgraph(endpoint.url, ASSOCIATIONS_QUERY, 'associations', opts).catch(() => []);
+  console.info('[sync] [bulk] loaded', {
+    feedbacks: feedbackItems.length,
+    validationRequests: reqItems.length,
+    validationResponses: resItems.length,
+    associations: assocItems.length,
+  });
+  const feedbacksByAgentId = new Map<string, any[]>();
+  for (const fb of feedbackItems) {
+    const aid = extractAgentIdFromFeedbackRow(fb);
+    if (aid) {
+      const arr = feedbacksByAgentId.get(aid) ?? [];
+      arr.push(fb);
+      feedbacksByAgentId.set(aid, arr);
+    }
+  }
+  const validationRequestsByAgentId = new Map<string, any[]>();
+  for (const r of reqItems) {
+    const aid = typeof r?.agent?.id === 'string' ? r.agent.id.trim() : '';
+    if (aid) {
+      const arr = validationRequestsByAgentId.get(aid) ?? [];
+      arr.push(r);
+      validationRequestsByAgentId.set(aid, arr);
+    }
+  }
+  const validationResponsesByAgentId = new Map<string, any[]>();
+  for (const r of resItems) {
+    const aid = typeof r?.agent?.id === 'string' ? r.agent.id.trim() : '';
+    if (aid) {
+      const arr = validationResponsesByAgentId.get(aid) ?? [];
+      arr.push(r);
+      validationResponsesByAgentId.set(aid, arr);
+    }
+  }
+  const associationsByAccountId = new Map<string, any[]>();
+  for (const a of assocItems) {
+    const init = String(a?.initiatorAccount?.id ?? '').trim().toLowerCase();
+    const appr = String(a?.approverAccount?.id ?? '').trim().toLowerCase();
+    if (init) {
+      const arr = associationsByAccountId.get(init) ?? [];
+      arr.push(a);
+      associationsByAccountId.set(init, arr);
+    }
+    if (appr && appr !== init) {
+      const arr = associationsByAccountId.get(appr) ?? [];
+      arr.push(a);
+      associationsByAccountId.set(appr, arr);
+    }
+  }
+  return { feedbacksByAgentId, validationRequestsByAgentId, validationResponsesByAgentId, associationsByAccountId };
+}
+
+async function syncFeedbacksForAgent(
+  endpoint: { url: string; chainId: number; name: string },
+  agentId: string,
+  preloaded?: BulkSubgraphData,
+  agentIriByDidIdentity?: Map<string, string>,
+): Promise<void> {
+  const items = preloaded
+    ? (preloaded.feedbacksByAgentId.get(agentId) ?? [])
+    : await fetchFeedbacksByAgentId(endpoint.url, agentId, { optional: true }).catch(() => []);
+  await clearSubgraphSectionForAgent({ chainId: endpoint.chainId, section: 'feedbacks', agentId });
+  const iriMap =
+    agentIriByDidIdentity ?? (await listAgentIriByDidIdentity(endpoint.chainId).catch(() => new Map<string, string>()));
+  const { turtle } = emitFeedbacksTurtle(endpoint.chainId, items, -1n, iriMap);
+  if (turtle.trim())
+    await ingestSubgraphTurtleToGraphdb({
+      chainId: endpoint.chainId,
+      section: 'feedbacks',
+      turtle,
+      resetContext: false,
+      skipAssertionCountMaterialization: true,
+    });
+}
+
+async function syncValidationsForAgent(
+  endpoint: { url: string; chainId: number; name: string },
+  agentId: string,
+  preloaded?: BulkSubgraphData,
+  agentIriByDidIdentity?: Map<string, string>,
+): Promise<void> {
+  const [reqItems, resItems] = preloaded
+    ? [
+        preloaded.validationRequestsByAgentId.get(agentId) ?? [],
+        preloaded.validationResponsesByAgentId.get(agentId) ?? [],
+      ]
+    : await Promise.all([
+        fetchValidationRequestsByAgentId(endpoint.url, agentId, { optional: true }).catch(() => []),
+        fetchValidationResponsesByAgentId(endpoint.url, agentId, { optional: true }).catch(() => []),
+      ]);
+  await clearSubgraphSectionForAgent({ chainId: endpoint.chainId, section: 'validation-requests', agentId });
+  await clearSubgraphSectionForAgent({ chainId: endpoint.chainId, section: 'validation-responses', agentId });
+  const { turtle: reqTurtle } = emitValidationRequestsTurtle(endpoint.chainId, reqItems, -1n);
+  const iriMap =
+    agentIriByDidIdentity ?? (await listAgentIriByDidIdentity(endpoint.chainId).catch(() => new Map<string, string>()));
+  const { turtle: resTurtle } = emitValidationResponsesTurtle(endpoint.chainId, resItems, -1n, iriMap);
+  if (reqTurtle.trim())
+    await ingestSubgraphTurtleToGraphdb({
+      chainId: endpoint.chainId,
+      section: 'validation-requests',
+      turtle: reqTurtle,
+      resetContext: false,
+    });
+  if (resTurtle.trim())
+    await ingestSubgraphTurtleToGraphdb({
+      chainId: endpoint.chainId,
+      section: 'validation-responses',
+      turtle: resTurtle,
+      resetContext: false,
+      skipAssertionCountMaterialization: true,
+    });
+}
+
+async function syncAssociationsForAgent(
+  endpoint: { url: string; chainId: number; name: string },
+  agentId: string,
+  preloaded?: BulkSubgraphData,
+  accountIrisFromCaller?: string[],
+): Promise<void> {
+  const accountIris =
+    accountIrisFromCaller ?? (await listAccountsForAgent(endpoint.chainId, agentId).catch(() => []));
+  if (!accountIris.length) return;
+  const accountIds = accountIris
+    .map((iri) => {
+      try {
+        const parts = new URL(iri).pathname.split('/').filter(Boolean);
+        const idx = parts.indexOf('account');
+        if (idx >= 0 && parts[idx + 2]) return String(parts[idx + 2]).toLowerCase();
+      } catch {}
+      return null;
+    })
+    .filter((x): x is string => x != null && /^0x[0-9a-f]{40}$/.test(x));
+  const accountIdSet = new Set(accountIds);
+  let items: any[];
+  if (preloaded) {
+    const seen = new Set<string>();
+    items = [];
+    for (const accId of accountIds) {
+      const list = preloaded.associationsByAccountId.get(accId) ?? [];
+      for (const a of list) {
+        const id = a?.id;
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          items.push(a);
+        }
+      }
+    }
+  } else {
+    const allItems = await fetchAllFromSubgraph(endpoint.url, ASSOCIATIONS_QUERY, 'associations', {
+      optional: true,
+      first: 2000,
+      maxSkip: 20_000,
+    }).catch(() => []);
+    items = allItems.filter(
+      (a: any) =>
+        accountIdSet.has(String(a?.initiatorAccount?.id ?? '').trim().toLowerCase()) ||
+        accountIdSet.has(String(a?.approverAccount?.id ?? '').trim().toLowerCase()),
+    );
+  }
+  await clearSubgraphSectionForAgent({ chainId: endpoint.chainId, section: 'associations', agentId, accountIris });
+  const { turtle } = emitAssociationsTurtle(endpoint.chainId, items, -1n);
+  if (turtle.trim()) await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'associations', turtle, resetContext: false });
+}
+
+/** Batch sync feedbacks for all agents: one clear, one emit (concat), one ingest. */
+async function syncFeedbacksForBatch(
+  endpoint: { url: string; chainId: number; name: string },
+  agentIds: string[],
+  bulk: BulkSubgraphData,
+  agentIriByDidIdentity: Map<string, string>,
+): Promise<void> {
+  if (!agentIds.length) return;
+  await clearSubgraphSectionForAgentBatch({ chainId: endpoint.chainId, section: 'feedbacks', agentIds });
+  const turtles: string[] = [];
+  for (const agentId of agentIds) {
+    const items = bulk.feedbacksByAgentId.get(agentId) ?? [];
+    const { turtle } = emitFeedbacksTurtle(endpoint.chainId, items, -1n, agentIriByDidIdentity);
+    if (turtle.trim()) turtles.push(turtle);
+  }
+  const combined = turtles.join('\n\n');
+  if (combined.trim())
+    await ingestSubgraphTurtleToGraphdb({
+      chainId: endpoint.chainId,
+      section: 'feedbacks',
+      turtle: combined,
+      resetContext: false,
+      skipAssertionCountMaterialization: true,
+    });
+}
+
+/** Batch sync validations for all agents: batch clear requests+responses, batch emit, batch ingest. */
+async function syncValidationsForBatch(
+  endpoint: { url: string; chainId: number; name: string },
+  agentIds: string[],
+  bulk: BulkSubgraphData,
+  agentIriByDidIdentity: Map<string, string>,
+): Promise<void> {
+  if (!agentIds.length) return;
+  await clearSubgraphSectionForAgentBatch({ chainId: endpoint.chainId, section: 'validation-requests', agentIds });
+  await clearSubgraphSectionForAgentBatch({ chainId: endpoint.chainId, section: 'validation-responses', agentIds });
+  const reqTurtles: string[] = [];
+  const resTurtles: string[] = [];
+  for (const agentId of agentIds) {
+    const reqItems = bulk.validationRequestsByAgentId.get(agentId) ?? [];
+    const resItems = bulk.validationResponsesByAgentId.get(agentId) ?? [];
+    const { turtle: reqTurtle } = emitValidationRequestsTurtle(endpoint.chainId, reqItems, -1n);
+    const { turtle: resTurtle } = emitValidationResponsesTurtle(endpoint.chainId, resItems, -1n, agentIriByDidIdentity);
+    if (reqTurtle.trim()) reqTurtles.push(reqTurtle);
+    if (resTurtle.trim()) resTurtles.push(resTurtle);
+  }
+  if (reqTurtles.join('').trim())
+    await ingestSubgraphTurtleToGraphdb({
+      chainId: endpoint.chainId,
+      section: 'validation-requests',
+      turtle: reqTurtles.join('\n\n'),
+      resetContext: false,
+    });
+  if (resTurtles.join('').trim())
+    await ingestSubgraphTurtleToGraphdb({
+      chainId: endpoint.chainId,
+      section: 'validation-responses',
+      turtle: resTurtles.join('\n\n'),
+      resetContext: false,
+      skipAssertionCountMaterialization: true,
+    });
+}
+
+/** Batch sync associations for all agents: batch clear by account IRIs, batch emit, batch ingest. */
+async function syncAssociationsForBatch(
+  endpoint: { url: string; chainId: number; name: string },
+  agentIds: string[],
+  bulk: BulkSubgraphData,
+  accountIrisByAgentId: Map<string, string[]>,
+): Promise<void> {
+  const allAccountIris = Array.from(
+    new Set(
+      [...accountIrisByAgentId.values()].flat().filter((iri) => iri.startsWith('http')),
+    ),
+  );
+  if (!allAccountIris.length) return;
+  await clearSubgraphSectionForAgentBatch({
+    chainId: endpoint.chainId,
+    section: 'associations',
+    agentIds: [],
+    accountIris: allAccountIris,
+  });
+  const turtles: string[] = [];
+  for (const agentId of agentIds) {
+    const accountIris = accountIrisByAgentId.get(agentId) ?? [];
+    if (!accountIris.length) continue;
+    const accountIds = accountIris
+      .map((iri) => {
+        try {
+          const parts = new URL(iri).pathname.split('/').filter(Boolean);
+          const idx = parts.indexOf('account');
+          if (idx >= 0 && parts[idx + 2]) return String(parts[idx + 2]).toLowerCase();
+        } catch {}
+        return null;
+      })
+      .filter((x): x is string => x != null && /^0x[0-9a-f]{40}$/.test(x));
+    const seen = new Set<string>();
+    const items: any[] = [];
+    for (const accId of accountIds) {
+      for (const a of bulk.associationsByAccountId.get(accId) ?? []) {
+        if (a?.id && !seen.has(a.id)) {
+          seen.add(a.id);
+          items.push(a);
+        }
+      }
+    }
+    const { turtle } = emitAssociationsTurtle(endpoint.chainId, items, -1n);
+    if (turtle.trim()) turtles.push(turtle);
+  }
+  const combined = turtles.join('\n\n');
+  if (combined.trim())
+    await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'associations', turtle: combined, resetContext: false });
+}
+
 async function runSync(command: SyncCommand, resetContext: boolean = false) {
   // Global one-shot commands (not chain/subgraph specific)
+  if (command === 'subgraph-ping') {
+    const chainIdRaw = process.env.SYNC_CHAIN_ID?.trim() || '1';
+    const chainId = Number(chainIdRaw);
+    const endpoint = SUBGRAPH_ENDPOINTS.find((ep) => ep.chainId === chainId);
+    if (!endpoint?.url) {
+      console.error('[sync] subgraph-ping: no subgraph url for chainId', chainId, '- set SYNC_CHAIN_ID and env vars');
+      process.exitCode = 1;
+      return;
+    }
+    console.info('[sync] subgraph-ping', { chainId, name: endpoint.name, url: endpoint.url.replace(/\/[^/]*$/, '/...') });
+    try {
+      const { ok, status, body } = await pingSubgraph(endpoint.url);
+      if (ok) {
+        console.info('[sync] subgraph-ping OK', { status, response: JSON.stringify(body, null, 2).slice(0, 500) });
+      } else {
+        console.error('[sync] subgraph-ping FAILED', { status, response: JSON.stringify(body, null, 2) });
+        process.exitCode = 1;
+      }
+    } catch (e: any) {
+      console.error('[sync] subgraph-ping error:', e?.message ?? e);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
   if (command === 'oasf') {
     await ingestOasfToGraphdb({ resetContext });
     return;
@@ -879,6 +1247,209 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
       chainIdsCsv: process.env.SYNC_CHAIN_ID || '1,11155111',
       resetContext,
     });
+    return;
+  }
+
+  if (command === 'reset-chain-agents') {
+    const chainIdRaw = process.env.SYNC_CHAIN_ID?.trim();
+    if (!chainIdRaw) {
+      console.error('[sync] reset-chain-agents requires SYNC_CHAIN_ID (single chain, e.g. SYNC_CHAIN_ID=59144)');
+      process.exitCode = 1;
+      return;
+    }
+    const chainId = Number(chainIdRaw);
+    if (!Number.isFinite(chainId)) {
+      console.error('[sync] reset-chain-agents: SYNC_CHAIN_ID must be a number', { value: chainIdRaw });
+      process.exitCode = 1;
+      return;
+    }
+    const endpoint = SUBGRAPH_ENDPOINTS.find((ep) => ep.chainId === chainId);
+    if (!endpoint) {
+      console.error(
+        `[sync] reset-chain-agents: no subgraph endpoint for chainId=${chainId}. Configure subgraph/RPC for that chain.`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.info('[sync] [reset-chain-agents] start', { chainId, name: endpoint.name });
+    await ingestSubgraphTurtleToGraphdb({ chainId, section: 'agents', turtle: '', resetContext: true });
+    await clearCheckpointsForChain(chainId);
+    await materializeAssertionSummariesForChain(chainId, {});
+    await runTrustIndexForChains({ chainIdsCsv: String(chainId), resetContext: true });
+    await syncTrustLedgerToGraphdbForChain(chainId, { resetContext: true });
+    console.info('[sync] [reset-chain-agents] done', { chainId });
+    return;
+  }
+
+  // agent-pipeline: run incremental agent sync (next batch from subgraph), then process only that batch.
+  // Repeated runs fetch the next batch (default 5000). Use --limit=N to change batch size (e.g. --limit=25000 for one big run).
+  if (command === 'agent-pipeline') {
+    const chainIdRaw = process.env.SYNC_CHAIN_ID?.trim();
+    if (!chainIdRaw) {
+      console.error('[sync] agent-pipeline requires SYNC_CHAIN_ID (single chain, e.g. SYNC_CHAIN_ID=59144)');
+      process.exitCode = 1;
+      return;
+    }
+    const chainId = Number(chainIdRaw);
+    if (!Number.isFinite(chainId)) {
+      console.error('[sync] agent-pipeline: SYNC_CHAIN_ID must be a number', { value: chainIdRaw });
+      process.exitCode = 1;
+      return;
+    }
+    const endpoint = SUBGRAPH_ENDPOINTS.find((ep) => ep.chainId === chainId);
+    if (!endpoint) {
+      console.error(`[sync] agent-pipeline: no subgraph endpoint for chainId=${chainId}. Configure subgraph/RPC for that chain.`);
+      process.exitCode = 1;
+      return;
+    }
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    try {
+      await ensureRepositoryExistsOrThrow(baseUrl, repository, auth);
+    } catch (e: any) {
+      console.error(
+        '[sync] agent-pipeline: GraphDB is not reachable. The pipeline requires GraphDB to store agents, feedbacks, validations, assertion summaries, and trust data.\n' +
+          `  Ensure GraphDB is running and GRAPHDB_BASE_URL (${baseUrl}) / GRAPHDB_REPOSITORY (${repository}) are correct.\n` +
+          `  Error: ${String(e?.message ?? e)}`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const agentIdsArg = process.argv.find((a) => a.startsWith('--agent-ids='));
+    const limitArg = process.argv.find((a) => a.startsWith('--limit='));
+    const ensureAgentArg = process.argv.includes('--ensure-agent');
+    let agentIds: string[];
+    if (agentIdsArg) {
+      const csv = String(agentIdsArg.split('=')[1] ?? '').trim();
+      agentIds = csv ? csv.split(',').map((s) => s.trim()).filter((s) => /^\d+$/.test(s)) : [];
+      if (!agentIds.length) {
+        console.error('[sync] agent-pipeline: --agent-ids= must be comma-separated numeric ids');
+        process.exitCode = 1;
+        return;
+      }
+    } else {
+      // Always run incremental agent sync first; then process only the batch just ingested.
+      // Repeated runs fetch the next batch (e.g. next 5000) and process only that batch.
+      const ingestedIds = await syncAgents(endpoint, false);
+      if (!ingestedIds.length) {
+        console.info('[sync] [agent-pipeline] no new agents from subgraph (caught up). Run again later for more.');
+        return;
+      }
+      agentIds = ingestedIds.sort((a, b) => Number(a) - Number(b));
+      console.info('[sync] [agent-pipeline] will process batch just synced', { chainId, agentCount: agentIds.length });
+      const cooldownMs = Math.max(0, Number(process.env.SUBGRAPH_COOLDOWN_AFTER_AGENTS_MS) || 3000);
+      if (cooldownMs) {
+        console.info('[sync] [agent-pipeline] cooldown before bulk load', { cooldownMs });
+        await sleep(cooldownMs);
+      }
+    }
+    const bulk = agentIdsArg ? undefined : await loadBulkSubgraphData(endpoint);
+    const useBatch = bulk != null;
+    const agentIriByDidIdentity =
+      useBatch ? await listAgentIriByDidIdentity(chainId).catch(() => new Map<string, string>()) : undefined;
+    const timing =
+      process.env.SYNC_TIMING === '1' ||
+      process.env.SYNC_TIMING === 'true' ||
+      process.argv.some((a) => a === '--timing');
+    const fullTiming = timing;
+    const logTotalMs = process.env.SYNC_LOG_AGENT_MS === '1' || fullTiming;
+    const skipValidations =
+      process.env.SYNC_SKIP_VALIDATIONS === '1' || process.env.SYNC_SKIP_VALIDATIONS === 'true';
+    const skipAssociations =
+      process.env.SYNC_SKIP_ASSOCIATIONS === '1' || process.env.SYNC_SKIP_ASSOCIATIONS === 'true';
+    console.info('[sync] [agent-pipeline] start', {
+      chainId,
+      name: endpoint.name,
+      agentCount: agentIds.length,
+      batchMode: useBatch,
+      timing: fullTiming ? 'full (per-step ms)' : logTotalMs ? 'totalMs per agent' : 'off (use --timing for breakdown)',
+      skipValidations,
+      skipAssociations,
+    });
+
+    if (useBatch) {
+      const t0 = Date.now();
+      const accountIrisByAgentId = await listAccountsForAgentBatch(chainId, agentIds);
+      const allAccounts = Array.from(new Set([...accountIrisByAgentId.values()].flat()));
+      if (allAccounts.length) await syncAccountTypesForChain(chainId, { accounts: allAccounts });
+      const tAcct = fullTiming ? Date.now() : 0;
+      await syncAgentCardsForAgentIds(chainId, agentIds, {});
+      const tCards = fullTiming ? Date.now() : 0;
+      await syncFeedbacksForBatch(endpoint, agentIds, bulk!, agentIriByDidIdentity!);
+      const tFb = fullTiming ? Date.now() : 0;
+      if (!skipValidations) await syncValidationsForBatch(endpoint, agentIds, bulk!, agentIriByDidIdentity!);
+      const tVal = fullTiming ? Date.now() : 0;
+      if (!skipAssociations) await syncAssociationsForBatch(endpoint, agentIds, bulk!, accountIrisByAgentId);
+      const tAssoc = fullTiming ? Date.now() : 0;
+      await materializeAssertionSummariesForChain(chainId, { agentIds });
+      const tSum = fullTiming ? Date.now() : 0;
+      await runTrustIndexForChains({ chainIdsCsv: String(chainId), resetContext: false, agentIds });
+      const tTrustIndex = fullTiming ? Date.now() : 0;
+      await syncTrustLedgerToGraphdbForChain(chainId, { agentIds });
+      const tEnd = Date.now();
+      if (fullTiming) {
+        console.info('[sync] [agent-pipeline] batch complete', {
+          agentCount: agentIds.length,
+          ms: tEnd - t0,
+          accounts: tAcct - t0,
+          cards: tCards - tAcct,
+          feedbacks: tFb - tCards,
+          validations: tVal - tFb,
+          associations: tAssoc - tVal,
+          summaries: tSum - tAssoc,
+          trustIndex: tTrustIndex - tSum,
+          trustLedger: tEnd - tTrustIndex,
+        });
+      }
+    } else {
+    for (let i = 0; i < agentIds.length; i++) {
+      const agentId = agentIds[i];
+      const t0 = Date.now();
+      if (agentIdsArg || ensureAgentArg) await syncSingleAgent(endpoint, agentId);
+      const tAccounts = fullTiming ? Date.now() : 0;
+      const accounts = await listAccountsForAgent(chainId, agentId);
+      if (accounts.length) await syncAccountTypesForChain(chainId, { accounts });
+      const tCards = fullTiming ? Date.now() : 0;
+      await syncAgentCardsForAgentIds(chainId, [agentId], {});
+      const tFb = fullTiming ? Date.now() : 0;
+      await syncFeedbacksForAgent(endpoint, agentId, bulk, agentIriByDidIdentity);
+      if (!skipValidations) await syncValidationsForAgent(endpoint, agentId, bulk, agentIriByDidIdentity);
+      const tVal = fullTiming ? Date.now() : 0;
+      if (!skipAssociations) await syncAssociationsForAgent(endpoint, agentId, bulk, accounts);
+      const tAssoc = fullTiming ? Date.now() : 0;
+      const tSum = fullTiming ? Date.now() : 0;
+      await materializeAssertionSummariesForChain(chainId, { agentIds: [agentId] });
+      const tTrust = fullTiming ? Date.now() : 0;
+      await runTrustIndexForChains({ chainIdsCsv: String(chainId), resetContext: false, agentIds: [agentId] });
+      const tEnd = Date.now();
+      const totalMs = tEnd - t0;
+      if (fullTiming) {
+        console.info('[sync] [agent-pipeline] agent', {
+          index: i + 1,
+          total: agentIds.length,
+          agentId,
+          ms: totalMs,
+          accounts: tAccounts - t0,
+          cards: tCards - tAccounts,
+          feedbacks: tFb - tCards,
+          validations: tVal - tFb,
+          associations: tAssoc - tVal,
+          summaries: tSum - tAssoc,
+          trustIndex: tEnd - tTrust,
+        });
+      } else if (logTotalMs) {
+        console.info('[sync] [agent-pipeline] agent', {
+          index: i + 1,
+          total: agentIds.length,
+          agentId,
+          ms: totalMs,
+        });
+      } else if ((i + 1) % 100 === 0 || i === 0) {
+        console.info('[sync] [agent-pipeline] agent', { index: i + 1, total: agentIds.length, agentId });
+      }
+    }
+      await syncTrustLedgerToGraphdbForChain(chainId, { agentIds });
+    }
+    console.info('[sync] [agent-pipeline] done', { chainId, agentCount: agentIds.length });
     return;
   }
 
@@ -969,40 +1540,41 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
   console.info(`[sync] processing chainId(s): ${chainIdFilters.join(', ')} (${endpoints.map((e) => e.name).join(', ')})`);
 
   if (command === 'erc8004-events') {
-    // Long-running process: watch on-chain events and trigger targeted agent syncs.
+    // Long-running process: watch on-chain events. Agent sync is off by default; set SYNC_ERC8004_EVENTS_SYNC_AGENTS=1 to enable.
+    const eventsSyncAgents = process.env.SYNC_ERC8004_EVENTS_SYNC_AGENTS === '1' || process.env.SYNC_ERC8004_EVENTS_SYNC_AGENTS === 'true';
     await watchErc8004RegistryEventsMultiChain({
       endpoints,
-      onAgentIds: async ({ chainId, agentIds }) => {
-        const ep = endpoints.find((e) => e.chainId === chainId);
-        if (!ep) return;
-        const uniq = Array.from(new Set((agentIds || []).map((x) => String(x || '').trim()).filter(Boolean)));
-        if (!uniq.length) return;
-        console.info('[sync] [erc8004-events] processing agentIds', { chainId, count: uniq.length, agentIds: uniq.slice(0, 50) });
-        // Sequential-by-default to avoid stampeding subgraph/GraphDB; batches are already debounced.
-        for (const id of uniq) {
-          try {
-            const synced = await syncErc8004AgentById(ep, id);
-
-            // Derived work (targeted):
-            await syncAgentCardsForAgentIds(chainId, [id]).catch(() => {});
-            await syncMcpForAgentIds(chainId, [id]).catch(() => {});
-
-            const acctTargets = [synced.ownerAddress, synced.agentWallet].filter((x): x is string => Boolean(x));
-            if (acctTargets.length) {
-              await syncAccountTypesForChain(chainId, { accounts: acctTargets }).catch(() => {});
+      onAgentIds: eventsSyncAgents
+        ? async ({ chainId, agentIds }) => {
+            const ep = endpoints.find((e) => e.chainId === chainId);
+            if (!ep) return;
+            const uniq = Array.from(new Set((agentIds || []).map((x) => String(x || '').trim()).filter(Boolean)));
+            if (!uniq.length) return;
+            console.info('[sync] [erc8004-events] processing agentIds', { chainId, count: uniq.length, agentIds: uniq.slice(0, 50) });
+            for (const id of uniq) {
+              try {
+                const synced = await syncErc8004AgentById(ep, id);
+                await syncAgentCardsForAgentIds(chainId, [id]).catch(() => {});
+                await syncMcpForAgentIds(chainId, [id]).catch(() => {});
+                const acctTargets = [synced.ownerAddress, synced.agentWallet].filter((x): x is string => Boolean(x));
+                if (acctTargets.length) {
+                  await syncAccountTypesForChain(chainId, { accounts: acctTargets }).catch(() => {});
+                }
+                await syncTrustLedgerToGraphdbForChain(chainId, { agentIds: [id] }).catch(() => {});
+              } catch (e: any) {
+                console.warn('[sync] [erc8004-events] agent sync failed (non-fatal)', {
+                  chainId,
+                  agentId: id,
+                  error: String(e?.message || e || ''),
+                });
+              }
             }
-
-            await syncTrustLedgerToGraphdbForChain(chainId, { agentIds: [id] }).catch(() => {});
-          } catch (e: any) {
-            console.warn('[sync] [erc8004-events] agent sync failed (non-fatal)', {
-              chainId,
-              agentId: id,
-              error: String(e?.message || e || ''),
-            });
           }
-        }
-      },
+        : undefined,
     });
+    if (!eventsSyncAgents) {
+      console.info('[sync] [erc8004-events] agent sync disabled by default. Set SYNC_ERC8004_EVENTS_SYNC_AGENTS=1 to enable.');
+    }
     return;
   }
 
@@ -1079,10 +1651,16 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
           await syncAccountTypesForChain(endpoint.chainId, { limit, concurrency });
           break;
         }
-        case 'all':
-          await syncAgents(endpoint, resetContext);
-          await syncErc8122(endpoint, resetContext);
-          await syncErc8122Registries(endpoint, resetContext);
+        case 'all': {
+          // Agent sync (8004 + 8122) is off by default in watch/all. Set SYNC_AUTO_SYNC_AGENTS=1 to include.
+          const autoSyncAgents = process.env.SYNC_AUTO_SYNC_AGENTS === '1' || process.env.SYNC_AUTO_SYNC_AGENTS === 'true';
+          if (autoSyncAgents) {
+            await syncAgents(endpoint, resetContext);
+            await syncErc8122(endpoint, resetContext);
+            await syncErc8122Registries(endpoint, resetContext);
+          } else {
+            console.info('[sync] [all] skipping agents/erc8122 (default). Set SYNC_AUTO_SYNC_AGENTS=1 to include.');
+          }
           await syncFeedbacks(endpoint, resetContext);
           await syncFeedbackRevocations(endpoint, resetContext);
           await syncFeedbackResponses(endpoint, resetContext);
@@ -1096,6 +1674,7 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
           await syncAccountTypesForChain(endpoint.chainId, {});
           await syncTrustLedgerToGraphdbForChain(endpoint.chainId, { resetContext });
           break;
+        }
         default:
           console.error(`[sync] unknown command: ${command}`);
           process.exitCode = 1;

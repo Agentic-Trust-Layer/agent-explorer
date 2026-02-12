@@ -52,7 +52,7 @@ function normalizeHexFromAccountId(value: unknown): string | null {
   return /^0x[0-9a-f]{40}$/.test(hex) ? hex : null;
 }
 
-function extractAgentIdFromFeedbackRow(fb: any): string | null {
+export function extractAgentIdFromFeedbackRow(fb: any): string | null {
   // Preferred: agent relation id (when subgraph rows are well-formed)
   const rel = typeof fb?.agent?.id === 'string' ? fb.agent.id.trim() : '';
   if (rel) return rel;

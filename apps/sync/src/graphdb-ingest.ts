@@ -270,11 +270,212 @@ WHERE  {
   console.info('[sync] cleared subgraph section', { context, section });
 }
 
+/** Clear one agent's data for a section (for per-agent pipeline). */
+export async function clearSubgraphSectionForAgent(opts: {
+  chainId: number;
+  section: 'feedbacks' | 'validation-requests' | 'validation-responses' | 'associations';
+  agentId: string;
+  accountIris?: string[];
+}): Promise<void> {
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  await ensureRepositoryExistsOrThrow(baseUrl, repository, auth);
+  const context = `https://www.agentictrust.io/graph/data/subgraph/${opts.chainId}`;
+  const agentIdEsc = String(opts.agentId ?? '').trim().replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  if (!agentIdEsc || !/^\d+$/.test(opts.agentId ?? '')) return;
+
+  const section = opts.section;
+  let sparqlUpdate: string | null = null;
+
+  if (section === 'feedbacks') {
+    sparqlUpdate = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?agent core:hasReputationAssertion ?s . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId "${agentIdEsc}" . ?agent core:hasReputationAssertion ?s . ?s a erc8004:Feedback . } ;
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId "${agentIdEsc}" . ?agent core:hasReputationAssertion ?s . ?s a erc8004:Feedback . ?s ?p ?o . } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "feedbacks" ; erc8004:recordsEntityIri ?s .
+         ?agent core:hasIdentity ?id . ?id erc8004:agentId "${agentIdEsc}" . ?agent core:hasReputationAssertion ?s . ?s a erc8004:Feedback . ?rec ?p ?o . } ;
+`;
+  } else if (section === 'validation-requests') {
+    sparqlUpdate = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { ?s a erc8004:ValidationRequestSituation . ?s core:agentId "${agentIdEsc}" . ?s ?p ?o . } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "validation-requests" ; erc8004:recordsEntityIri ?s . ?s a erc8004:ValidationRequestSituation ; core:agentId "${agentIdEsc}" . ?rec ?p ?o . } ;
+`;
+  } else if (section === 'validation-responses') {
+    sparqlUpdate = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?agent core:hasVerificationAssertion ?s . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId "${agentIdEsc}" . ?agent core:hasVerificationAssertion ?s . ?s a erc8004:ValidationResponse . } ;
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId "${agentIdEsc}" . ?agent core:hasVerificationAssertion ?s . ?s a erc8004:ValidationResponse . ?s ?p ?o . } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "validation-responses" ; erc8004:recordsEntityIri ?s .
+         ?agent core:hasIdentity ?id . ?id erc8004:agentId "${agentIdEsc}" . ?agent core:hasVerificationAssertion ?s . ?s a erc8004:ValidationResponse . ?rec ?p ?o . } ;
+`;
+  } else if (section === 'associations' && opts.accountIris?.length) {
+    const values = opts.accountIris
+      .map((iri) => iri.startsWith('<') && iri.endsWith('>') ? iri : `<${iri}>`)
+      .join(' ');
+    sparqlUpdate = `
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+WITH <${context}>
+DELETE { ?acct erc8092:hasAssociatedAccounts ?s . }
+WHERE  { VALUES ?acct { ${values} } ?acct erc8092:hasAssociatedAccounts ?s . ?s a erc8092:AssociatedAccounts8092 . } ;
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { VALUES ?acct { ${values} } ?acct erc8092:hasAssociatedAccounts ?s . ?s a erc8092:AssociatedAccounts8092 . ?s ?p ?o . } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "associations" ; erc8004:recordsEntityIri ?s .
+         VALUES ?acct { ${values} } ?acct erc8092:hasAssociatedAccounts ?s . ?s a erc8092:AssociatedAccounts8092 . ?rec ?p ?o . } ;
+`;
+  }
+
+  if (!sparqlUpdate) return;
+  const clearStart = Date.now();
+  await updateGraphdb(baseUrl, repository, auth, sparqlUpdate);
+  const clearMs = Date.now() - clearStart;
+  console.info('[sync] cleared subgraph section for agent', {
+    context,
+    section,
+    agentId: opts.agentId,
+    durationMs: clearMs,
+  });
+}
+
+/** Max agents/accounts per SPARQL update to avoid timeouts and "other side closed" on large batches. */
+const BATCH_CLEAR_CHUNK_SIZE = 400;
+
+/** Clear section data for multiple agents in one or more SPARQL updates (chunked). For associations, pass all account IRIs. */
+export async function clearSubgraphSectionForAgentBatch(opts: {
+  chainId: number;
+  section: 'feedbacks' | 'validation-requests' | 'validation-responses' | 'associations';
+  agentIds: string[];
+  accountIris?: string[];
+}): Promise<void> {
+  const { chainId, section, agentIds, accountIris } = opts;
+  const ids = agentIds.filter((id) => /^\d+$/.test(String(id).trim()));
+  if (!ids.length && section !== 'associations') return;
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  await ensureRepositoryExistsOrThrow(baseUrl, repository, auth);
+  const context = `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
+  const clearStart = Date.now();
+
+  const buildSparql = (chunkIds: string[]) => {
+    const valuesAgentIds = chunkIds.map((id) => `("${String(id).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}")`).join(' ');
+    if (section === 'feedbacks') {
+      return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?agent core:hasReputationAssertion ?s . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId ?agentId . ?agent core:hasReputationAssertion ?s . ?s a erc8004:Feedback . VALUES (?agentId) { ${valuesAgentIds} } } ;
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId ?agentId . ?agent core:hasReputationAssertion ?s . ?s a erc8004:Feedback . ?s ?p ?o . VALUES (?agentId) { ${valuesAgentIds} } } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "feedbacks" ; erc8004:recordsEntityIri ?s .
+         ?agent core:hasIdentity ?id . ?id erc8004:agentId ?agentId . ?agent core:hasReputationAssertion ?s . ?s a erc8004:Feedback . ?rec ?p ?o . VALUES (?agentId) { ${valuesAgentIds} } } ;
+`;
+    }
+    if (section === 'validation-requests') {
+      return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { ?s a erc8004:ValidationRequestSituation . ?s core:agentId ?agentId . ?s ?p ?o . VALUES (?agentId) { ${valuesAgentIds} } } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "validation-requests" ; erc8004:recordsEntityIri ?s . ?s a erc8004:ValidationRequestSituation ; core:agentId ?agentId . ?rec ?p ?o . VALUES (?agentId) { ${valuesAgentIds} } } ;
+`;
+    }
+    if (section === 'validation-responses') {
+      return `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${context}>
+DELETE { ?agent core:hasVerificationAssertion ?s . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId ?agentId . ?agent core:hasVerificationAssertion ?s . ?s a erc8004:ValidationResponse . VALUES (?agentId) { ${valuesAgentIds} } } ;
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { ?agent core:hasIdentity ?id . ?id erc8004:agentId ?agentId . ?agent core:hasVerificationAssertion ?s . ?s a erc8004:ValidationResponse . ?s ?p ?o . VALUES (?agentId) { ${valuesAgentIds} } } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "validation-responses" ; erc8004:recordsEntityIri ?s .
+         ?agent core:hasIdentity ?id . ?id erc8004:agentId ?agentId . ?agent core:hasVerificationAssertion ?s . ?s a erc8004:ValidationResponse . ?rec ?p ?o . VALUES (?agentId) { ${valuesAgentIds} } } ;
+`;
+    }
+    return null;
+  };
+
+  const buildAssocSparql = (chunkIris: string[]) => {
+    const values = chunkIris
+      .map((iri) => (iri.startsWith('<') && iri.endsWith('>') ? iri : `<${iri}>`))
+      .join(' ');
+    return `
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX erc8092: <https://agentictrust.io/ontology/erc8092#>
+WITH <${context}>
+DELETE { ?acct erc8092:hasAssociatedAccounts ?s . }
+WHERE  { VALUES ?acct { ${values} } ?acct erc8092:hasAssociatedAccounts ?s . ?s a erc8092:AssociatedAccounts8092 . } ;
+WITH <${context}>
+DELETE { ?s ?p ?o . }
+WHERE  { VALUES ?acct { ${values} } ?acct erc8092:hasAssociatedAccounts ?s . ?s a erc8092:AssociatedAccounts8092 . ?s ?p ?o . } ;
+WITH <${context}>
+DELETE { ?rec ?p ?o . }
+WHERE  { ?rec a erc8004:SubgraphIngestRecord ; erc8004:subgraphEntityKind "associations" ; erc8004:recordsEntityIri ?s .
+         VALUES ?acct { ${values} } ?acct erc8092:hasAssociatedAccounts ?s . ?s a erc8092:AssociatedAccounts8092 . ?rec ?p ?o . } ;
+`;
+  };
+
+  if (section === 'associations' && accountIris?.length) {
+    for (let i = 0; i < accountIris.length; i += BATCH_CLEAR_CHUNK_SIZE) {
+      const chunk = accountIris.slice(i, i + BATCH_CLEAR_CHUNK_SIZE);
+      const sparql = buildAssocSparql(chunk);
+      await updateGraphdb(baseUrl, repository, auth, sparql, { timeoutMs: 120_000, retries: 4 });
+    }
+  } else if (ids.length) {
+    for (let i = 0; i < ids.length; i += BATCH_CLEAR_CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + BATCH_CLEAR_CHUNK_SIZE);
+      const sparql = buildSparql(chunk);
+      if (sparql) await updateGraphdb(baseUrl, repository, auth, sparql, { timeoutMs: 120_000, retries: 4 });
+    }
+  }
+
+  const clearMs = Date.now() - clearStart;
+  console.info('[sync] cleared subgraph section (batch)', {
+    context,
+    section,
+    agentCount: ids.length || accountIris?.length || 0,
+    durationMs: clearMs,
+  });
+}
+
 export async function ingestSubgraphTurtleToGraphdb(opts: {
   chainId: number;
   section: string;
   turtle: string;
   resetContext?: boolean;
+  /** When true, skip the post-ingest GROUP BY that materializes assertion counts (avoids GraphDB OOM on per-agent ingest). Caller must run assertion-summaries separately. */
+  skipAssertionCountMaterialization?: boolean;
   upload?: {
     chunkBytes?: number;
     concurrency?: number;
@@ -380,7 +581,11 @@ export async function ingestSubgraphTurtleToGraphdb(opts: {
 
   // Precompute assertion summaries (materialized aggregates for fast kbAgents queries).
   // We recompute after assertion ingests so queries don't need COUNT() over assertions.
-  if (opts.section === 'feedbacks' || opts.section === 'validation-responses') {
+  // Skip when per-agent pipeline: it runs materializeAssertionSummariesForChain per agent; this GROUP BY would run over the whole graph and can OOM.
+  if (
+    !opts.skipAssertionCountMaterialization &&
+    (opts.section === 'feedbacks' || opts.section === 'validation-responses')
+  ) {
     const update = (() => {
       if (opts.section === 'feedbacks') {
         return `

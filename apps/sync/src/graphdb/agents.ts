@@ -48,6 +48,127 @@ function chainContext(chainId: number): string {
   return `https://www.agentictrust.io/graph/data/subgraph/${chainId}`;
 }
 
+/** List agent IDs for a chain (ordered by agentId). Used by agent-pipeline to iterate. */
+export async function listAgentIdsForChain(
+  chainId: number,
+  opts?: { limit?: number },
+): Promise<string[]> {
+  const limit = typeof opts?.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0
+    ? Math.trunc(opts.limit)
+    : 200_000;
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  const ctx = chainContext(chainId);
+  const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+SELECT ?agentId WHERE {
+  GRAPH <${ctx}> {
+    ?agent a core:AIAgent ;
+           core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  erc8004:agentId ?agentId .
+  }
+}
+ORDER BY xsd:integer(?agentId) ASC(STR(?agent))
+LIMIT ${Math.max(1, Math.min(200_000, limit))}
+`;
+  const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const bindings = res?.results?.bindings;
+  if (!Array.isArray(bindings)) return [];
+  return bindings
+    .map((b: any) => (typeof b?.agentId?.value === 'string' ? b.agentId.value.trim() : ''))
+    .filter((id): id is string => id !== '' && /^\d+$/.test(id));
+}
+
+/** List accounts for multiple agents in one query (batch). Returns map agentId -> account IRIs[]. */
+export async function listAccountsForAgentBatch(
+  chainId: number,
+  agentIds: string[],
+): Promise<Map<string, string[]>> {
+  const ids = agentIds
+    .map((id) => String(id ?? '').trim())
+    .filter((id) => /^\d+$/.test(id));
+  if (!ids.length) return new Map();
+  const chunkSize = 200;
+  const result = new Map<string, string[]>();
+  for (let i = 0; i < ids.length; i += chunkSize) {
+    const chunk = ids.slice(i, i + chunkSize);
+    const values = chunk.map((id) => `("${id.replace(/"/g, '\\"')}")`).join(' ');
+    const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+    const ctx = chainContext(chainId);
+    const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+SELECT ?agentId ?account WHERE {
+  GRAPH <${ctx}> {
+    ?agent a core:AIAgent ;
+           core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  erc8004:agentId ?agentId .
+    {
+      ?agent core:hasAgentAccount ?account .
+      ?account a eth:Account .
+    } UNION {
+      ?identity8004 erc8004:hasWalletAccount ?account .
+      ?account a eth:Account .
+    }
+  }
+  VALUES (?agentId) { ${values} }
+}
+`;
+    const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+    const bindings = res?.results?.bindings;
+    if (Array.isArray(bindings)) {
+      for (const b of bindings) {
+        const aid = typeof b?.agentId?.value === 'string' ? b.agentId.value.trim() : '';
+        const acc = typeof b?.account?.value === 'string' ? b.account.value.trim() : '';
+        if (aid && acc && acc.startsWith('http')) {
+          const arr = result.get(aid) ?? [];
+          if (!arr.includes(acc)) arr.push(acc);
+          result.set(aid, arr);
+        }
+      }
+    }
+  }
+  return result;
+}
+
+/** List account IRIs linked to an agent (hasAgentAccount and identity hasWalletAccount). */
+export async function listAccountsForAgent(chainId: number, agentId: string): Promise<string[]> {
+  const aid = String(agentId ?? '').trim();
+  if (!aid || !/^\d+$/.test(aid)) return [];
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  const ctx = chainContext(chainId);
+  const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+SELECT DISTINCT ?account WHERE {
+  GRAPH <${ctx}> {
+    ?agent a core:AIAgent ;
+           core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  erc8004:agentId "${aid}" .
+    {
+      ?agent core:hasAgentAccount ?account .
+      ?account a eth:Account .
+    } UNION {
+      ?identity8004 erc8004:hasWalletAccount ?account .
+      ?account a eth:Account .
+    }
+  }
+}
+`;
+  const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const bindings = res?.results?.bindings;
+  if (!Array.isArray(bindings)) return [];
+  return bindings
+    .map((b: any) => (typeof b?.account?.value === 'string' ? b.account.value.trim() : ''))
+    .filter((iri): iri is string => iri !== '' && iri.startsWith('http'));
+}
+
 export async function getMaxAgentId8004(chainId: number): Promise<number | null> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
   const ctx = chainContext(chainId);
