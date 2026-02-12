@@ -333,6 +333,7 @@ export const graphQLSchemaStringKb = `
     trustLedgerTotalPoints: Int
     trustLedgerBadgeCount: Int
     trustLedgerComputedAt: Int
+    trustLedgerBadges: [TrustLedgerBadgeAward!]!
     atiOverallScore: Int
     atiOverallConfidence: Float
     atiVersion: String
@@ -475,6 +476,13 @@ export const graphQLSchemaStringKb = `
     active: Boolean!
     createdAt: Int!
     updatedAt: Int!
+  }
+
+  type TrustLedgerBadgeAward {
+    iri: ID!
+    awardedAt: Int
+    evidenceJson: String
+    definition: TrustLedgerBadgeDefinition
   }
 
   type Query {

@@ -108,8 +108,16 @@ export function emitProtocolDescriptorFromRegistration(opts: {
 
   // MCP registration-declared tools/prompts/capabilities (materialize for analytics/badges).
   if (isMcp && opts.endpointJson && typeof opts.endpointJson === 'object') {
-    const tools = Array.isArray((opts.endpointJson as any).tools) ? (opts.endpointJson as any).tools : [];
-    const prompts = Array.isArray((opts.endpointJson as any).prompts) ? (opts.endpointJson as any).prompts : [];
+    const tools = Array.isArray((opts.endpointJson as any).tools)
+      ? (opts.endpointJson as any).tools
+      : Array.isArray((opts.endpointJson as any).mcpTools)
+        ? (opts.endpointJson as any).mcpTools
+        : [];
+    const prompts = Array.isArray((opts.endpointJson as any).prompts)
+      ? (opts.endpointJson as any).prompts
+      : Array.isArray((opts.endpointJson as any).mcpPrompts)
+        ? (opts.endpointJson as any).mcpPrompts
+        : [];
     const capabilities = Array.isArray((opts.endpointJson as any).capabilities) ? (opts.endpointJson as any).capabilities : [];
 
     const toolsStr = tools.filter((x: any) => typeof x === 'string' && x.trim()).map((x: any) => String(x).trim());

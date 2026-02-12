@@ -546,6 +546,7 @@ export function createGraphQLResolversKb(opts?: GraphQLKbResolverOptions) {
       trustLedgerTotalPoints: r.trustLedgerTotalPoints == null ? null : Math.trunc(r.trustLedgerTotalPoints),
       trustLedgerBadgeCount: r.trustLedgerBadgeCount == null ? null : Math.trunc(r.trustLedgerBadgeCount),
       trustLedgerComputedAt: r.trustLedgerComputedAt == null ? null : Math.trunc(r.trustLedgerComputedAt),
+      trustLedgerBadges: Array.isArray((r as any).trustLedgerBadges) ? (r as any).trustLedgerBadges : [],
       atiOverallScore: r.atiOverallScore == null ? null : Math.trunc(r.atiOverallScore),
       atiOverallConfidence: r.atiOverallConfidence == null ? null : Number(r.atiOverallConfidence),
       atiVersion: r.atiVersion ?? null,

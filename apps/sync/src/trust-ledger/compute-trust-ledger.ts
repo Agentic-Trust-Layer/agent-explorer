@@ -104,6 +104,9 @@ type TrustLedgerSignals = {
   mcpToolsDeclaredCount: number;
   mcpPromptsDeclaredCount: number;
   mcpActiveToolsListPresent: boolean;
+  mcpAlivePresent: boolean;
+  registrationJsonPresent: boolean;
+  walletAccountPresent: boolean;
   registrationOasfSkillCount: number;
   registrationOasfDomainCount: number;
   x402Support: boolean;
@@ -152,6 +155,12 @@ function rulePasses(def: TrustLedgerBadgeDefinition, sig: TrustLedgerSignals): b
       return sig.mcpPromptsDeclaredCount >= threshold;
     case 'mcp_active_tools_list_present':
       return sig.mcpActiveToolsListPresent;
+    case 'mcp_alive_present':
+      return sig.mcpAlivePresent;
+    case 'registration_json_present':
+      return sig.registrationJsonPresent;
+    case 'wallet_account_present':
+      return sig.walletAccountPresent;
     case 'registration_oasf_skills_domains_present':
       return sig.registrationOasfSkillCount > 0 && sig.registrationOasfDomainCount > 0;
     case 'registration_x402_support_true':
@@ -399,6 +408,68 @@ function mcpActiveToolsListEdgeSparql(args: { ctx: string; agentIris: string[]; 
   ].join('\n');
 }
 
+function mcpAliveEdgeSparql(args: { ctx: string; agentIris: string[]; limit: number }): string {
+  const { ctx, agentIris } = args;
+  const limit = Number.isFinite(Number(args.limit)) ? Math.max(1, Math.trunc(Number(args.limit))) : 5000;
+  return [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    '',
+    'SELECT ?agent ?d WHERE {',
+    `  GRAPH <${ctx}> {`,
+    `    VALUES ?agent { ${valuesForAgents(agentIris)} }`,
+    '    ?agent core:hasServiceEndpoint ?se .',
+    '    ?se core:hasProtocol ?p .',
+    '    ?p a core:MCPProtocol ; core:hasDescriptor ?d .',
+    '    ?d core:mcpAlive true .',
+    '  }',
+    '}',
+    'ORDER BY STR(?agent) STR(?d)',
+    `LIMIT ${limit}`,
+    '',
+  ].join('\n');
+}
+
+function registrationJsonEdgeSparql(args: { ctx: string; agentIris: string[]; limit: number }): string {
+  const { ctx, agentIris } = args;
+  const limit = Number.isFinite(Number(args.limit)) ? Math.max(1, Math.trunc(Number(args.limit))) : 5000;
+  return [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    '',
+    'SELECT ?agent ?j WHERE {',
+    `  GRAPH <${ctx}> {`,
+    `    VALUES ?agent { ${valuesForAgents(agentIris)} }`,
+    '    ?agent core:hasIdentity ?id .',
+    '    ?id a erc8004:AgentIdentity8004 ; core:hasDescriptor ?desc .',
+    '    ?desc erc8004:registrationJson ?j .',
+    '  }',
+    '}',
+    'ORDER BY STR(?agent)',
+    `LIMIT ${limit}`,
+    '',
+  ].join('\n');
+}
+
+function walletAccountEdgeSparql(args: { ctx: string; agentIris: string[]; limit: number }): string {
+  const { ctx, agentIris } = args;
+  const limit = Number.isFinite(Number(args.limit)) ? Math.max(1, Math.trunc(Number(args.limit))) : 5000;
+  return [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    '',
+    'SELECT ?agent ?acct WHERE {',
+    `  GRAPH <${ctx}> {`,
+    `    VALUES ?agent { ${valuesForAgents(agentIris)} }`,
+    '    ?agent core:hasIdentity ?id .',
+    '    ?id a erc8004:AgentIdentity8004 ; erc8004:hasWalletAccount ?acct .',
+    '  }',
+    '}',
+    'ORDER BY STR(?agent) STR(?acct)',
+    `LIMIT ${limit}`,
+    '',
+  ].join('\n');
+}
+
 function registrationFlagsSparql(args: { ctx: string; agentIris: string[] }): string {
   const { ctx, agentIris } = args;
   return [
@@ -482,6 +553,9 @@ export async function computeTrustLedgerAwardsToGraphdbForChain(
     const a2aHasCardByAgent = new Map<string, boolean>();
     const mcpDeclaredByAgent = new Map<string, { tools: number; prompts: number }>();
     const mcpLiveByAgent = new Map<string, boolean>();
+    const mcpAliveByAgent = new Map<string, boolean>();
+    const registrationPresentByAgent = new Map<string, boolean>();
+    const walletPresentByAgent = new Map<string, boolean>();
     const regFlagsByAgent = new Map<string, { oasfSkills: number; oasfDomains: number; x402: boolean }>();
     const hiRatingByAgent = new Map<string, number>();
     const assocApprovedByAgent = new Map<string, number>();
@@ -628,6 +702,31 @@ export async function computeTrustLedgerAwardsToGraphdbForChain(
       mcpLiveByAgent.set(a, true);
     }
 
+    // MCP alive (sync:mcp) - even if tools list is not captured
+    const resMcpAlive = await queryGraphdb(baseUrl, repository, auth, mcpAliveEdgeSparql({ ctx, agentIris, limit: 5000 }));
+    for (const b of Array.isArray(resMcpAlive?.results?.bindings) ? resMcpAlive.results.bindings : []) {
+      const a = asStrBinding(b?.agent);
+      if (!a) continue;
+      mcpAliveByAgent.set(a, true);
+    }
+
+    // Registration JSON present (erc8004:registrationJson on identity descriptor)
+    const resRegJson = await queryGraphdb(baseUrl, repository, auth, registrationJsonEdgeSparql({ ctx, agentIris, limit: 5000 }));
+    for (const b of Array.isArray(resRegJson?.results?.bindings) ? resRegJson.results.bindings : []) {
+      const a = asStrBinding(b?.agent);
+      if (!a) continue;
+      const j = asStrBinding(b?.j);
+      if (j && j.trim()) registrationPresentByAgent.set(a, true);
+    }
+
+    // Wallet account present (erc8004:hasWalletAccount)
+    const resWallet = await queryGraphdb(baseUrl, repository, auth, walletAccountEdgeSparql({ ctx, agentIris, limit: 5000 }));
+    for (const b of Array.isArray(resWallet?.results?.bindings) ? resWallet.results.bindings : []) {
+      const a = asStrBinding(b?.agent);
+      if (!a) continue;
+      walletPresentByAgent.set(a, true);
+    }
+
     // Registration-derived flags (OASF counts + x402)
     const resReg = await queryGraphdb(baseUrl, repository, auth, registrationFlagsSparql({ ctx, agentIris }));
     for (const b of Array.isArray(resReg?.results?.bindings) ? resReg.results.bindings : []) {
@@ -667,6 +766,9 @@ export async function computeTrustLedgerAwardsToGraphdbForChain(
         mcpToolsDeclaredCount: mcpDecl.tools,
         mcpPromptsDeclaredCount: mcpDecl.prompts,
         mcpActiveToolsListPresent: Boolean(mcpLiveByAgent.get(agentIri)),
+        mcpAlivePresent: Boolean(mcpAliveByAgent.get(agentIri)),
+        registrationJsonPresent: Boolean(registrationPresentByAgent.get(agentIri)),
+        walletAccountPresent: Boolean(walletPresentByAgent.get(agentIri)),
         registrationOasfSkillCount: reg.oasfSkills,
         registrationOasfDomainCount: reg.oasfDomains,
         x402Support: reg.x402,
