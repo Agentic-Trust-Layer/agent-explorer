@@ -1,4 +1,11 @@
-import { clearStatements, ensureRepositoryExistsOrThrow, getGraphdbConfigFromEnv, queryGraphdb, uploadTurtleToRepository } from '../graphdb-http.js';
+import {
+  clearStatements,
+  ensureRepositoryExistsOrThrow,
+  getGraphdbConfigFromEnv,
+  queryGraphdb,
+  updateGraphdb,
+  uploadTurtleToRepository,
+} from '../graphdb-http.js';
 import { escapeTurtleString, iriEncodeSegment } from '../rdf/common.js';
 import { DEFAULT_TRUST_LEDGER_BADGES, type TrustLedgerBadgeDefinition } from './badges.js';
 
@@ -221,6 +228,29 @@ function signalsPageSparql(args: { chainId: number; ctx: string; limit: number; 
     '    OPTIONAL { ?agent core:hasFeedbackAssertionSummary ?fs . ?fs core:feedbackAssertionCount ?feedbackCount . }',
     '  }',
     '}',
+    '',
+  ].join('\n');
+}
+
+function signalsForAgentIdsSparql(args: { ctx: string; agentIds: number[] }): string {
+  const { ctx } = args;
+  const ids = Array.from(new Set((args.agentIds || []).map((n) => Math.trunc(Number(n))).filter((n) => Number.isFinite(n) && n >= 0)));
+  if (!ids.length) return 'SELECT ?agent WHERE { FILTER(false) }';
+  return [
+    'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    '',
+    'SELECT ?agent ?agentId ?validationCount ?feedbackCount WHERE {',
+    `  GRAPH <${ctx}> {`,
+    `    VALUES ?agentId { ${ids.map((n) => String(n)).join(' ')} }`,
+    '    ?agent a core:AIAgent ; core:hasIdentity ?id .',
+    '    ?id a erc8004:AgentIdentity8004 ; erc8004:agentId ?agentId .',
+    '    OPTIONAL { ?agent core:hasValidationAssertionSummary ?vs . ?vs core:validationAssertionCount ?validationCount . }',
+    '    OPTIONAL { ?agent core:hasFeedbackAssertionSummary ?fs . ?fs core:feedbackAssertionCount ?feedbackCount . }',
+    '  }',
+    '}',
+    'ORDER BY xsd:integer(?agentId) ASC(STR(?agent))',
     '',
   ].join('\n');
 }
@@ -509,7 +539,7 @@ export async function seedTrustLedgerBadgeDefinitionsToGraphdb(opts?: { resetCon
 
 export async function computeTrustLedgerAwardsToGraphdbForChain(
   chainId: number,
-  opts?: { resetContext?: boolean; limitAgents?: number; pageSize?: number },
+  opts?: { resetContext?: boolean; limitAgents?: number; pageSize?: number; agentIds?: Array<string | number> },
 ): Promise<{ processedAgents: number; awardedBadges: number; scoreRows: number }> {
   const cId = Number.isFinite(Number(chainId)) ? Math.trunc(Number(chainId)) : 0;
   if (!cId) throw new Error('chainId required');
@@ -534,13 +564,53 @@ export async function computeTrustLedgerAwardsToGraphdbForChain(
   let awardedBadges = 0;
   let scoreRows = 0;
 
+  const targetAgentIds = Array.isArray(opts?.agentIds)
+    ? Array.from(
+        new Set(
+          opts!.agentIds!
+            .map((x) => (typeof x === 'number' ? x : Number(String(x || '').trim())))
+            .filter((n) => Number.isFinite(n) && n >= 0)
+            .map((n) => Math.trunc(n)),
+        ),
+      )
+    : null;
+
   for (let offset = 0; processedAgents < maxAgents; offset += pageSize) {
-    const sparql = signalsPageSparql({ chainId: cId, ctx, limit: pageSize, offset });
+    const sparql =
+      targetAgentIds && targetAgentIds.length
+        ? signalsForAgentIdsSparql({ ctx, agentIds: targetAgentIds })
+        : signalsPageSparql({ chainId: cId, ctx, limit: pageSize, offset });
     const res = await queryGraphdb(baseUrl, repository, auth, sparql);
     const bindings: any[] = Array.isArray(res?.results?.bindings) ? res.results.bindings : [];
     if (!bindings.length) break;
 
     const agentIris = bindings.map((b) => asStrBinding(b?.agent)).filter((x): x is string => Boolean(x));
+    if (targetAgentIds && targetAgentIds.length && agentIris.length) {
+      // Clear existing awards+score for these agents to avoid duplicate awards on re-runs.
+      const values = agentIris.map((a) => `<${a}>`).join(' ');
+      const del = `
+PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>
+WITH <${outCtx}>
+DELETE { ?agent analytics:hasTrustLedgerBadgeAward ?award . ?award ?p ?o . }
+WHERE {
+  VALUES ?agent { ${values} }
+  ?agent analytics:hasTrustLedgerBadgeAward ?award .
+  ?award ?p ?o .
+};
+WITH <${outCtx}>
+DELETE { ?agent analytics:hasTrustLedgerScore ?score . ?score ?sp ?so . }
+WHERE {
+  VALUES ?agent { ${values} }
+  ?agent analytics:hasTrustLedgerScore ?score .
+  ?score ?sp ?so .
+}
+`;
+      try {
+        await updateGraphdb(baseUrl, repository, auth, del, { timeoutMs: 15_000, retries: 0 });
+      } catch (e: any) {
+        console.warn('[sync] [trust-ledger] targeted clear failed (non-fatal)', { chainId: cId, err: String(e?.message || e || '') });
+      }
+    }
     const feedbackCountByAgent = new Map<string, number>();
     for (const b of bindings) {
       const a = asStrBinding(b?.agent);
@@ -826,6 +896,7 @@ export async function computeTrustLedgerAwardsToGraphdbForChain(
     }
 
     if (bindings.length < pageSize) break;
+    if (targetAgentIds && targetAgentIds.length) break;
   }
 
   return { processedAgents, awardedBadges, scoreRows };

@@ -2,7 +2,7 @@ import { computeTrustLedgerAwardsToGraphdbForChain, seedTrustLedgerBadgeDefiniti
 
 export async function syncTrustLedgerToGraphdbForChain(
   chainId: number,
-  opts?: { resetContext?: boolean },
+  opts?: { resetContext?: boolean; agentIds?: Array<string | number> },
 ): Promise<{ scoreRows: number; badgeDefRows: number }> {
   // KB-native trust-ledger:
   // - badge definitions are seeded from code defaults into analytics/system
@@ -11,6 +11,7 @@ export async function syncTrustLedgerToGraphdbForChain(
   const scores = await computeTrustLedgerAwardsToGraphdbForChain(chainId, {
     resetContext: Boolean(opts?.resetContext),
     pageSize: 100,
+    agentIds: opts?.agentIds,
   });
   console.info('[sync] [trust-ledger] computed awards+scores', {
     chainId,

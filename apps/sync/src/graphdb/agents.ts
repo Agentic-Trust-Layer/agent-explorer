@@ -155,6 +155,76 @@ LIMIT ${Math.max(1, Math.min(50000, limit))}
   }));
 }
 
+export async function listAgentsWithA2AEndpointByAgentIds(
+  chainId: number,
+  agentIds: Array<string | number>,
+): Promise<AgentA2AEndpointRow[]> {
+  const ids = Array.from(
+    new Set(
+      (Array.isArray(agentIds) ? agentIds : [])
+        .map((x) => (typeof x === 'number' ? x : Number(String(x || '').trim())))
+        .filter((n) => Number.isFinite(n) && n >= 0)
+        .map((n) => Math.trunc(n)),
+    ),
+  );
+  if (!ids.length) return [];
+
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  const ctx = chainContext(chainId);
+  const values = ids.map((n) => String(n)).join(' ');
+
+  const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+SELECT ?agent ?didIdentity ?didAccount ?a2aEndpoint ?registrationJson WHERE {
+  GRAPH <${ctx}> {
+    VALUES ?agentId { ${values} }
+    ?agent a core:AIAgent .
+    ?agent core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  erc8004:agentId ?agentId ;
+                  core:hasIdentifier ?ident8004 ;
+                  core:hasDescriptor ?desc8004 .
+    ?ident8004 core:protocolIdentifier ?didIdentity .
+
+    OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }
+
+    ?identity8004 core:hasServiceEndpoint ?se .
+    ?se a core:ServiceEndpoint ;
+        core:hasProtocol ?p .
+    ?p a core:A2AProtocol .
+    OPTIONAL { ?p core:serviceUrl ?a2aEndpoint . }
+
+    OPTIONAL {
+      ?agent a core:AISmartAgent ;
+             core:hasAgentAccount ?sa .
+      ?sa eth:hasAccountIdentifier ?saIdent .
+      ?saIdent core:protocolIdentifier ?didAccount .
+    }
+    OPTIONAL {
+      FILTER(!BOUND(?didAccount))
+      ?identity8004 erc8004:hasWalletAccount ?wa .
+      ?wa eth:hasAccountIdentifier ?waIdent .
+      ?waIdent core:protocolIdentifier ?didAccount .
+    }
+  }
+}
+`;
+
+  const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const bindings = res?.results?.bindings;
+  if (!Array.isArray(bindings)) return [];
+
+  return bindings.map((b: any) => ({
+    agent: String(b?.agent?.value || ''),
+    didIdentity: typeof b?.didIdentity?.value === 'string' ? b.didIdentity.value : null,
+    didAccount: typeof b?.didAccount?.value === 'string' ? b.didAccount.value : null,
+    a2aEndpoint: String(b?.a2aEndpoint?.value || ''),
+    registrationJson: typeof b?.registrationJson?.value === 'string' ? b.registrationJson.value : null,
+  }));
+}
+
 export async function listAgentsWithMcpEndpoint(chainId: number, limit: number = 5000): Promise<AgentMcpEndpointRow[]> {
   const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
   const ctx = chainContext(chainId);
@@ -197,6 +267,76 @@ SELECT ?agent ?didIdentity ?didAccount ?mcpEndpoint ?registrationJson WHERE {
   }
 }
 LIMIT ${Math.max(1, Math.min(50000, limit))}
+`;
+
+  const res = await queryGraphdb(baseUrl, repository, auth, sparql);
+  const bindings = res?.results?.bindings;
+  if (!Array.isArray(bindings)) return [];
+
+  return bindings.map((b: any) => ({
+    agent: String(b?.agent?.value || ''),
+    didIdentity: typeof b?.didIdentity?.value === 'string' ? b.didIdentity.value : null,
+    didAccount: typeof b?.didAccount?.value === 'string' ? b.didAccount.value : null,
+    mcpEndpoint: String(b?.mcpEndpoint?.value || ''),
+    registrationJson: typeof b?.registrationJson?.value === 'string' ? b.registrationJson.value : null,
+  }));
+}
+
+export async function listAgentsWithMcpEndpointByAgentIds(
+  chainId: number,
+  agentIds: Array<string | number>,
+): Promise<AgentMcpEndpointRow[]> {
+  const ids = Array.from(
+    new Set(
+      (Array.isArray(agentIds) ? agentIds : [])
+        .map((x) => (typeof x === 'number' ? x : Number(String(x || '').trim())))
+        .filter((n) => Number.isFinite(n) && n >= 0)
+        .map((n) => Math.trunc(n)),
+    ),
+  );
+  if (!ids.length) return [];
+
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  const ctx = chainContext(chainId);
+  const values = ids.map((n) => String(n)).join(' ');
+
+  const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX eth: <https://agentictrust.io/ontology/eth#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+SELECT ?agent ?didIdentity ?didAccount ?mcpEndpoint ?registrationJson WHERE {
+  GRAPH <${ctx}> {
+    VALUES ?agentId { ${values} }
+    ?agent a core:AIAgent .
+    ?agent core:hasIdentity ?identity8004 .
+    ?identity8004 a erc8004:AgentIdentity8004 ;
+                  erc8004:agentId ?agentId ;
+                  core:hasIdentifier ?ident8004 ;
+                  core:hasDescriptor ?desc8004 .
+    ?ident8004 core:protocolIdentifier ?didIdentity .
+
+    OPTIONAL { ?desc8004 erc8004:registrationJson ?registrationJson . }
+
+    ?identity8004 core:hasServiceEndpoint ?se .
+    ?se a core:ServiceEndpoint ;
+        core:hasProtocol ?p .
+    ?p a core:MCPProtocol .
+    OPTIONAL { ?p core:serviceUrl ?mcpEndpoint . }
+
+    OPTIONAL {
+      ?agent a core:AISmartAgent ;
+             core:hasAgentAccount ?sa .
+      ?sa eth:hasAccountIdentifier ?saIdent .
+      ?saIdent core:protocolIdentifier ?didAccount .
+    }
+    OPTIONAL {
+      FILTER(!BOUND(?didAccount))
+      ?identity8004 erc8004:hasWalletAccount ?wa .
+      ?wa eth:hasAccountIdentifier ?waIdent .
+      ?waIdent core:protocolIdentifier ?didAccount .
+    }
+  }
+}
 `;
 
   const res = await queryGraphdb(baseUrl, repository, auth, sparql);

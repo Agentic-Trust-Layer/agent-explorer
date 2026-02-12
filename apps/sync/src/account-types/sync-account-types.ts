@@ -23,6 +23,7 @@ function rpcUrlForChain(chainId: number): string {
   if (chainId === 11155111) return process.env.ETH_SEPOLIA_RPC_HTTP_URL || process.env.ETH_SEPOLIA_RPC_URL || '';
   if (chainId === 84532) return process.env.BASE_SEPOLIA_RPC_HTTP_URL || process.env.BASE_SEPOLIA_RPC_URL || '';
   if (chainId === 11155420) return process.env.OP_SEPOLIA_RPC_HTTP_URL || process.env.OP_SEPOLIA_RPC_URL || '';
+  if (chainId === 59144) return process.env.LINEA_MAINNET_RPC_HTTP_URL || process.env.LINEA_MAINNET_RPC_URL || '';
   // Generic fallback
   return process.env[`RPC_HTTP_URL_${chainId}`] || process.env[`RPC_URL_${chainId}`] || '';
 }
@@ -45,7 +46,10 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-export async function syncAccountTypesForChain(chainId: number, opts?: { limit?: number; concurrency?: number }): Promise<void> {
+export async function syncAccountTypesForChain(
+  chainId: number,
+  opts?: { limit?: number; concurrency?: number; accounts?: string[] },
+): Promise<void> {
   const rpcUrl = rpcUrlForChain(chainId);
   if (!rpcUrl) {
     throw new Error(
@@ -57,24 +61,59 @@ export async function syncAccountTypesForChain(chainId: number, opts?: { limit?:
   const concurrency = Math.max(1, Math.min(25, opts?.concurrency ?? 10));
 
   const ctx = chainContext(chainId);
-  const accounts = await listAccountsForChain(chainId, limit);
-  const usable = accounts.filter((a) => a.address && a.chainId === chainId);
+  const targetRaw = Array.isArray(opts?.accounts) ? opts!.accounts! : null;
+  const targetAccounts = targetRaw
+    ? Array.from(
+        new Set(
+          targetRaw
+            .map((x) => String(x || '').trim())
+            .filter(Boolean)
+            .map((s) => {
+              if (/^0x[0-9a-fA-F]{40}$/.test(s)) {
+                const addr = s.toLowerCase();
+                return { account: accountIriPlain(chainId, addr), address: addr, chainId };
+              }
+              if (s.startsWith('https://www.agentictrust.io/id/account/')) {
+                try {
+                  const u = new URL(s);
+                  const parts = u.pathname.split('/').filter(Boolean);
+                  const idx = parts.indexOf('account');
+                  if (idx >= 0 && parts.length >= idx + 3) {
+                    const ch = Number(parts[idx + 1]);
+                    const addr = decodeURIComponent(parts[idx + 2]);
+                    const address = /^0x[0-9a-fA-F]{40}$/.test(addr) ? addr.toLowerCase() : null;
+                    if (Number.isFinite(ch) && ch === chainId && address) return { account: s, address, chainId: ch };
+                  }
+                } catch {}
+              }
+              return null;
+            })
+            .filter((x): x is { account: string; address: string; chainId: number } => Boolean(x && x.account && x.address)),
+        ),
+      )
+    : null;
 
-  // Fingerprint inputs so watch-mode doesn't redo expensive RPC classification when nothing changed.
-  // (We treat "no new accounts" as "no need to re-run account-types".)
-  const fingerprint = createHash('sha256')
-    .update(
-      usable
-        .map((a) => `${a.account}|${a.address ?? ''}`)
-        .sort()
-        .join('\n'),
-    )
-    .digest('hex');
+  const accounts = targetAccounts ?? (await listAccountsForChain(chainId, limit));
+  const usable = accounts.filter((a: any) => a.address && a.chainId === chainId);
+
   const cpSection = 'account-types-fingerprint';
-  const prev = await getCheckpoint(chainId, cpSection).catch(() => null);
-  if (prev === fingerprint) {
-    console.info(`[sync] [account-types] chainId=${chainId} unchanged; skipping (usable=${usable.length})`);
-    return;
+  let fingerprint: string | null = null;
+  if (!targetAccounts) {
+    // Fingerprint inputs so watch-mode doesn't redo expensive RPC classification when nothing changed.
+    // (We treat "no new accounts" as "no need to re-run account-types".)
+    fingerprint = createHash('sha256')
+      .update(
+        usable
+          .map((a: any) => `${a.account}|${a.address ?? ''}`)
+          .sort()
+          .join('\n'),
+      )
+      .digest('hex');
+    const prev = await getCheckpoint(chainId, cpSection).catch(() => null);
+    if (prev === fingerprint) {
+      console.info(`[sync] [account-types] chainId=${chainId} unchanged; skipping (usable=${usable.length})`);
+      return;
+    }
   }
 
   console.info(`[sync] [account-types] chainId=${chainId} accounts=${accounts.length} usable=${usable.length}`);
@@ -337,6 +376,8 @@ WHERE {
   await updateGraphdb(baseUrl, repository, auth, updateIdentityOwnerEoa);
   console.info('[sync] [account-types] updated AgentIdentity8004 hasOwnerEOAAccount (from ownerAccount / eth:hasEOAOwner)');
 
-  await setCheckpoint(chainId, cpSection, fingerprint).catch(() => {});
+  if (fingerprint) {
+    await setCheckpoint(chainId, cpSection, fingerprint).catch(() => {});
+  }
 }
 

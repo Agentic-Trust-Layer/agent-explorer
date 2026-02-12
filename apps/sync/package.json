@@ -8,6 +8,7 @@
     "prebuild": "pnpm -w -s --filter @agentictrust/hcs-core build",
     "build": "tsc -p tsconfig.json",
     "sync:agents": "tsx src/cli.ts agents",
+    "sync:erc8004-events": "tsx src/cli.ts erc8004-events",
     "sync:erc8122": "tsx src/cli.ts erc8122",
     "sync:erc8122-registries": "tsx src/cli.ts erc8122-registries",
     "sync:feedbacks": "tsx src/cli.ts feedbacks",

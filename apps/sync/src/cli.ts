@@ -7,6 +7,7 @@ import {
   AGENTS_QUERY_BY_MINTEDAT_CURSOR,
   fetchAllFromSubgraphByMintedAtCursor,
   fetchAgentMintedAtById,
+  fetchAgentById,
   AGENT_METADATA_COLLECTION_QUERY,
   AGENT_METADATA_COLLECTION_QUERY_BY_ID_CURSOR,
   FEEDBACKS_QUERY,
@@ -20,6 +21,10 @@ import {
   REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY,
   REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN,
   REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN,
+  REGISTRY_AGENT_8122_QUERY_LEGACY,
+  REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_LEGACY,
+  REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN_LEGACY,
+  REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN_LEGACY,
 } from './subgraph-client.js';
 import { ingestSubgraphTurtleToGraphdb } from './graphdb-ingest.js';
 import { getCheckpoint, setCheckpoint } from './graphdb/checkpoints.js';
@@ -29,7 +34,7 @@ import { emitValidationRequestsTurtle, emitValidationResponsesTurtle } from './r
 import { emitAssociationsTurtle, emitAssociationRevocationsTurtle } from './rdf/emit-associations.js';
 import { emitErc8122AgentsTurtle } from './rdf/emit-erc8122.js';
 import { syncErc8122RegistriesToGraphdbForChain } from './erc8122/sync-erc8122-registries.js';
-import { syncAgentCardsForChain } from './a2a/agent-card-sync.js';
+import { syncAgentCardsForAgentIds, syncAgentCardsForChain } from './a2a/agent-card-sync.js';
 import { syncAccountTypesForChain } from './account-types/sync-account-types.js';
 import { getMaxAgentId8004, getMaxDid8004AgentId, listAgentIriByDidIdentity } from './graphdb/agents.js';
 import { ingestOasfToGraphdb } from './oasf/oasf-ingest.js';
@@ -38,12 +43,14 @@ import { runTrustIndexForChains } from './trust-index/trust-index.js';
 import { materializeRegistrationServicesForChain } from './registration/materialize-services.js';
 import { materializeAssertionSummariesForChain } from './trust-summaries/materialize-assertion-summaries.js';
 import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledger.js';
-import { syncMcpForChain } from './mcp/mcp-sync.js';
+import { syncMcpForAgentIds, syncMcpForChain } from './mcp/mcp-sync.js';
 import { syncEnsParentForChain } from './ens/ens-parent-sync.js';
-import { getGraphdbConfigFromEnv, queryGraphdb } from './graphdb-http.js';
+import { getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from './graphdb-http.js';
+import { watchErc8004RegistryEventsMultiChain } from './erc8004/registry-events-watch.js';
 
 type SyncCommand =
   | 'agents'
+  | 'erc8004-events'
   | 'erc8122'
   | 'erc8122-registries'
   | 'feedbacks'
@@ -325,6 +332,170 @@ async function syncAgents(endpoint: { url: string; chainId: number; name: string
   }
 }
 
+async function clearErc8004AgentFromGraphdb(chainId: number, agentId8004: number): Promise<void> {
+  const chainIdInt = Math.trunc(Number(chainId));
+  const agentIdInt = Math.trunc(Number(agentId8004));
+  if (!chainIdInt || !Number.isFinite(agentIdInt) || agentIdInt < 0) return;
+
+  const ctx = `https://www.agentictrust.io/graph/data/subgraph/${chainIdInt}`;
+  const sparql = `
+PREFIX core: <https://agentictrust.io/ontology/core#>
+PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>
+WITH <${ctx}>
+DELETE { ?node ?p ?o . }
+WHERE {
+  {
+    SELECT DISTINCT ?node WHERE {
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        BIND(?agent AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        BIND(?id AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?agent core:hasDescriptor ?agentDesc .
+        BIND(?agentDesc AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasDescriptor ?desc .
+        BIND(?desc AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasIdentifier ?ident .
+        BIND(?ident AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?agent core:hasServiceEndpoint ?se .
+        BIND(?se AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasServiceEndpoint ?se .
+        BIND(?se AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasServiceEndpoint ?se .
+        ?se core:hasDescriptor ?seDesc .
+        BIND(?seDesc AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasServiceEndpoint ?se .
+        ?se core:hasProtocol ?proto .
+        BIND(?proto AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasServiceEndpoint ?se .
+        ?se core:hasProtocol ?proto .
+        ?proto core:hasDescriptor ?protoDesc .
+        BIND(?protoDesc AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasServiceEndpoint ?se .
+        ?se core:hasProtocol ?proto .
+        ?proto core:hasSkill ?sk .
+        BIND(?sk AS ?node)
+      }
+      UNION
+      {
+        ?id a erc8004:AgentIdentity8004 ;
+            erc8004:agentId ${agentIdInt} ;
+            core:identityOf ?agent .
+        ?id core:hasServiceEndpoint ?se .
+        ?se core:hasProtocol ?proto .
+        ?proto core:hasDomain ?dm .
+        BIND(?dm AS ?node)
+      }
+    }
+  }
+  ?node ?p ?o .
+}
+`;
+
+  const { baseUrl, repository, auth } = getGraphdbConfigFromEnv();
+  await updateGraphdb(baseUrl, repository, auth, sparql, { timeoutMs: 15_000, retries: 0 });
+}
+
+async function syncErc8004AgentById(
+  endpoint: { url: string; chainId: number; name: string },
+  agentId: string,
+): Promise<{ ownerAddress: string | null; agentWallet: string | null }> {
+  const id = String(agentId || '').trim();
+  if (!id) return { ownerAddress: null, agentWallet: null };
+  if (!/^\d+$/.test(id)) throw new Error(`Invalid agentId: ${id}`);
+
+  console.info('[sync] [erc8004-agent] fetching agent by id', { chainId: endpoint.chainId, agentId: id });
+
+  // Subgraph can lag the on-chain event slightly; retry a few times.
+  let row: any | null = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    row = await fetchAgentById(endpoint.url, id, { maxRetries: 2 }).catch(() => null);
+    if (row) break;
+    await sleep(1500 * Math.pow(1.5, attempt));
+  }
+  if (!row) {
+    console.warn('[sync] [erc8004-agent] agent not found in subgraph (yet); skipping', { chainId: endpoint.chainId, agentId: id });
+    return { ownerAddress: null, agentWallet: null };
+  }
+
+  // Best-effort: clear old per-agent nodes so updates don't accumulate stale values.
+  try {
+    await clearErc8004AgentFromGraphdb(endpoint.chainId, Number(id));
+  } catch (e: any) {
+    console.warn('[sync] [erc8004-agent] clear failed (non-fatal)', { chainId: endpoint.chainId, agentId: id, error: String(e?.message || e || '') });
+  }
+
+  const item = { ...row, agentMetadatas: [] };
+  const { turtle } = emitAgentsTurtle(endpoint.chainId, [item], 'mintedAt', -1n);
+  if (!turtle.trim()) return { ownerAddress: null, agentWallet: null };
+  await ingestSubgraphTurtleToGraphdb({ chainId: endpoint.chainId, section: 'agents', turtle, resetContext: false });
+  console.info('[sync] [erc8004-agent] ingested', { chainId: endpoint.chainId, agentId: id });
+  const ownerAddress = typeof row?.owner?.id === 'string' ? row.owner.id.trim().toLowerCase() : null;
+  const agentWallet = typeof row?.agentWallet === 'string' ? row.agentWallet.trim().toLowerCase() : null;
+  return { ownerAddress: ownerAddress && ownerAddress.startsWith('0x') ? ownerAddress : null, agentWallet: agentWallet && agentWallet.startsWith('0x') ? agentWallet : null };
+}
+
 async function syncErc8122(endpoint: { url: string; chainId: number; name: string }, resetContext: boolean) {
   // ERC-8122 fields may not exist on all subgraphs; treat as optional.
   console.info(`[sync] fetching erc8122 agents from ${endpoint.name} (chainId: ${endpoint.chainId})`);
@@ -420,25 +591,25 @@ async function syncErc8122(endpoint: { url: string; chainId: number; name: strin
   const agents: any[] = [];
   const metadatas: any[] = [];
   if (!useRegistryFilter) {
-    agents.push(...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY, 'registryAgent8122S', { optional: true })));
+    agents.push(...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY, 'registryAgent8122s', { optional: true })));
     metadatas.push(
       ...(await fetchAllFromSubgraph(
         endpoint.url,
         REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY,
-        'registryAgent8122Metadata_collection',
+        'registryAgent8122Metadatas',
         { optional: true, maxSkip: 50_000 },
       )),
     );
   } else {
     for (const regs of registryChunks) {
       agents.push(
-        ...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN, 'registryAgent8122S', {
+        ...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN, 'registryAgent8122s', {
           optional: true,
           buildVariables: ({ first, skip }) => ({ first, skip, registries: regs }),
         })),
       );
       metadatas.push(
-        ...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN, 'registryAgent8122Metadata_collection', {
+        ...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN, 'registryAgent8122Metadatas', {
           optional: true,
           maxSkip: 50_000,
           buildVariables: ({ first, skip }) => ({ first, skip, registries: regs }),
@@ -447,11 +618,72 @@ async function syncErc8122(endpoint: { url: string; chainId: number; name: strin
     }
   }
 
+  // Legacy fallback: some deployed subgraphs use old root field names.
+  if (!agents.length && !metadatas.length) {
+    console.warn('[sync] erc8122: no rows from new schema; attempting legacy field names', {
+      chainId: endpoint.chainId,
+      endpoint: endpoint.name,
+    });
+    if (!useRegistryFilter) {
+      agents.push(...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY_LEGACY, 'registryAgent8122S', { optional: true })));
+      metadatas.push(
+        ...(await fetchAllFromSubgraph(
+          endpoint.url,
+          REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_LEGACY,
+          'registryAgent8122Metadata_collection',
+          { optional: true, maxSkip: 50_000 },
+        )),
+      );
+    } else {
+      for (const regs of registryChunks) {
+        agents.push(
+          ...(await fetchAllFromSubgraph(endpoint.url, REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN_LEGACY, 'registryAgent8122S', {
+            optional: true,
+            buildVariables: ({ first, skip }) => ({ first, skip, registries: regs }),
+          })),
+        );
+        metadatas.push(
+          ...(await fetchAllFromSubgraph(
+            endpoint.url,
+            REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN_LEGACY,
+            'registryAgent8122Metadata_collection',
+            {
+              optional: true,
+              maxSkip: 50_000,
+              buildVariables: ({ first, skip }) => ({ first, skip, registries: regs }),
+            },
+          )),
+        );
+      }
+    }
+  }
+
   console.info(`[sync] fetched erc8122 rows from ${endpoint.name}`, {
     chainId: endpoint.chainId,
     agents: agents.length,
     metadatas: metadatas.length,
   });
+
+  // Log each agent row (bounded by env to avoid accidental spam).
+  try {
+    const showAll = process.env.SYNC_DEBUG_ERC8122 === '1';
+    const maxToShow = showAll ? agents.length : Math.min(50, agents.length);
+    const rows = (agents || []).slice(0, maxToShow).map((a: any) => ({
+      registry: a?.registry ?? null,
+      agentId: a?.agentId ?? null,
+      owner: a?.owner ?? null,
+      endpointType: a?.endpointType ?? null,
+      endpoint: a?.endpoint ?? null,
+      agentAccount: a?.agentAccount ?? null,
+    }));
+    console.info('[sync] erc8122 agents (per-row)', {
+      chainId: endpoint.chainId,
+      total: agents.length,
+      shown: rows.length,
+      setEnv: showAll ? null : 'Set SYNC_DEBUG_ERC8122=1 to print all rows.',
+      rows,
+    });
+  } catch {}
 
   // Always log a small sample so it's obvious whether we're reading the right data.
   try {
@@ -650,8 +882,11 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     return;
   }
 
-  // Filter endpoints by chainId if specified (default to chainId=1,11155111 for mainnet and sepolia)
-  const chainIdFilterRaw = process.env.SYNC_CHAIN_ID || '1,11155111';
+  // Filter endpoints by chainId if specified.
+  // Default:
+  // - most commands: chainId=1,11155111 (mainnet + sepolia)
+  // - erc8004-events: chainId=1 only (so it can run without per-chain WS config)
+  const chainIdFilterRaw = process.env.SYNC_CHAIN_ID || (command === 'erc8004-events' ? '1' : '1,11155111');
   const chainIdFilters = chainIdFilterRaw
     .split(',')
     .map((s) => s.trim())
@@ -663,7 +898,8 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     .filter((n): n is number => n !== null);
 
   if (!process.env.SYNC_CHAIN_ID) {
-    console.info(`[sync] defaulting to chainId=1,11155111 (mainnet and sepolia). Set SYNC_CHAIN_ID to override.`);
+    const dflt = command === 'erc8004-events' ? '1' : '1,11155111';
+    console.info(`[sync] defaulting to chainId=${dflt}. Set SYNC_CHAIN_ID to override.`);
   }
 
   const endpoints = SUBGRAPH_ENDPOINTS.filter((ep) => chainIdFilters.includes(ep.chainId));
@@ -672,29 +908,103 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     console.error(
       `[sync] no subgraph endpoints configured for chainId(s): ${chainIdFilters.join(', ')}. Available: ${SUBGRAPH_ENDPOINTS.map((e) => `${e.name} (${e.chainId})`).join(', ') || 'none'}`,
     );
-    if (chainIdFilters.includes(1) && !SUBGRAPH_ENDPOINTS.some((e) => e.chainId === 1)) {
-      const hasMainnetGraphql = process.env.ETH_MAINNET_GRAPHQL_URL && process.env.ETH_MAINNET_GRAPHQL_URL.trim();
-      const hasMainnetRpc = process.env.ETH_MAINNET_RPC_HTTP_URL && process.env.ETH_MAINNET_RPC_HTTP_URL.trim();
-      console.error(`[sync] chainId=1 (mainnet) is not configured:`);
-      if (!hasMainnetGraphql) {
-        console.error(`  ❌ ETH_MAINNET_GRAPHQL_URL is not set or empty`);
-      } else {
-        console.info(`  ✓ ETH_MAINNET_GRAPHQL_URL is set`);
+    const missing = chainIdFilters.filter((cid) => !SUBGRAPH_ENDPOINTS.some((e) => e.chainId === cid));
+    for (const cid of missing) {
+      const label =
+        cid === 1
+          ? 'mainnet'
+          : cid === 11155111
+            ? 'sepolia'
+            : cid === 84532
+              ? 'base-sepolia'
+              : cid === 11155420
+                ? 'op-sepolia'
+                : cid === 59144
+                  ? 'linea-mainnet'
+                  : 'unknown';
+      const graphqlKey =
+        cid === 1
+          ? 'ETH_MAINNET_GRAPHQL_URL'
+          : cid === 11155111
+            ? 'ETH_SEPOLIA_GRAPHQL_URL'
+            : cid === 84532
+              ? 'BASE_SEPOLIA_GRAPHQL_URL'
+              : cid === 11155420
+                ? 'OP_SEPOLIA_GRAPHQL_URL'
+                : cid === 59144
+                  ? 'LINEA_MAINNET_GRAPHQL_URL'
+                  : `RPC_GRAPHQL_URL_${cid}`;
+      const rpcKey =
+        cid === 1
+          ? 'ETH_MAINNET_RPC_HTTP_URL'
+          : cid === 11155111
+            ? 'ETH_SEPOLIA_RPC_HTTP_URL'
+            : cid === 84532
+              ? 'BASE_SEPOLIA_RPC_HTTP_URL'
+              : cid === 11155420
+                ? 'OP_SEPOLIA_RPC_HTTP_URL'
+                : cid === 59144
+                  ? 'LINEA_MAINNET_RPC_HTTP_URL'
+                  : `RPC_HTTP_URL_${cid}`;
+
+      const hasGraphql = process.env[graphqlKey] && process.env[graphqlKey]!.trim();
+      const hasRpc = process.env[rpcKey] && process.env[rpcKey]!.trim();
+
+      console.error(`[sync] chainId=${cid} (${label}) is not configured:`);
+      if (!hasGraphql) console.error(`  ❌ ${graphqlKey} is not set or empty`);
+      else console.info(`  ✓ ${graphqlKey} is set`);
+      // Many jobs need RPC; if it's unset, still hint here because users often run account-types next.
+      if (!hasRpc) console.error(`  ⚠️  ${rpcKey} is not set or empty (required for account-types / watcher polling)`);
+      else console.info(`  ✓ ${rpcKey} is set`);
+
+      if (cid === 59144) {
+        console.error(`[sync] For Linea mainnet subgraph "agentic-trust-layer-linea-mainnet", typical Graph Studio URL looks like:`);
+        console.error(`  - LINEA_MAINNET_GRAPHQL_URL=https://api.studio.thegraph.com/query/<account>/<subgraph>/version/latest`);
       }
-      if (!hasMainnetRpc) {
-        console.error(`  ❌ ETH_MAINNET_RPC_HTTP_URL is not set or empty`);
-      } else {
-        console.info(`  ✓ ETH_MAINNET_RPC_HTTP_URL is set`);
-      }
-      console.error(`[sync] To enable mainnet (chainId=1), set both:`);
-      console.error(`  - ETH_MAINNET_GRAPHQL_URL=<your-mainnet-subgraph-url>`);
-      console.error(`  - ETH_MAINNET_RPC_HTTP_URL=<your-mainnet-rpc-url>`);
     }
     process.exitCode = 1;
     return;
   }
 
   console.info(`[sync] processing chainId(s): ${chainIdFilters.join(', ')} (${endpoints.map((e) => e.name).join(', ')})`);
+
+  if (command === 'erc8004-events') {
+    // Long-running process: watch on-chain events and trigger targeted agent syncs.
+    await watchErc8004RegistryEventsMultiChain({
+      endpoints,
+      onAgentIds: async ({ chainId, agentIds }) => {
+        const ep = endpoints.find((e) => e.chainId === chainId);
+        if (!ep) return;
+        const uniq = Array.from(new Set((agentIds || []).map((x) => String(x || '').trim()).filter(Boolean)));
+        if (!uniq.length) return;
+        console.info('[sync] [erc8004-events] processing agentIds', { chainId, count: uniq.length, agentIds: uniq.slice(0, 50) });
+        // Sequential-by-default to avoid stampeding subgraph/GraphDB; batches are already debounced.
+        for (const id of uniq) {
+          try {
+            const synced = await syncErc8004AgentById(ep, id);
+
+            // Derived work (targeted):
+            await syncAgentCardsForAgentIds(chainId, [id]).catch(() => {});
+            await syncMcpForAgentIds(chainId, [id]).catch(() => {});
+
+            const acctTargets = [synced.ownerAddress, synced.agentWallet].filter((x): x is string => Boolean(x));
+            if (acctTargets.length) {
+              await syncAccountTypesForChain(chainId, { accounts: acctTargets }).catch(() => {});
+            }
+
+            await syncTrustLedgerToGraphdbForChain(chainId, { agentIds: [id] }).catch(() => {});
+          } catch (e: any) {
+            console.warn('[sync] [erc8004-events] agent sync failed (non-fatal)', {
+              chainId,
+              agentId: id,
+              error: String(e?.message || e || ''),
+            });
+          }
+        }
+      },
+    });
+    return;
+  }
 
   for (const endpoint of endpoints) {
     try {

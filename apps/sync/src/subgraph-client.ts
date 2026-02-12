@@ -1,4 +1,11 @@
-import { ETH_MAINNET_GRAPHQL_URL, ETH_SEPOLIA_GRAPHQL_URL, BASE_SEPOLIA_GRAPHQL_URL, OP_SEPOLIA_GRAPHQL_URL, GRAPHQL_API_KEY } from './env';
+import {
+  ETH_MAINNET_GRAPHQL_URL,
+  ETH_SEPOLIA_GRAPHQL_URL,
+  BASE_SEPOLIA_GRAPHQL_URL,
+  OP_SEPOLIA_GRAPHQL_URL,
+  LINEA_MAINNET_GRAPHQL_URL,
+  GRAPHQL_API_KEY,
+} from './env';
 
 export type SubgraphEndpoint = {
   url: string;
@@ -11,6 +18,7 @@ export const SUBGRAPH_ENDPOINTS: SubgraphEndpoint[] = [
   { url: ETH_SEPOLIA_GRAPHQL_URL, chainId: 11155111, name: 'eth-sepolia' },
   { url: BASE_SEPOLIA_GRAPHQL_URL, chainId: 84532, name: 'base-sepolia' },
   { url: OP_SEPOLIA_GRAPHQL_URL, chainId: 11155420, name: 'op-sepolia' },
+  { url: LINEA_MAINNET_GRAPHQL_URL, chainId: 59144, name: 'linea-mainnet' },
 ].filter((ep) => ep.url && ep.url.trim());
 
 function sleep(ms: number): Promise<void> {
@@ -230,6 +238,47 @@ export async function fetchAgentMintedAtById(
   const row = resp?.data?.agents?.[0];
   const mintedAt = typeof row?.mintedAt === 'string' ? row.mintedAt.trim() : '';
   return /^\d+$/.test(mintedAt) ? mintedAt : null;
+}
+
+export async function fetchAgentById(
+  graphqlUrl: string,
+  agentId: string,
+  opts?: { maxRetries?: number },
+): Promise<any | null> {
+  const id = String(agentId || '').trim();
+  if (!id) return null;
+  const query = `query AgentById($id: String!) {
+  agents(first: 1, where: { id: $id }) {
+    id
+    mintedAt
+    agentURI
+    name
+    description
+    image
+    ensName
+    agentWallet
+    a2aEndpoint
+    chatEndpoint
+    registration {
+      id
+      agentURI
+      raw
+      type
+      name
+      description
+      image
+      supportedTrust
+      a2aEndpoint
+      chatEndpoint
+      ensName
+      updatedAt
+    }
+    owner { id }
+  }
+}`;
+  const resp = await fetchJson(graphqlUrl, { query, variables: { id } }, opts?.maxRetries ?? 3);
+  const row = resp?.data?.agents?.[0];
+  return row ?? null;
 }
 
 // NFT on-chain metadata KV rows (AgentMetadata entity)
@@ -571,7 +620,7 @@ export const ASSOCIATION_REVOCATIONS_QUERY = `query AssociationRevocations($firs
 
 // ERC-8122 registry agents + metadata (optional: not all subgraphs expose these fields)
 export const REGISTRY_AGENT_8122_QUERY = `query RegistryAgent8122S($first: Int!, $skip: Int!) {
-  registryAgent8122S(first: $first, skip: $skip, orderBy: createdAt, orderDirection: asc) {
+  registryAgent8122s(first: $first, skip: $skip, orderBy: createdAt, orderDirection: asc) {
     agentId
     createdAt
     endpoint
@@ -585,7 +634,7 @@ export const REGISTRY_AGENT_8122_QUERY = `query RegistryAgent8122S($first: Int!,
 }`;
 
 export const REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN = `query RegistryAgent8122SByRegistryIn($first: Int!, $skip: Int!, $registries: [Bytes!]!) {
-  registryAgent8122S(first: $first, skip: $skip, where: { registry_in: $registries }, orderBy: createdAt, orderDirection: asc) {
+  registryAgent8122s(first: $first, skip: $skip, where: { registry_in: $registries }, orderBy: createdAt, orderDirection: asc) {
     agentId
     createdAt
     endpoint
@@ -599,7 +648,7 @@ export const REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN = `query RegistryAgent8122
 }`;
 
 export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY = `query RegistryAgent8122MetadataCollection($first: Int!, $skip: Int!) {
-  registryAgent8122Metadata_collection(first: $first, skip: $skip, orderBy: setAt, orderDirection: asc) {
+  registryAgent8122Metadatas(first: $first, skip: $skip, orderBy: setAt, orderDirection: asc) {
     agentId
     blockNumber
     id
@@ -614,6 +663,65 @@ export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY = `query RegistryAgen
 }`;
 
 export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN = `query RegistryAgent8122MetadataCollectionByRegistryIn($first: Int!, $skip: Int!, $registries: [Bytes!]!) {
+  registryAgent8122Metadatas(first: $first, skip: $skip, where: { registry_in: $registries }, orderBy: setAt, orderDirection: asc) {
+    agentId
+    blockNumber
+    id
+    indexedKey
+    key
+    registry
+    setAt
+    timestamp
+    txHash
+    value
+  }
+}`;
+
+// Legacy query names (older subgraphs used capitalized root fields and `_collection` suffix)
+export const REGISTRY_AGENT_8122_QUERY_LEGACY = `query RegistryAgent8122S($first: Int!, $skip: Int!) {
+  registryAgent8122S(first: $first, skip: $skip, orderBy: createdAt, orderDirection: asc) {
+    agentId
+    createdAt
+    endpoint
+    owner
+    id
+    endpointType
+    registry
+    updatedAt
+    agentAccount
+  }
+}`;
+
+export const REGISTRY_AGENT_8122_QUERY_BY_REGISTRY_IN_LEGACY = `query RegistryAgent8122SByRegistryIn($first: Int!, $skip: Int!, $registries: [Bytes!]!) {
+  registryAgent8122S(first: $first, skip: $skip, where: { registry_in: $registries }, orderBy: createdAt, orderDirection: asc) {
+    agentId
+    createdAt
+    endpoint
+    owner
+    id
+    endpointType
+    registry
+    updatedAt
+    agentAccount
+  }
+}`;
+
+export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_LEGACY = `query RegistryAgent8122MetadataCollection($first: Int!, $skip: Int!) {
+  registryAgent8122Metadata_collection(first: $first, skip: $skip, orderBy: setAt, orderDirection: asc) {
+    agentId
+    blockNumber
+    id
+    indexedKey
+    key
+    registry
+    setAt
+    timestamp
+    txHash
+    value
+  }
+}`;
+
+export const REGISTRY_AGENT_8122_METADATA_COLLECTION_QUERY_BY_REGISTRY_IN_LEGACY = `query RegistryAgent8122MetadataCollectionByRegistryIn($first: Int!, $skip: Int!, $registries: [Bytes!]!) {
   registryAgent8122Metadata_collection(first: $first, skip: $skip, where: { registry_in: $registries }, orderBy: setAt, orderDirection: asc) {
     agentId
     blockNumber

@@ -20,6 +20,7 @@ function rpcUrlForChainId(chainId: number): string {
   if (chainId === 11155111) return process.env.ETH_SEPOLIA_RPC_HTTP_URL || process.env.ETH_SEPOLIA_RPC_URL || '';
   if (chainId === 84532) return process.env.BASE_SEPOLIA_RPC_HTTP_URL || process.env.BASE_SEPOLIA_RPC_URL || '';
   if (chainId === 11155420) return process.env.OP_SEPOLIA_RPC_HTTP_URL || process.env.OP_SEPOLIA_RPC_URL || '';
+  if (chainId === 59144) return process.env.LINEA_MAINNET_RPC_HTTP_URL || process.env.LINEA_MAINNET_RPC_URL || '';
   return process.env[`RPC_HTTP_URL_${chainId}`] || process.env[`RPC_URL_${chainId}`] || '';
 }
 
