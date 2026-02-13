@@ -1264,14 +1264,15 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
       return;
     }
     const endpoint = SUBGRAPH_ENDPOINTS.find((ep) => ep.chainId === chainId);
+    // NOTE: reset-chain-agents clears GraphDB contexts and recomputes analytics graphs.
+    // It does not need to contact the subgraph. Allow running even if the chain is not configured
+    // in SUBGRAPH_ENDPOINTS so users can clean up partial/incorrect data.
     if (!endpoint) {
-      console.error(
-        `[sync] reset-chain-agents: no subgraph endpoint for chainId=${chainId}. Configure subgraph/RPC for that chain.`,
+      console.warn(
+        `[sync] reset-chain-agents: no subgraph endpoint configured for chainId=${chainId}. Continuing anyway (will only reset GraphDB data).`,
       );
-      process.exitCode = 1;
-      return;
     }
-    console.info('[sync] [reset-chain-agents] start', { chainId, name: endpoint.name });
+    console.info('[sync] [reset-chain-agents] start', { chainId, name: endpoint?.name ?? `chain-${chainId}` });
     await ingestSubgraphTurtleToGraphdb({ chainId, section: 'agents', turtle: '', resetContext: true });
     await clearCheckpointsForChain(chainId);
     await materializeAssertionSummariesForChain(chainId, {});
