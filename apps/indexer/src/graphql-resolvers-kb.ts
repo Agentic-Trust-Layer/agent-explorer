@@ -1,5 +1,11 @@
 import type { SemanticSearchService } from './semantic/semantic-search-service.js';
-import { kbAgentsQuery, kbErc8122RegistriesQuery, kbOwnedAgentsAllChainsQuery, kbOwnedAgentsQuery } from './graphdb/kb-queries.js';
+import {
+  kbAgentByUaidFastQuery,
+  kbAgentsQuery,
+  kbErc8122RegistriesQuery,
+  kbOwnedAgentsAllChainsQuery,
+  kbOwnedAgentsQuery,
+} from './graphdb/kb-queries.js';
 import {
   kbAssociationsQuery,
   kbReviewItemsForAgentQuery,
@@ -1174,10 +1180,13 @@ LIMIT 1
 
       const run = async (uaidToQuery: string) => {
         const inferredChainId = parseUaidChainId(uaidToQuery);
-        return await kbAgentsQuery(
-          { where: { uaid: uaidToQuery, ...(inferredChainId != null ? { chainId: inferredChainId } : {}) }, first: 1, skip: 0 },
-          graphdbCtx,
-        );
+        // Fast path when we can infer a concrete chainId (common for uaid:did:8004:* and uaid:did:ethr:*).
+        if (inferredChainId != null) {
+          const row = await kbAgentByUaidFastQuery({ uaid: uaidToQuery, chainId: inferredChainId }, graphdbCtx);
+          return { rows: row ? [row] : [], total: row ? 1 : 0, hasMore: false };
+        }
+        // Fallback: unknown chainId (rare). Use the general query.
+        return await kbAgentsQuery({ where: { uaid: uaidToQuery }, first: 1, skip: 0 }, graphdbCtx);
       };
 
       // Use uaid (not uaid_in) so the query layer can apply base-UAID prefix matching (for HOL UAIDs).

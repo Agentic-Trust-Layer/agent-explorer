@@ -1,4 +1,5 @@
 import { graphql, GraphQLSchema } from 'graphql';
+import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { buildGraphQLSchemaKb } from './graphql-schema-kb';
@@ -38,6 +39,111 @@ const semanticSearchService = createSemanticSearchServiceFromEnv();
 const rootKb = createGraphQLResolversKb({ semanticSearchService }) as any;
 
 // processAgentDirectly is now imported from './process-agent'
+
+type SyncJobStatus = 'queued' | 'running' | 'completed' | 'failed';
+type SyncJob = {
+  id: string;
+  kind: 'sync:agent-pipeline';
+  chainIds: number[];
+  status: SyncJobStatus;
+  createdAt: number;
+  startedAt: number | null;
+  endedAt: number | null;
+  exitCode: number | null;
+  error: string | null;
+  // Keep small (avoid unbounded memory growth).
+  log: string;
+};
+
+const syncJobs = new Map<string, SyncJob>();
+const runningJobByChainId = new Map<number, string>(); // chainId -> jobId
+
+function appendJobLog(job: SyncJob, chunk: string): void {
+  const maxChars = 250_000;
+  job.log = (job.log + chunk).slice(-maxChars);
+}
+
+function parseChainIds(input: unknown): number[] {
+  const raw = typeof input === 'string' ? input.trim().toLowerCase() : '';
+  if (!raw || raw === 'all' || raw === 'main' || raw === 'main-chains') return [1, 59144];
+  const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  const out: number[] = [];
+  for (const p of parts) {
+    const n = Number(p);
+    if (Number.isFinite(n) && n > 0) out.push(Math.trunc(n));
+  }
+  return Array.from(new Set(out));
+}
+
+async function runSyncAgentPipelineJob(job: SyncJob, opts: { limit?: number | null; agentIdsCsv?: string | null; ensureAgent?: boolean | null }) {
+  job.status = 'running';
+  job.startedAt = Date.now();
+  appendJobLog(job, `[job] start ${new Date(job.startedAt).toISOString()} chainIds=${job.chainIds.join(',')}\n`);
+
+  const repoRoot = process.cwd(); // `pnpm dev:graphql` runs from apps/indexer; cwd is fine if launched there? Use repo root if possible.
+  // If started from apps/indexer, jump to repo root so pnpm --filter works reliably.
+  const cwd = repoRoot.endsWith('/apps/indexer') ? repoRoot.replace(/\/apps\/indexer$/, '') : repoRoot;
+
+  const limit = typeof opts.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0 ? Math.trunc(opts.limit) : null;
+  const agentIdsCsv = typeof opts.agentIdsCsv === 'string' && opts.agentIdsCsv.trim() ? opts.agentIdsCsv.trim() : null;
+  const ensureAgent = opts.ensureAgent === true;
+
+  const runOne = async (chainId: number): Promise<number> => {
+    appendJobLog(job, `\n[job] chainId=${chainId} spawning: pnpm --filter sync sync:agent-pipeline\n`);
+    const args: string[] = ['--filter', 'sync', 'sync:agent-pipeline'];
+    const extra: string[] = [];
+    if (limit != null) extra.push(`--limit=${limit}`);
+    if (agentIdsCsv) extra.push(`--agent-ids=${agentIdsCsv}`);
+    if (ensureAgent) extra.push(`--ensure-agent`);
+    if (extra.length) args.push('--', ...extra);
+
+    const child = spawn('pnpm', args, {
+      cwd,
+      env: { ...process.env, SYNC_CHAIN_ID: String(chainId) },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    child.stdout.on('data', (d) => appendJobLog(job, String(d)));
+    child.stderr.on('data', (d) => appendJobLog(job, String(d)));
+
+    const code: number = await new Promise((resolve, reject) => {
+      child.on('error', reject);
+      child.on('close', (c) => resolve(typeof c === 'number' ? c : 0));
+    });
+
+    appendJobLog(job, `\n[job] chainId=${chainId} exitCode=${code}\n`);
+    return code;
+  };
+
+  try {
+    for (const chainId of job.chainIds) {
+      const code = await runOne(chainId);
+      if (code !== 0) {
+        job.status = 'failed';
+        job.exitCode = code;
+        job.endedAt = Date.now();
+        job.error = `sync:agent-pipeline failed for chainId=${chainId} (exitCode=${code})`;
+        appendJobLog(job, `[job] failed ${new Date(job.endedAt).toISOString()} error=${job.error}\n`);
+        return;
+      }
+    }
+    job.status = 'completed';
+    job.exitCode = 0;
+    job.endedAt = Date.now();
+    appendJobLog(job, `[job] completed ${new Date(job.endedAt).toISOString()}\n`);
+  } catch (e: any) {
+    job.status = 'failed';
+    job.exitCode = job.exitCode ?? 1;
+    job.endedAt = Date.now();
+    job.error = String(e?.message || e || 'unknown error');
+    appendJobLog(job, `[job] failed ${new Date(job.endedAt).toISOString()} error=${job.error}\n`);
+  } finally {
+    for (const cid of job.chainIds) {
+      const cur = runningJobByChainId.get(cid);
+      if (cur === job.id) runningJobByChainId.delete(cid);
+    }
+  }
+}
 
 export function createGraphQLServer(port: number = 4000) {
   const app = express();
@@ -92,6 +198,78 @@ export function createGraphQLServer(port: number = 4000) {
         source: 'graphdb',
       });
     }
+  });
+
+  /**
+   * UNSAFE BY DESIGN (no auth): trigger `apps/sync` agent pipeline via HTTP.
+   *
+   * POST /sync/agent-pipeline?chainId=1|59144|all
+   * Body (optional JSON): { limit?: number, agentIdsCsv?: string, ensureAgent?: boolean }
+   *
+   * Returns 202 with a jobId. Poll GET /sync/jobs/:jobId for status + logs.
+   *
+   * NOTE: This only works in the Node/Express server. It will not work in a Cloudflare Worker deployment.
+   */
+  app.post('/sync/agent-pipeline', async (req, res) => {
+    const chainIds = parseChainIds(req.query?.chainId);
+    if (!chainIds.length) return res.status(400).json({ error: 'Missing or invalid chainId (use 1,59144 or all)' });
+
+    // Basic concurrency guard per chain (not security; prevents accidental overlapping runs).
+    const running = chainIds.map((cid) => ({ cid, jobId: runningJobByChainId.get(cid) ?? null })).filter((x) => x.jobId);
+    if (running.length) {
+      return res.status(409).json({
+        error: 'A sync job is already running for one or more chainIds',
+        running,
+      });
+    }
+
+    const id = randomUUID();
+    const job: SyncJob = {
+      id,
+      kind: 'sync:agent-pipeline',
+      chainIds,
+      status: 'queued',
+      createdAt: Date.now(),
+      startedAt: null,
+      endedAt: null,
+      exitCode: null,
+      error: null,
+      log: '',
+    };
+    syncJobs.set(id, job);
+    for (const cid of chainIds) runningJobByChainId.set(cid, id);
+
+    // Fire-and-forget.
+    void runSyncAgentPipelineJob(job, {
+      limit: req.body?.limit ?? null,
+      agentIdsCsv: req.body?.agentIdsCsv ?? null,
+      ensureAgent: req.body?.ensureAgent ?? null,
+    });
+
+    return res.status(202).json({
+      ok: true,
+      jobId: id,
+      chainIds,
+      statusUrl: `/sync/jobs/${id}`,
+    });
+  });
+
+  app.get('/sync/jobs/:jobId', async (req, res) => {
+    const id = String(req.params?.jobId || '').trim();
+    const job = id ? syncJobs.get(id) : null;
+    if (!job) return res.status(404).json({ error: 'job not found' });
+    return res.json({
+      id: job.id,
+      kind: job.kind,
+      chainIds: job.chainIds,
+      status: job.status,
+      createdAt: job.createdAt,
+      startedAt: job.startedAt,
+      endedAt: job.endedAt,
+      exitCode: job.exitCode,
+      error: job.error,
+      log: job.log,
+    });
   });
 
   // OASF skills endpoint (always fetches from GraphDB; no caching)

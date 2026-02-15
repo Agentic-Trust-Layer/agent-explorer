@@ -1292,6 +1292,13 @@ export async function kbAgentsQuery(args: {
       ? where.uaid_in.map((u) => String(u ?? '').trim()).filter(Boolean)
       : null;
 
+  // Fast path: agent details-style query (exact UAID + chainId, single row).
+  // This avoids the expensive page ORDER BY scan + COUNT query.
+  if (uaidFilter && skip === 0 && first === 1 && chainId != null) {
+    const row = await kbAgentByUaidFastQuery({ uaid: uaidFilter, chainId }, graphdbCtx);
+    return { rows: row ? [row] : [], total: row ? 1 : 0, hasMore: false };
+  }
+
   const minReview = where.minReviewAssertionCount != null ? clampInt(where.minReviewAssertionCount, 0, 10_000_000_000, 0) : null;
   const minValidation =
     where.minValidationAssertionCount != null ? clampInt(where.minValidationAssertionCount, 0, 10_000_000_000, 0) : null;
@@ -2238,6 +2245,244 @@ export async function kbAgentsQuery(args: {
   }
 
   return { rows: ordered, total: Number.isFinite(total) ? total : 0, hasMore };
+}
+
+/**
+ * Fast path for "agent details" views (single agent by UAID).
+ *
+ * Unlike `kbAgentsQuery`, this skips:
+ * - paging ORDER BY scan
+ * - total COUNT query
+ * - extra identity/service-endpoint hydrations
+ *
+ * It returns a minimally-hydrated `KbAgentRow` for one agent, and separately hydrates trust-ledger badges.
+ */
+export async function kbAgentByUaidFastQuery(
+  args: { uaid: string; chainId: number },
+  graphdbCtx?: GraphdbQueryContext | null,
+): Promise<KbAgentRow | null> {
+  const uaid = typeof args.uaid === 'string' ? args.uaid.trim() : '';
+  const chainId = clampInt(args.chainId, 1, 1_000_000_000, 0);
+  if (!uaid || !chainId) return null;
+
+  const ctxIri = chainContext(chainId);
+  const analyticsCtxIri = Math.trunc(chainId) !== 295 ? analyticsContext(chainId) : null;
+  const uaidEsc = uaid.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+  const sparql = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX dcterms: <http://purl.org/dc/terms/>',
+    'PREFIX schema: <http://schema.org/>',
+    'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
+    ...(analyticsCtxIri ? ['PREFIX analytics: <https://agentictrust.io/ontology/core/analytics#>'] : []),
+    '',
+    'SELECT',
+    '  ?agent',
+    '  (SAMPLE(?uaid) AS ?uaid)',
+    '  (SAMPLE(?agentDesc) AS ?agentDesc)',
+    '  (SAMPLE(?agentDescTitle) AS ?agentDescTitle)',
+    '  (SAMPLE(?agentDescDescription) AS ?agentDescDescription)',
+    '  (SAMPLE(?agentDescImage) AS ?agentDescImage)',
+    '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
+    '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
+    '  (SAMPLE(?agentId8004) AS ?agentId8004)',
+    '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
+    ...(analyticsCtxIri
+      ? [
+          '  (SAMPLE(?trustLedgerTotalPoints) AS ?trustLedgerTotalPoints)',
+          '  (SAMPLE(?trustLedgerBadgeCount) AS ?trustLedgerBadgeCount)',
+          '  (SAMPLE(?trustLedgerComputedAt) AS ?trustLedgerComputedAt)',
+          '  (SAMPLE(?atiOverallScore) AS ?atiOverallScore)',
+          '  (SAMPLE(?atiOverallConfidence) AS ?atiOverallConfidence)',
+          '  (SAMPLE(?atiVersion) AS ?atiVersion)',
+          '  (SAMPLE(?atiComputedAt) AS ?atiComputedAt)',
+        ]
+      : []),
+    'WHERE {',
+    `  GRAPH <${ctxIri}> {`,
+    '    ?agent a core:AIAgent ; core:uaid ?uaid .',
+    `    FILTER(STR(?uaid) = "${uaidEsc}")`,
+    '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
+    '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
+    '    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }',
+    '    OPTIONAL { ?agent a ?agentType . }',
+    '    OPTIONAL {',
+    '      ?agent core:hasDescriptor ?agentDesc .',
+    '      OPTIONAL { ?agentDesc dcterms:title ?agentDescTitle . }',
+    '      OPTIONAL { ?agentDesc dcterms:description ?agentDescDescription . }',
+    '      OPTIONAL { ?agentDesc schema:image ?agentDescImage . }',
+    '    }',
+    '  }',
+    ...(analyticsCtxIri
+      ? [
+          '  OPTIONAL {',
+          `    GRAPH <${analyticsCtxIri}> {`,
+          '      OPTIONAL {',
+          '        ?agent analytics:hasTrustLedgerScore ?tls .',
+          '        ?tls a analytics:AgentTrustLedgerScore ; analytics:totalPoints ?trustLedgerTotalPoints .',
+          '        OPTIONAL { ?tls analytics:badgeCount ?trustLedgerBadgeCount . }',
+          '        OPTIONAL { ?tls analytics:trustLedgerComputedAt ?trustLedgerComputedAt . }',
+          '      }',
+          '      BIND(IF(BOUND(?agentId8004), STR(?agentId8004), "") AS ?_agentIdStr)',
+          '      OPTIONAL {',
+          '        FILTER(?_agentIdStr != "")',
+          '        ?ati a analytics:AgentTrustIndex ; analytics:agentId ?_agentIdStr ; analytics:overallScore ?atiOverallScore .',
+          '        OPTIONAL { ?ati analytics:overallConfidence ?atiOverallConfidence . }',
+          '        OPTIONAL { ?ati analytics:version ?atiVersion . }',
+          '        OPTIONAL { ?ati analytics:computedAt ?atiComputedAt . }',
+          '      }',
+          '    }',
+          '  }',
+        ]
+      : []),
+    '}',
+    'GROUP BY ?agent',
+    'LIMIT 2',
+    '',
+  ].join('\n');
+
+  const rowsBindings = await runGraphdbQuery(sparql, graphdbCtx, 'kbAgentByUaidFastQuery');
+  if (!rowsBindings.length) return null;
+
+  const b = rowsBindings[0] as any;
+  const typesConcat = asString(b?.agentTypes) ?? '';
+  const typeIris = typesConcat
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const row: KbAgentRow = {
+    iri: asString(b?.agent) ?? '',
+    uaid: asString(b?.uaid),
+    agentName: asString(b?.agentDescTitle) ?? asString(b?.agentName),
+    agentImage: asString(b?.agentDescImage) ?? asString(b?.agentImage),
+    agentDescriptorIri: asString(b?.agentDesc),
+    agentDescriptorName: asString(b?.agentDescTitle),
+    agentDescriptorDescription: asString(b?.agentDescDescription),
+    agentDescriptorImage: asString(b?.agentDescImage),
+    agentTypes: pickAgentTypesFromRow(typeIris),
+    feedbackAssertionCount: null,
+    validationAssertionCount: null,
+    createdAtBlock: null,
+    createdAtTime: asNumber(b?.createdAtTime),
+    updatedAtTime: asNumber(b?.updatedAtTime),
+
+    trustLedgerTotalPoints: asNumber(b?.trustLedgerTotalPoints),
+    trustLedgerBadgeCount: asNumber(b?.trustLedgerBadgeCount),
+    trustLedgerComputedAt: asNumber(b?.trustLedgerComputedAt),
+    trustLedgerBadges: [],
+    atiOverallScore: asNumber(b?.atiOverallScore),
+    atiOverallConfidence: asNumber(b?.atiOverallConfidence),
+    atiVersion: asString(b?.atiVersion),
+    atiComputedAt: asNumber(b?.atiComputedAt),
+
+    identities: [], // hydrated below (single-agent)
+
+    did8004: null,
+    agentId8004: asNumber(b?.agentId8004),
+    identity8004Iri: null,
+    identity8004DescriptorIri: null,
+    identity8004DescriptorName: null,
+    identity8004DescriptorDescription: null,
+    identity8004DescriptorImage: null,
+    identity8004RegistrationJson: null,
+    identity8004NftMetadataJson: null,
+    identity8004RegisteredBy: null,
+    identity8004RegistryNamespace: null,
+    identity8004DescriptorSkills: [],
+    identity8004DescriptorDomains: [],
+    identityEnsIri: null,
+    didEns: null,
+    identityHolIri: null,
+    identityHolProtocolIdentifier: null,
+    identityHolUaidHOL: null,
+    identityHolDescriptorIri: null,
+    identityHolDescriptorName: null,
+    identityHolDescriptorDescription: null,
+    identityHolDescriptorImage: null,
+    identityHolDescriptorJson: null,
+    identityOwnerAccountIri: null,
+    identityWalletAccountIri: null,
+    identityOperatorAccountIri: null,
+    identityOwnerEOAAccountIri: null,
+
+    agentAccountIri: null,
+
+    identity8122Iri: null,
+    did8122: null,
+    agentId8122: null,
+    registry8122: null,
+    endpointType8122: null,
+    endpoint8122: null,
+    identity8122DescriptorIri: null,
+    identity8122DescriptorName: null,
+    identity8122DescriptorDescription: null,
+    identity8122DescriptorImage: null,
+    identity8122DescriptorJson: null,
+    identity8122OwnerAccountIri: null,
+    identity8122AgentAccountIri: null,
+    identity8122RegistryIri: null,
+    identity8122RegistryName: null,
+    identity8122RegistryImplementationAddress: null,
+    identity8122RegistrarImplementationAddress: null,
+    identity8122RegistrarAddress: null,
+    identity8122RegisteredAgentCount: null,
+    identity8122LastAgentUpdatedAtTime: null,
+
+    a2aServiceEndpointIri: null,
+    a2aServiceUrl: null,
+    a2aProtocolIri: null,
+    a2aServiceEndpointDescriptorIri: null,
+    a2aServiceEndpointDescriptorName: null,
+    a2aServiceEndpointDescriptorDescription: null,
+    a2aServiceEndpointDescriptorImage: null,
+    a2aProtocolDescriptorIri: null,
+    a2aDescriptorName: null,
+    a2aDescriptorDescription: null,
+    a2aDescriptorImage: null,
+    a2aProtocolVersion: null,
+    a2aAgentCardJson: null,
+    a2aSkills: [],
+    a2aDomains: [],
+
+    mcpServiceEndpointIri: null,
+    mcpServiceUrl: null,
+    mcpProtocolIri: null,
+    mcpServiceEndpointDescriptorIri: null,
+    mcpServiceEndpointDescriptorName: null,
+    mcpServiceEndpointDescriptorDescription: null,
+    mcpServiceEndpointDescriptorImage: null,
+    mcpProtocolDescriptorIri: null,
+    mcpDescriptorName: null,
+    mcpDescriptorDescription: null,
+    mcpDescriptorImage: null,
+    mcpProtocolVersion: null,
+    mcpAgentCardJson: null,
+    mcpSkills: [],
+    mcpDomains: [],
+  };
+
+  // Identities for a single agent (required for identity8004 descriptor info in GraphQL).
+  try {
+    const identMap = await hydrateIdentitiesForAgents({ agentIris: [row.iri], ctxIri, graphdbCtx });
+    row.identities = identMap.get(row.iri) ?? [];
+  } catch {
+    row.identities = [];
+  }
+
+  // Trust ledger badges for a single agent (no big VALUES fanout).
+  if (analyticsCtxIri && row.iri) {
+    try {
+      const badgeMap = await hydrateTrustLedgerBadgesForAgents({ agentIris: [row.iri], analyticsCtxIri, graphdbCtx });
+      const key = normalizeAgentIriForBadgeMap(row.iri);
+      row.trustLedgerBadges = badgeMap.get(key) ?? badgeMap.get(row.iri) ?? [];
+    } catch {
+      row.trustLedgerBadges = [];
+    }
+  }
+
+  return row.iri ? row : null;
 }
 
 export async function kbOwnedAgentsQuery(args: {

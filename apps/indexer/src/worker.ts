@@ -20,9 +20,17 @@ import {
 } from './graphql-handler.js';
 import { graphiqlHTML } from './graphiql-template.js';
 import { createSemanticSearchServiceFromEnv } from './semantic/factory.js';
+export { SyncAgentPipelineDO } from './sync-agent-pipeline-do.js';
 
 function shouldBridgeEnvKeyToProcessEnv(key: string): boolean {
-  return key === 'NODE_ENV' || key.startsWith('GRAPHDB_') || key.startsWith('DEBUG_GRAPHDB');
+  return (
+    key === 'NODE_ENV' ||
+    key.startsWith('GRAPHDB_') ||
+    key.startsWith('DEBUG_GRAPHDB') ||
+    key === 'GRAPHQL_API_KEY' ||
+    key === 'ETH_MAINNET_GRAPHQL_URL' ||
+    key === 'LINEA_MAINNET_GRAPHQL_URL'
+  );
 }
 
 /**
@@ -261,8 +269,34 @@ export default {
       // KB resolvers are GraphDB-backed; they do not depend on D1 tables.
       const semanticSearchService = createSemanticSearchServiceFromEnv(env) ?? null;
       const sharedKb = createGraphQLResolversKb({ semanticSearchService }) as any;
+      const extraSyncTypeDefs = `
+        type KbSyncJob {
+          id: ID!
+          status: String!
+          chainIds: [Int!]!
+          createdAt: Float!
+          startedAt: Float
+          endedAt: Float
+          processedAgents: Int!
+          limitAgents: Int!
+          batchSize: Int!
+          chainIndex: Int!
+          error: String
+          logTail: String
+        }
+
+        extend type Query {
+          kbSyncJob(id: ID!): KbSyncJob
+        }
+
+        extend type Mutation {
+          # Worker-compatible, incremental agent sync (agents only) into GraphDB.
+          # Runs in background via Durable Object alarms.
+          kbSyncAgentPipeline(chainIds: [Int!]!, limitAgents: Int, batchSize: Int): KbSyncJob!
+        }
+      `;
       (globalThis as any).__schemaKb = createSchema({
-        typeDefs: graphQLSchemaStringKb,
+        typeDefs: graphQLSchemaStringKb + extraSyncTypeDefs,
         resolvers: {
           Query: {
             oasfSkills: (_p: any, args: any) => sharedKb.oasfSkills(args),
@@ -289,9 +323,67 @@ export default {
             kbAssociations: (_p: any, args: any) => sharedKb.kbAssociations(args),
             kbAgentTrustIndex: (_p: any, args: any) => sharedKb.kbAgentTrustIndex(args),
             kbTrustLedgerBadgeDefinitions: (_p: any, args: any) => sharedKb.kbTrustLedgerBadgeDefinitions(args),
+            kbSyncJob: async (_p: any, args: any) => {
+              const id = typeof args?.id === 'string' ? args.id.trim() : '';
+              if (!id) return null;
+              const stub = (env as any).SYNC_AGENT_PIPELINE?.get?.((env as any).SYNC_AGENT_PIPELINE.idFromName(id));
+              if (!stub) throw new Error('SYNC_AGENT_PIPELINE Durable Object binding is not configured');
+              const resp = await stub.fetch('https://do/status');
+              const json: any = await resp.json().catch(() => null);
+              if (!resp.ok) return null;
+              return {
+                id: json.id,
+                status: json.status,
+                chainIds: json.chainIds,
+                createdAt: json.createdAt,
+                startedAt: json.startedAt,
+                endedAt: json.endedAt,
+                processedAgents: json.processedAgents ?? 0,
+                limitAgents: json.limitAgents ?? 0,
+                batchSize: json.batchSize ?? 0,
+                chainIndex: json.chainIndex ?? 0,
+                error: json.error ?? null,
+                logTail: json.logTail ?? null,
+              };
+            },
           },
           Mutation: {
             kbHolSyncCapabilities: (_p: any, args: any) => sharedKb.kbHolSyncCapabilities(args),
+            kbSyncAgentPipeline: async (_p: any, args: any) => {
+              const chainIds = Array.isArray(args?.chainIds) ? args.chainIds : [];
+              const id = crypto.randomUUID();
+              const stub = (env as any).SYNC_AGENT_PIPELINE?.get?.((env as any).SYNC_AGENT_PIPELINE.idFromName(id));
+              if (!stub) throw new Error('SYNC_AGENT_PIPELINE Durable Object binding is not configured');
+              const resp = await stub.fetch(`https://do/start?id=${encodeURIComponent(id)}`, {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                  id,
+                  chainIds,
+                  limitAgents: typeof args?.limitAgents === 'number' ? args.limitAgents : undefined,
+                  batchSize: typeof args?.batchSize === 'number' ? args.batchSize : undefined,
+                }),
+              });
+              const json: any = await resp.json().catch(() => null);
+              if (!resp.ok) throw new Error(json?.error || 'Failed to start sync job');
+              // Return initial status (queued)
+              const st = await stub.fetch('https://do/status');
+              const sj: any = await st.json().catch(() => null);
+              return {
+                id: sj?.id ?? id,
+                status: sj?.status ?? 'queued',
+                chainIds: sj?.chainIds ?? chainIds,
+                createdAt: sj?.createdAt ?? Date.now(),
+                startedAt: sj?.startedAt ?? null,
+                endedAt: sj?.endedAt ?? null,
+                processedAgents: sj?.processedAgents ?? 0,
+                limitAgents: sj?.limitAgents ?? 0,
+                batchSize: sj?.batchSize ?? 0,
+                chainIndex: sj?.chainIndex ?? 0,
+                error: sj?.error ?? null,
+                logTail: sj?.logTail ?? null,
+              };
+            },
           },
         },
       });
