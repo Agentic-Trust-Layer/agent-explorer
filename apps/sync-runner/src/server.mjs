@@ -1,6 +1,8 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import { URL } from 'node:url';
 
 /** @typedef {'queued'|'running'|'completed'|'failed'} JobStatus */
@@ -57,6 +59,65 @@ function appendLog(job, chunk) {
   job.log = (job.log + chunk).slice(-maxChars);
 }
 
+function fileExists(p) {
+  try {
+    return fs.existsSync(p);
+  } catch {
+    return false;
+  }
+}
+
+function repoCwd() {
+  const repoRoot = envString('REPO_ROOT', '');
+  return repoRoot || process.cwd();
+}
+
+function spawnAndCapture(cmd, args, opts, onChunk) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
+    child.stdout.on('data', (d) => onChunk(String(d)));
+    child.stderr.on('data', (d) => onChunk(String(d)));
+    child.on('error', reject);
+    child.on('close', (c) => resolve(typeof c === 'number' ? c : 0));
+  });
+}
+
+let _ensureDepsPromise = null;
+async function ensureWorkspaceDeps(job) {
+  // De-dupe installs across concurrent requests.
+  if (_ensureDepsPromise) return _ensureDepsPromise;
+
+  _ensureDepsPromise = (async () => {
+    const cwd = repoCwd();
+    const tsxBin = path.join(cwd, 'node_modules', '.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
+    if (fileExists(tsxBin)) return;
+
+    appendLog(job, `[runner] node_modules missing (tsx not found). Installing workspace deps...\n`);
+
+    // Prefer frozen installs (production-safe).
+    const installArgs = ['-w', 'install', '--frozen-lockfile'];
+    const code = await spawnAndCapture('pnpm', installArgs, { cwd, env: { ...process.env } }, (chunk) => appendLog(job, chunk));
+    if (code === 0) {
+      appendLog(job, `[runner] pnpm install completed.\n`);
+      return;
+    }
+
+    // Optional fallback if lockfile mismatch; opt-in only.
+    const allowNonFrozen = envString('ALLOW_NON_FROZEN_INSTALL', '').toLowerCase() === '1';
+    if (!allowNonFrozen) {
+      throw new Error(`pnpm install failed (exitCode=${code}). If this is a lockfile mismatch, rebuild the image or set ALLOW_NON_FROZEN_INSTALL=1.`);
+    }
+
+    appendLog(job, `[runner] pnpm install --frozen-lockfile failed; retrying --no-frozen-lockfile (ALLOW_NON_FROZEN_INSTALL=1)\n`);
+    const code2 = await spawnAndCapture('pnpm', ['-w', 'install', '--no-frozen-lockfile'], { cwd, env: { ...process.env } }, (chunk) =>
+      appendLog(job, chunk),
+    );
+    if (code2 !== 0) throw new Error(`pnpm install --no-frozen-lockfile failed (exitCode=${code2})`);
+  })();
+
+  return _ensureDepsPromise;
+}
+
 function parseChainIds(input) {
   const xs = Array.isArray(input) ? input : [];
   const out = [];
@@ -76,14 +137,14 @@ async function runJob(job, opts) {
   job.startedAt = Date.now();
   appendLog(job, `[job] start ${new Date(job.startedAt).toISOString()} chainIds=${job.chainIds.join(',')}\n`);
 
-  const repoRoot = envString('REPO_ROOT', '');
-  const cwd = repoRoot || process.cwd();
+  const cwd = repoCwd();
 
   const limit = typeof opts?.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0 ? Math.trunc(opts.limit) : null;
   const agentIdsCsv = typeof opts?.agentIdsCsv === 'string' && opts.agentIdsCsv.trim() ? opts.agentIdsCsv.trim() : null;
   const ensureAgent = opts?.ensureAgent === true;
 
   const runOne = async (chainId) => {
+    await ensureWorkspaceDeps(job);
     appendLog(job, `\n[job] chainId=${chainId} spawning: pnpm --filter sync sync:agent-pipeline\n`);
 
     const args = ['--filter', 'sync', 'sync:agent-pipeline'];
@@ -93,19 +154,12 @@ async function runJob(job, opts) {
     if (ensureAgent) extra.push(`--ensure-agent`);
     if (extra.length) args.push('--', ...extra);
 
-    const child = spawn('pnpm', args, {
-      cwd,
-      env: { ...process.env, SYNC_CHAIN_ID: String(chainId) },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    child.stdout.on('data', (d) => appendLog(job, String(d)));
-    child.stderr.on('data', (d) => appendLog(job, String(d)));
-
-    const code = await new Promise((resolve, reject) => {
-      child.on('error', reject);
-      child.on('close', (c) => resolve(typeof c === 'number' ? c : 0));
-    });
+    const code = await spawnAndCapture(
+      'pnpm',
+      args,
+      { cwd, env: { ...process.env, SYNC_CHAIN_ID: String(chainId) } },
+      (chunk) => appendLog(job, chunk),
+    );
     appendLog(job, `\n[job] chainId=${chainId} exitCode=${code}\n`);
     return code;
   };
