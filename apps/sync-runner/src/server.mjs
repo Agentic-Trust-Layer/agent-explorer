@@ -71,15 +71,6 @@ function parseChainIds(input) {
   return out;
 }
 
-function requireToken(req, res) {
-  const expected = envString('RUNNER_TOKEN', '');
-  if (!expected) return true; // allow if not configured
-  const got = String(req.headers['x-sync-token'] || '').trim();
-  if (got && got === expected) return true;
-  json(res, 401, { error: 'unauthorized' });
-  return false;
-}
-
 async function runJob(job, opts) {
   job.status = 'running';
   job.startedAt = Date.now();
@@ -158,8 +149,6 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (u.pathname === '/run' && method === 'POST') {
-    if (!requireToken(req, res)) return;
-
     const raw = await readBody(req);
     /** @type {any} */
     let body = {};
@@ -201,7 +190,6 @@ const server = http.createServer(async (req, res) => {
 
   const jobMatch = u.pathname.match(/^\/jobs\/([^/]+)$/);
   if (jobMatch && method === 'GET') {
-    if (!requireToken(req, res)) return;
     const id = decodeURIComponent(jobMatch[1] || '').trim();
     const job = id ? jobs.get(id) : null;
     if (!job) return json(res, 404, { error: 'job not found' });
