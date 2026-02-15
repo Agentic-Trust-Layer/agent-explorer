@@ -1,4 +1,4 @@
-# sync-worker (sync.8004-agent.io)
+# sync-worker (sync.agentkg.io)
 
 Cloudflare Worker that exposes:
 
@@ -13,14 +13,7 @@ It **does not** run the pipeline itself. It proxies to an external runner servic
 
    - `RUNNER_BASE_URL="https://<your-runner-host>"`
 
-2. Set trigger token (Worker secret):
-
-```bash
-cd apps/sync-worker
-npx wrangler secret put RUNNER_TOKEN
-```
-
-3. Deploy:
+2. Deploy:
 
 ```bash
 cd apps/sync-worker
@@ -29,12 +22,9 @@ npx wrangler deploy
 
 ## Call it
 
-Include the token as `x-sync-token`.
-
 ```bash
-curl -X POST "https://sync.8004-agent.io/sync/agent-pipeline?chainId=all" \
+curl -X POST "https://sync.agentkg.io/sync/agent-pipeline?chainId=all" \
   -H "content-type: application/json" \
-  -H "x-sync-token: $RUNNER_TOKEN" \
   -d '{}'
 ```
 

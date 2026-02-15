@@ -1,6 +1,5 @@
 type Env = {
   RUNNER_BASE_URL: string;
-  RUNNER_TOKEN?: string; // set via `wrangler secret put RUNNER_TOKEN`
 };
 
 function json(data: any, init?: ResponseInit): Response {
@@ -18,7 +17,7 @@ function corsHeaders(): Record<string, string> {
   return {
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET,POST,OPTIONS',
-    'access-control-allow-headers': 'content-type, x-sync-token',
+    'access-control-allow-headers': 'content-type',
   };
 }
 
@@ -34,19 +33,54 @@ function parseChainIds(input: string | null): number[] {
   return Array.from(new Set(out));
 }
 
-function requireToken(req: Request, env: Env): Response | null {
-  const expected = String(env.RUNNER_TOKEN ?? '').trim();
-  // If no token configured, allow unauthenticated (not recommended but supports early dev).
-  if (!expected) return null;
-  const got = (req.headers.get('x-sync-token') || '').trim();
-  if (got && got === expected) return null;
-  return json({ error: 'unauthorized' }, { status: 401, headers: corsHeaders() });
-}
-
 function joinUrl(base: string, path: string): string {
   const b = base.endsWith('/') ? base.slice(0, -1) : base;
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${b}${p}`;
+}
+
+function isIpv4Literal(host: string): boolean {
+  const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!m) return false;
+  for (let i = 1; i <= 4; i++) {
+    const n = Number(m[i]);
+    if (!Number.isFinite(n) || n < 0 || n > 255) return false;
+  }
+  return true;
+}
+
+function runnerBaseUrlOrError(runnerBase: string): { ok: true; base: string } | { ok: false; res: Response } {
+  let u: URL;
+  try {
+    u = new URL(runnerBase);
+  } catch {
+    return {
+      ok: false,
+      res: json(
+        { error: 'RUNNER_BASE_URL must be a valid URL (include http:// or https://)', runnerBase },
+        { status: 500, headers: corsHeaders() },
+      ),
+    };
+  }
+
+  // Cloudflare Workers cannot fetch IP literals in production; must use a hostname with an A/AAAA record.
+  // See: https://developers.cloudflare.com/workers/platform/known-issues/#fetch-to-ip-addresses
+  if (isIpv4Literal(u.hostname) || u.hostname.includes(':')) {
+    return {
+      ok: false,
+      res: json(
+        {
+          error: 'RUNNER_BASE_URL cannot be an IP address in production Workers. Use a DNS hostname (A/AAAA record) instead.',
+          runnerBase,
+          hint: 'Create e.g. runner.agentkg.io -> <VM public IP>, or use Cloudflare Tunnel, then set RUNNER_BASE_URL=https://runner.agentkg.io',
+          docs: 'https://developers.cloudflare.com/workers/platform/known-issues/#fetch-to-ip-addresses',
+        },
+        { status: 500, headers: corsHeaders() },
+      ),
+    };
+  }
+
+  return { ok: true, base: runnerBase };
 }
 
 export default {
@@ -68,11 +102,10 @@ export default {
     }
 
     if (url.pathname === '/sync/agent-pipeline' && request.method === 'POST') {
-      const authErr = requireToken(request, env);
-      if (authErr) return authErr;
-
       const runnerBase = String(env.RUNNER_BASE_URL || '').trim();
       if (!runnerBase) return json({ error: 'RUNNER_BASE_URL is not configured' }, { status: 500, headers: corsHeaders() });
+      const runnerOk = runnerBaseUrlOrError(runnerBase);
+      if (!runnerOk.ok) return runnerOk.res;
 
       const chainIds = parseChainIds(url.searchParams.get('chainId'));
       if (!chainIds.length) return json({ error: 'invalid chainId' }, { status: 400, headers: corsHeaders() });
@@ -85,11 +118,10 @@ export default {
         ensureAgent: body?.ensureAgent ?? null,
       };
 
-      const resp = await fetch(joinUrl(runnerBase, '/run'), {
+      const resp = await fetch(joinUrl(runnerOk.base, '/run'), {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-sync-token': (request.headers.get('x-sync-token') || '').trim(),
         },
         body: JSON.stringify(payload),
       });
@@ -101,20 +133,17 @@ export default {
       return json(data, { status: resp.status, headers: corsHeaders() });
     }
 
-    const jobMatch = url.pathname.match(/^\\/sync\\/jobs\\/([^/]+)$/);
+    const jobMatch = url.pathname.match(/^\/sync\/jobs\/([^/]+)$/);
     if (jobMatch && request.method === 'GET') {
-      const authErr = requireToken(request, env);
-      if (authErr) return authErr;
-
       const runnerBase = String(env.RUNNER_BASE_URL || '').trim();
       if (!runnerBase) return json({ error: 'RUNNER_BASE_URL is not configured' }, { status: 500, headers: corsHeaders() });
+      const runnerOk = runnerBaseUrlOrError(runnerBase);
+      if (!runnerOk.ok) return runnerOk.res;
 
       const jobId = decodeURIComponent(jobMatch[1] || '').trim();
-      const resp = await fetch(joinUrl(runnerBase, `/jobs/${encodeURIComponent(jobId)}`), {
+      const resp = await fetch(joinUrl(runnerOk.base, `/jobs/${encodeURIComponent(jobId)}`), {
         method: 'GET',
-        headers: {
-          'x-sync-token': (request.headers.get('x-sync-token') || '').trim(),
-        },
+        headers: {},
       });
       const text = await resp.text().catch(() => '');
       let data: any = text;
