@@ -147,6 +147,27 @@ async function ensureWorkspaceDeps(job) {
   return _ensureDepsPromise;
 }
 
+let _ensureBuildPromise = null;
+async function ensureHcsCoreBuilt(job) {
+  if (_ensureBuildPromise) return _ensureBuildPromise;
+
+  _ensureBuildPromise = (async () => {
+    const cwd = repoCwd();
+    const builtMarker = path.join(cwd, 'packages', 'hcs-core', 'dist', 'rdf', 'common.js');
+    if (fileExists(builtMarker)) return;
+
+    appendLog(job, `[runner] building @agentictrust/hcs-core (missing ${builtMarker})...\n`);
+    const code = await spawnAndCapture('pnpm', ['-w', '-s', '--filter', '@agentictrust/hcs-core', 'build'], { cwd, env: { ...process.env } }, (chunk) =>
+      appendLog(job, chunk),
+    );
+    if (code !== 0) throw new Error(`failed to build @agentictrust/hcs-core (exitCode=${code})`);
+    if (!fileExists(builtMarker)) throw new Error(`@agentictrust/hcs-core build completed but ${builtMarker} is still missing`);
+    appendLog(job, `[runner] @agentictrust/hcs-core build completed.\n`);
+  })();
+
+  return _ensureBuildPromise;
+}
+
 function parseChainIds(input) {
   const xs = Array.isArray(input) ? input : [];
   const out = [];
@@ -174,6 +195,7 @@ async function runJob(job, opts) {
 
   const runOne = async (chainId) => {
     await ensureWorkspaceDeps(job);
+    await ensureHcsCoreBuilt(job);
     appendLog(job, `\n[job] chainId=${chainId} spawning: pnpm --filter sync sync:agent-pipeline\n`);
 
     const args = ['--filter', 'sync', 'sync:agent-pipeline'];
