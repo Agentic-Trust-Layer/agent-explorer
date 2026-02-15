@@ -201,7 +201,14 @@ importers:
         specifier: ^3.109.0
         version: 3.114.15(@cloudflare/workers-types@4.20251113.0)(bufferutil@4.0.9)(utf-8-validate@5.0.10)
 
-  packages/hcs-core: {}
+  packages/hcs-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.1
+        version: 25.0.1
+      typescript:
+        specifier: ^5.6.2
+        version: 5.9.3
 
 packages:
 

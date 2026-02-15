@@ -98,6 +98,7 @@ async function ensureWorkspaceDeps(job) {
   if (_ensureDepsPromise) return _ensureDepsPromise;
 
   _ensureDepsPromise = (async () => {
+    try {
     const cwd = repoCwd();
     const tsxBins = tsxBinPaths(cwd);
     const haveTsx = tsxBins.find((p) => fileExists(p));
@@ -142,6 +143,11 @@ async function ensureWorkspaceDeps(job) {
       appendLog(job, chunk),
     );
     if (code2 !== 0) throw new Error(`pnpm install --no-frozen-lockfile failed (exitCode=${code2})`);
+    } catch (e) {
+      // Allow retry on next job.
+      _ensureDepsPromise = null;
+      throw e;
+    }
   })();
 
   return _ensureDepsPromise;
@@ -152,17 +158,25 @@ async function ensureHcsCoreBuilt(job) {
   if (_ensureBuildPromise) return _ensureBuildPromise;
 
   _ensureBuildPromise = (async () => {
+    try {
     const cwd = repoCwd();
     const builtMarker = path.join(cwd, 'packages', 'hcs-core', 'dist', 'rdf', 'common.js');
     if (fileExists(builtMarker)) return;
 
     appendLog(job, `[runner] building @agentictrust/hcs-core (missing ${builtMarker})...\n`);
-    const code = await spawnAndCapture('pnpm', ['-w', '-s', '--filter', '@agentictrust/hcs-core', 'build'], { cwd, env: { ...process.env } }, (chunk) =>
-      appendLog(job, chunk),
+    const code = await spawnAndCapture(
+      'pnpm',
+      ['-w', '-s', '--filter', '@agentictrust/hcs-core', 'build'],
+      { cwd, env: { ...process.env } },
+      (chunk) => appendLog(job, chunk),
     );
     if (code !== 0) throw new Error(`failed to build @agentictrust/hcs-core (exitCode=${code})`);
     if (!fileExists(builtMarker)) throw new Error(`@agentictrust/hcs-core build completed but ${builtMarker} is still missing`);
     appendLog(job, `[runner] @agentictrust/hcs-core build completed.\n`);
+    } catch (e) {
+      _ensureBuildPromise = null;
+      throw e;
+    }
   })();
 
   return _ensureBuildPromise;
