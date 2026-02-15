@@ -72,9 +72,14 @@ function repoCwd() {
   return repoRoot || process.cwd();
 }
 
-function tsxBinPathForSync(cwd) {
+function tsxBinPaths(cwd) {
   const binName = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
-  return path.join(cwd, 'apps', 'sync', 'node_modules', '.bin', binName);
+  return [
+    // Common with workspaces (hoisted linker): root bins are reachable from package scripts via PATH.
+    path.join(cwd, 'node_modules', '.bin', binName),
+    // Common with isolated linker: per-package bins.
+    path.join(cwd, 'apps', 'sync', 'node_modules', '.bin', binName),
+  ];
 }
 
 function spawnAndCapture(cmd, args, opts, onChunk) {
@@ -94,10 +99,11 @@ async function ensureWorkspaceDeps(job) {
 
   _ensureDepsPromise = (async () => {
     const cwd = repoCwd();
-    const tsxBin = tsxBinPathForSync(cwd);
-    if (fileExists(tsxBin)) return;
+    const tsxBins = tsxBinPaths(cwd);
+    const haveTsx = tsxBins.find((p) => fileExists(p));
+    if (haveTsx) return;
 
-    appendLog(job, `[runner] deps missing (tsx not found at ${tsxBin}). Installing workspace deps (incl devDeps)...\n`);
+    appendLog(job, `[runner] deps missing (tsx not found). Installing workspace deps (incl devDeps)...\n`);
 
     // Prefer frozen installs (production-safe).
     // Force devDependencies even if NODE_ENV=production (tsx is a devDependency of apps/sync).
@@ -106,8 +112,21 @@ async function ensureWorkspaceDeps(job) {
     const code = await spawnAndCapture('pnpm', installArgs, { cwd, env: { ...process.env } }, (chunk) => appendLog(job, chunk));
     if (code === 0) {
       appendLog(job, `[runner] pnpm install completed.\n`);
-      if (!fileExists(tsxBin)) {
-        throw new Error(`pnpm install succeeded but tsx is still missing at ${tsxBin}. Check NODE_ENV / workspace config.`);
+      const haveAfter = tsxBins.find((p) => fileExists(p));
+      if (!haveAfter) {
+        appendLog(job, `[runner] tsx not found at: ${tsxBins.join(', ')}\n`);
+        // Try a targeted install for the sync workspace (sometimes workspaces are configured not to recurse).
+        const codeSync = await spawnAndCapture(
+          'pnpm',
+          ['--filter', 'sync', 'install', '--frozen-lockfile', '--prod=false'],
+          { cwd, env: { ...process.env } },
+          (chunk) => appendLog(job, chunk),
+        );
+        if (codeSync === 0) {
+          const haveAfter2 = tsxBins.find((p) => fileExists(p));
+          if (haveAfter2) return;
+        }
+        throw new Error(`pnpm install succeeded but tsx is still missing. Looked in: ${tsxBins.join(', ')}`);
       }
       return;
     }
