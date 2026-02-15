@@ -72,6 +72,11 @@ function repoCwd() {
   return repoRoot || process.cwd();
 }
 
+function tsxBinPathForSync(cwd) {
+  const binName = process.platform === 'win32' ? 'tsx.cmd' : 'tsx';
+  return path.join(cwd, 'apps', 'sync', 'node_modules', '.bin', binName);
+}
+
 function spawnAndCapture(cmd, args, opts, onChunk) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -89,16 +94,21 @@ async function ensureWorkspaceDeps(job) {
 
   _ensureDepsPromise = (async () => {
     const cwd = repoCwd();
-    const tsxBin = path.join(cwd, 'node_modules', '.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
+    const tsxBin = tsxBinPathForSync(cwd);
     if (fileExists(tsxBin)) return;
 
-    appendLog(job, `[runner] node_modules missing (tsx not found). Installing workspace deps...\n`);
+    appendLog(job, `[runner] deps missing (tsx not found at ${tsxBin}). Installing workspace deps (incl devDeps)...\n`);
 
     // Prefer frozen installs (production-safe).
-    const installArgs = ['-w', 'install', '--frozen-lockfile'];
+    // Force devDependencies even if NODE_ENV=production (tsx is a devDependency of apps/sync).
+    // See: https://pnpm.io/9.x/cli/install#--prod--p
+    const installArgs = ['-w', 'install', '--frozen-lockfile', '--prod=false'];
     const code = await spawnAndCapture('pnpm', installArgs, { cwd, env: { ...process.env } }, (chunk) => appendLog(job, chunk));
     if (code === 0) {
       appendLog(job, `[runner] pnpm install completed.\n`);
+      if (!fileExists(tsxBin)) {
+        throw new Error(`pnpm install succeeded but tsx is still missing at ${tsxBin}. Check NODE_ENV / workspace config.`);
+      }
       return;
     }
 
