@@ -154,6 +154,31 @@ function getEnsSubgraphUrl(chainId: number): string {
   return '';
 }
 
+function envOrEmpty(key: string): string {
+  const v = process.env[key];
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/**
+ * Select the ENS parent name we should enumerate for a given *target* chain.
+ * Uses the frontend-style NEXT_PUBLIC envs as the source of truth for the org name.
+ */
+export function ensParentNameForTargetChain(targetChainId: number): string {
+  const chainId = Math.trunc(Number(targetChainId));
+  const base =
+    chainId === 59144 || chainId === 59140
+      ? envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_LINEA')
+      : chainId === 11155111
+        ? envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_SEPOLIA')
+        : chainId === 84532
+          ? envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_BASE_SEPOLIA')
+          : envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME');
+
+  const name = (base || '8004-agent').trim();
+  if (!name) return '8004-agent.eth';
+  return name.endsWith('.eth') ? name : `${name}.eth`;
+}
+
 const ENS_SUBDOMAINS_QUERY = `query DomainsBySuffix($first: Int!, $skip: Int!, $suffix: String!) {
   domains(first: $first, skip: $skip, where: { name_ends_with: $suffix }, orderBy: createdAt, orderDirection: asc) {
     id
@@ -162,9 +187,10 @@ const ENS_SUBDOMAINS_QUERY = `query DomainsBySuffix($first: Int!, $skip: Int!, $
 }`;
 
 export async function syncEnsParentForChain(
-  chainId: number,
-  opts: { parentName: string; resetContext: boolean },
+  targetChainId: number,
+  opts: { parentName: string; resetContext: boolean; ensSourceChainId?: number },
 ): Promise<void> {
+  const ensSourceChainId = Math.trunc(Number(opts?.ensSourceChainId ?? targetChainId));
   const parentNameRaw = String(opts.parentName || '').trim();
   const parentName = (() => {
     try {
@@ -177,18 +203,19 @@ export async function syncEnsParentForChain(
     throw new Error(`[sync] ens-parent invalid --parent: ${opts.parentName}`);
   }
 
-  const ensGraphqlUrl = getEnsSubgraphUrl(chainId);
+  const ensGraphqlUrl = getEnsSubgraphUrl(ensSourceChainId);
   if (!ensGraphqlUrl) {
     throw new Error(
-      `[sync] ens-parent missing ENS subgraph url for chainId=${chainId}. ` +
-        `Set ENS_SEPOLIA_GRAPHQL_URL (or ENS_SUBGRAPH_URL_${chainId} / ENS_GRAPHQL_URL_${chainId}).`,
+      `[sync] ens-parent missing ENS subgraph url for ensSourceChainId=${ensSourceChainId}. ` +
+        `Set ENS_SEPOLIA_GRAPHQL_URL / ENS_MAINNET_GRAPHQL_URL (or ENS_SUBGRAPH_URL_${ensSourceChainId} / ENS_GRAPHQL_URL_${ensSourceChainId}).`,
     );
   }
 
-  const rpcUrl = getRpcUrl(chainId);
+  const rpcUrl = getRpcUrl(ensSourceChainId);
   if (!rpcUrl || !rpcUrl.trim()) {
     throw new Error(
-      `[sync] ens-parent missing RPC url for chainId=${chainId}. Set ETH_SEPOLIA_RPC_HTTP_URL (or RPC_HTTP_URL_${chainId})`,
+      `[sync] ens-parent missing RPC url for ensSourceChainId=${ensSourceChainId}. ` +
+        `Set ETH_SEPOLIA_RPC_HTTP_URL / ETH_MAINNET_RPC_HTTP_URL (or RPC_HTTP_URL_${ensSourceChainId})`,
     );
   }
 
@@ -196,7 +223,8 @@ export async function syncEnsParentForChain(
 
   const suffix = `.${parentName}`;
   console.info('[sync] [ens-parent] starting', {
-    chainId,
+    targetChainId,
+    ensSourceChainId,
     parentName,
     ensGraphqlUrl,
     suffix,
@@ -231,7 +259,13 @@ export async function syncEnsParentForChain(
     ),
   );
 
-  console.info('[sync] [ens-parent] enumerated subnames from ENS subgraph', { chainId, parentName, suffix, subnames: subnames.length });
+  console.info('[sync] [ens-parent] enumerated subnames from ENS subgraph', {
+    targetChainId,
+    ensSourceChainId,
+    parentName,
+    suffix,
+    subnames: subnames.length,
+  });
 
   const lines: string[] = [];
   lines.push(rdfPrefixes());
@@ -257,16 +291,19 @@ export async function syncEnsParentForChain(
     const url = resolver ? await readResolverText(client, resolver, node, 'url') : null;
     const ethAddr = resolver ? await readResolverEthAddress(client, resolver, node) : null;
 
-    const nameIri = ensNameIri(chainId, ens);
-    const nameDescIri = ensNameDescriptorIri(chainId, ens);
+    // Store ENS name nodes under the *target chain* so they can be joined to that chain's agent identities.
+    const nameIri = ensNameIri(targetChainId, ens);
+    const nameDescIri = ensNameDescriptorIri(targetChainId, ens);
 
     // ENS name node
     lines.push(`${nameIri} a eth:AgentNameENS, core:AgentName, prov:Entity ;`);
     lines.push(`  eth:ensName "${escapeTurtleString(ens)}" ;`);
-    lines.push(`  eth:ensChainId ${chainId} ;`);
+    // ENS itself lives on the ENS source chain (mainnet or sepolia).
+    lines.push(`  eth:ensChainId ${ensSourceChainId} ;`);
     lines.push(`  core:hasDescriptor ${nameDescIri} ;`);
     if (ethAddr) {
-      lines.push(`  eth:ensResolvesTo ${accountIri(chainId, ethAddr)} ;`);
+      // Link resolution to the account on the *target chain* so downstream queries match did:ethr:<targetChainId>:0x...
+      lines.push(`  eth:ensResolvesTo ${accountIri(targetChainId, ethAddr)} ;`);
     }
     lines[lines.length - 1] = lines[lines.length - 1].replace(/ ;$/, ' .');
     lines.push('');
@@ -275,7 +312,8 @@ export async function syncEnsParentForChain(
     const descriptorJson = {
       parentName,
       ensName: ens,
-      chainId,
+      targetChainId,
+      ensSourceChainId,
       node,
       resolver,
       resolvedAddress: ethAddr,
@@ -292,16 +330,16 @@ export async function syncEnsParentForChain(
     lines.push('');
 
     if (ethAddr) {
-      const did = `did:ethr:${chainId}:${ethAddr}`;
+      const did = `did:ethr:${targetChainId}:${ethAddr}`;
       const uaid = `uaid:${did}`;
-      const acctIri = accountIri(chainId, ethAddr);
+      const acctIri = accountIri(targetChainId, ethAddr);
       const acctIdentIri = accountIdentifierIri(did);
       const agentIri = agentIriFromAccountDid(did);
       const agentDescIri = agentDescriptorIriFromAgentIri(agentIri);
 
       // Account node
       lines.push(`${acctIri} a eth:Account, core:Account, prov:Entity ;`);
-      lines.push(`  eth:accountChainId ${chainId} ;`);
+      lines.push(`  eth:accountChainId ${targetChainId} ;`);
       lines.push(`  eth:accountAddress "${escapeTurtleString(ethAddr)}" ;`);
       lines.push(`  eth:hasAccountIdentifier ${acctIdentIri} .`);
       lines.push('');
@@ -333,12 +371,12 @@ export async function syncEnsParentForChain(
 
   // Ingest once (reset clears prior ens-parent statements for this chain context).
   await ingestSubgraphTurtleToGraphdb({
-    chainId,
+    chainId: targetChainId,
     section: 'ens-parent',
     turtle: lines.join('\n'),
     resetContext: opts.resetContext,
   });
 
-  console.info('[sync] [ens-parent] complete', { chainId, parentName, totalNames, totalWithAddr });
+  console.info('[sync] [ens-parent] complete', { targetChainId, ensSourceChainId, parentName, totalNames, totalWithAddr });
 }
 

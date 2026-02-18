@@ -59,7 +59,7 @@ import { materializeRegistrationServicesForChain } from './registration/material
 import { materializeAssertionSummariesForChain } from './trust-summaries/materialize-assertion-summaries.js';
 import { syncTrustLedgerToGraphdbForChain } from './trust-ledger/sync-trust-ledger.js';
 import { syncMcpForAgentIds, syncMcpForChain } from './mcp/mcp-sync.js';
-import { syncEnsParentForChain } from './ens/ens-parent-sync.js';
+import { ensParentNameForTargetChain, syncEnsParentForChain } from './ens/ens-parent-sync.js';
 import { ensureRepositoryExistsOrThrow, getGraphdbConfigFromEnv, queryGraphdb, updateGraphdb } from './graphdb-http.js';
 import { watchErc8004RegistryEventsMultiChain } from './erc8004/registry-events-watch.js';
 
@@ -1450,6 +1450,13 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     }
       await syncTrustLedgerToGraphdbForChain(chainId, { agentIds });
     }
+
+    // ENS parent sync: materialize subdomains (e.g. *.8004-agent.eth) into this chain's KB context.
+    // ENS is queried on mainnet for mainnet chains, and on sepolia for testnets.
+    const ensSourceChainId = chainId === 1 || chainId === 59144 ? 1 : 11155111;
+    const parentName = ensParentNameForTargetChain(chainId);
+    await syncEnsParentForChain(chainId, { parentName, resetContext: false, ensSourceChainId });
+
     console.info('[sync] [agent-pipeline] done', { chainId, agentCount: agentIds.length });
     return;
   }
