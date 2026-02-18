@@ -13,7 +13,7 @@ COPY . .
 RUN pnpm -w install --frozen-lockfile --prod=false
 
 # Build workspace package(s) that must exist at runtime.
-RUN pnpm -w -s --filter @agentictrust/hcs-core build
+RUN pnpm -w --filter @agentictrust/hcs-core build
 
 ENV PORT=8787
 EXPOSE 8787

@@ -118,6 +118,14 @@ export default {
         ensureAgent: body?.ensureAgent ?? null,
       };
 
+      console.log('[sync-worker] trigger', {
+        path: url.pathname,
+        chainIds,
+        hasLimit: payload.limit != null,
+        hasAgentIdsCsv: Boolean(payload.agentIdsCsv),
+        ensureAgent: payload.ensureAgent === true,
+      });
+
       const resp = await fetch(joinUrl(runnerOk.base, '/run'), {
         method: 'POST',
         headers: {
@@ -130,6 +138,12 @@ export default {
       try {
         data = text ? JSON.parse(text) : null;
       } catch {}
+
+      console.log('[sync-worker] trigger result', {
+        httpStatus: resp.status,
+        jobId: typeof data?.jobId === 'string' ? data.jobId : null,
+        chainIds: Array.isArray(data?.chainIds) ? data.chainIds : chainIds,
+      });
       return json(data, { status: resp.status, headers: corsHeaders() });
     }
 
@@ -150,6 +164,16 @@ export default {
       try {
         data = text ? JSON.parse(text) : null;
       } catch {}
+
+      // Keep logs concise: only status and any kb summaries (if present).
+      console.log('[sync-worker] job status', {
+        jobId,
+        httpStatus: resp.status,
+        status: typeof data?.status === 'string' ? data.status : null,
+        exitCode: typeof data?.exitCode === 'number' ? data.exitCode : null,
+        error: typeof data?.error === 'string' ? data.error : null,
+        kbSummaryChains: data?.kbSummaryByChain ? Object.keys(data.kbSummaryByChain) : [],
+      });
       return json(data, { status: resp.status, headers: corsHeaders() });
     }
 

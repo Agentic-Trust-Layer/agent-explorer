@@ -18,6 +18,7 @@ import { URL } from 'node:url';
  * @property {number|null} exitCode
  * @property {string|null} error
  * @property {string} log
+ * @property {Record<string, any>=} kbSummaryByChain
  */
 
 /** @type {Map<string, Job>} */
@@ -182,6 +183,154 @@ async function ensureHcsCoreBuilt(job) {
   return _ensureBuildPromise;
 }
 
+function graphdbConfigFromEnv() {
+  const baseUrl = envString('GRAPHDB_BASE_URL', '');
+  const repository = envString('GRAPHDB_REPOSITORY', '');
+  const username = envString('GRAPHDB_USERNAME', '');
+  const password = envString('GRAPHDB_PASSWORD', '');
+  return { baseUrl, repository, username, password };
+}
+
+function basicAuthHeader(username, password) {
+  if (!username || !password) return null;
+  const token = Buffer.from(`${username}:${password}`, 'utf8').toString('base64');
+  return `Basic ${token}`;
+}
+
+function chainContext(chainId) {
+  return `https://www.agentictrust.io/graph/data/subgraph/${Math.trunc(Number(chainId))}`;
+}
+
+function envOrEmpty(key) {
+  const v = process.env[key];
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+function ensParentNameForTargetChain(targetChainId) {
+  const chainId = Math.trunc(Number(targetChainId));
+  const base =
+    chainId === 59144 || chainId === 59140
+      ? envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_LINEA')
+      : chainId === 11155111
+        ? envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_SEPOLIA')
+        : chainId === 84532
+          ? envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME_BASE_SEPOLIA')
+          : envOrEmpty('NEXT_PUBLIC_AGENTIC_TRUST_ENS_ORG_NAME');
+  const name = (base || '8004-agent').trim();
+  if (!name) return '8004-agent.eth';
+  return name.endsWith('.eth') ? name : `${name}.eth`;
+}
+
+async function sparqlCount({ baseUrl, repository, authHeader, sparql, timeoutMs = 15000 }) {
+  const endpoint = `${baseUrl.replace(/\/+$/, '')}/repositories/${encodeURIComponent(repository)}`;
+  const controller = new AbortController();
+  const t = setTimeout(() => {
+    try {
+      controller.abort();
+    } catch {}
+  }, timeoutMs);
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        accept: 'application/sparql-results+json',
+        'content-type': 'application/sparql-query',
+        ...(authHeader ? { authorization: authHeader } : {}),
+      },
+      body: sparql,
+      signal: controller.signal,
+    });
+    const text = await res.text().catch(() => '');
+    if (!res.ok) throw new Error(`GraphDB SPARQL HTTP ${res.status}: ${text.slice(0, 500)}`);
+    const json = text ? JSON.parse(text) : null;
+    const b0 = json?.results?.bindings?.[0];
+    const raw = b0?.count?.value ?? b0?.c?.value ?? null;
+    const n = raw != null ? Number(raw) : NaN;
+    return Number.isFinite(n) ? Math.trunc(n) : 0;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function kbCountsForChain(chainId) {
+  const { baseUrl, repository, username, password } = graphdbConfigFromEnv();
+  if (!baseUrl || !repository) {
+    return { chainId, skipped: true, reason: 'GRAPHDB_BASE_URL/GRAPHDB_REPOSITORY not set' };
+  }
+  const authHeader = basicAuthHeader(username, password);
+  const ctx = chainContext(chainId);
+  const prefixes = [
+    'PREFIX core: <https://agentictrust.io/ontology/core#>',
+    'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
+  ].join('\n');
+
+  const totalAgents = await sparqlCount({
+    baseUrl,
+    repository,
+    authHeader,
+    sparql: `${prefixes}\nSELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE { GRAPH <${ctx}> { ?agent a core:AIAgent . } }`,
+  });
+  const smartAgents = await sparqlCount({
+    baseUrl,
+    repository,
+    authHeader,
+    sparql: `${prefixes}\nSELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE { GRAPH <${ctx}> { ?agent a core:AISmartAgent . } }`,
+  });
+  const erc8004Agents = await sparqlCount({
+    baseUrl,
+    repository,
+    authHeader,
+    sparql: `${prefixes}\nSELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE { GRAPH <${ctx}> { ?agent a core:AIAgent ; core:hasIdentity ?id . ?id a erc8004:AgentIdentity8004 . } }`,
+  });
+
+  const ensParent = ensParentNameForTargetChain(chainId);
+  const ensSuffix = `.${ensParent}`.toLowerCase();
+  const ensNamesTotal = await sparqlCount({
+    baseUrl,
+    repository,
+    authHeader,
+    sparql: `${prefixes}\nSELECT (COUNT(DISTINCT ?ensName) AS ?count) WHERE { GRAPH <${ctx}> { ?n a eth:AgentNameENS ; eth:ensName ?ensName . } }`,
+  });
+  const ensNamesUnderOrg = await sparqlCount({
+    baseUrl,
+    repository,
+    authHeader,
+    sparql:
+      `${prefixes}\n` +
+      `SELECT (COUNT(DISTINCT ?ensName) AS ?count) WHERE {\n` +
+      `  GRAPH <${ctx}> { ?n a eth:AgentNameENS ; eth:ensName ?ensName . }\n` +
+      `  FILTER(STRENDS(LCASE(STR(?ensName)), "${ensSuffix.replace(/"/g, '\\"')}"))\n` +
+      `}`,
+  });
+  const smartAgentsWithEnsUnderOrg = await sparqlCount({
+    baseUrl,
+    repository,
+    authHeader,
+    sparql:
+      `${prefixes}\n` +
+      `SELECT (COUNT(DISTINCT ?agent) AS ?count) WHERE {\n` +
+      `  GRAPH <${ctx}> {\n` +
+      `    ?agent a core:AISmartAgent ; core:hasName ?n .\n` +
+      `    ?n a eth:AgentNameENS ; eth:ensName ?ensName .\n` +
+      `  }\n` +
+      `  FILTER(STRENDS(LCASE(STR(?ensName)), "${ensSuffix.replace(/"/g, '\\"')}"))\n` +
+      `}`,
+  });
+
+  return {
+    chainId: Math.trunc(Number(chainId)),
+    ctx,
+    totalAgents,
+    smartAgents,
+    erc8004Agents,
+    ensParent,
+    ensNamesTotal,
+    ensNamesUnderOrg,
+    smartAgentsWithEnsUnderOrg,
+  };
+}
+
 function parseChainIds(input) {
   const xs = Array.isArray(input) ? input : [];
   const out = [];
@@ -239,6 +388,16 @@ async function runJob(job, opts) {
         job.error = `sync:agent-pipeline failed for chainId=${chainId} (exitCode=${code})`;
         appendLog(job, `[job] failed ${new Date(job.endedAt).toISOString()} error=${job.error}\n`);
         return;
+      }
+
+      // Best-effort KB summary per chain (never fail the job if this errors).
+      try {
+        const summary = await kbCountsForChain(chainId);
+        if (!job.kbSummaryByChain) job.kbSummaryByChain = {};
+        job.kbSummaryByChain[String(chainId)] = summary;
+        appendLog(job, `\n[kb-summary] ${JSON.stringify(summary)}\n`);
+      } catch (e) {
+        appendLog(job, `\n[kb-summary] failed chainId=${chainId} error=${String(e?.message || e || '')}\n`);
       }
     }
     job.status = 'completed';

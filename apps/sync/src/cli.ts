@@ -1332,7 +1332,14 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
       // Repeated runs fetch the next batch (e.g. next 5000) and process only that batch.
       const ingestedIds = await syncAgents(endpoint, false);
       if (!ingestedIds.length) {
-        console.info('[sync] [agent-pipeline] no new agents from subgraph (caught up). Run again later for more.');
+        console.info('[sync] [agent-pipeline] no new agents from subgraph (caught up). Running ENS sync anyway.');
+
+        // ENS parent sync: materialize subdomains (e.g. *.8004-agent.eth) into this chain's KB context.
+        // ENS source chain: mainnet for mainnet, sepolia for eth/base/op sepolia, Linea/Linea Sepolia for their chains.
+        const ensSourceChainId = chainId === 1 ? 1 : chainId === 59144 || chainId === 59141 ? chainId : 11155111;
+        const parentName = ensParentNameForTargetChain(chainId);
+        await syncEnsParentForChain(chainId, { parentName, resetContext: false, ensSourceChainId });
+
         return;
       }
       agentIds = ingestedIds.sort((a, b) => Number(a) - Number(b));
@@ -1452,8 +1459,8 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     }
 
     // ENS parent sync: materialize subdomains (e.g. *.8004-agent.eth) into this chain's KB context.
-    // ENS is queried on mainnet for mainnet chains, and on sepolia for testnets.
-    const ensSourceChainId = chainId === 1 || chainId === 59144 ? 1 : 11155111;
+    // ENS source chain: mainnet for mainnet, sepolia for eth/base/op sepolia, Linea/Linea Sepolia for their chains.
+    const ensSourceChainId = chainId === 1 ? 1 : chainId === 59144 || chainId === 59141 ? chainId : 11155111;
     const parentName = ensParentNameForTargetChain(chainId);
     await syncEnsParentForChain(chainId, { parentName, resetContext: false, ensSourceChainId });
 
