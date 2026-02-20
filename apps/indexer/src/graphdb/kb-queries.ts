@@ -2268,10 +2268,12 @@ export async function kbAgentByUaidFastQuery(
   const ctxIri = chainContext(chainId);
   const analyticsCtxIri = Math.trunc(chainId) !== 295 ? analyticsContext(chainId) : null;
   const uaidEsc = uaid.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const uaidIsBase = !uaid.includes(';');
 
   const sparql = [
     'PREFIX core: <https://agentictrust.io/ontology/core#>',
     'PREFIX erc8004: <https://agentictrust.io/ontology/erc8004#>',
+    'PREFIX eth: <https://agentictrust.io/ontology/eth#>',
     'PREFIX dcterms: <http://purl.org/dc/terms/>',
     'PREFIX schema: <http://schema.org/>',
     'PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>',
@@ -2287,6 +2289,7 @@ export async function kbAgentByUaidFastQuery(
     '  (SAMPLE(?createdAtTime) AS ?createdAtTime)',
     '  (SAMPLE(?updatedAtTime) AS ?updatedAtTime)',
     '  (SAMPLE(?agentId8004) AS ?agentId8004)',
+    '  (SAMPLE(?agentAccount) AS ?agentAccount)',
     '  (GROUP_CONCAT(DISTINCT STR(?agentType); separator=" ") AS ?agentTypes)',
     ...(analyticsCtxIri
       ? [
@@ -2302,10 +2305,13 @@ export async function kbAgentByUaidFastQuery(
     'WHERE {',
     `  GRAPH <${ctxIri}> {`,
     '    ?agent a core:AIAgent ; core:uaid ?uaid .',
-    `    FILTER(STR(?uaid) = "${uaidEsc}")`,
+    ...(uaidIsBase
+      ? [`    FILTER(STR(?uaid) = "${uaidEsc}" || STRSTARTS(STR(?uaid), "${uaidEsc};"))`]
+      : [`    FILTER(STR(?uaid) = "${uaidEsc}")`]),
     '    OPTIONAL { ?agent core:createdAtTime ?createdAtTime . }',
     '    OPTIONAL { ?agent core:updatedAtTime ?updatedAtTime . }',
     '    OPTIONAL { ?agent erc8004:agentId8004 ?agentId8004 . }',
+    '    OPTIONAL { ?agent core:hasAgentAccount ?agentAccount . }',
     '    OPTIONAL { ?agent a ?agentType . }',
     '    OPTIONAL {',
     '      ?agent core:hasDescriptor ?agentDesc .',
@@ -2407,7 +2413,7 @@ export async function kbAgentByUaidFastQuery(
     identityOperatorAccountIri: null,
     identityOwnerEOAAccountIri: null,
 
-    agentAccountIri: null,
+    agentAccountIri: asString(b?.agentAccount),
 
     identity8122Iri: null,
     did8122: null,

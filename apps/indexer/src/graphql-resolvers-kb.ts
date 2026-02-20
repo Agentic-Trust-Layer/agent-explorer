@@ -1194,6 +1194,22 @@ LIMIT 1
       // eslint-disable-next-line no-console
       console.info('[kb][kbAgentByUaid] initial kbAgentsQuery result', { uaid, rows: res.rows.length });
 
+      // If the caller passes uaid:did:8004:* for an agent that is account-anchored (canonical UAID uaid:did:ethr:*),
+      // we still want to resolve it. We do a best-effort fallback via the did:8004 identifier on the 8004 identity.
+      if (!res.rows.length && uaid.startsWith('uaid:did:8004:')) {
+        const did = stripUaidPrefix(uaid);
+        const m = /^did:8004:(\d+):(\d+)$/.exec(did);
+        if (m?.[1] && m?.[2]) {
+          const did8004 = `did:8004:${m[1]}:${m[2]}`;
+          try {
+            const byDid = await kbAgentsQuery({ where: { chainId: Number(m[1]), did8004 }, first: 1, skip: 0 }, graphdbCtx);
+            if (byDid.rows.length) res = byDid;
+          } catch (e: any) {
+            console.warn('[kb][kbAgentByUaid] did8004 fallback failed (non-fatal)', { uaid, did8004, error: String(e?.message || e || '') });
+          }
+        }
+      }
+
       // If caller passed uaid:did:8004:* (common for "find HOL json for a DID"),
       // translate it via HOL registry search on meta.nativeId and then return the matching HOL agent (uaid:aid:*).
       //

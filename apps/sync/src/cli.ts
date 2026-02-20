@@ -10,6 +10,7 @@ import {
   fetchAgentMintedAtById,
   fetchAgentById,
   AGENT_METADATA_COLLECTION_QUERY,
+  AGENT_METADATA_COLLECTION_QUERY_BY_ID_PREFIX,
   AGENT_METADATA_COLLECTION_QUERY_BY_ID_CURSOR,
   FEEDBACKS_QUERY,
   FEEDBACK_REVOCATIONS_QUERY,
@@ -364,12 +365,52 @@ export async function syncSingleAgent(
 ): Promise<boolean> {
   const id = String(agentId ?? '').trim();
   if (!id) return false;
+  if (!/^\d+$/.test(id)) {
+    console.warn('[sync] [syncSingleAgent] invalid agentId (expected numeric)', { chainId: endpoint.chainId, agentId: id });
+    return false;
+  }
   const row = await fetchAgentById(endpoint.url, id).catch(() => null);
   if (!row) {
     console.warn('[sync] [syncSingleAgent] agent not found in subgraph', { chainId: endpoint.chainId, agentId: id });
     return false;
   }
-  const { turtle } = emitAgentsTurtle(endpoint.chainId, [row], 'mintedAt', -1n);
+  // Best-effort: clear old per-agent nodes so re-sync updates don't accumulate stale values
+  // (important when canonical UAID/IRI changes for account-anchored agents).
+  try {
+    await clearErc8004AgentFromGraphdb(endpoint.chainId, Number(id));
+  } catch (e: any) {
+    console.warn('[sync] [syncSingleAgent] clear failed (non-fatal)', { chainId: endpoint.chainId, agentId: id, error: String(e?.message || e || '') });
+  }
+  // Attach on-chain agent metadata KV rows (required for agentAccount/UAID canonicalization and SmartAgent linking).
+  const prefix = `${id}-`;
+  let metas = await fetchAllFromSubgraph(endpoint.url, AGENT_METADATA_COLLECTION_QUERY_BY_ID_PREFIX, 'agentMetadata_collection', {
+    optional: true,
+    first: 500,
+    maxSkip: 5000,
+    buildVariables: ({ first, skip }) => ({ first, skip, prefix }),
+  }).catch(() => []);
+  // Fallback: some subgraphs (including our Sepolia deployments) don't support where filters on agentMetadata_collection.
+  // In that case, fetch the whole collection (bounded by skip cap) and filter client-side for this agentId.
+  if (!Array.isArray(metas) || metas.length === 0) {
+    const all = await fetchAllFromSubgraph(endpoint.url, AGENT_METADATA_COLLECTION_QUERY, 'agentMetadata_collection', {
+      optional: true,
+      first: 500,
+      maxSkip: 50_000,
+    }).catch(() => []);
+    const matches = Array.isArray(all)
+      ? all.filter((m: any) => {
+          const mid = typeof m?.id === 'string' ? m.id.trim() : '';
+          if (!mid) return false;
+          // Most common patterns are "<agentId>-<key>" or "<agentId>:<key>"
+          if (mid.startsWith(`${id}-`) || mid.startsWith(`${id}:`)) return true;
+          // Fallback: match the numeric id as a standalone token in odd id formats
+          return new RegExp(`\\b${id}\\b`).test(mid);
+        })
+      : [];
+    metas = matches;
+  }
+  const rowWithMetas = { ...row, agentMetadatas: Array.isArray(metas) ? metas : [] };
+  const { turtle } = emitAgentsTurtle(endpoint.chainId, [rowWithMetas], 'mintedAt', -1n);
   if (!turtle || !turtle.trim()) return true;
   await ingestSubgraphTurtleToGraphdb({
     chainId: endpoint.chainId,

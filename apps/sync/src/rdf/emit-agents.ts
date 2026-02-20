@@ -444,6 +444,10 @@ export function emitAgentsTurtle(
       pickString(onchainByKey, ['registryNamespace', 'namespace', 'REGISTRY NAMESPACE']) ||
       pickString(onchainObj, ['REGISTRY NAMESPACE', 'registryNamespace', 'namespace']) ||
       findLabeledValue(onchainObj, 'REGISTRY NAMESPACE');
+    const metaUaidRaw =
+      pickString(onchainByKey, ['uaid', 'UAID']) ||
+      pickString(onchainObj, ['uaid', 'UAID']) ||
+      findLabeledValue(onchainObj, 'UAID');
 
     // ERC-8004 "wallet" comes from metadata keys when present (paymentWallet/agentWallet), otherwise fall back to agent.agentWallet
     const metaPaymentWallet = normalizeHex(pickString(onchainByKey, ['paymentWallet']) || '');
@@ -456,35 +460,48 @@ export function emitAgentsTurtle(
     const agentWallet = walletAddress;
     if (!agentWallet) continue;
 
-    // IMPORTANT: ERC-8004 "agentAccount" metadata may be present even for simple (EOA) agents.
-    // We only treat it as a SmartAgent when the agentAccount is DISTINCT from the agent's wallet/owner.
-    // Otherwise we keep the canonical UAID anchored to the ERC-8004 identity DID (did:8004:*).
-    const isSmartAgent8004 =
-      Boolean(metaAgentAccount) &&
-      Boolean(agentWallet) &&
-      metaAgentAccount !== agentWallet &&
-      metaAgentAccount !== ownerAddress;
-    const smartAgentAccount = isSmartAgent8004 ? metaAgentAccount : null;
-    const smartAccountIri = smartAgentAccount ? accountIri(chainId, smartAgentAccount) : null;
+    // Canonical UAID representation:
+    // - If an agent has an "agentAccount" (even if it's an EOA and even if it matches wallet/owner),
+    //   we treat the agent's canonical UAID authority as the account DID (did:ethr:...).
+    // - This aligns with how clients interpret UAID for account-anchored agents and avoids emitting uaid:did:8004
+    //   for agents that are fundamentally address-keyed.
+    //
+    // NOTE: `sync:account-types` may later *remove* core:AISmartAgent typing if the account is an EOA, but UAID stays did:ethr.
+    const agentAccountAuthority = metaAgentAccount ?? null;
+    const agentAccountIri = agentAccountAuthority ? accountIri(chainId, agentAccountAuthority) : null;
     const didIdentity = `did:8004:${chainId}:${agentId}`;
     const didAccountEoa = `did:ethr:${chainId}:${agentWallet}`;
-    const didAccountSmart = smartAgentAccount ? `did:ethr:${chainId}:${smartAgentAccount}` : null;
+    const didAccountAuthority = agentAccountAuthority ? `did:ethr:${chainId}:${agentAccountAuthority}` : null;
+    const canonicalizeUaid = (uaidValue: string): string => {
+      const u = String(uaidValue || '').trim();
+      if (!u) return u;
+      const withPrefix = u.startsWith('uaid:') ? u : `uaid:${u}`;
+      const m = withPrefix.match(/^uaid:did:ethr:(\d+):(0x[0-9a-fA-F]{40})(.*)$/);
+      if (!m) return withPrefix;
+      return `uaid:did:ethr:${m[1]}:${m[2].toLowerCase()}${m[3] ?? ''}`;
+    };
+    const metaUaid = metaUaidRaw ? canonicalizeUaid(metaUaidRaw) : '';
+    const metaUaidBase = metaUaid ? String(metaUaid.split(';')[0] ?? '').trim() : '';
     // UAID is a UAID-string (not a DID). Clients expect it to start with "uaid:".
-    // We currently derive it from the authority / native identifier we already have:
-    // - AISmartAgent: did:ethr:<chainId>:<smartAccount>
-    // - AIAgent: did:8004:<chainId>:<agentId>
-    const uaid = `uaid:${didAccountSmart ?? didIdentity}`;
-    const didAccountForProtocols = didAccountSmart ?? didAccountEoa;
+    // Canonical rules:
+    // - If metadata provides a UAID (preferred), use its BASE form (strip routing params after ';').
+    // - Else if we have an agentAccount, use uaid:did:ethr:<chainId>:<agentAccount>.
+    // - Else fall back to uaid:did:8004:<chainId>:<agentId>.
+    const uaid =
+      metaUaidBase && metaUaidBase.startsWith(`uaid:did:ethr:${chainId}:`)
+        ? metaUaidBase
+        : `uaid:${didAccountAuthority ?? didIdentity}`;
+    const didAccountForProtocols = didAccountAuthority ?? didAccountEoa;
     const deferredNodes: string[] = [];
 
     // IMPORTANT:
     // - SmartAgent node IRI is keyed off smart account DID (authority / UAID)
     // - Non-smart ERC-8004 agent stays keyed off agentId
-    const agentNodeIri = didAccountSmart ? agentIriFromAccountDid(didAccountSmart) : agentIri(chainId, agentId);
+    const agentNodeIri = didAccountAuthority ? agentIriFromAccountDid(didAccountAuthority) : agentIri(chainId, agentId);
 
     // Agent node: only core:AIAgent plus optional core:AISmartAgent (registry-agnostic).
     // Emit core:AIAgent explicitly so queries don't rely on inference.
-    const agentExtraType = didAccountSmart ? ', core:AISmartAgent' : '';
+    const agentExtraType = didAccountAuthority ? ', core:AISmartAgent' : '';
     lines.push(`${agentNodeIri} a core:AIAgent${agentExtraType}, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
 
     // Prefer UX fields from the identity descriptor JSON (registration JSON).
@@ -532,20 +549,20 @@ export function emitAgentsTurtle(
     void operatorAcctIri;
     void walletAcctIri;
 
-    if (didAccountSmart) {
-      // AISmartAgent should be the only thing that links to its agentAccount
-      if (smartAccountIri) lines.push(`  core:hasAgentAccount ${smartAccountIri} ;`);
+    if (didAccountAuthority) {
+      // Account-anchored agent should link to its agentAccount (even if it is an EOA).
+      if (agentAccountIri) lines.push(`  core:hasAgentAccount ${agentAccountIri} ;`);
       // Defer SmartAccount + identifier node emission until after the agent triple is terminated with '.'
-      const acctIdIri = accountIdentifierIri(didAccountSmart!);
-      if (smartAccountIri) {
+      const acctIdIri = accountIdentifierIri(didAccountAuthority!);
+      if (agentAccountIri) {
         // Type as ERC-8004 AgentAccount + eth:Account here; `sync:account-types` will add eth:SmartAccount vs eth:EOAAccount.
-        deferredNodes.push(`${smartAccountIri} a erc8004:AgentAccount, eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
+        deferredNodes.push(`${agentAccountIri} a erc8004:AgentAccount, eth:Account, prov:SoftwareAgent, prov:Agent, prov:Entity ;`);
         deferredNodes.push(`  eth:accountChainId ${chainId} ;`);
-        deferredNodes.push(`  eth:accountAddress "${escapeTurtleString(smartAgentAccount!)}" ;`);
+        deferredNodes.push(`  eth:accountAddress "${escapeTurtleString(agentAccountAuthority!)}" ;`);
         deferredNodes.push(`  eth:hasAccountIdentifier ${acctIdIri} .\n`);
       }
       deferredNodes.push(`${acctIdIri} a eth:AccountIdentifier, core:UniversalIdentifier, core:Identifier, core:DID, prov:Entity ;`);
-      deferredNodes.push(`  core:protocolIdentifier "${escapeTurtleString(didAccountSmart!)}" ;`);
+      deferredNodes.push(`  core:protocolIdentifier "${escapeTurtleString(didAccountAuthority!)}" ;`);
       deferredNodes.push(`  core:didMethod <https://www.agentictrust.io/id/did-method/ethr> .\n`);
     }
 

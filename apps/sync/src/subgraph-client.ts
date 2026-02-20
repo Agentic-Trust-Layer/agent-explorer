@@ -357,6 +357,21 @@ export const AGENT_METADATA_COLLECTION_QUERY = `query AgentMetadataCollection($f
   }
 }`;
 
+// Targeted: fetch only metadata rows for one agent id (best-effort; some subgraphs may not support id_starts_with).
+export const AGENT_METADATA_COLLECTION_QUERY_BY_ID_PREFIX = `query AgentMetadataCollectionByIdPrefix($first: Int!, $skip: Int!, $prefix: String!) {
+  agentMetadata_collection(first: $first, skip: $skip, where: { id_starts_with: $prefix }, orderBy: setAt, orderDirection: asc) {
+    id
+    key
+    value
+    indexedKey
+    setAt
+    setBy
+    txHash
+    blockNumber
+    timestamp
+  }
+}`;
+
 export const AGENT_METADATA_COLLECTION_QUERY_BY_ID_CURSOR = `query AgentMetadataCollectionByIdCursor($first: Int!, $lastId: String!) {
   agentMetadata_collection(first: $first, where: { id_gt: $lastId }, orderBy: id, orderDirection: asc) {
     id

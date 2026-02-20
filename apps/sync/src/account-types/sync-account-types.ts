@@ -245,7 +245,8 @@ WHERE {
   }
 
   // Ensure AISmartAgent always refers to an actual SmartAccount (typed as eth:SmartAccount after classification):
-  // - If core:hasAgentAccount points to an account that is EOA, remove the AISmartAgent typing and the link.
+  // - If core:hasAgentAccount points to an account that is EOA, remove ONLY the AISmartAgent typing.
+  // - We keep core:hasAgentAccount so account-anchored agents still return their agentAccount in KB queries.
   //
   // IMPORTANT: the naive graph-wide join can stall GraphDB during update-heavy periods.
   // Rewrite this as a VALUES-driven update using the EOA account list we *already* computed via RPC.
@@ -263,7 +264,7 @@ WHERE {
     const fixup = `
 PREFIX core: <https://agentictrust.io/ontology/core#>
 WITH <${ctx}>
-DELETE { ?agent a core:AISmartAgent . ?agent core:hasAgentAccount ?acct . }
+DELETE { ?agent a core:AISmartAgent . }
 WHERE {
   VALUES (?acct) {
     ${valueRows}
