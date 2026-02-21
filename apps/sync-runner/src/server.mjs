@@ -355,6 +355,7 @@ async function runJob(job, opts) {
   const limit = typeof opts?.limit === 'number' && Number.isFinite(opts.limit) && opts.limit > 0 ? Math.trunc(opts.limit) : null;
   const agentIdsCsv = typeof opts?.agentIdsCsv === 'string' && opts.agentIdsCsv.trim() ? opts.agentIdsCsv.trim() : null;
   const ensureAgent = opts?.ensureAgent === true;
+  const runAssertionSummaries = opts?.runAssertionSummaries !== false;
 
   const runOne = async (chainId) => {
     await ensureWorkspaceDeps(job);
@@ -375,6 +376,29 @@ async function runJob(job, opts) {
       (chunk) => appendLog(job, chunk),
     );
     appendLog(job, `\n[job] chainId=${chainId} exitCode=${code}\n`);
+    if (code !== 0) return code;
+
+    if (runAssertionSummaries) {
+      // Option B: run assertion-summaries after the pipeline so review counts stay fresh.
+      // Fast path: if the job was invoked with --agent-ids, only recompute for those.
+      // Slow path (default): recompute for the chain (keeps data correct even when no new agents).
+      const sumArgs = ['--filter', 'sync', 'sync:assertion-summaries'];
+      const sumExtra = [];
+      if (agentIdsCsv) sumExtra.push(`--agent-ids=${agentIdsCsv}`);
+      if (sumExtra.length) sumArgs.push('--', ...sumExtra);
+      appendLog(
+        job,
+        `\n[job] chainId=${chainId} spawning: pnpm --filter sync sync:assertion-summaries${agentIdsCsv ? ` -- --agent-ids=${agentIdsCsv}` : ''}\n`,
+      );
+      const sumCode = await spawnAndCapture(
+        'pnpm',
+        sumArgs,
+        { cwd, env: { ...process.env, SYNC_CHAIN_ID: String(chainId) } },
+        (chunk) => appendLog(job, chunk),
+      );
+      appendLog(job, `\n[job] chainId=${chainId} assertion-summaries exitCode=${sumCode}\n`);
+      if (sumCode !== 0) return sumCode;
+    }
     return code;
   };
 
