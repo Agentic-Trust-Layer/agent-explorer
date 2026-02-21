@@ -10,7 +10,11 @@ COPY . .
 
 # Install workspace deps (runner itself has no deps, but the sync CLI does)
 # IMPORTANT: sync uses `tsx` (devDependency) and hcs-core needs `tsc` to build.
-RUN pnpm -w install --frozen-lockfile --prod=false
+#
+# Note: `pnpm -w install` doesn't always link devDependencies for every workspace
+# importer (e.g. `packages/hcs-core`), which can make `tsc` unavailable at build
+# time. A recursive install ensures all workspace packages get their deps linked.
+RUN pnpm -r install --frozen-lockfile --prod=false
 
 # Build workspace package(s) that must exist at runtime.
 RUN pnpm -w --filter @agentictrust/hcs-core build

@@ -230,7 +230,7 @@ async function uploadTurtle(env: Env, params: { context: string; turtle: string 
 
   const ctx = params.context.trim();
   const qs = ctx ? `?context=${encodeURIComponent(`<${ctx}>`)}` : '';
-  const url = `${baseUrl.replace(/\\/$/, '')}/repositories/${encodeURIComponent(repository)}/statements${qs}`;
+  const url = `${baseUrl.replace(/\/+$/, '')}/repositories/${encodeURIComponent(repository)}/statements${qs}`;
   const headers: Record<string, string> = { 'Content-Type': 'text/turtle' };
   if (auth) headers['Authorization'] = auth;
 
