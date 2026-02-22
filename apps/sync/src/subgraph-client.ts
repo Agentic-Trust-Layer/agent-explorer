@@ -281,6 +281,29 @@ export const AGENTS_QUERY_BY_MINTEDAT_CURSOR = `query AgentsByMintedAtCursor($fi
   }
 }`;
 
+export const AGENTS_QUERY_BY_AGENTURI_IN = `query AgentsByAgentUriIn($first: Int!, $uris: [String!]!) {
+  agents(first: $first, where: { agentURI_in: $uris }) {
+    id
+    agentURI
+  }
+}`;
+
+// Agent URI update events/materializations (optional: not all subgraphs expose this field).
+// Convention: id is the agentId (string); blockNumber is the block where the URI was updated.
+export const AGENT_URI_UPDATES_QUERY_BY_BLOCKNUMBER_CURSOR = `query AgentUriUpdatesByBlockNumberCursor($first: Int!, $lastBlockNumber: BigInt!, $lastId: String!) {
+  agentURIUpdates(
+    first: $first,
+    where: { or: [ { blockNumber_gt: $lastBlockNumber }, { blockNumber: $lastBlockNumber, id_gt: $lastId } ] },
+    orderBy: blockNumber,
+    orderDirection: asc
+  ) {
+    id
+    newAgentURI
+    newAgentURIJson
+    blockNumber
+  }
+}`;
+
 export async function fetchAgentMintedAtById(
   graphqlUrl: string,
   agentId: string,
@@ -339,6 +362,162 @@ export async function fetchAgentById(
   const resp = await fetchJson(graphqlUrl, { query, variables: { id } }, opts?.maxRetries ?? 3);
   const row = resp?.data?.agents?.[0];
   return row ?? null;
+}
+
+export async function fetchAgentIdByAgentUri(
+  graphqlUrl: string,
+  agentUri: string,
+  opts?: { maxRetries?: number },
+): Promise<string | null> {
+  const uri = String(agentUri || '').trim();
+  if (!uri) return null;
+  const query = `query AgentIdByAgentUri($uri: String!) {
+  agents(first: 1, where: { agentURI: $uri }) {
+    id
+  }
+}`;
+  const resp = await fetchJson(graphqlUrl, { query, variables: { uri } }, opts?.maxRetries ?? 3);
+  const row = resp?.data?.agents?.[0];
+  const id = typeof row?.id === 'string' ? row.id.trim() : '';
+  return id ? id : null;
+}
+
+export async function fetchAgentIdsByAgentUriIn(
+  graphqlUrl: string,
+  agentUris: string[],
+  opts?: { maxRetries?: number; chunkSize?: number },
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const uniq = Array.from(new Set((agentUris || []).map((u) => String(u || '').trim()).filter(Boolean)));
+  if (!uniq.length) return out;
+
+  const chunkSize = Math.max(1, Math.min(200, Math.trunc(opts?.chunkSize ?? 50)));
+  for (let i = 0; i < uniq.length; i += chunkSize) {
+    const chunk = uniq.slice(i, i + chunkSize);
+    const first = Math.min(500, chunk.length);
+    const resp = await fetchJson(
+      graphqlUrl,
+      { query: AGENTS_QUERY_BY_AGENTURI_IN, variables: { first, uris: chunk } },
+      opts?.maxRetries ?? 3,
+    );
+    const rows = (resp?.data?.agents || []) as any[];
+    for (const r of rows) {
+      const id = typeof r?.id === 'string' ? r.id.trim() : '';
+      const uri = typeof r?.agentURI === 'string' ? r.agentURI.trim() : '';
+      if (id && uri) out.set(uri, id);
+    }
+  }
+  return out;
+}
+
+export async function fetchAllFromSubgraphByBlockNumberCursor(
+  graphqlUrl: string,
+  query: string,
+  field: string,
+  opts?: {
+    optional?: boolean;
+    first?: number;
+    maxRetries?: number;
+    startAfterBlockNumber?: string;
+    startAfterId?: string;
+    maxItems?: number;
+  },
+): Promise<any[]> {
+  const pageSize = opts?.first ?? 500;
+  const optional = opts?.optional ?? false;
+  const maxRetries = opts?.maxRetries ?? 6;
+  const maxItems = opts?.maxItems ?? 250_000;
+  const allItems: any[] = [];
+
+  let lastBlockNumber = typeof opts?.startAfterBlockNumber === 'string' ? opts.startAfterBlockNumber : '0';
+  let lastId = typeof opts?.startAfterId === 'string' ? opts.startAfterId : '0';
+  let batchNumber = 0;
+
+  const queryFields = await fetchQueryFieldNames(graphqlUrl);
+  if (queryFields.size > 0 && !queryFields.has(field) && !optional) {
+    const available = Array.from(queryFields).sort().slice(0, 80).join(', ');
+    throw new Error(
+      `Subgraph schema mismatch: Query has no field "${field}". ` + `Available query fields (first 80): ${available}`,
+    );
+  }
+
+  while (true) {
+    if (allItems.length >= maxItems) {
+      console.warn(`[subgraph] Reached maxItems (${maxItems}); stopping cursor pagination after ${allItems.length} items`);
+      break;
+    }
+
+    batchNumber++;
+    if (batchNumber === 1) {
+      console.info(
+        `[subgraph] Fetching first cursor page (pageSize=${pageSize}, field=${field}, startAfterBlockNumber=${lastBlockNumber}, startAfterId=${lastId})`,
+      );
+    }
+
+    const variables = { first: pageSize, lastBlockNumber, lastId };
+
+    let resp: any;
+    try {
+      resp = await fetchJson(graphqlUrl, { query, variables }, maxRetries);
+    } catch (e: any) {
+      const msg = String(e?.message || e || '');
+      if (optional) {
+        console.warn(`[subgraph] Skipping due to fetch error (optional=true): ${msg}`);
+        return allItems;
+      }
+      throw e;
+    }
+
+    if (resp?.errors && Array.isArray(resp.errors) && resp.errors.length > 0) {
+      const errJson = JSON.stringify(resp.errors, null, 2) ?? String(resp.errors);
+      if (optional) {
+        console.warn(`[subgraph] Skipping due to GraphQL errors (optional=true). itemsSoFar=${allItems.length} errors=${errJson}`);
+        return allItems;
+      }
+      throw new Error(`GraphQL query failed: ${errJson}`);
+    }
+
+    const batchItems = (((resp?.data?.[field] as any[]) || []) as any[]).filter(Boolean);
+    if (batchItems.length === 0) {
+      console.info(`[subgraph] No more rows found, stopping cursor pagination (field=${field})`);
+      break;
+    }
+
+    allItems.push(...batchItems);
+
+    const last = batchItems[batchItems.length - 1];
+    const newLastId = typeof last?.id === 'string' && last.id.trim() ? last.id.trim() : lastId;
+    const newLastBlockNumber =
+      typeof last?.blockNumber === 'string'
+        ? last.blockNumber.trim()
+        : typeof last?.blockNumber === 'number'
+          ? String(last.blockNumber)
+          : '';
+
+    if (!/^\d+$/.test(newLastBlockNumber)) {
+      console.warn(
+        `[subgraph] blockNumber cursor did not advance (field=${field}, lastBlockNumber=${lastBlockNumber}); stopping to avoid infinite loop`,
+      );
+      break;
+    }
+
+    if (newLastBlockNumber === lastBlockNumber && newLastId === lastId) {
+      console.warn(
+        `[subgraph] Cursor did not advance (field=${field}, lastBlockNumber=${lastBlockNumber}, lastId=${lastId}); stopping to avoid infinite loop`,
+      );
+      break;
+    }
+
+    lastBlockNumber = newLastBlockNumber;
+    lastId = newLastId;
+
+    if (batchItems.length < pageSize) {
+      console.info(`[subgraph] Reached end (got ${batchItems.length} < ${pageSize})`);
+      break;
+    }
+  }
+
+  return allItems;
 }
 
 // NFT on-chain metadata KV rows (AgentMetadata entity)

@@ -7,6 +7,9 @@ import {
   AGENTS_QUERY,
   AGENTS_QUERY_BY_MINTEDAT_CURSOR,
   fetchAllFromSubgraphByMintedAtCursor,
+  AGENT_URI_UPDATES_QUERY_BY_BLOCKNUMBER_CURSOR,
+  fetchAllFromSubgraphByBlockNumberCursor,
+  fetchAgentIdsByAgentUriIn,
   fetchAgentMintedAtById,
   fetchAgentById,
   AGENT_METADATA_COLLECTION_QUERY,
@@ -95,6 +98,118 @@ type SyncCommand =
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Incremental Agent URI updates (optional).
+ *
+ * Some subgraphs expose an `agentURIUpdates` field that tracks when an existing agent's
+ * agentURI / agentURIJson was updated (without minting a new agent).
+ *
+ * We checkpoint by (blockNumber, id) so repeated runs can catch up safely without hitting skip limits.
+ *
+ * Returns the list of agent IDs that changed since the last checkpoint.
+ */
+async function syncAgentUriUpdates(
+  endpoint: { url: string; chainId: number; name: string },
+  resetContext: boolean,
+): Promise<string[]> {
+  const replay =
+    process.env.SYNC_AGENT_URI_UPDATES_REPLAY === '1' ||
+    process.env.SYNC_AGENT_URI_UPDATES_REPLAY === 'true' ||
+    process.env.SYNC_AGENT_URI_UPDATES_REPLAY === 'yes';
+
+  let rawCursor: string | null = null;
+  if (!resetContext && !replay) rawCursor = await getCheckpoint(endpoint.chainId, 'agent-uri-updates-cursor');
+
+  let startAfterBlockNumber = '0';
+  let startAfterId = '0';
+  if (rawCursor && rawCursor.trim()) {
+    try {
+      const parsed = JSON.parse(rawCursor);
+      const b = typeof parsed?.blockNumber === 'string' ? parsed.blockNumber.trim() : '';
+      const i = typeof parsed?.id === 'string' ? parsed.id.trim() : '';
+      if (/^\d+$/.test(b)) startAfterBlockNumber = b;
+      if (i) startAfterId = i;
+    } catch {}
+  }
+
+  const envMax = Number(process.env.SYNC_AGENT_URI_UPDATES_MAX ?? '');
+  const maxUpdatesPerRun = Number.isFinite(envMax) && envMax > 0 ? Math.trunc(envMax) : 5000;
+
+  // Fetching this field is best-effort: not all subgraphs expose it.
+  const rows = await fetchAllFromSubgraphByBlockNumberCursor(
+    endpoint.url,
+    AGENT_URI_UPDATES_QUERY_BY_BLOCKNUMBER_CURSOR,
+    'agentURIUpdates',
+    {
+      optional: true,
+      first: 500,
+      maxItems: maxUpdatesPerRun,
+      startAfterBlockNumber,
+      startAfterId,
+    },
+  ).catch(() => []);
+
+  if (!rows.length) return [];
+
+  // Resolve updated agents by URI, not by update row id suffix.
+  // On some subgraphs, `agentURIUpdates.id` is `${txHash}-${logIndex}` (not the Agent.id),
+  // but `newAgentURI` maps to `Agent.agentURI`.
+  const uris: string[] = [];
+  for (const r of rows) {
+    const uri = typeof r?.newAgentURI === 'string' ? r.newAgentURI.trim() : '';
+    if (uri) uris.push(uri);
+  }
+  const uriToAgentId = await fetchAgentIdsByAgentUriIn(endpoint.url, uris, { chunkSize: 50 }).catch(() => new Map());
+  const ids: string[] = [];
+  const missingUris: string[] = [];
+  for (const uri of Array.from(new Set(uris))) {
+    const id = uriToAgentId.get(uri) ?? '';
+    if (id) ids.push(id);
+    else missingUris.push(uri);
+  }
+  const uniq = Array.from(new Set(ids)).filter((x) => /^\d+$/.test(x));
+
+  // Advance checkpoint to the last fetched row (even if some ids are invalid),
+  // so we don't loop forever on malformed data.
+  // But: don't advance if we couldn't extract any usable agent ids — that would drop updates on the floor.
+  if (uniq.length) {
+    const last = rows[rows.length - 1];
+    const lastId = typeof last?.id === 'string' ? last.id.trim() : '';
+    const lastBlock =
+      typeof last?.blockNumber === 'string'
+        ? last.blockNumber.trim()
+        : typeof last?.blockNumber === 'number'
+          ? String(last.blockNumber)
+          : '';
+    if (/^\d+$/.test(lastBlock) && lastId) {
+      await setCheckpoint(
+        endpoint.chainId,
+        'agent-uri-updates-cursor',
+        JSON.stringify({ blockNumber: lastBlock, id: lastId }),
+      );
+    }
+  }
+
+  if (!uniq.length) {
+    console.warn('[sync] [agent-uri-updates] fetched rows but could not extract numeric agent ids', {
+      chainId: endpoint.chainId,
+      rows: rows.length,
+      sampleId: typeof rows?.[0]?.id === 'string' ? rows[0].id.slice(0, 18) : null,
+      sampleNewAgentURI: typeof rows?.[0]?.newAgentURI === 'string' ? rows[0].newAgentURI.slice(0, 64) : null,
+    });
+  } else if (missingUris.length) {
+    console.warn('[sync] [agent-uri-updates] could not resolve some newAgentURIs to Agent.id (non-fatal)', {
+      chainId: endpoint.chainId,
+      rows: rows.length,
+      uniqueUris: Array.from(new Set(uris)).length,
+      resolvedAgents: uniq.length,
+      unresolvedUris: missingUris.length,
+      unresolvedSample: missingUris.slice(0, 5),
+    });
+  }
+  return uniq;
 }
 
 /** Returns the list of agent IDs that were ingested in this run (for pipeline to process only that batch). */
@@ -1360,6 +1475,7 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     const limitArg = process.argv.find((a) => a.startsWith('--limit='));
     const ensureAgentArg = process.argv.includes('--ensure-agent');
     let agentIds: string[];
+    let ingestedAgentCount = 0;
     if (agentIdsArg) {
       const csv = String(agentIdsArg.split('=')[1] ?? '').trim();
       agentIds = csv ? csv.split(',').map((s) => s.trim()).filter((s) => /^\d+$/.test(s)) : [];
@@ -1371,9 +1487,23 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
     } else {
       // Always run incremental agent sync first; then process only the batch just ingested.
       // Repeated runs fetch the next batch (e.g. next 5000) and process only that batch.
+      const updatedIds = await syncAgentUriUpdates(endpoint, false);
+      if (updatedIds.length) {
+        console.info('[sync] [agent-pipeline] found agentURIUpdates; will re-sync updated agents', {
+          chainId,
+          updatedAgentCount: updatedIds.length,
+        });
+        // Ensure the agent "core" RDF is refreshed for existing agents.
+        // (This is needed because the default incremental agents sync only ingests *new* mints.)
+        for (const agentId of updatedIds) {
+          await syncSingleAgent(endpoint, agentId);
+        }
+      }
+
       const ingestedIds = await syncAgents(endpoint, false);
-      if (!ingestedIds.length) {
-        console.info('[sync] [agent-pipeline] no new agents from subgraph (caught up). Running ENS sync anyway.');
+      ingestedAgentCount = ingestedIds.length;
+      if (!ingestedIds.length && !updatedIds.length) {
+        console.info('[sync] [agent-pipeline] no new agents and no agentURIUpdates. Running ENS sync anyway.');
 
         // ENS parent sync: materialize subdomains (e.g. *.8004-agent.eth) into this chain's KB context.
         // ENS source chain: mainnet for mainnet, sepolia for eth/base/op sepolia, Linea/Linea Sepolia for their chains.
@@ -1383,15 +1513,25 @@ async function runSync(command: SyncCommand, resetContext: boolean = false) {
 
         return;
       }
-      agentIds = ingestedIds.sort((a, b) => Number(a) - Number(b));
-      console.info('[sync] [agent-pipeline] will process batch just synced', { chainId, agentCount: agentIds.length });
+      agentIds = Array.from(new Set([...updatedIds, ...ingestedIds])).sort((a, b) => Number(a) - Number(b));
+      console.info('[sync] [agent-pipeline] will process agent batch', {
+        chainId,
+        agentCount: agentIds.length,
+        ingestedAgentCount: ingestedIds.length,
+        updatedAgentCount: updatedIds.length,
+      });
       const cooldownMs = Math.max(0, Number(process.env.SUBGRAPH_COOLDOWN_AFTER_AGENTS_MS) || 3000);
       if (cooldownMs) {
         console.info('[sync] [agent-pipeline] cooldown before bulk load', { cooldownMs });
         await sleep(cooldownMs);
       }
     }
-    const bulk = agentIdsArg ? undefined : await loadBulkSubgraphData(endpoint);
+    // Bulk-loading is useful primarily when we've ingested a new batch of agents.
+    // If we only have agentURIUpdates (no new mints), avoid doing expensive chain-wide bulk fetch.
+    const shouldBulkLoad = !agentIdsArg && ingestedAgentCount > 0;
+    const bulk: BulkSubgraphData | undefined = shouldBulkLoad
+      ? await loadBulkSubgraphData(endpoint).catch(() => undefined)
+      : undefined;
     const useBatch = bulk != null;
     const agentIriByDidIdentity =
       useBatch ? await listAgentIriByDidIdentity(chainId).catch(() => new Map<string, string>()) : undefined;
